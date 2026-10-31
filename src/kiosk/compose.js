@@ -82,7 +82,7 @@ export function frameCandidates(frames, { count, printSize, themeOrder = [] }) {
   const sameSize = sorted.filter((f) => size(f) === (printSize || "full"));
   const exact = sameSize.filter((f) => frameCapacity(f) === count);
   if (exact.length) return exact;
-  // Instax có tỉ lệ riêng (3 : 4): dùng khung Instax khác số ô trước khung 10 × 15.
+  // Khổ Instax in ở máy riêng: dùng khung Instax khác số ô trước khung 10 × 15.
   if (printSize === "instax" && sameSize.length) return sameSize;
   const sameCount = sorted.filter((f) => frameCapacity(f) === count);
   return sameCount.length ? sameCount : sorted;
@@ -182,7 +182,7 @@ export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filter
 
 // Tờ in 10 × 15 cm cho cả lượt: khung nguyên tờ (kể cả khung nhỏ phủ cả tờ — 2 dải, máy in cắt đôi)
 // in `prints` tờ; khung dải cũ (một dải) ghép 2 dải / tờ.
-// Khổ Instax (printSize của vé): mỗi tấm là một ảnh 600 × 800 riêng, máy Instax in từng tấm.
+// Khổ Instax (printSize của vé): mỗi tấm là một ảnh ngang 1260 × 840 riêng, máy Instax Link WIDE in từng tấm.
 export async function printSheets(frameCanvas, frame, prints, printSize = frame.printSize) {
   if (!prints) return [];
   if (printSize === "instax") {

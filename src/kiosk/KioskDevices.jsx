@@ -2,57 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "../studio";
 import { CROP_KEY } from "./live-preview-layout.js";
 import { billAcceptor, billSupported, readBillConfig, saveBillConfig } from "./bill-acceptor.js";
-import { connectCanonCamera, readCanonConfig, saveCanonConfig, watchCanonCamera } from "./canon-camera.js";
 
-// Phòng Polaroid · Canon R100: mã kết nối Canon Camera Agent (không bắt buộc). Có mã: máy chụp bấm
-// máy ảnh thật qua USB khi hết đếm ngược, ảnh gốc về thư mục ảnh. Không có: chụp từ hình trực tiếp.
-function CanonAgentBox({ toast }) {
-  const [token, setToken] = useState(() => readCanonConfig().token || "");
-  const [state, setState] = useState(null);
-  const [busy, setBusy] = useState(false);
-  useEffect(() => watchCanonCamera(setState), []);
-  const save = (value) => {
-    setToken(value);
-    saveCanonConfig({ token: value });
-  };
-  async function check() {
-    setBusy(true);
-    try {
-      await connectCanonCamera();
-      toast.success("Đã kết nối Canon R100 qua Canon Camera Agent.");
-    } catch (e) {
-      toast.error(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <fieldset className="kiosk-device-box">
-      <legend>Canon EOS R100 · phòng Polaroid (tự chụp theo đếm ngược)</legend>
-      <ol className="kiosk-device-steps">
-        <li>Hình trực tiếp: micro HDMI của R100 → thẻ ghi hình USB (hoặc EOS Webcam Utility qua USB). Tắt hiển thị thông số khi xuất HDMI và tắt Wi-Fi của máy ảnh.</li>
-        <li>Không có Canon Camera Agent: máy chụp lấy ảnh từ hình trực tiếp khi hết đếm ngược — dùng đèn liên tục, không cần thư mục ảnh.</li>
-        <li>Có Canon Camera Agent (Canon EDSDK): nhập mã kết nối dưới đây, chọn thư mục C:\PhotoBooth\CanonR100 ở phía trên; máy chụp bấm máy ảnh qua USB, dùng được flash. Tắt EOS Utility khi chạy Agent.</li>
-      </ol>
-      <label>
-        Mã kết nối Canon Camera Agent (để trống = chụp từ hình trực tiếp)
-        <input value={token} onChange={(e) => save(e.target.value)} placeholder="Dán mã Camera Agent hiển thị khi cài" />
-      </label>
-      <div className="kiosk-device-row">
-        <Button type="button" className="outline small" disabled={!token || busy} onClick={check}>
-          {busy ? "Đang kết nối…" : "Kiểm tra kết nối máy ảnh"}
-        </Button>
-      </div>
-      <p className="kiosk-device-note" role="status">
-        {!token
-          ? "Đang chụp từ hình trực tiếp (chưa dùng Canon Camera Agent)."
-          : state?.connected
-            ? `Đã kết nối ${state.model || "Canon EOS R100"}.`
-            : state?.error || "Chưa kiểm tra kết nối."}
-      </p>
-    </fieldset>
-  );
-}
 const money = (n) => `${Number(n).toLocaleString("vi-VN")} đ`;
 
 export function KioskDevices({ zoom, setZoom, roomInfo, toast }) {
@@ -80,9 +30,8 @@ export function KioskDevices({ zoom, setZoom, roomInfo, toast }) {
           onChange={(e) => { const value = Number(e.target.value) / 100; setZoom(value); localStorage.setItem(CROP_KEY, String(value)); }} />
         <small>Hãy tắt các thông tin hiển thị trong tín hiệu HDMI của Fujifilm; thanh này chỉ cắt mép.</small>
       </label>
-      {roomInfo?.kind === "polaroid" ? <CanonAgentBox toast={toast} /> : (
       <fieldset className="kiosk-device-box">
-        <legend>Fujifilm X-T3 / X-S10 / X-S20 · phòng Photobooth · chụp bằng dây bấm</legend>
+        <legend>Fujifilm X-T3 / X-S10 / X-S20 · phòng Photobooth & Polaroid · chụp bằng dây bấm</legend>
         <ol className="kiosk-device-steps">
           <li>Đặt IMAGE QUALITY thành FINE hoặc FINE + RAW; X-S20 chọn SELECT JPEG/HEIF → JPEG. Chọn Single shooting, tắt self-timer và AUTO POWER OFF.</li>
           <li>Trên máy ảnh chọn CONNECTION MODE → USB TETHER SHOOTING AUTO. X-S10 cần firmware 2.00 trở lên.</li>

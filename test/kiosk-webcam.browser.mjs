@@ -162,24 +162,19 @@ test("in webcam test mode a tap counts down, takes a photo from the webcam and i
   } finally { await b.close(); }
 });
 
-test("polaroid room (Canon R100): the kiosk counts down and shoots by itself up to the layout's shots, no folder needed", async () => {
+test("polaroid room shoots with the cable release like a photobooth: no countdown, no self-timer", async () => {
   const b = await booth(fakeCamera, {
     webcam: false,
     room: { _id: "room", flip: "device", kind: "polaroid" },
     extra: { shots: 2, selectCount: 2, countdownSeconds: 3, printSize: "instax" },
   });
   try {
-    // Không có nút chụp tay hay hướng dẫn bấm dây: máy tự chụp.
-    await b.page.getByText("Tự chụp sau mỗi 3 giây — tạo dáng nhé!").waitFor({ timeout: 15000 });
+    await b.page.getByText("Nhấn nút trên dây bấm để chụp").waitFor({ timeout: 15000 });
     assert.equal(await b.page.getByRole("button", { name: "Chạm để chụp" }).count(), 0);
-    assert.equal(await b.page.getByText("Nhấn nút trên dây bấm để chụp").count(), 0);
-    await b.page.getByRole("timer").filter({ hasText: /^3$/ }).waitFor({ timeout: 10000 });
-    await b.page.locator(".shoot-thumbs .shoot-thumb-no", { hasText: "1" }).waitFor({ timeout: 15000 });
-    // Đủ 2 tấm của layout: tự sang màn chọn ảnh.
-    await b.page.getByRole("heading", { name: /để chọn ảnh/ }).waitFor({ timeout: 30000 });
-    const picks = b.page.getByRole("group", { name: "Ảnh đã chụp" }).getByRole("button");
-    await picks.first().waitFor();
-    assert.equal(await picks.count(), 2);
+    // Gói cũ còn lưu "đếm ngược 3 giây": máy chụp không tự đếm, không tự chụp.
+    await b.page.waitForTimeout(4500);
+    assert.equal(await b.page.getByText(/Tự chụp sau mỗi/).count(), 0);
+    assert.equal(await b.page.locator(".shoot-thumbs .shoot-thumb-no").count(), 0, "nothing is shot without the cable");
     assert.deepEqual(b.errors, []);
   } finally { await b.close(); }
 });

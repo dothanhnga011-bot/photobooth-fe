@@ -53,13 +53,11 @@ export function KioskShoot({
   onEnd,
   onReopenCamera,
   webcam = null,
-  auto = null,
 }) {
   const t = useKioskText();
   const shooting = phase === "shoot" && !ending;
   const full = Boolean(quota) && taken >= quota;
-  // Phòng Polaroid tự chụp theo đếm ngược: không có nút chụp tay / hướng dẫn bấm dây.
-  const testing = Boolean(webcam?.on && ready && !auto);
+  const testing = Boolean(webcam?.on && ready);
   const centerCount =
     phase === "ready"
       ? preCount
@@ -108,18 +106,7 @@ export function KioskShoot({
             {centerCount}
           </strong>
         ) : null}
-        {shooting && !full && auto ? (
-          <div className={`shoot-press shoot-auto${auto.state === "failed" ? " is-failed" : ""}`} role="status">
-            <PiCameraBold aria-hidden="true" />
-            <strong>
-              {auto.state === "failed"
-                ? "Máy ảnh chưa chụp được — nhờ nhân viên hỗ trợ"
-                : auto.state === "connecting" ? "Đang kết nối máy ảnh…"
-                  : auto.state === "capturing" || auto.state === "waiting" ? "Đang chụp…"
-                    : t("shoot.auto", { s: auto.seconds })}
-            </strong>
-          </div>
-        ) : shooting && !full && (testing ? (
+        {shooting && !full && (testing ? (
           <button type="button" className="shoot-press shoot-snap" disabled={Boolean(webcam.count)} onClick={webcam.onSnap}>
             <PiCameraBold aria-hidden="true" />
             <strong>{webcam.count ? "Chuẩn bị…" : "Chạm để chụp"}</strong>

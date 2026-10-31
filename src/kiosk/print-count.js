@@ -1,6 +1,6 @@
 // Số bản in khách chọn ở máy chụp. Gói lưu số tờ 10 × 15 cm (như vé); khách đếm theo tờ cầm
 // trên tay: khổ nhỏ một tờ cắt đôi thành 2 tờ nhỏ, khổ to mỗi tờ là một tờ, Instax mỗi tấm là
-// một thẻ Instax mini (máy Instax mini Link 3 cạnh máy chụp).
+// một thẻ Instax Wide (máy Instax Link WIDE cạnh máy chụp).
 // Luật giống máy chủ (photobooth-be/src/routes/print-count.js): khách in tối thiểu 2 tờ.
 export const MIN_PIECES = 2;
 export const printSizeOf = (pack) => pack?.printSize || "full";

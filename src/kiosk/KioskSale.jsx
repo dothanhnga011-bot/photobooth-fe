@@ -167,7 +167,7 @@ export function KioskPackages({ packages, instax, onPick, onCode, onBack }) {
 const PRINT_NOTES = {
   strip: "ảnh nhỏ: 1 tờ 10 × 15 cm cắt đôi thành 2 tờ",
   full: "ảnh lớn 10 × 15 cm nguyên tờ",
-  instax: "ảnh Instax mini (thẻ 5,4 × 8,6 cm) in ngay ở máy cạnh bạn",
+  instax: "ảnh Instax Wide (thẻ 8,6 × 10,8 cm) in ngay ở máy cạnh bạn",
 };
 export function KioskPrintCount({ pack, sheets, extraPrintPrice, film = null, onChange, onNext, onBack }) {
   const t = useKioskText();

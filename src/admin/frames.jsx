@@ -20,6 +20,7 @@ import { api, assetUrl } from "../api";
 import { Button, ErrorBox, useStudio, useToast } from "../studio";
 import { compareFrameOrder } from "../frame-catalog-data";
 import { detectSlots, frameCapacity, isPhotoRegion, printDate } from "../frame-utils";
+import { serviceOf } from "./service-tabs";
 
 const PAGE_SIZE = 12;
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -27,11 +28,11 @@ const SIZES = { full: "Size lớn", strip: "Size nhỏ", instax: "Size Instax" }
 const SIZE_NOTES = {
   full: "In nguyên tờ 10 × 15 cm",
   strip: "2 dải 5 × 15 cm trên một tờ, máy in cắt đôi",
-  instax: "Thẻ Instax mini, ảnh dọc 3 : 4 (máy Instax mini Link 3)",
+  instax: "Thẻ Instax Wide, ảnh ngang 3 : 2 (máy Instax Link WIDE)",
 };
-const FRAME_TITLES = { full: "size lớn", strip: "size nhỏ", instax: "Instax mini" };
-// Cỡ ảnh khung theo khổ: tờ 10 × 15 là 1200 × 1800, Instax mini là 1200 × 1600 (dọc).
-const FRAME_PIXELS = { full: [1200, 1800], strip: [1200, 1800], instax: [1200, 1600] };
+const FRAME_TITLES = { full: "size lớn", strip: "size nhỏ", instax: "Instax Wide" };
+// Cỡ ảnh khung theo khổ: tờ 10 × 15 và thẻ Instax Wide đều 1200 × 1800 (3 : 2; Instax Wide thường ngang).
+const FRAME_PIXELS = { full: [1200, 1800], strip: [1200, 1800], instax: [1200, 1800] };
 const pixelsText = (printSize) => {
   const [w, h] = FRAME_PIXELS[printSize] || FRAME_PIXELS.full;
   return `${w} × ${h} hoặc ${h} × ${w}`;
@@ -44,6 +45,8 @@ export function FramesManager({ notify }) {
   const { reload: reloadCatalog, settings = {} } = useStudio();
   const [frames, setFrames] = useState(null);
   const [themes, setThemes] = useState([]);
+  // Loại hình của từng chủ đề (Photobooth / Polaroid): khung chỉ gán vào chủ đề cùng loại với khổ khung.
+  const [themeKinds, setThemeKinds] = useState({});
   const [theme, setTheme] = useState("all");
   const [size, setSize] = useState("all");
   const [page, setPage] = useState(1);
@@ -55,6 +58,7 @@ export function FramesManager({ notify }) {
     Promise.all([api("/admin/frames"), api("/admin/themes")]).then(([list, themeList]) => {
       setFrames(list);
       setThemes(themeList.map((t) => t.name));
+      setThemeKinds(Object.fromEntries(themeList.map((t) => [t.name, t.kind || "photobooth"])));
     }, (e) => setError(e.message));
   useEffect(() => {
     load();
@@ -114,6 +118,7 @@ export function FramesManager({ notify }) {
       <FrameEditor
         frame={editing}
         themes={themes}
+        themeKinds={themeKinds}
         frames={frames || []}
         onClose={() => setEditing(null)}
         onSaved={async (message) => {
@@ -154,7 +159,9 @@ export function FramesManager({ notify }) {
               {Object.entries(SIZES).map(([key, label]) => (
                 <button key={key} type="button" role="menuitem" onClick={() => {
                   setAdding(false);
-                  setEditing(newFrame(key, theme !== "all" && theme !== "none" ? theme : themes[0] || "", frames || []));
+                  setEditing(newFrame(key, theme !== "all" && theme !== "none" && (themeKinds[theme] || "photobooth") === serviceOf(key)
+                    ? theme
+                    : themes.find((name) => (themeKinds[name] || "photobooth") === serviceOf(key)) || "", frames || []));
                 }}>
                   {label}
                   <small>{SIZE_NOTES[key]}</small>
@@ -226,8 +233,8 @@ function newFrame(printSize, themeName, frames) {
   };
 }
 
-// Ảnh khung: PNG / JPG ≤ 10 MB, đúng 1200 × 1800 hoặc 1800 × 1200 (Instax: 1200 × 1600 hoặc
-// 1600 × 1200); ảnh cùng tỉ lệ được đưa về đúng cỡ, giữ nền trong suốt.
+// Ảnh khung: PNG / JPG ≤ 10 MB, đúng 1200 × 1800 hoặc 1800 × 1200 (Instax Wide cũng vậy, thường
+// ngang); ảnh cùng tỉ lệ được đưa về đúng cỡ, giữ nền trong suốt.
 async function readFrameFile(file, printSize = "full") {
   if (!/^image\/(png|jpeg|webp)$/.test(file.type)) throw new Error("Vui lòng chọn ảnh khung PNG (hoặc JPG).");
   if (file.size > MAX_BYTES) throw new Error("Ảnh khung tối đa 10 MB.");
@@ -339,7 +346,7 @@ function dragRegion(start, mode, dx, dy) {
 }
 
 // ─── Thêm / sửa khung (như Snapbox "Thêm mới frame size lớn"): form bên trái, khung bên phải ────
-function FrameEditor({ frame: initial, themes, frames, onClose, onSaved }) {
+function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose, onSaved }) {
   const toast = useToast();
   const [frame, setFrame] = useState(initial);
   const [selected, setSelected] = useState(-1);
@@ -357,7 +364,8 @@ function FrameEditor({ frame: initial, themes, frames, onClose, onSaved }) {
   const maxPhoto = Math.max(0, ...slots.filter(isPhotoRegion).map((s) => s.photo || 0));
   const strip = frame.printSize === "strip";
   const imageSrc = frame.image?.startsWith("data:") ? frame.image : assetUrl(frame.image);
-  const themeOptions = [...new Set([...themes, frame.themeName].filter((name) => name && name !== "__new"))];
+  const sameKind = themes.filter((name) => (themeKinds[name] || "photobooth") === serviceOf(frame.printSize));
+  const themeOptions = [...new Set([...sameKind, frame.themeName].filter((name) => name && name !== "__new"))];
 
   async function pickFile(file) {
     if (!file) return;
@@ -495,7 +503,7 @@ function FrameEditor({ frame: initial, themes, frames, onClose, onSaved }) {
             <select value={frame.printSize} onChange={(e) => set({ printSize: e.target.value })}>
               <option value="full">Size lớn — in nguyên tờ 10 × 15</option>
               <option value="strip">Size nhỏ — 2 dải trên một tờ, cắt đôi</option>
-              <option value="instax">Size Instax — thẻ Instax mini, ảnh dọc 3 : 4</option>
+              <option value="instax">Size Instax — thẻ Instax Wide, ảnh ngang 3 : 2</option>
             </select>
           </label>
           <label className="frame-color">

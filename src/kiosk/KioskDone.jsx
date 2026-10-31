@@ -17,7 +17,7 @@ const PRINT_TEXT = {
   manual: "Nhờ nhân viên in ảnh giúp bạn",
   failed: "Chưa in được — nhờ nhân viên in lại giúp bạn",
 };
-// Khổ Instax: máy Instax mini Link 3 đặt cạnh máy chụp, ảnh ra ngay tại đó.
+// Khổ Instax: máy Instax Link WIDE đặt cạnh máy chụp, ảnh ra ngay tại đó.
 const INSTAX_TEXT = {
   sent: "Đang chờ máy Instax nhận lệnh…",
   stalled: "Máy Instax chưa nhận lệnh — nhờ nhân viên kiểm tra giúp bạn",

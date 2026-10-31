@@ -249,7 +249,7 @@
   }
   .kiosk-size.full .kiosk-size-art i { width: 44px; }
   .kiosk-size.strip .kiosk-size-art i { width: 24px; }
-  /* Thẻ Instax mini: ảnh nhỏ trên thẻ trắng, lề dưới dày */
+  /* Thẻ Instax: ảnh trên thẻ trắng, lề dưới dày */
   .kiosk-size.instax .kiosk-size-art {
     padding: 8px 14px;
   }

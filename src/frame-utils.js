@@ -284,10 +284,10 @@ export function composeLayout(canvas, frameImage, slots, images, transforms, dec
 
 // ─── Bộ chủ đề (nhiều khung cùng themeName) & xuất tờ in DNP 10 × 15 cm ───
 export const SHEET = { w: 1200, h: 1800 }; // 4 × 6 inch @ 300 pixels/inch
-// Khung Instax mini thiết kế ở 1200 × 1600 (3 : 4, ảnh ghép trong album nét hơn); máy Instax mini
-// Link 3 in ảnh dọc 600 × 800.
-export const INSTAX_FRAME = { w: 1200, h: 1600 };
-export const INSTAX_PRINT = { w: 600, h: 800 };
+// Khung Instax Wide thiết kế ở 1800 × 1200 (ngang 3 : 2, cùng cỡ tờ 10 × 15 nên ảnh ghép trong album
+// nét); máy Instax Link WIDE in ảnh ngang 1260 × 840.
+export const INSTAX_FRAME = { w: 1200, h: 1800 };
+export const INSTAX_PRINT = { w: 1260, h: 840 };
 
 // themeOrder: tên chủ đề theo thứ tự quản trị sắp ở Thiết lập → Chủ đề (chủ đề khác xếp sau).
 export function groupFramePacks(frames, themeOrder = []) {
@@ -356,7 +356,7 @@ function placeOn(ctx, source, x, y, w, h) {
   ctx.restore();
 }
 
-// Một tấm Instax: ảnh dọc 600 × 800, khung ngang được xoay cho vừa.
+// Một tấm Instax Wide: ảnh ngang 1260 × 840, khung dọc được xoay cho vừa.
 export function instaxPrint(canvas) {
   const out = document.createElement("canvas");
   out.width = INSTAX_PRINT.w;

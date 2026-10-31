@@ -259,7 +259,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
               </label>
               {pack && (
                 <p className="muted">
-                  {pack.shots || "—"} lần chụp · {pack.countdownSeconds || 10} giây/ảnh · {printsText(pack)}
+                  {pack.shots || "—"} lần chụp · {printsText(pack)}
                 </p>
               )}
               <label>

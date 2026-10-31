@@ -224,6 +224,11 @@ before(async () => {
         send(data.themes);
         return;
       }
+      if (path === "/api/admin/themes" && entry.method === "POST") {
+        data.themes.push({ name: entry.body.name, kind: entry.body.kind || "photobooth" });
+        send(data.themes, 201);
+        return;
+      }
       const move = path.match(/^\/api\/admin\/frames\/([^/]+)\/move$/);
       if (move && entry.method === "POST") {
         const frame = data.frames.find((item) => item._id === move[1]);
@@ -263,7 +268,7 @@ before(async () => {
         );
         send(data[resource].find((item) => item._id === id));
       } else if (entry.method === "POST") {
-        const item = { ...entry.body, _id: `${resource}-new` };
+        const item = { ...entry.body, _id: `${resource}-new-${data[resource].length}` };
         data[resource].push(item);
         send(item);
       } else if (entry.method === "DELETE") {
@@ -327,6 +332,8 @@ async function mount(resource, overrides = {}) {
   pageErrors = [];
   await page.goto(`http://127.0.0.1:${server.address().port}/catalog`);
   await page.waitForFunction(() => typeof window.mountCatalog === "function");
+  // Khổ ảnh & bảng giá nhớ tab Photobooth / Polaroid đang xem: mỗi test bắt đầu ở tab Photobooth.
+  await page.evaluate(() => localStorage.removeItem("admin-service-tab"));
   await page.evaluate((resource) => window.mountCatalog(resource), resource);
   await page.locator(CARDS[resource]).first().waitFor();
 }
@@ -456,10 +463,10 @@ test("adding a package validates required fields and sends numeric values", asyn
         price: 150000,
         duration: 25,
         prints: 3,
-        // Defaults of a new package: 12 shots, pick 4, 10 s countdown, full 10 × 15 sheet, every branch.
+        // Defaults of a new package: 12 shots (cable presses, no countdown), pick 4, full 10 × 15 sheet,
+        // every branch.
         shots: 12,
         selectCount: 4,
-        countdownSeconds: 10,
         printSize: "full",
         branches: [],
         active: true,
@@ -474,7 +481,9 @@ test("packages are grouped by photo size; a small-size package starts with one s
   await mount("packages");
   const small = page.getByRole("region", { name: "Khổ nhỏ" });
   const large = page.getByRole("region", { name: "Khổ to" });
-  assert.match(await page.getByRole("region", { name: "Layout Polaroid" }).innerText(), /Chưa có layout Polaroid/);
+  // Tab Photobooth chỉ có khổ nhỏ / khổ to; layout Polaroid ở tab riêng.
+  assert.equal(await page.getByRole("tab", { name: /Photobooth/ }).getAttribute("aria-selected"), "true");
+  assert.equal(await page.getByRole("region", { name: "Layout Polaroid" }).count(), 0);
   assert.equal(await large.locator(".package-card").count(), 3);
   assert.match(await small.innerText(), /Chưa có gói khổ nhỏ/);
   // Khổ to kèm 1 tờ: dưới mức tối thiểu 2 tờ, không gửi lên máy chủ.
@@ -501,6 +510,61 @@ test("packages are grouped by photo size; a small-size package starts with one s
   // Danh sách tải lại sau khi lưu: chờ thẻ mới hiện rồi mới đếm.
   await small.locator(".package-card").first().waitFor();
   assert.equal(await small.locator(".package-card").count(), 1);
+  assertClean();
+});
+
+test("the Polaroid tab lists only layouts and creates the 6 sample layouts with white Instax Wide frames", async () => {
+  await mount("packages");
+  await page.getByRole("tab", { name: /Polaroid/ }).click();
+  const layouts = page.getByRole("region", { name: "Layout Polaroid" });
+  assert.match(await layouts.innerText(), /Chưa có layout Polaroid/);
+  assert.equal(await page.getByRole("region", { name: "Khổ to" }).count(), 0);
+  assert.match(await page.locator(".extra-price-panel").innerText(), /mỗi tấm Instax Wide/i);
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Tạo 6 layout mẫu" }).click();
+  await layouts.locator(".package-card").nth(5).waitFor();
+  const made = mutations();
+  assert.deepEqual(made.map((m) => `${m.method} ${m.path}`), [
+    "POST /api/admin/themes",
+    ...Array(6).fill("POST /api/admin/frames"),
+    ...Array(6).fill("POST /api/admin/packages"),
+  ]);
+  assert.deepEqual(made[0].body, { name: "Layout trắng", kind: "polaroid" });
+  const frames = made.slice(1, 7).map((m) => m.body);
+  assert.deepEqual(frames.map((f) => [f.printSize, f.themeName, f.slots.length, f.slots.at(-1).photo]),
+    [1, 2, 3, 4, 5, 6].map((n) => ["instax", "Layout trắng", n, n]));
+  assert.ok(frames.every((f) => f.image.startsWith("data:image/png;base64,")));
+  // Khung trắng là thẻ Instax Wide nằm ngang 1800 × 1200.
+  const size = await page.evaluate((src) => new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve([image.naturalWidth, image.naturalHeight]);
+    image.src = src;
+  }), frames[4].image);
+  assert.deepEqual(size, [1800, 1200]);
+  const packs = made.slice(7).map((m) => m.body);
+  assert.deepEqual(packs.map((p) => [p.printSize, p.selectCount, p.price, p.prints]),
+    [1, 2, 3, 4, 5, 6].map((n) => ["instax", n, 110000, 2]));
+  assert.equal(await layouts.locator(".package-card .layout-art").nth(4).locator("i").count(), 5);
+  assert.deepEqual(await notifications(), ["Đã tạo 6 layout và 6 khung trắng mẫu."]);
+  await mkdir(screenshotDirectory, { recursive: true });
+  await page.screenshot({ path: join(screenshotDirectory, "packages-polaroid.png"), fullPage: true });
+  // Bấm lại: đã đủ layout và khung 1–6 ảnh, không tạo thêm.
+  requests = [];
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Tạo 6 layout mẫu" }).click();
+  await page.waitForFunction(() => window.notifications.length === 2);
+  assert.deepEqual(mutations(), []);
+  // Layout mới: không có ô chọn khổ, số ảnh chọn bằng hình layout.
+  await page.getByRole("button", { name: "Thêm layout" }).first().click();
+  const dialog = page.getByRole("dialog");
+  assert.equal(await dialog.locator('select[name="printSize"]').count(), 0);
+  await dialog.getByRole("radio", { name: "5 ảnh" }).check({ force: true });
+  assert.equal(await dialog.locator(".kiosk-layout-preview .layout-art i").count(), 5);
+  await page.screenshot({ path: join(screenshotDirectory, "packages-polaroid-editor.png") });
+  await dialog.getByRole("button", { name: "Huỷ" }).click();
+  // Tab Photobooth vẫn chỉ có gói 10 × 15.
+  await page.getByRole("tab", { name: /Photobooth/ }).click();
+  await expectCount("packages", 3);
   assertClean();
 });
 

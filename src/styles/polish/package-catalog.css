@@ -386,10 +386,11 @@
   }
   .admin-shell .package-size-art.is-full i { width: 15px; }
   .admin-shell .package-size-art.is-strip i { width: 8px; }
+  /* Thẻ Instax Wide nằm ngang: viền trắng, đáy dày hơn */
   .admin-shell .package-size-art.is-instax i {
-    width: 26px;
+    width: 52px;
     border: 3px solid #fffaf3;
-    border-bottom-width: 9px;
+    border-bottom-width: 7px;
   }
   /* Nút "Thêm gói …" của từng khổ: viền nét đứt nâu đậm, chữ đậm — nổi trên nền kraft
      (thêm .package-size-head để thắng viền nhạt chung của nút thẻ gói trong catalogs.css). */
@@ -465,6 +466,130 @@
   .admin-shell .kiosk-size-preview .kiosk-size.full .kiosk-size-art i { width: 32px; }
   .admin-shell .kiosk-size-preview .kiosk-size.strip .kiosk-size-art i { width: 17px; }
   .admin-shell .kiosk-size-preview .kiosk-size.instax .kiosk-size-art i { width: 46px; border-width: 4px 4px 14px; }
+  /* Hai nút chuyển loại hình chụp (Khổ ảnh & bảng giá, Chủ đề): Photobooth / Polaroid. */
+  .admin-shell .service-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .admin-shell .service-tab {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 72px;
+    padding: 14px 18px;
+    border: 2px solid var(--line);
+    border-radius: 16px;
+    background: #fff;
+    color: var(--mellow-cocoa, #522e22);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .admin-shell .service-tab:hover {
+    border-color: rgb(82 46 34 / 45%);
+  }
+  .admin-shell .service-tab.is-active {
+    border-color: var(--mellow-cocoa, #522e22);
+    background: #fffaf3;
+    box-shadow: inset 0 -4px 0 var(--mellow-cocoa, #522e22);
+  }
+  .admin-shell .service-tab > span {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+  .admin-shell .service-tab strong {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--wine);
+    font: 700 19px / 1.2 var(--mellow-display);
+  }
+  .admin-shell .service-tab em {
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: var(--mellow-kraft-deep);
+    color: var(--mellow-cocoa, #522e22);
+    font: 600 12px / 1 var(--sans, inherit);
+    font-style: normal;
+  }
+  .admin-shell .service-tab small {
+    color: var(--muted);
+    font-size: 12px;
+  }
+  @media (max-width: 560px) {
+    .admin-shell .service-tabs {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  /* Tab Polaroid chỉ có một nhóm (layout): thẻ layout xếp nhiều cột. */
+  .admin-shell .package-size-groups.is-single .package-size-group .package-catalog-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
+  }
+  .admin-shell .package-card-layout .layout-art,
+  .admin-shell .layout-pick .layout-art {
+    width: 64px;
+    border-width: 1.5px;
+    box-shadow: none;
+  }
+  .admin-shell .package-card-layout .layout-art i,
+  .admin-shell .layout-pick .layout-art i {
+    border-width: 1px;
+  }
+  /* Form layout: chọn số ảnh bằng hình layout. */
+  .admin-shell .layout-picker {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+    gap: 8px;
+  }
+  .admin-shell .layout-pick {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    padding: 10px 6px 8px;
+    border: 2px solid var(--line);
+    border-radius: 12px;
+    background: #fff;
+    color: var(--mellow-cocoa, #522e22);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .admin-shell .layout-pick.is-selected {
+    border-color: var(--mellow-cocoa, #522e22);
+    background: #fffaf3;
+  }
+  .admin-shell .layout-pick:focus-within {
+    outline: 2px solid var(--mellow-cocoa, #522e22);
+    outline-offset: 2px;
+  }
+  .admin-shell .layout-pick input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .admin-shell .resource-field-fixed {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--mellow-kraft-deep);
+    color: var(--mellow-cocoa, #522e22);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  /* Xem trước thẻ layout như màn "Chọn layout" của máy chụp. */
+  .admin-shell .kiosk-layout-preview {
+    display: grid;
+    margin: 22px 6px 4px;
+  }
+  .admin-shell .kiosk-layout-preview .kiosk-layout {
+    min-height: 0;
+    rotate: -1.5deg;
+    cursor: default;
+  }
   /* Giá in thêm (cuối trang bảng giá): mỗi loại giấy một ô. */
   .admin-shell .extra-price-pair {
     display: grid;

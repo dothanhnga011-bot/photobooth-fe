@@ -34,7 +34,7 @@ export function KioskSettings({
   webcamTest = false,
   setWebcamTest = () => {},
 }) {
-  const usable = liveUsableFor({ webcam: webcamTest, polaroid: roomInfo?.kind === "polaroid" });
+  const usable = liveUsableFor({ webcam: webcamTest });
   return (
     <details className="kiosk-settings">
       <summary>
@@ -52,25 +52,10 @@ export function KioskSettings({
         />
       </summary>
       <div className="kiosk-settings-body">
-        {roomInfo?.kind === "polaroid" ? (
-          <Guide
-            id="kiosk-camera-canon"
-            dark
-            title="kết nối Canon EOS R100 (phòng Polaroid)"
-            steps={[
-              "Cắm micro HDMI của R100 vào thẻ ghi hình USB (hoặc dùng EOS Webcam Utility qua cáp USB); bật máy ảnh, tắt Wi-Fi của máy ảnh.",
-              "Trên R100 tắt hiển thị thông số khi xuất HDMI; dùng chế độ chụp ảnh tĩnh, lấy nét tự động vào mặt.",
-              "“Hình trực tiếp từ máy ảnh”: để Tự động hoặc chọn thẻ ghi hình / EOS Webcam, không chọn webcam máy tính.",
-              "Phòng Polaroid tự chụp theo đếm ngược của layout (Khổ ảnh & bảng giá → “Đếm ngược trước mỗi ảnh”). Ảnh lấy từ hình trực tiếp (Full HD, đủ nét cho thẻ Instax) — dùng đèn liên tục, không cần thư mục ảnh.",
-              "Muốn máy ảnh chụp ảnh gốc và nháy flash: cài Canon Camera Agent (cần Canon EDSDK), nhập mã kết nối ở mục “Canon EOS R100” bên dưới và chọn thư mục ảnh C:\\PhotoBooth\\CanonR100.",
-            ]}
-            note="Khách chọn layout là vào chụp: máy tự đếm ngược và chụp tới đủ số lần của layout; khách bấm “Chụp xong” để dừng sớm."
-          />
-        ) : (
         <Guide
           id="kiosk-camera"
           dark
-          title="kết nối Fujifilm X-T3 / X-S10 / X-S20 (phòng Photobooth)"
+          title="kết nối Fujifilm X-T3 / X-S10 / X-S20 (phòng Photobooth & Polaroid)"
           steps={[
             "Cắm USB dữ liệu từ Fujifilm vào máy tính và micro HDMI vào thẻ ghi hình; bật máy ảnh.",
             "Trên máy ảnh chọn USB TETHER SHOOTING AUTO, FINE hoặc FINE + RAW, định dạng JPEG, Single shooting và tắt self-timer.",
@@ -79,9 +64,8 @@ export function KioskSettings({
             "Bấm “Thử nhận ảnh từ máy ảnh”, rồi nhấn dây bấm tương thích Fujifilm; xác nhận JPEG gốc xuất hiện trong thư mục và kiosk.",
             "“Hình trực tiếp từ máy ảnh”: để Tự động hoặc chọn thẻ ghi hình (USB Video), không chọn webcam máy tính.",
           ]}
-          note="Máy ảnh phải bật nguồn và FUJIFILM X Acquire phải kết nối. Mã voucher đã thanh toán tại quầy sẽ mở lượt chụp; khách bấm dây để chụp."
+          note="Máy ảnh phải bật nguồn và FUJIFILM X Acquire phải kết nối. Khách bấm dây để chụp — phòng Polaroid cũng vậy, không còn tự chụp theo đếm ngược."
         />
-        )}
         <div className="kiosk-folder">
           <p>
             Thư mục ảnh: <b>{folder ? folder.name : "chưa chọn"}</b>

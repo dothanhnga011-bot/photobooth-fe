@@ -65,9 +65,6 @@ import { KioskSettings } from "./KioskSettings.jsx";
 import { KioskShoot } from "./KioskShoot.jsx";
 import { KioskSelect, useShotBitmaps } from "./KioskSelect.jsx";
 import { NO_DECOR, filterChoices, filterStepsFor, photoFilterId } from "./decor.js";
-import { readCanonConfig } from "./canon-camera.js";
-import { prepareShutter } from "./shutter.js";
-import { runTimedShot } from "./timed-shot.js";
 import { visibleRegion } from "./live-preview-layout.js";
 import { KioskCode, KioskPackages, KioskPayChoice, KioskPayment, KioskPrintCount } from "./KioskSale.jsx";
 import { KioskLayouts } from "./KioskPolaroid.jsx";
@@ -165,7 +162,6 @@ export function Kiosk() {
     recorder = useRef(createClipRecorder()),
     endingRef = useRef(false),
     webcamRef = useRef(webcamTest),
-    polaroidRef = useRef(false),
     snapping = useRef(false),
     opening = useRef(false);
   current.current = session;
@@ -457,7 +453,7 @@ export function Kiosk() {
       (await navigator.mediaDevices.enumerateDevices()).filter(
         (d) => d.kind === "videoinput",
       );
-    const usable = liveUsableFor({ webcam: webcamRef.current, polaroid: polaroidRef.current });
+    const usable = liveUsableFor({ webcam: webcamRef.current });
     const choose = (list) =>
       list.some((d) => d.deviceId === id && usable(d))
         ? id
@@ -588,10 +584,9 @@ export function Kiosk() {
     }), "zoom");
     shown.current = {};
   }
-  // Cần thư mục ảnh của máy ảnh, trừ khi ảnh lấy thẳng từ hình trực tiếp: thử máy bằng webcam, hoặc
-  // phòng Polaroid chưa cài Canon Camera Agent.
-  const needsFolder = () =>
-    !webcamRef.current && !(polaroidRef.current && !readCanonConfig().token);
+  // Mọi phòng chụp bằng dây bấm: cần thư mục ảnh của máy ảnh, trừ khi thử máy bằng webcam (ảnh lấy
+  // thẳng từ hình trực tiếp).
+  const needsFolder = () => !webcamRef.current;
   const checkFolder = () => {
     if (!needsFolder()) return true;
     if (!canPickFolder) {
@@ -670,8 +665,7 @@ export function Kiosk() {
   // Số tờ 10 × 15 khách mua (khổ nhỏ: 1 tờ = 2 tờ nhỏ), không dưới mức tối thiểu của gói.
   const sheetsOf = (s) => Math.max(minSheets(s.pack), Number(s.prints) || 0);
   const saleSheets = sale?.pack ? sheetsOf(sale) : 0;
-  // Có thư mục ảnh của máy ảnh, hoặc ảnh lấy thẳng từ hình trực tiếp (thử máy bằng webcam; phòng
-  // Polaroid chưa cài Canon Camera Agent) nên không cần thư mục.
+  // Có thư mục ảnh của máy ảnh, hoặc đang thử máy bằng webcam (ảnh lấy thẳng từ hình trực tiếp).
   const cameraReady = Boolean(folder && folderAccess === "granted") || !needsFolder();
   function setWebcamTest(on) {
     localStorage.setItem(WEBCAM_KEY, on ? "1" : "0");
@@ -698,8 +692,7 @@ export function Kiosk() {
       setSnapCount(0);
     }
   }
-  // Chụp một khung hình từ hình trực tiếp (webcam khi thử máy; Canon R100 qua HDMI / USB ở phòng
-  // Polaroid): cắt mép thông số như khung xem trước, nhận như một ảnh từ máy ảnh.
+  // Thử máy bằng webcam: chụp một khung hình từ hình trực tiếp, nhận như một ảnh từ máy ảnh.
   async function grabLiveFrame() {
     const v = video$.current;
     if (!v?.videoWidth || phaseOf(current.current) !== "shoot") throw new Error("Chưa có hình trực tiếp để chụp.");
@@ -719,7 +712,6 @@ export function Kiosk() {
   // Loại phòng (Quản lý máy → Cài máy chụp): photobooth (khách chọn Nhập mã / Tiền mặt, in DNP) hoặc
   // Polaroid (khách chọn layout rồi chụp luôn, trả tiền ở quầy, in Instax).
   const polaroid = roomInfo?.kind === "polaroid";
-  polaroidRef.current = polaroid;
   // Lượt mua dở (đã chọn gói / số tờ) chỉ có ở phòng photobooth. Phòng đã đổi sang Polaroid: bỏ lượt
   // mua dở chưa nhận tiền, về màn chờ. Đã nhận tiền thật thì giữ lại để nhân viên xử lý.
   const roomKind = roomInfo?.kind;
@@ -729,56 +721,6 @@ export function Kiosk() {
     if (["method", "code", "package", "print", "pay"].includes(step)) transition(() => setStep("start"), "fade");
   }, [roomKind, sale?.pack, sale?.bills?.length]);
   const cashReady = Boolean(roomInfo?.cashCheckoutReady);
-  // Phòng Polaroid dùng Canon R100 và tự chụp theo đếm ngược (R100 không có cổng dây bấm như
-  // Fujifilm). Có Canon Camera Agent (mã kết nối trong Cài đặt máy chụp): bấm máy ảnh thật qua USB,
-  // ảnh gốc về thư mục. Chưa có: lấy khung hình từ hình trực tiếp (Full HD, đủ nét cho thẻ Instax).
-  const [autoState, setAutoState] = useState("");
-  useEffect(() => {
-    if (!polaroid || phase !== "shoot" || !ready || done || ending) return;
-    const controller = new AbortController();
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    (async () => {
-      await wait(1500);
-      let failures = 0;
-      while (!controller.signal.aborted) {
-        const s = current.current;
-        if (!s || phaseOf(s) !== "shoot" || endingRef.current || doneRef.current) return;
-        const quota = Number(s.booking.shots) || 10;
-        const before = shotsOf(s).length;
-        if (before + readingRef.current >= quota) return;
-        const agent = Boolean(readCanonConfig().token) && !webcamRef.current;
-        try {
-          await runTimedShot({
-            prepare: agent
-              ? (signal) => prepareShutter("timer", signal)
-              : async () => ({ focus: async () => {}, press: () => grabLiveFrame() }),
-            signal: controller.signal,
-            countdownSeconds: Math.max(3, Number(s.booking.countdownSeconds) || 5),
-            onState: setAutoState,
-            onTick: (n) => setSnapCount(n || 0),
-            onPressed: () => setSnapCount(0),
-            hasPhoto: () => shotsOf(current.current).length > before,
-            isReceiving: () => readingRef.current + detectingRef.current > 0,
-          });
-          failures = 0;
-        } catch (e) {
-          if (controller.signal.aborted) return;
-          failures++;
-          notifyOnce("auto-shot", "error", e.message, 10000);
-          // Ba lần liền không chụp được: dừng tự chụp, khách bấm "Chụp xong" hoặc gọi nhân viên.
-          if (failures >= 3) return setAutoState("failed");
-        }
-        setSnapCount(0);
-        setAutoState("");
-        await wait(2500);
-      }
-    })();
-    return () => {
-      controller.abort();
-      setSnapCount(0);
-      setAutoState("");
-    };
-  }, [polaroid, phase, ready, done, ending, session?.accessToken]);
   // Phòng photobooth bán tờ bé / tờ to (DNP); layout khổ Instax là của phòng Polaroid.
   const boothPackages = useMemo(() => roomPackages.filter((p) => !isInstax(p)), [roomPackages]);
   const layouts = useMemo(
@@ -1403,7 +1345,6 @@ export function Kiosk() {
           onEnd={() => endCapture(false)}
           onReopenCamera={() => openCamera()}
           webcam={{ on: webcamTest, label: liveLabel, count: snapCount, onSnap: snapWebcam, onToggle: setWebcamTest }}
-          auto={polaroid ? { seconds: Math.max(3, Number(session.booking.countdownSeconds) || 5), state: autoState } : null}
         />
         {error && !(error === CAMERA_ERROR && !ready) && (
           <div className="shoot-error">

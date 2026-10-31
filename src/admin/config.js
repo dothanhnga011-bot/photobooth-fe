@@ -50,7 +50,6 @@ export const RESOURCE_RULES = {
     duration: ["Thời gian chụp", required, intRange(1, 30)],
     shots: ["Số lần chụp", required, intRange(1, 40)],
     selectCount: ["Số ảnh khách chọn để ghép", required, intRange(1, 12)],
-    countdownSeconds: ["Đếm ngược mỗi ảnh", required, intRange(1, 30)],
     prints: [
       "Số tờ in",
       required,
@@ -154,7 +153,7 @@ export const NAV_DESCRIPTIONS = {
 // kết / QR. Đầu ca nhân viên mở máy chụp từng phòng.
 export const ROOM_KINDS = [
   ["photobooth", "Photobooth", "Khách chọn Nhập mã (đã chuyển khoản ở quầy) hoặc Tiền mặt (chọn loại tờ, số lượng rồi đút tiền). Chụp xong chọn ảnh, khung rồi in ở máy DNP."],
-  ["polaroid", "Polaroid", "Khách chọn layout (số ảnh, giá) → “vào chụp nha” → chụp có đếm ngược, tối đa số lần chụp của layout → chọn khung. Trả tiền ở quầy, in ở máy Instax mini."],
+  ["polaroid", "Polaroid", "Khách chọn layout (số ảnh, giá) → “vào chụp nha” → bấm dây chụp, tối đa số lần chụp của layout → chọn ảnh & khung. Trả tiền ở quầy, in ở máy Instax Link WIDE (ảnh ngang)."],
 ];
 export const ROOM_KIND_NAMES = { photobooth: "Phòng Photobooth", polaroid: "Phòng Polaroid" };
 
@@ -174,9 +173,8 @@ export const definitions = {
     ["price", "Giá (VND)", "number"],
     ["prints", "Số tờ in kèm gói", "number"],
     ["duration", "Thời gian chụp (phút)", "number"],
-    ["shots", "Số lần chụp (số lần bấm dây / tự chụp)", "number"],
+    ["shots", "Số lần chụp (số lần bấm dây)", "number"],
     ["selectCount", "Số ảnh khách chọn để ghép khung", "number"],
-    ["countdownSeconds", "Đếm ngược trước mỗi ảnh (giây)", "number"],
     ["branches", "Chi nhánh áp dụng", "branches"],
   ],
   users: [

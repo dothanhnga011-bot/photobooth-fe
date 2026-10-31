@@ -21,18 +21,13 @@ function encodePayload(source) {
   return btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(""));
 }
 
-// kind: loại phòng. Photobooth (Fujifilm) mở FUJIFILM X Acquire; Polaroid (Canon R100) mở Canon
-// Camera Agent nếu máy đã cài (không cài thì máy chụp chụp từ hình trực tiếp).
-export function windowsScript(url, room, kind = "photobooth") {
-  const camera = kind === "polaroid"
-    ? [
-        'if exist "%LOCALAPPDATA%\\NXC-CanonAgent\\start.ps1" start "" /min powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "%LOCALAPPDATA%\\NXC-CanonAgent\\start.ps1"',
-      ]
-    : [
-        'set "NXC_FUJI_ACQUIRE=%LOCALAPPDATA%\\NXC-Kiosk\\start-fuji-acquire.ps1"',
-        `powershell -NoProfile -Command "try { $source = [IO.File]::ReadAllText($env:NXC_KIOSK_INSTALLER); $payload = [regex]::Match($source, '(?m)^rem NXC_FUJI_ACQUIRE_BASE64:([A-Za-z0-9+/=]+)'); if (-not $payload.Success) { exit 1 }; [IO.File]::WriteAllBytes($env:NXC_FUJI_ACQUIRE, [Convert]::FromBase64String($payload.Groups[1].Value)) } catch { exit 1 }"`,
-        'if not errorlevel 1 start "" /min powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "%NXC_FUJI_ACQUIRE%"',
-      ];
+// Phòng Photobooth và Polaroid đều chụp bằng Fujifilm + dây bấm: mở FUJIFILM X Acquire.
+export function windowsScript(url, room) {
+  const camera = [
+    'set "NXC_FUJI_ACQUIRE=%LOCALAPPDATA%\\NXC-Kiosk\\start-fuji-acquire.ps1"',
+    `powershell -NoProfile -Command "try { $source = [IO.File]::ReadAllText($env:NXC_KIOSK_INSTALLER); $payload = [regex]::Match($source, '(?m)^rem NXC_FUJI_ACQUIRE_BASE64:([A-Za-z0-9+/=]+)'); if (-not $payload.Success) { exit 1 }; [IO.File]::WriteAllBytes($env:NXC_FUJI_ACQUIRE, [Convert]::FromBase64String($payload.Groups[1].Value)) } catch { exit 1 }"`,
+    'if not errorlevel 1 start "" /min powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "%NXC_FUJI_ACQUIRE%"',
+  ];
   const lines = [
     "@echo off",
     "setlocal DisableDelayedExpansion",

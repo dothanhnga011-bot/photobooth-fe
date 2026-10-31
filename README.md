@@ -156,20 +156,21 @@ Một web, hai **loại phòng**. Đầu ca, nhân viên mở máy chụp từng
   - **Tiền mặt**: chọn loại tờ (tờ bé / tờ to) → chọn số lượng → màn đọc tiền. Mỗi tờ tiền máy nhận
     được cộng ngay trên màn hình; đủ tiền là vào màn chụp. Chưa lắp máy đọc tiền thì bật “Chế độ
     thử tiền mặt” trong hộp Cài máy chụp để thử bằng nút giả lập.
-- **Polaroid** (máy ảnh **Canon EOS R100**, in ở máy Instax mini Link 3 qua print agent — xem README của `photobooth-be`):
-  Chạm để bắt đầu → **Chọn layout** (thẻ số ảnh + giá) → thông báo “Chọn layout này, vào chụp nha!” →
-  chụp (đồng hồ đếm ngược, tối đa số lần chụp của layout, mặc định 10) → chọn ảnh & khung → in Instax.
+- **Polaroid** (máy ảnh Fujifilm + FUJIFILM X Acquire + **dây bấm** như phòng Photobooth, in ở máy
+  **Instax Link WIDE** qua print agent — xem README của `photobooth-be`):
+  Chạm để bắt đầu → **Chọn layout** (lưới thẻ: hình layout, số ảnh, giá) → thông báo “Chọn layout này, vào chụp
+  nha!” → khách bấm dây chụp (không đếm ngược, tối đa số lần chụp của layout) → chọn ảnh & khung → in Instax.
   Khách **trả tiền ở quầy**: đơn ghi “Polaroid · chưa thu tiền”, nhân viên bấm “Đã thu tiền mặt / chuyển
-  khoản” ở Đơn hàng. Layout là các gói khổ Instax ở Khổ ảnh & bảng giá (số ảnh trong layout, giá, số lần
-  chụp tối đa); khung Instax là ảnh dọc 1200 × 1600, mỗi tấm in 600 × 800.
+  khoản” ở Đơn hàng. Layout là các gói khổ Instax ở Khổ ảnh & bảng giá → tab **Polaroid** (số ảnh trong layout
+  chọn bằng hình, giá, số lần chụp tối đa); nút **Tạo 6 layout mẫu** tạo layout 1–6 ảnh (5 ảnh = 2 to trái + 3 bé
+  phải, `src/polaroid-layouts.js`) kèm khung trắng. Khung Instax là thẻ Instax Wide ngang 1800 × 1200, mỗi tấm
+  in 1260 × 840.
 
-Phòng Polaroid **tự chụp theo đếm ngược** (R100 không có cổng dây bấm): đếm “Đếm ngược trước mỗi ảnh”
-của layout rồi chụp, lặp tới đủ “Số lần chụp tối đa”, khách bấm “Chụp xong” để dừng sớm. Mặc định ảnh lấy
-từ hình trực tiếp của R100 (micro HDMI → thẻ ghi hình, hoặc EOS Webcam Utility; Full HD, đủ nét cho thẻ
-Instax; dùng đèn liên tục, không cần thư mục ảnh). Nhập mã Canon Camera Agent (`scripts/canon-camera`,
-cần Canon EDSDK) ở Cài đặt máy chụp thì máy chụp bấm máy ảnh thật qua USB, ảnh gốc về
-`C:\PhotoBooth\CanonR100` và dùng được flash. File cài tự mở của phòng Polaroid mở Canon Camera Agent
-(nếu đã cài) thay cho FUJIFILM X Acquire.
+Khổ ảnh & bảng giá và Chủ đề có 2 nút chuyển **Photobooth / Polaroid** để chỉnh riêng từng loại hình: gói khổ
+nhỏ / khổ to và giá in thêm tờ 10 × 15 ở tab Photobooth; layout và giá in thêm Instax ở tab Polaroid. Chủ đề
+lưu loại hình (chủ đề cũ theo khung bên trong: có khung Instax là Polaroid); ở Khung ảnh, khung Size Instax chỉ
+gán được vào chủ đề Polaroid và ngược lại. Không còn chế độ tự chụp theo đếm ngược (Canon R100): mọi phòng chụp
+bằng dây bấm; `scripts/canon-camera` (Canon Camera Agent) không còn được máy chụp dùng.
 
 Mọi chữ chính trên màn hình máy chụp (tiêu đề, nút, thông báo chọn layout…) sửa ở Thiết lập →
 **Chữ trên máy chụp**; ô để trống dùng chữ mặc định (`src/kiosk/kiosk-texts.js`).

@@ -16,6 +16,7 @@ import {
   Monitor,
   Printer,
   RotateCcw,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -30,6 +31,9 @@ import { download, macScript, windowsScript } from "./kiosk-autostart";
 import { CatalogToolbar } from "./catalog-toolbar";
 import { PackageCatalog } from "./package-catalog";
 import { ResourceEditor } from "./resource-editor";
+import { ServiceTabs, serviceOf, useServiceTab } from "./service-tabs";
+import { LAYOUT_COUNTS } from "../polaroid-layouts.js";
+import { createSampleLayouts } from "./polaroid-presets";
 
 const searchable = (value) =>
   String(value || "")
@@ -52,7 +56,7 @@ const RESOURCE_ICONS = {
 
 const clock = (value) =>
   new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
-// Hộp phim Instax mini có 10 tấm: còn ≤ 3 tấm thì nhắc thay phim.
+// Hộp phim Instax Wide có 10 tấm: còn ≤ 3 tấm thì nhắc thay phim.
 const FILM_LOW = 3;
 const AGENT_SIZES = { full: "DNP", strip: "DNP", instax: "Instax" };
 // Chương trình in tự động (print agent) và máy Instax của từng chi nhánh.
@@ -78,7 +82,7 @@ function PrinterStatus({ printers }) {
             )}
             {instax && (
               <p className={instax.ready && !low ? "is-ready" : "is-warn"}>
-                <strong>{agent ? "Máy Instax mini Link 3" : branch}</strong> ·{" "}
+                <strong>{agent ? "Máy Instax Link WIDE" : branch}</strong> ·{" "}
                 {instax.ready ? (low ? "Sắp hết phim — chuẩn bị hộp phim mới" : "Sẵn sàng") : instax.message}
                 {Number.isInteger(instax.film) && ` · còn ${instax.film} tấm phim`}
                 {Number.isInteger(instax.battery) && ` · pin ${instax.battery}%${instax.charging ? " (đang sạc)" : ""}`}
@@ -89,7 +93,7 @@ function PrinterStatus({ printers }) {
         );
       })}
       <small className="muted">
-        Phòng Photobooth in ở máy DNP; phòng Polaroid in Instax mini. Máy Instax chưa sẵn sàng hay hết phim thì lệnh in
+        Phòng Photobooth in ở máy DNP; phòng Polaroid in Instax Wide. Máy Instax chưa sẵn sàng hay hết phim thì lệnh in
         Polaroid chờ trong hàng và tự in khi máy in kết nối lại.
         In lỗi (hết phim, mất kết nối) sẽ báo ngay trên trang quản trị.
       </small>
@@ -116,7 +120,14 @@ export function ResourceManager({ resource, notify, me }) {
   const isCatalog = resource === "packages";
   const canManage = me?.role === "admin";
   const filtered = Boolean(query.trim()) || status !== "all";
-  const visibleItems = items.filter(
+  // Khổ ảnh & bảng giá: xem riêng gói phòng Photobooth (khổ nhỏ / khổ to) và layout phòng Polaroid.
+  const [service, setService] = useServiceTab();
+  const serviceItems = isCatalog ? items.filter((item) => serviceOf(item.printSize) === service) : items;
+  const serviceCounts = {
+    photobooth: items.filter((item) => serviceOf(item.printSize) === "photobooth").length,
+    polaroid: items.filter((item) => serviceOf(item.printSize) === "polaroid").length,
+  };
+  const visibleItems = serviceItems.filter(
     (item) =>
       searchable(
         [item.name, item.description].filter(Boolean).join(" "),
@@ -151,7 +162,8 @@ export function ResourceManager({ resource, notify, me }) {
     setEdit(item);
   };
   const fields = definitions[resource];
-  // Gói mới theo khổ ảnh: khổ nhỏ kèm 1 tờ (cắt đôi = 2 tờ nhỏ), khổ to kèm 2 tờ.
+  // Gói mới theo khổ ảnh: khổ nhỏ kèm 1 tờ (cắt đôi = 2 tờ nhỏ), khổ to kèm 2 tờ; layout Polaroid
+  // (khổ Instax) mặc định 4 ảnh, 10 phút, 2 tấm.
   function newItem(printSize = "full") {
     openEditor(
       Object.fromEntries([
@@ -159,15 +171,13 @@ export function ResourceManager({ resource, notify, me }) {
           key,
           type === "number"
             ? key === "duration"
-              ? 15
+              ? printSize === "instax" ? 10 : 15
               : key === "shots"
-                ? printSize === "instax" ? 10 : 12
-                : key === "countdownSeconds"
-                  ? 10
-                  : key === "selectCount"
-                    ? printSize === "instax" ? 2 : 4
-                    : key === "prints"
-                      ? printSize === "strip" ? 1 : 2
+                ? printSize === "instax" ? 8 : 12
+                : key === "selectCount"
+                  ? 4
+                  : key === "prints"
+                    ? printSize === "strip" ? 1 : 2
               : 0
             : type === "color"
               ? key === "color"
@@ -218,6 +228,28 @@ export function ResourceManager({ resource, notify, me }) {
       );
     } catch (e) {
       setError(e.message);
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  // Tab Polaroid: tạo 6 layout mẫu (1, 2, 3, 4, 5, 6 ảnh) kèm khung trắng Instax Wide; layout / khung
+  // đã có cùng số ảnh thì giữ nguyên.
+  async function createSamples() {
+    if (!canManage || busy) return;
+    if (!confirm(`Tạo layout mẫu ${LAYOUT_COUNTS.join(", ")} ảnh (110.000 đ, 2 tấm) kèm khung trắng Instax Wide trong chủ đề “Layout trắng”?
+Layout hoặc khung đã có cùng số ảnh được giữ nguyên. Sửa giá, số lần chụp sau ở từng layout.`)) return;
+    setBusy(true);
+    try {
+      const made = await createSampleLayouts(items);
+      await load();
+      reloadCatalog?.();
+      notify(made.layouts.length || made.frames.length
+        ? `Đã tạo ${made.layouts.length} layout và ${made.frames.length} khung trắng mẫu.`
+        : "Đã có đủ layout và khung cho 1–6 ảnh — không tạo thêm.");
+    } catch (e) {
+      // Có thể đã tạo được một phần: tải lại để thấy đúng danh sách.
+      await load();
       toast.error(e.message);
     } finally {
       setBusy(false);
@@ -309,16 +341,23 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
         />
       )}
       {resource === "rooms" && printers.length > 0 && <PrinterStatus printers={printers} />}
+      {isCatalog && <ServiceTabs value={service} onChange={setService} counts={loading ? {} : serviceCounts} />}
       {isCatalog ? (
         <CatalogToolbar
-          resource={resource}
-          items={items}
+          service={service}
+          items={serviceItems}
           visibleCount={visibleItems.length}
           query={query}
           onQueryChange={setQuery}
           status={status}
           onStatusChange={setStatus}
-          onCreate={() => newItem()}
+          onCreate={() => newItem(service === "polaroid" ? "instax" : "full")}
+          actions={service === "polaroid" && canManage && (
+            <Button className="outline" disabled={busy || loading} onClick={createSamples}>
+              <Sparkles size={16} aria-hidden="true" />
+              {busy ? "Đang tạo…" : "Tạo 6 layout mẫu"}
+            </Button>
+          )}
           loading={loading}
         />
       ) : (
@@ -349,25 +388,31 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
           onDeactivate={deactivate}
           onCreate={newItem}
           filtered={filtered}
+          sizes={service === "polaroid" ? ["instax"] : ["strip", "full"]}
         />
         {canManage && (
           <section className="panel extra-price-panel" aria-labelledby="extra-price-title">
             <div>
-              <h3 id="extra-price-title">Giá in thêm tờ ảnh</h3>
+              <h3 id="extra-price-title">{service === "polaroid" ? "Giá in thêm Instax Wide" : "Giá in thêm tờ ảnh"}</h3>
               <p className="muted">
-                Khi khách chọn thêm bản in ở máy chụp hoặc mua thêm tại quầy (Đơn hàng → In ảnh → Thêm lượt in).
-                Khổ nhỏ: mỗi tờ 10 × 15 cm = 2 tờ nhỏ.
+                Khi khách mua thêm bản in tại quầy (Đơn hàng → In ảnh → Thêm lượt in)
+                {service === "polaroid"
+                  ? ". Phim Instax Wide có giá riêng, không theo giá tờ 10 × 15."
+                  : " hoặc chọn thêm ở máy chụp. Khổ nhỏ: mỗi tờ 10 × 15 cm = 2 tờ nhỏ."}
               </p>
             </div>
             <div className="extra-price-pair">
-              <div className="extra-price-item">
-                <small>Khổ to & khổ nhỏ · tờ 10 × 15 cm</small>
-                <PriceEditor price={settings.extraPrintPrice} startOpen={false} onSaved={() => reloadCatalog?.()} />
-              </div>
-              <div className="extra-price-item">
-                <small>Khổ Instax mini · mỗi tấm</small>
-                <PriceEditor instax price={settings.extraInstaxPrice} startOpen={false} onSaved={() => reloadCatalog?.()} />
-              </div>
+              {service === "polaroid" ? (
+                <div className="extra-price-item">
+                  <small>Phòng Polaroid · mỗi tấm Instax Wide</small>
+                  <PriceEditor instax price={settings.extraInstaxPrice} startOpen={false} onSaved={() => reloadCatalog?.()} />
+                </div>
+              ) : (
+                <div className="extra-price-item">
+                  <small>Khổ to & khổ nhỏ · tờ 10 × 15 cm</small>
+                  <PriceEditor price={settings.extraPrintPrice} startOpen={false} onSaved={() => reloadCatalog?.()} />
+                </div>
+              )}
             </div>
           </section>
         )}
@@ -613,9 +658,7 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
               <p>
                 Tải file cài về <b>máy tính trong phòng</b> rồi chạy một lần: từ
                 đó mỗi lần bật máy Windows sẽ mở Chrome toàn màn hình đúng phòng này.{" "}
-                {device.kind === "polaroid"
-                  ? "Canon Camera Agent (nếu đã cài) sẽ tự mở; lần đầu nhớ cho phép camera. Không có Agent, máy chụp tự chụp từ hình trực tiếp của Canon R100."
-                  : "FUJIFILM X Acquire sẽ tự mở nếu đã cài; lần đầu nhớ cho phép camera và chọn thư mục ảnh trong “Cài đặt máy chụp”."}
+                FUJIFILM X Acquire sẽ tự mở nếu đã cài; lần đầu nhớ cho phép camera và chọn thư mục ảnh trong “Cài đặt máy chụp”.
               </p>
               <div className="kiosk-autostart-actions">
                 <Button
@@ -623,7 +666,7 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
                   onClick={() => {
                     download(
                       "cai-kiosk-NXC.bat",
-                      windowsScript(device.url, device.name, device.kind),
+                      windowsScript(device.url, device.name),
                     );
                     notify(
                       "Đã tải file cài cho Windows. Mở file trên máy trong phòng (nếu Windows hỏi: “Thêm thông tin” → “Vẫn chạy”).",

@@ -1,29 +1,40 @@
 import { useState } from "react";
-import { PiArrowLeftBold, PiCameraBold } from "react-icons/pi";
+import { PiArrowLeftBold, PiArrowRightBold, PiCameraBold } from "react-icons/pi";
 import { money } from "../api";
+import { layoutSlots } from "../polaroid-layouts.js";
 import { Brand, Button, ErrorBox } from "../studio";
 import { useKioskText } from "./use-kiosk-text.js";
 
-// Hình layout trên thẻ: lưới đúng số ảnh của layout (1, 2, 3, 4, 6… ô).
-const GRID = { 1: [1, 1], 2: [2, 1], 3: [3, 1], 4: [2, 2], 5: [3, 2], 6: [3, 2], 8: [4, 2], 9: [3, 3] };
-export const layoutGrid = (n) => {
-  const count = Math.max(1, Number(n) || 1);
-  if (GRID[count]) return GRID[count];
-  const cols = Math.ceil(Math.sqrt(count));
-  return [cols, Math.ceil(count / cols)];
-};
+// Hình layout: thẻ Instax Wide nằm ngang, các ô ảnh đúng vị trí trên khung trắng mẫu (5 ảnh = 2 ảnh to
+// bên trái + 3 ảnh bé bên phải). Dùng ở máy chụp và trong quản trị.
 export function LayoutArt({ count }) {
-  const n = Math.max(1, Number(count) || 1);
-  const [cols, rows] = layoutGrid(n);
   return (
-    <span className="layout-art" aria-hidden="true" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)` }}>
-      {Array.from({ length: n }, (_, i) => <i key={i} />)}
+    <span className="layout-art" aria-hidden="true">
+      {layoutSlots(count).map((s, i) => (
+        <i key={i} style={{ left: `${s.x * 100}%`, top: `${s.y * 100}%`, width: `${s.w * 100}%`, height: `${s.h * 100}%` }} />
+      ))}
     </span>
   );
 }
 
+// Một thẻ ở màn Chọn layout: hình layout, "N ảnh", tên layout · số lần chụp, giá, nút mũi tên.
+export function LayoutCard({ pack, onPick, as: Tag = "button" }) {
+  const t = useKioskText();
+  const photos = t("layout.photos", { n: pack.selectCount || 1 });
+  return (
+    <Tag {...(Tag === "button" ? { type: "button", onClick: onPick } : {})} className="kiosk-layout"
+      aria-label={Tag === "button" ? `${photos} · ${pack.name} · ${money(pack.price)}` : undefined}>
+      <LayoutArt count={pack.selectCount} />
+      <strong>{photos}</strong>
+      <small>{[pack.name, pack.shots && `${pack.shots} lần chụp`].filter(Boolean).join(" · ")}</small>
+      <b>{money(pack.price)}</b>
+      <span className="kiosk-layout-go" aria-hidden="true"><PiArrowRightBold /></span>
+    </Tag>
+  );
+}
+
 // Phòng Polaroid: Chạm để bắt đầu → chọn layout (các gói khổ Instax: số ảnh, giá) → thông báo "Chọn
-// layout này, vào chụp nha!" → vào chụp luôn; khách trả tiền ở quầy. Chữ trên màn sửa ở quản trị.
+// layout này, vào chụp nha!" → vào chụp (bấm dây); khách trả tiền ở quầy. Chữ trên màn sửa ở quản trị.
 // instax: tình trạng máy in Instax (chưa sẵn sàng vẫn cho chụp — lệnh in chờ tới khi máy in kết nối).
 export function KioskLayouts({ layouts, instax, busy, error, onStart, onBack }) {
   const t = useKioskText();
@@ -37,17 +48,9 @@ export function KioskLayouts({ layouts, instax, busy, error, onStart, onBack }) 
       </header>
       <ErrorBox error={error} />
       <div className="kiosk-layout-grid" role="group" aria-label={t("layout.title")}>
-        {layouts.map((pack) => (
-          <button type="button" key={pack._id} className="kiosk-layout" onClick={() => setChosen(pack)}
-            aria-label={`${t("layout.photos", { n: pack.selectCount || 1 })} · ${pack.name} · ${money(pack.price)}`}>
-            <LayoutArt count={pack.selectCount} />
-            <strong>{t("layout.photos", { n: pack.selectCount || 1 })}</strong>
-            <small>{pack.name}</small>
-            <b>{money(pack.price)}</b>
-          </button>
-        ))}
+        {layouts.map((pack) => <LayoutCard key={pack._id} pack={pack} onPick={() => setChosen(pack)} />)}
         {!layouts.length && (
-          <p className="soft-note">Chưa có layout cho phòng Polaroid. Nhờ nhân viên thêm gói khổ Instax ở Khổ ảnh & bảng giá.</p>
+          <p className="soft-note">Chưa có layout cho phòng Polaroid. Nhờ nhân viên thêm layout ở Khổ ảnh & bảng giá → Polaroid.</p>
         )}
       </div>
       {instax && !instax.ready && (

@@ -19,7 +19,7 @@ const RULES = {
 };
 
 // Giá mỗi tờ in thêm: chỉ quản trị viên đặt/sửa, ngay tại đây (không còn trang Cài đặt studio).
-// instax: giá mỗi tấm Instax mini (phim Instax đắt hơn giấy DNP nên có giá riêng).
+// instax: giá mỗi tấm Instax Wide (phim Instax đắt hơn giấy DNP nên có giá riêng).
 // price chưa có (undefined / null): tiệm chưa đặt giá. startOpen: mở sẵn ô nhập (hộp bán thêm ở quầy
 // mở ngay khi chưa có giá; trang bảng giá chỉ ghi "Chưa đặt").
 export function PriceEditor({ price, onSaved, instax = false, startOpen = !price }) {

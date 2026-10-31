@@ -5,6 +5,8 @@ import { Button, ErrorBox, useStudio } from "../studio";
 import { FieldError } from "../validate";
 import { definitions, DEFAULT_STAFF_PERMISSIONS, PERMISSION_GROUPS, ROOM_KINDS } from "./config";
 import { includedSheets, isInstax, isStrip, piecesLabel, printSizeOf } from "../kiosk/print-count.js";
+import { LayoutArt, LayoutCard } from "../kiosk/KioskPolaroid.jsx";
+import { LAYOUT_COUNTS } from "../polaroid-layouts.js";
 
 // Loại phòng quyết định màn đầu tiên khách thấy sau “Chạm để bắt đầu”.
 const ALL_PERMISSIONS = PERMISSION_GROUPS.flatMap(([, items]) => items.map(([key]) => key));
@@ -50,6 +52,23 @@ function PermissionsField({ value, onChange }) {
   );
 }
 
+// Layout Polaroid: chọn số ảnh bằng hình layout (1–6 ảnh; số khác đã lưu trước đây vẫn giữ được).
+function LayoutPicker({ value, onChange }) {
+  const current = Number(value) || 1;
+  const counts = LAYOUT_COUNTS.includes(current) ? LAYOUT_COUNTS : [...LAYOUT_COUNTS, current].sort((a, b) => a - b);
+  return (
+    <div className="layout-picker" role="radiogroup" aria-label="Số ảnh trong layout">
+      {counts.map((n) => (
+        <label key={n} className={`layout-pick${n === current ? " is-selected" : ""}`}>
+          <input type="radio" name="selectCount" value={n} checked={n === current} onChange={() => onChange(n)} />
+          <LayoutArt count={n} />
+          {n} ảnh
+        </label>
+      ))}
+    </div>
+  );
+}
+
 // Chi nhánh áp dụng bảng giá: để trống = cấu hình chung cho mọi chi nhánh.
 function BranchesField({ value = [], onChange }) {
   const { rooms = [] } = useStudio();
@@ -88,7 +107,7 @@ export function ResourceEditor({
   const catalog = resource === "packages";
   const title =
     resource === "packages"
-      ? `${edit._id ? "Chỉnh sửa" : "Thêm"} gói chụp`
+      ? `${edit._id ? "Chỉnh sửa" : "Thêm"} ${isInstax(edit) ? "layout Polaroid" : "gói chụp"}`
       : edit._id
         ? "Chỉnh sửa"
         : "Thêm mới";
@@ -99,8 +118,10 @@ export function ResourceEditor({
   // Gói khổ Instax là layout của phòng Polaroid: đặt tên các ô theo layout.
   const POLAROID_LABELS = {
     name: "Tên layout (thẻ trên màn Chọn layout)",
-    selectCount: "Số ảnh trong layout (1, 2, 3, 4, 6…)",
-    shots: "Số lần chụp tối đa",
+    price: "Giá layout (VND)",
+    prints: "Số tấm Instax kèm layout",
+    selectCount: "Layout (số ảnh trên thẻ Instax Wide)",
+    shots: "Số lần chụp tối đa (số lần bấm dây)",
   };
   const field = ([key, baseLabel, type = "text"]) => {
     const label = catalog && edit.printSize === "instax" ? POLAROID_LABELS[key] || baseLabel : baseLabel;
@@ -136,7 +157,8 @@ export function ResourceEditor({
           {label}
         </label>
       );
-    const Field = ["branches", "permissions"].includes(type) ? "div" : "label";
+    const layoutPick = catalog && key === "selectCount" && isInstax(edit);
+    const Field = ["branches", "permissions"].includes(type) || layoutPick ? "div" : "label";
     return (
       <Field
         key={key}
@@ -151,15 +173,21 @@ export function ResourceEditor({
             onChange={(event) => update(key, event.target.value)}
           />
         ) : type === "printSize" ? (
-          <select
-            name={key}
-            value={edit[key] || "full"}
-            onChange={(event) => update(key, event.target.value)}
-          >
-            <option value="full">Khổ to · ảnh 10 × 15 cm nguyên tờ (máy DNP)</option>
-            <option value="strip">Khổ nhỏ · 1 tờ 10 × 15 cắt đôi thành 2 tờ nhỏ (máy DNP)</option>
-            <option value="instax">Polaroid · layout trên thẻ Instax mini 5,4 × 8,6 cm (phòng Polaroid, máy Instax mini Link 3)</option>
-          </select>
+          // Gói phòng Photobooth chỉ đổi giữa khổ to / khổ nhỏ; layout Polaroid luôn là thẻ Instax Wide.
+          isInstax(edit) ? (
+            <span className="resource-field-fixed">Polaroid · thẻ Instax Wide ảnh ngang (phòng Polaroid, máy Instax Link WIDE)</span>
+          ) : (
+            <select
+              name={key}
+              value={edit[key] || "full"}
+              onChange={(event) => update(key, event.target.value)}
+            >
+              <option value="full">Khổ to · ảnh 10 × 15 cm nguyên tờ (máy DNP)</option>
+              <option value="strip">Khổ nhỏ · 1 tờ 10 × 15 cắt đôi thành 2 tờ nhỏ (máy DNP)</option>
+            </select>
+          )
+        ) : layoutPick ? (
+          <LayoutPicker value={edit[key]} onChange={(value) => update(key, value)} />
         ) : type === "flip" ? (
           <select
             value={edit[key] || "device"}
@@ -216,7 +244,7 @@ export function ResourceEditor({
             {isStrip(edit)
               ? `Tờ 10 × 15 = ${piecesLabel(edit, includedSheets(edit))} cho khách. Tối thiểu 1 tờ (khách thấy “2 tờ nhỏ”).`
               : isInstax(edit)
-                ? "Số tấm Instax. Tối thiểu 2 tấm. Khách chọn thêm ở máy chụp tính theo giá in thêm Instax."
+                ? "Số tấm Instax Wide. Tối thiểu 2 tấm. Khách mua thêm ở quầy tính theo giá in thêm Instax."
                 : "Tờ 10 × 15. Tối thiểu 2 tờ. Khách chọn thêm ở máy chụp tính theo giá in thêm."}
           </small>
         )}
@@ -242,7 +270,11 @@ export function ResourceEditor({
             <div>
               <h2>{title}</h2>
               {catalog && (
-                <p>Mỗi gói là một thẻ ở màn “Chọn khổ ảnh” của máy chụp: khổ ảnh, giá và số tờ in đi kèm.</p>
+                <p>
+                  {isInstax(edit)
+                    ? "Mỗi layout là một thẻ ở màn “Chọn layout” của phòng Polaroid: số ảnh, giá và số tấm Instax đi kèm."
+                    : "Mỗi gói là một thẻ ở màn “Chọn khổ ảnh” của máy chụp: khổ ảnh, giá và số tờ in đi kèm."}
+                </p>
               )}
             </div>
           </div>
@@ -268,15 +300,22 @@ export function ResourceEditor({
               >
                 <span className="catalog-preview-label">THẺ TRÊN MÁY CHỤP</span>
                 {/* Cùng kiểu thẻ ở màn “Chọn khổ ảnh” của máy chụp (KioskPackages). */}
-                <div className="kiosk-size-preview">
-                  <div className={`kiosk-size ${printSizeOf(edit)}`}>
-                    <span className="kiosk-size-art" aria-hidden="true">{isInstax(edit) ? <i /> : <><i /><i /></>}</span>
-                    <strong>{edit.name || "Tên gói chụp"}</strong>
-                    <small>{Number(edit.shots) || 0} lần chụp · kèm {piecesLabel(edit, includedSheets(edit))}</small>
-                    <b>{money(Number(edit.price) || 0)}</b>
-                    {edit.description && <small>{edit.description}</small>}
+                {isInstax(edit) ? (
+                  // Cùng thẻ ở màn “Chọn layout” của phòng Polaroid (KioskLayouts).
+                  <div className="kiosk-layout-preview">
+                    <LayoutCard as="div" pack={{ ...edit, name: edit.name || "Tên layout", price: Number(edit.price) || 0 }} />
                   </div>
-                </div>
+                ) : (
+                  <div className="kiosk-size-preview">
+                    <div className={`kiosk-size ${printSizeOf(edit)}`}>
+                      <span className="kiosk-size-art" aria-hidden="true"><i /><i /></span>
+                      <strong>{edit.name || "Tên gói chụp"}</strong>
+                      <small>{Number(edit.shots) || 0} lần chụp · kèm {piecesLabel(edit, includedSheets(edit))}</small>
+                      <b>{money(Number(edit.price) || 0)}</b>
+                      {edit.description && <small>{edit.description}</small>}
+                    </div>
+                  </div>
+                )}
                 <ul>
                   <li>
                     <Package size={17} aria-hidden="true" />
@@ -294,7 +333,9 @@ export function ResourceEditor({
                   </li>
                   <li>
                     <InfinityIcon size={17} aria-hidden="true" />
-                    {Number(edit.shots) || 0} lần chụp · chọn {Number(edit.selectCount) || 4} ảnh ghép khung · {Number(edit.countdownSeconds) || 10} giây/ảnh
+                    {isInstax(edit)
+                      ? `Layout ${Number(edit.selectCount) || 1} ảnh · tối đa ${Number(edit.shots) || 0} lần bấm dây`
+                      : `${Number(edit.shots) || 0} lần chụp · chọn ${Number(edit.selectCount) || 4} ảnh ghép khung`}
                   </li>
                 </ul>
               </aside>

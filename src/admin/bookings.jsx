@@ -11,9 +11,9 @@ import { CounterTicket } from "../counter-ticket";
 import { ExtraPrints } from "../extra-prints";
 import { PeriodPicker, monthRange } from "./period-picker";
 
-// Khổ in của đơn: DNP 10 × 15 (to / nhỏ cắt đôi) hoặc Instax mini.
+// Khổ in của đơn: DNP 10 × 15 (to / nhỏ cắt đôi) hoặc Instax Wide.
 const SIZE_NAMES = { full: "Lớn", strip: "Nhỏ", instax: "Instax" };
-const SIZE_CM = { full: "10 × 15 cm", strip: "5 × 15 cm", instax: "Instax mini" };
+const SIZE_CM = { full: "10 × 15 cm", strip: "5 × 15 cm", instax: "Instax Wide" };
 
 const paymentLabel = (method) => method === "cash" ? "Tiền mặt" : method === "transfer" ? "Chuyển khoản" : "—";
 // Lượt chụp phòng Polaroid: khách trả tiền ở quầy sau khi chọn layout — nhân viên bấm "Đã thu".

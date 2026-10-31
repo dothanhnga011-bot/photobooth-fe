@@ -36,12 +36,8 @@ export const cameraRank = (d) =>
 // Camera dùng được làm hình trực tiếp: chỉ thẻ ghi hình HDMI / camera ngoài của máy ảnh.
 export const liveUsable = (d) => !isCameraUsbVideo(d) && !isBuiltInCamera(d);
 // Chế độ thử máy bằng webcam: dùng được cả webcam máy tính (thẻ ghi hình HDMI vẫn được ưu tiên).
-// Phòng Polaroid (Canon R100 tự chụp theo đếm ngược, ảnh lấy từ hình trực tiếp): dùng được cả
-// hình USB của máy ảnh (EOS Webcam Utility) bên cạnh thẻ ghi hình HDMI, trừ webcam máy tính.
-export const liveUsableFor = ({ webcam = false, polaroid = false } = {}) =>
-  webcam ? (d) => !isCameraUsbVideo(d) || polaroid
-    : polaroid ? (d) => !isBuiltInCamera(d)
-      : liveUsable;
+export const liveUsableFor = ({ webcam = false } = {}) =>
+  webcam ? (d) => !isCameraUsbVideo(d) : liveUsable;
 // light: thử máy bằng webcam máy tính — 1280 × 720 cho nhẹ (webcam laptop thường yếu ở 1080p).
 export const videoConstraints = (deviceId, light = false) => ({
   video: {
