@@ -542,8 +542,9 @@ test("the Polaroid tab lists only layouts and creates the 6 sample layouts with 
   }), frames[4].image);
   assert.deepEqual(size, [1800, 1200]);
   const packs = made.slice(7).map((m) => m.body);
-  assert.deepEqual(packs.map((p) => [p.printSize, p.selectCount, p.price, p.prints]),
-    [1, 2, 3, 4, 5, 6].map((n) => ["instax", n, 110000, 2]));
+  // Layout mẫu: 5 phút chụp không giới hạn lần bấm, in 1 tấm.
+  assert.deepEqual(packs.map((p) => [p.printSize, p.selectCount, p.price, p.prints, p.shots, p.duration]),
+    [1, 2, 3, 4, 5, 6].map((n) => ["instax", n, 110000, 1, 0, 5]));
   assert.equal(await layouts.locator(".package-card .layout-art").nth(4).locator("i").count(), 5);
   assert.deepEqual(await notifications(), ["Đã tạo 6 layout và 6 khung trắng mẫu."]);
   await mkdir(screenshotDirectory, { recursive: true });
@@ -554,14 +555,24 @@ test("the Polaroid tab lists only layouts and creates the 6 sample layouts with 
   await page.getByRole("button", { name: "Tạo 6 layout mẫu" }).click();
   await page.waitForFunction(() => window.notifications.length === 2);
   assert.deepEqual(mutations(), []);
-  // Layout mới: không có ô chọn khổ, số ảnh chọn bằng hình layout.
+  // Layout mới: không có ô chọn khổ, số ảnh chọn bằng hình layout. Không có ô số tấm in / số lần
+  // chụp: layout in đúng 1 tấm, khách bấm dây không giới hạn trong thời gian chụp (mặc định 5 phút).
   await page.getByRole("button", { name: "Thêm layout" }).first().click();
   const dialog = page.getByRole("dialog");
   assert.equal(await dialog.locator('select[name="printSize"]').count(), 0);
+  assert.equal(await dialog.locator('input[name="prints"], input[name="shots"]').count(), 0);
+  assert.equal(await dialog.locator('input[name="duration"]').inputValue(), "5");
   await dialog.getByRole("radio", { name: "5 ảnh" }).check({ force: true });
   assert.equal(await dialog.locator(".kiosk-layout-preview .layout-art i").count(), 5);
+  assert.match(await dialog.locator(".kiosk-layout-preview").innerText(), /5 phút chụp/i);
   await page.screenshot({ path: join(screenshotDirectory, "packages-polaroid-editor.png") });
-  await dialog.getByRole("button", { name: "Huỷ" }).click();
+  await dialog.locator('input[name="name"]').fill("Layout thử");
+  await dialog.getByRole("button", { name: "Lưu thay đổi", exact: true }).click();
+  await dialog.waitFor({ state: "hidden" });
+  assert.deepEqual(
+    mutations().map((m) => [m.method, m.body.printSize, m.body.selectCount, m.body.prints, m.body.shots, m.body.duration]),
+    [["POST", "instax", 5, 1, 0, 5]],
+  );
   // Tab Photobooth vẫn chỉ có gói 10 × 15.
   await page.getByRole("tab", { name: /Photobooth/ }).click();
   await expectCount("packages", 3);

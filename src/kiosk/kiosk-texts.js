@@ -31,6 +31,7 @@ export const KIOSK_TEXT_GROUPS = [
     ["layout.confirm", "Thông báo khi chọn layout", "Chọn layout này, vào chụp nha!"],
     ["layout.go", "Nút vào chụp", "Vào chụp"],
     ["layout.back", "Nút chọn lại", "Chọn lại"],
+    ["done.polaroidTitle", "Tiêu đề màn QR", "Quét QR để tải toàn bộ ảnh gốc."],
   ]],
 ];
 export const KIOSK_TEXT_DEFAULTS = Object.fromEntries(

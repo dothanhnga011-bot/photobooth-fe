@@ -163,7 +163,7 @@ export function ResourceManager({ resource, notify, me }) {
   };
   const fields = definitions[resource];
   // Gói mới theo khổ ảnh: khổ nhỏ kèm 1 tờ (cắt đôi = 2 tờ nhỏ), khổ to kèm 2 tờ; layout Polaroid
-  // (khổ Instax) mặc định 4 ảnh, 10 phút, 2 tấm.
+  // (khổ Instax) mặc định 4 ảnh, 5 phút chụp không giới hạn lần bấm, in 1 tấm.
   function newItem(printSize = "full") {
     openEditor(
       Object.fromEntries([
@@ -171,13 +171,13 @@ export function ResourceManager({ resource, notify, me }) {
           key,
           type === "number"
             ? key === "duration"
-              ? printSize === "instax" ? 10 : 15
+              ? printSize === "instax" ? 5 : 15
               : key === "shots"
-                ? printSize === "instax" ? 8 : 12
+                ? printSize === "instax" ? 0 : 12
                 : key === "selectCount"
                   ? 4
                   : key === "prints"
-                    ? printSize === "strip" ? 1 : 2
+                    ? printSize === "full" ? 2 : 1
               : 0
             : type === "color"
               ? key === "color"
@@ -237,8 +237,8 @@ export function ResourceManager({ resource, notify, me }) {
   // đã có cùng số ảnh thì giữ nguyên.
   async function createSamples() {
     if (!canManage || busy) return;
-    if (!confirm(`Tạo layout mẫu ${LAYOUT_COUNTS.join(", ")} ảnh (110.000 đ, 2 tấm) kèm khung trắng Instax Wide trong chủ đề “Layout trắng”?
-Layout hoặc khung đã có cùng số ảnh được giữ nguyên. Sửa giá, số lần chụp sau ở từng layout.`)) return;
+    if (!confirm(`Tạo layout mẫu ${LAYOUT_COUNTS.join(", ")} ảnh (110.000 đ, 5 phút chụp, in 1 tấm) kèm khung trắng Instax Wide trong chủ đề “Layout trắng”?
+Layout hoặc khung đã có cùng số ảnh được giữ nguyên. Sửa giá, thời gian chụp sau ở từng layout.`)) return;
     setBusy(true);
     try {
       const made = await createSampleLayouts(items);

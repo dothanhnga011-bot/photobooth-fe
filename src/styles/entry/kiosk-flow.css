@@ -1361,6 +1361,10 @@
     margin: 0 auto;
     align-items: stretch;
   }
+  .done-cards.no-video {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: min(820px, 100%);
+  }
   .done-card {
     display: grid;
     grid-template-rows: minmax(0, 1fr) auto;
@@ -1435,6 +1439,7 @@
       display: none;
     }
     .done-cards,
+    .done-cards.no-video,
     .pay-board {
       grid-template-columns: 1fr;
     }

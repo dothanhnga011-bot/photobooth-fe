@@ -17,7 +17,7 @@ export function LayoutArt({ count }) {
   );
 }
 
-// Một thẻ ở màn Chọn layout: hình layout, "N ảnh", tên layout · số lần chụp, giá, nút mũi tên.
+// Một thẻ ở màn Chọn layout: hình layout, "N ảnh", tên layout · thời gian chụp, giá, nút mũi tên.
 export function LayoutCard({ pack, onPick, as: Tag = "button" }) {
   const t = useKioskText();
   const photos = t("layout.photos", { n: pack.selectCount || 1 });
@@ -26,7 +26,7 @@ export function LayoutCard({ pack, onPick, as: Tag = "button" }) {
       aria-label={Tag === "button" ? `${photos} · ${pack.name} · ${money(pack.price)}` : undefined}>
       <LayoutArt count={pack.selectCount} />
       <strong>{photos}</strong>
-      <small>{[pack.name, pack.shots && `${pack.shots} lần chụp`].filter(Boolean).join(" · ")}</small>
+      <small>{[pack.name, pack.duration && `${pack.duration} phút chụp`].filter(Boolean).join(" · ")}</small>
       <b>{money(pack.price)}</b>
       <span className="kiosk-layout-go" aria-hidden="true"><PiArrowRightBold /></span>
     </Tag>

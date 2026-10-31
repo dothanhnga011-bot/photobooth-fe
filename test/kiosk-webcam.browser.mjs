@@ -166,15 +166,38 @@ test("polaroid room shoots with the cable release like a photobooth: no countdow
   const b = await booth(fakeCamera, {
     webcam: false,
     room: { _id: "room", flip: "device", kind: "polaroid" },
-    extra: { shots: 2, selectCount: 2, countdownSeconds: 3, printSize: "instax" },
+    // Lượt Polaroid không ghi số lần chụp: bấm dây không giới hạn trong thời gian chụp.
+    extra: { shots: undefined, selectCount: 2, countdownSeconds: 3, printSize: "instax" },
   });
   try {
     await b.page.getByText("Nhấn nút trên dây bấm để chụp").waitFor({ timeout: 15000 });
+    await b.page.getByText("Đã chụp 0/∞ tấm").waitFor();
     assert.equal(await b.page.getByRole("button", { name: "Chạm để chụp" }).count(), 0);
     // Gói cũ còn lưu "đếm ngược 3 giây": máy chụp không tự đếm, không tự chụp.
     await b.page.waitForTimeout(4500);
     assert.equal(await b.page.getByText(/Tự chụp sau mỗi/).count(), 0);
     assert.equal(await b.page.locator(".shoot-thumbs .shoot-thumb-no").count(), 0, "nothing is shot without the cable");
+    assert.deepEqual(b.errors, []);
+  } finally { await b.close(); }
+});
+
+test("polaroid room records no timelapse: the guest gets the original photos by QR, no video", async () => {
+  const b = await booth(fakeCamera, {
+    webcam: true,
+    room: { _id: "room", flip: "device", kind: "polaroid" },
+    extra: { shots: undefined, selectCount: 1, printSize: "instax" },
+  });
+  try {
+    const snap = b.page.getByRole("button", { name: "Chạm để chụp" });
+    await snap.waitFor({ timeout: 15000 });
+    await snap.click();
+    await b.page.locator(".shoot-thumbs .shoot-thumb-no", { hasText: "1" }).waitFor({ timeout: 15000 });
+    await b.page.getByText("Đã chụp 1/∞ tấm").waitFor();
+    assert.deepEqual(await b.page.evaluate(() => window.__recorders), [], "no timelapse recorder");
+    await b.page.getByRole("button", { name: "Chụp xong, chọn ảnh" }).click();
+    await b.page.getByRole("heading", { name: /để chọn ảnh/ }).waitFor({ timeout: 20000 });
+    await b.page.waitForTimeout(3000);
+    assert.deepEqual(b.videos, [], "no video is uploaded");
     assert.deepEqual(b.errors, []);
   } finally { await b.close(); }
 });

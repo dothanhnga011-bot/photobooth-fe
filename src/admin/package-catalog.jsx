@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { money } from "../api";
 import { LayoutArt } from "../kiosk/KioskPolaroid.jsx";
-import { includedSheets, isInstax, isStrip, piecesLabel, printSizeOf } from "../kiosk/print-count.js";
+import { includedSheets, INSTAX_SHEETS, isInstax, isStrip, piecesLabel, printSizeOf } from "../kiosk/print-count.js";
 
 // Khổ ảnh khách thấy ở màn “Chọn khổ ảnh” (phòng Photobooth) / “Chọn layout” (phòng Polaroid) của
 // máy chụp; mỗi gói đang bật là một thẻ.
@@ -141,7 +141,7 @@ function PackageCards({ items, onEdit, onDeactivate }) {
                   {isInstax(item) ? "Tấm Instax Wide" : "Tờ in 10 × 15"}
                 </dt>
                 <dd>
-                  <strong>{item.prints ?? 0}</strong> {isInstax(item) ? "tấm" : "tờ"}
+                  <strong>{isInstax(item) ? INSTAX_SHEETS : item.prints ?? 0}</strong> {isInstax(item) ? "tấm" : "tờ"}
                   {isStrip(item) && <small> = {piecesLabel(item, includedSheets(item))}</small>}
                 </dd>
               </div>
@@ -150,7 +150,7 @@ function PackageCards({ items, onEdit, onDeactivate }) {
             <p className="package-card-included">
               <Images size={17} aria-hidden="true" />
               {isInstax(item)
-                ? `Layout ${item.selectCount || 1} ảnh · tối đa ${item.shots || 10} lần chụp · Instax Wide`
+                ? `Layout ${item.selectCount || 1} ảnh · chụp không giới hạn · Instax Wide`
                 : `${item.shots || 12} lần chụp · chọn ${item.selectCount || 4} ảnh · ${isStrip(item) ? "khổ nhỏ (cắt đôi)" : "khổ to 10 × 15"}`}
             </p>
             <p className="package-card-branches">

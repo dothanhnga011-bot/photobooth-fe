@@ -26,7 +26,8 @@ const INSTAX_TEXT = {
 };
 const PRINT_WARN = new Set(["stalled", "manual", "failed"]);
 
-// Màn cuối: ảnh đã ghép khung (trái), mã QR tải ảnh & video (giữa), video tua nhanh (phải).
+// Màn cuối: ảnh đã ghép khung (trái), mã QR tải ảnh & video (giữa), video tua nhanh (phải). Phòng
+// Polaroid (khổ Instax) không quay video: chỉ ảnh đã ghép và mã QR tải toàn bộ ảnh gốc.
 export function KioskDone({ done, pending, left, nextGuest }) {
   const t = useKioskText();
   const print = done.print?.status;
@@ -37,7 +38,7 @@ export function KioskDone({ done, pending, left, nextGuest }) {
       <header className="flow-head">
         <Brand />
       </header>
-      <div className="done-cards">
+      <div className={`done-cards${instax ? " no-video" : ""}`}>
         <figure className="done-card">
           {done.composite ? (
             <img src={done.composite} alt={framed ? "Ảnh đã ghép khung" : "Ảnh của bạn"} />
@@ -50,7 +51,7 @@ export function KioskDone({ done, pending, left, nextGuest }) {
           <QRCodeSVG value={done.url} size={260} marginSize={2} />
           <figcaption>Quét QR</figcaption>
         </figure>
-        <figure className="done-card">
+        {!instax && <figure className="done-card">
           {done.video ? (
             <video src={done.video} autoPlay loop muted playsInline />
           ) : (
@@ -60,11 +61,11 @@ export function KioskDone({ done, pending, left, nextGuest }) {
             </div>
           )}
           <figcaption>Video</figcaption>
-        </figure>
+        </figure>}
       </div>
       {/* Chỉ hứa "lấy ảnh" khi ảnh đang in; in trục trặc thì dòng trạng thái bên dưới mời nhân viên giúp. */}
       <h1 className="done-title">
-        {t("done.title")}
+        {t(instax ? "done.polaroidTitle" : "done.title")}
         {done.prints > 0 && framed && !PRINT_WARN.has(print) &&
           (instax ? " Lấy ảnh ở máy Instax cạnh bạn." : " Lấy ảnh tại khay ảnh.")}
       </h1>

@@ -37,6 +37,11 @@ export const priceVND = custom(
   "Giá tối thiểu 1.000 đ (để 0 nếu miễn phí) — kiểm tra có gõ thiếu số 0 không.",
 );
 
+// Layout Polaroid (khổ Instax) không có ô số lần chụp / số tấm in: luôn in 1 tấm, chụp không giới
+// hạn trong thời gian chụp.
+const exceptLayouts = (rules) =>
+  rules.map((rule) => (v, label, all) => (all.printSize === "instax" ? "" : rule(v, label, all)));
+
 export const RESOURCE_RULES = {
   rooms: {
     name: ["Tên phòng", required, maxLength(100)],
@@ -48,17 +53,19 @@ export const RESOURCE_RULES = {
     description: ["Mô tả", maxLength(1000)],
     price: ["Giá", required, intRange(0, 100000000), priceVND],
     duration: ["Thời gian chụp", required, intRange(1, 30)],
-    shots: ["Số lần chụp", required, intRange(1, 40)],
+    shots: ["Số lần chụp", ...exceptLayouts([required, intRange(1, 40)])],
     selectCount: ["Số ảnh khách chọn để ghép", required, intRange(1, 12)],
     prints: [
       "Số tờ in",
-      required,
-      intRange(0, 20),
-      // Khách in tối thiểu 2 tờ: khổ nhỏ 1 tờ 10 × 15 cắt đôi, khổ to 2 tờ, Instax 2 tấm (máy chủ kiểm tra lại).
-      custom(
-        (v, all) => Number(v) >= (all.printSize === "strip" ? 1 : 2),
-        "Khách in tối thiểu 2 tờ: khổ nhỏ kèm ít nhất 1 tờ 10 × 15 (cắt đôi = 2 tờ nhỏ), khổ to kèm ít nhất 2 tờ, khổ Instax kèm ít nhất 2 tấm.",
-      ),
+      ...exceptLayouts([
+        required,
+        intRange(0, 20),
+        // Khách in tối thiểu 2 tờ: khổ nhỏ 1 tờ 10 × 15 cắt đôi, khổ to 2 tờ (máy chủ kiểm tra lại).
+        custom(
+          (v, all) => Number(v) >= (all.printSize === "strip" ? 1 : 2),
+          "Khách in tối thiểu 2 tờ: khổ nhỏ kèm ít nhất 1 tờ 10 × 15 (cắt đôi = 2 tờ nhỏ), khổ to kèm ít nhất 2 tờ.",
+        ),
+      ]),
     ],
   },
   users: {

@@ -789,9 +789,9 @@ export function Kiosk() {
   }, [session?.captureToken, phase]);
   // Quay video tua nhanh trong lúc chụp (hình trực tiếp HDMI, hoặc webcam khi thử máy). Webcam máy
   // tính quay ở chế độ nhẹ (VP8 phần mềm, 720p): H.264 phần cứng với webcam laptop đã làm sập tab
-  // Chrome (STATUS_BREAKPOINT).
+  // Chrome (STATUS_BREAKPOINT). Phòng Polaroid (khổ Instax) không quay: khách nhận ảnh gốc qua QR.
   useEffect(() => {
-    if (phase === "shoot" && ready && stream.current)
+    if (phase === "shoot" && ready && stream.current && session?.booking.printSize !== "instax")
       recorder.current.start(stream.current, { light: webcamRef.current });
   }, [phase, ready, webcamTest]);
   // Đồng hồ các bước chuẩn bị / chọn ảnh / chọn khung: kiểm tra 4 lần mỗi giây nhưng chỉ vẽ lại khi

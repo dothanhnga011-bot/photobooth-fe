@@ -159,10 +159,11 @@ Một web, hai **loại phòng**. Đầu ca, nhân viên mở máy chụp từng
 - **Polaroid** (máy ảnh Fujifilm + FUJIFILM X Acquire + **dây bấm** như phòng Photobooth, in ở máy
   **Instax Link WIDE** qua print agent — xem README của `photobooth-be`):
   Chạm để bắt đầu → **Chọn layout** (lưới thẻ: hình layout, số ảnh, giá) → thông báo “Chọn layout này, vào chụp
-  nha!” → khách bấm dây chụp (không đếm ngược, tối đa số lần chụp của layout) → chọn ảnh & khung → in Instax.
+  nha!” → khách bấm dây chụp (không đếm ngược, không giới hạn số lần bấm trong thời gian chụp của layout, mặc
+  định 5 phút) → chọn ảnh & khung → in 1 tấm Instax → màn QR tải toàn bộ ảnh gốc (không quay video).
   Khách **trả tiền ở quầy**: đơn ghi “Polaroid · chưa thu tiền”, nhân viên bấm “Đã thu tiền mặt / chuyển
   khoản” ở Đơn hàng. Layout là các gói khổ Instax ở Khổ ảnh & bảng giá → tab **Polaroid** (số ảnh trong layout
-  chọn bằng hình, giá, số lần chụp tối đa); nút **Tạo 6 layout mẫu** tạo layout 1–6 ảnh (5 ảnh = 2 to trái + 3 bé
+  chọn bằng hình, giá, thời gian chụp; luôn in 1 tấm, không có ô số tấm / số lần chụp); nút **Tạo 6 layout mẫu** tạo layout 1–6 ảnh (5 ảnh = 2 to trái + 3 bé
   phải, `src/polaroid-layouts.js`) kèm khung trắng. Khung Instax là thẻ Instax Wide ngang 1800 × 1200, mỗi tấm
   in 1260 × 840.
 
