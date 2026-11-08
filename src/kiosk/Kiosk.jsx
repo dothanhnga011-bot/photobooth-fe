@@ -52,6 +52,7 @@ import {
   compositeJpeg,
   composePreview,
   frameCandidates,
+  frameNeed,
   printSheets,
   queueKioskComposite,
   queueKioskPrint,
@@ -1064,8 +1065,19 @@ export function Kiosk() {
   );
   const flowShots = ["select", "frame"].includes(phase) ? shots : [];
   const bitmaps = useShotBitmaps(flowShots, session?.accessToken);
-  const selected = session?.selected || [];
-  const need = Math.min(selectCount, shots.length);
+  const frameIndex = Math.min(session?.frameIndex || 0, Math.max(0, frames.length - 1));
+  // Số ảnh cần chọn theo khung đang xem (khổ lớn / nhỏ: số ô của khung; Instax: theo gói).
+  const needOf = (frame) => frameNeed(frame, {
+    count: selectCount, printSize: session?.booking.printSize, shots: shots.length,
+  });
+  const need = needOf(frames[frameIndex]);
+  const selected = (session?.selected || []).slice(0, need);
+  // Đổi sang khung ít ô hơn: giữ các tấm chọn trước, bỏ phần thừa.
+  const changeFrame = (i) => {
+    const keep = needOf(frames[i]);
+    const list = current.current?.selected || [];
+    patch({ frameIndex: i, ...(list.length > keep && { selected: list.slice(0, keep) }) });
+  };
   const toggleShot = (shotKey) => {
     const list = current.current.selected || [];
     patch({
@@ -1081,7 +1093,6 @@ export function Kiosk() {
   useEffect(() => {
     if (choosing && (session.selectEndsAt || session.frameEndsAt) && !selectLeft && !composing) confirmFrame();
   }, [phase, selectLeft]);
-  const frameIndex = Math.min(session?.frameIndex || 0, Math.max(0, frames.length - 1));
   // Màu ảnh (filter) và nhãn dán khách chọn, lưu cùng phiên để tải lại trang vẫn giữ.
   const filters = useMemo(() => filterChoices(settings), [settings]);
   const changeDecor = (changes) =>
@@ -1093,10 +1104,11 @@ export function Kiosk() {
     if (!s || composing || !["select", "frame"].includes(phaseOf(s))) return;
     // Chưa chọn đủ (hết giờ): thêm các tấm đầu tiên chưa chọn.
     const all = shotsOf(s);
-    const keys = [...(s.selected || [])];
-    for (const shot of all) if (keys.length < need && !keys.includes(shot.key)) keys.push(shot.key);
-    const chosenShots = keys.map((k) => all.find((x) => x.key === k)).filter(Boolean);
     const frame = frames[Math.min(s.frameIndex || 0, Math.max(0, frames.length - 1))];
+    const frameNeeds = needOf(frame);
+    const keys = (s.selected || []).slice(0, frameNeeds);
+    for (const shot of all) if (keys.length < frameNeeds && !keys.includes(shot.key)) keys.push(shot.key);
+    const chosenShots = keys.map((k) => all.find((x) => x.key === k)).filter(Boolean);
     // Ảnh xem trước ở màn QR, ảnh trong album và ảnh in cùng màu ảnh và nhãn dán khách đã chọn.
     // Màu từng ảnh (màu riêng của tấm đó, không có thì màu chung), cùng thứ tự ảnh đặt vào khung.
     const stepsOf = (shot) => filterStepsFor(photoFilterId(s.decor, shot.key), settings);
@@ -1443,7 +1455,7 @@ export function Kiosk() {
         secondsLeft={selectLeft}
         frames={frames}
         index={frameIndex}
-        setIndex={(i) => patch({ frameIndex: i })}
+        setIndex={changeFrame}
         onConfirm={confirmFrame}
         busy={composing}
         prints={Number(session.booking.prints) || 0}

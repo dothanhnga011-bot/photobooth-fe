@@ -69,8 +69,9 @@ const release = (image) => {
   else if (image) image.width = image.height = 0;
 };
 
-// Khung hợp với số ảnh khách chọn: đúng số ô và đúng khổ in của gói; không có thì nới dần
-// (đúng số ô mọi khổ → mọi khung, ảnh được lặp lại cho đủ ô). Xếp theo thứ tự chủ đề.
+// Khung cho gói: khổ lớn / khổ nhỏ hiện MỌI khung đúng khổ in của gói (số ảnh khách chọn theo số ô
+// của khung đang xem — frameNeed). Instax: layout theo số ảnh của gói (đúng số ô trước). Không có khung
+// đúng khổ thì nới dần (đúng số ô mọi khổ → mọi khung, ảnh được lặp lại cho đủ ô). Xếp theo thứ tự chủ đề.
 export function frameCandidates(frames, { count, printSize, themeOrder = [] }) {
   const size = (f) => f.printSize || "full";
   const usable = frames.filter((f) => frameCapacity(f) > 0);
@@ -83,12 +84,20 @@ export function frameCandidates(frames, { count, printSize, themeOrder = [] }) {
     String(a.themeName || "").localeCompare(String(b.themeName || ""), "vi") ||
     compareFrameOrder(a, b));
   const sameSize = sorted.filter((f) => size(f) === (printSize || "full"));
+  if (printSize !== "instax" && sameSize.length) return sameSize;
   const exact = sameSize.filter((f) => frameCapacity(f) === count);
   if (exact.length) return exact;
   // Khổ Instax in ở máy riêng: dùng khung Instax khác số ô trước khung 10 × 15.
   if (printSize === "instax" && sameSize.length) return sameSize;
   const sameCount = sorted.filter((f) => frameCapacity(f) === count);
   return sameCount.length ? sameCount : sorted;
+}
+
+// Số ảnh khách chọn cho khung đang xem: khổ lớn / nhỏ theo số ô của khung, Instax (và chưa có khung)
+// theo gói; không quá số ảnh đã chụp.
+export function frameNeed(frame, { count, printSize, shots }) {
+  const wanted = frame && printSize !== "instax" ? frameCapacity(frame) || count : count;
+  return Math.max(0, Math.min(wanted, shots));
 }
 
 // Ghép nhanh để xem trên màn hình (ảnh 1600 px), ảnh lặp lại khi khung nhiều số ảnh hơn số ảnh đã
