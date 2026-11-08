@@ -141,24 +141,41 @@ export function slotScale(image, rect, t = DEFAULT_TRANSFORM) {
 }
 
 // Vẽ ảnh vào ô theo phóng to (zoom), kéo (x, y — tỉ lệ theo kích thước ô) và xoay 90°.
-// Làm nét nhẹ (unsharp 3 × 3) một vùng ảnh của bản in: ảnh gốc 26 MP thu vào ô vài trăm px dễ hơi
-// mềm; mức nhẹ (amount ≈ 0,4) cho ảnh rõ nét mà không viền gắt.
-export function sharpenRect(ctx, rect, amount = 0.4) {
+// Làm nét bản in (unsharp mask kiểu in ảnh 300 dpi): ảnh trừ bản làm mờ Gauss (bán kính ~1 px,
+// nhân [1 4 6 4 1]) rồi cộng lại phần chênh × amount. Ngưỡng (threshold) bỏ qua chênh lệch nhỏ —
+// da mịn, nền trơn, hạt nhiễu ISO không bị làm sần; chỉ viền thật (tóc, mắt, chữ) sắc lên.
+// Làm nét trên độ sáng (cùng một lượng cho R, G, B) nên không lệch màu, không viền màu.
+export function sharpenRect(ctx, rect, amount = 0.8, threshold = 3) {
   const x = Math.max(0, Math.floor(rect.x)), y = Math.max(0, Math.floor(rect.y));
   const w = Math.min(ctx.canvas.width - x, Math.ceil(rect.w)), h = Math.min(ctx.canvas.height - y, Math.ceil(rect.h));
-  if (w < 3 || h < 3 || amount <= 0) return;
+  if (w < 5 || h < 5 || amount <= 0) return;
   const image = ctx.getImageData(x, y, w, h);
-  const src = image.data;
-  const out = new Uint8ClampedArray(src);
-  const row = w * 4, center = 1 + 4 * amount;
-  for (let j = 1; j < h - 1; j++)
-    for (let i = 1; i < w - 1; i++) {
-      const p = j * row + i * 4;
-      for (let c = 0; c < 3; c++)
-        out[p + c] = center * src[p + c] -
-          amount * (src[p + c - 4] + src[p + c + 4] + src[p + c - row] + src[p + c + row]);
+  const px = image.data;
+  const n = w * h;
+  const luma = new Float32Array(n);
+  for (let i = 0, p = 0; i < n; i++, p += 4) luma[i] = 0.299 * px[p] + 0.587 * px[p + 1] + 0.114 * px[p + 2];
+  // Gauss tách hai chiều, mép ảnh lặp điểm ngoài cùng.
+  const tmp = new Float32Array(n), blur = new Float32Array(n);
+  for (let j = 0; j < h; j++) {
+    const r = j * w;
+    for (let i = 0; i < w; i++) {
+      const a = luma[r + Math.max(0, i - 2)], b = luma[r + Math.max(0, i - 1)], c = luma[r + i];
+      const d = luma[r + Math.min(w - 1, i + 1)], e = luma[r + Math.min(w - 1, i + 2)];
+      tmp[r + i] = (a + 4 * b + 6 * c + 4 * d + e) / 16;
     }
-  image.data.set(out);
+  }
+  for (let j = 0; j < h; j++) {
+    const j2 = Math.max(0, j - 2) * w, j1 = Math.max(0, j - 1) * w, k1 = Math.min(h - 1, j + 1) * w, k2 = Math.min(h - 1, j + 2) * w;
+    for (let i = 0; i < w; i++)
+      blur[j * w + i] = (tmp[j2 + i] + 4 * tmp[j1 + i] + 6 * tmp[j * w + i] + 4 * tmp[k1 + i] + tmp[k2 + i]) / 16;
+  }
+  for (let i = 0, p = 0; i < n; i++, p += 4) {
+    const diff = luma[i] - blur[i];
+    if (Math.abs(diff) <= threshold) continue;
+    // Giảm dần quanh ngưỡng để không có bậc thang giữa vùng được / không được làm nét.
+    const boost = amount * (diff - Math.sign(diff) * threshold * 0.5);
+    px[p] += boost; px[p + 1] += boost; px[p + 2] += boost; // Uint8ClampedArray tự giới hạn 0–255
+  }
   ctx.putImageData(image, x, y);
 }
 
@@ -233,7 +250,13 @@ export function drawMarks(ctx, frame, qr, width, height) {
       const x = r.x + (r.w - side) / 2, y = r.y + (r.h - side) / 2;
       ctx.fillStyle = "#fff";
       ctx.fillRect(x, y, side, side);
-      if (qr) ctx.drawImage(qr, x, y, side, side);
+      if (qr) {
+        // Mã QR là các ô vuông: phóng kiểu "điểm gần nhất" cho cạnh sắc, không nhoè (dễ quét, in nét).
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(qr, x, y, side, side);
+        ctx.restore();
+      }
     } else if (region.kind === "date") {
       const text = printDate();
       ctx.save();
@@ -313,12 +336,17 @@ export function groupFramePacks(frames, themeOrder = []) {
     .map(({ index, ...g }) => g);
 }
 
+// Khung nhỏ chỉ là MỘT dải (vd. 600 × 1800, tỉ lệ ~1 : 3) thì máy chụp mới ghép 2 dải lên tờ. Khung nhỏ
+// thiết kế sẵn cả tờ 1200 × 1800 (2 dải đã nhân đôi) in nguyên tờ — dù cờ `sheet` chưa được lưu.
+export const isSingleStrip = (frame, width, height) =>
+  frame.printSize === "strip" && !frame.sheet && Math.min(width, height) / Math.max(width, height) < 0.5;
+
 // Kích thước xuất của một khung: giữ đúng tỉ lệ thiết kế, vừa khổ in.
 export function frameOutputSize(frame, image) {
-  // Khung phủ cả tờ (khung nhỏ = 2 dải trên một tờ) in nguyên tờ; khung dải cũ chỉ nửa tờ.
+  // Khung phủ cả tờ (khung nhỏ = 2 dải trên một tờ) in nguyên tờ; khung một dải chỉ nửa tờ.
   const box = frame.printSize === "instax"
     ? INSTAX_FRAME
-    : frame.printSize === "strip" && !frame.sheet ? { w: SHEET.w / 2, h: SHEET.h } : SHEET;
+    : isSingleStrip(frame, image.naturalWidth, image.naturalHeight) ? { w: SHEET.w / 2, h: SHEET.h } : SHEET;
   const landscape = image.naturalWidth > image.naturalHeight;
   const [bw, bh] = landscape ? [box.h, box.w] : [box.w, box.h];
   const { width, height } = imageRect(

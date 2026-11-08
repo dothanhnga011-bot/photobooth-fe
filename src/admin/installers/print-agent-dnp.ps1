@@ -176,6 +176,109 @@ function Set-TwoInchCut([string]$queueName, [bool]$enable) {
   return $false
 }
 
+# DEVMODE (base64) của hàng in với "2inch cut" bật / tắt CHỈ cho một lệnh in: tờ nhỏ cắt đôi, tờ to in
+# nguyên tờ, cùng một hàng in DNP — không cần hàng in cắt đôi riêng hay quyền quản trị. Driver không có
+# tuỳ chọn cắt thì trả về $null (in như cài đặt sẵn của hàng in).
+function Get-CutDevMode([string]$queueName, [bool]$enable) {
+  try {
+    $found = Find-CutOption $queueName $enable
+    if (-not $found) { return $null }
+    $xml = New-CutTicketXml $found
+    return Invoke-WithTimeout {
+      param($queueName, $xml)
+      Add-Type -AssemblyName System.Printing, ReachFramework
+      $delta = New-Object System.Printing.PrintTicket(New-Object System.IO.MemoryStream(, [Text.Encoding]::UTF8.GetBytes($xml)))
+      $queue = (New-Object System.Printing.LocalPrintServer).GetPrintQueue($queueName)
+      $ticket = $queue.MergeAndValidatePrintTicket($queue.UserPrintTicket, $delta).ValidatedPrintTicket
+      $converter = New-Object System.Printing.Interop.PrintTicketConverter($queueName, $queue.ClientPrintSchemaVersion)
+      try { [Convert]::ToBase64String($converter.ConvertPrintTicketToDevMode($ticket, [System.Printing.Interop.BaseDevModeType]::UserDefault)) }
+      finally { $converter.Dispose() }
+    } @($queueName, $xml) 45 'Đặt cắt đôi 2 inch cho lệnh in'
+  } catch {
+    Write-Log "Không đặt được cắt đôi 2 inch cho lệnh in ở '$queueName': $($_.Exception.Message)"
+    return $null
+  }
+}
+function Set-DocumentDevMode($document, [string]$devmode) {
+  $bytes = [Convert]::FromBase64String($devmode)
+  $handle = [Runtime.InteropServices.Marshal]::AllocHGlobal($bytes.Length)
+  try {
+    [Runtime.InteropServices.Marshal]::Copy($bytes, 0, $handle, $bytes.Length)
+    $document.PrinterSettings.SetHdevmode($handle)
+    $document.DefaultPageSettings.SetHdevmode($handle)
+  } finally { [Runtime.InteropServices.Marshal]::FreeHGlobal($handle) }
+}
+
+# Dao cắt của máy DNP đặt TRỰC TIẾP trên máy in (thư viện cspstat.dll của DNP, cài cùng công cụ DNP
+# PrinterInfo): firmware 2.x không cắt theo tuỳ chọn "2inch cut" của driver, chỉ cắt khi máy ở chế độ
+# CUTTER 120 (2 inch); 0 = cắt thường (nguyên tờ). Thư viện 32-bit nên gọi qua PowerShell 32-bit.
+$CutterModes = @{ on = 120; off = 0 }
+function Find-CspDll {
+  foreach ($path in @((Join-Path $AgentDir 'cspstat.dll'), 'C:\DNPPIA\PrinterInfo\cspstat.dll')) {
+    if (Test-Path -LiteralPath $path) { return $path }
+  }
+  return $null
+}
+# 'status' → mã trạng thái (0x10001 = sẵn sàng); 'set' → đặt chế độ dao cắt, trả 1 khi máy nhận.
+function Invoke-Csp([string]$action, [int]$mode = 0) {
+  $dll = Find-CspDll
+  if (-not $dll) { return $null }
+  $call = if ($action -eq 'set') { "[NxcCsp]::SetCutterMode(0, [uint32]$mode)" } else { '[NxcCsp]::GetStatus(0)' }
+  $script = @"
+Add-Type -TypeDefinition @'
+using System; using System.Runtime.InteropServices;
+public static class NxcCsp {
+  [DllImport(@"$dll", CharSet=CharSet.Unicode)] public static extern int GetPrinterPortNum(IntPtr arr, int size);
+  [DllImport(@"$dll", CharSet=CharSet.Unicode)] public static extern int SetCutterMode(int portno, uint ct);
+  [DllImport(@"$dll", CharSet=CharSet.Unicode)] public static extern uint GetStatus(int portno);
+}
+'@
+`$arr = [Runtime.InteropServices.Marshal]::AllocHGlobal(8192)
+[Runtime.InteropServices.Marshal]::Copy((New-Object byte[] 8192), 0, `$arr, 8192)
+if ([NxcCsp]::GetPrinterPortNum(`$arr, 8) -lt 1) { 'NOPRINTER'; exit }
+$call
+"@
+  $ps32 = Join-Path $env:WINDIR 'SysWOW64\WindowsPowerShell\v1.0\powershell.exe'
+  if (-not (Test-Path -LiteralPath $ps32)) { $ps32 = 'powershell.exe' }
+  $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($script))
+  $result = Invoke-WithTimeout {
+    param($ps32, $encoded)
+    & $ps32 -NoProfile -NonInteractive -EncodedCommand $encoded
+  } @($ps32, $encoded) 30 'Đọc / đặt dao cắt máy DNP'
+  return ([string](@($result) | Select-Object -Last 1)).Trim()
+}
+# Máy in đã in xong mọi tờ (hàng in Windows trống, máy báo sẵn sàng): đổi dao cắt lúc này không làm
+# tờ đang in bị cắt sai.
+function Wait-PrinterIdle([int]$seconds = 300) {
+  $until = (Get-Date).AddSeconds($seconds)
+  while ((Get-Date) -lt $until) {
+    $jobs = 0
+    foreach ($name in @($script:Config.printer, $script:Config.stripPrinter)) {
+      if ($name) { $jobs += @(Get-PrintJob -PrinterName $name -ErrorAction SilentlyContinue).Count }
+    }
+    if ($jobs -eq 0 -and (Invoke-Csp 'status') -eq '65537') { return $true }
+    Start-Sleep -Seconds 3
+  }
+  return $false
+}
+# Đặt dao cắt cho lệnh in: 'on' (khung nhỏ, cắt đôi) / 'off' (khung to, nguyên tờ). Trả về $true khi
+# máy nhận lệnh; $false khi máy này chưa có thư viện DNP (in theo tuỳ chọn của driver như trước).
+$script:CutterMode = $null
+function Set-PrinterCutter([string]$cut) {
+  if ($DryRunDir -or -not (Find-CspDll)) { return $false }
+  $mode = $CutterModes[$cut]
+  if ($script:CutterMode -ne $mode -and -not (Wait-PrinterIdle)) {
+    Write-Log 'Máy in chưa in xong tờ trước sau 5 phút: vẫn đổi dao cắt cho lệnh mới.'
+  }
+  try {
+    $result = Invoke-Csp 'set' $mode
+    if ($result -eq '1') { $script:CutterMode = $mode; return $true }
+    Write-Log "Máy DNP không nhận lệnh đặt dao cắt ($mode): $result"
+  } catch { Write-Log "Không đặt được dao cắt máy DNP: $($_.Exception.Message)" }
+  $script:CutterMode = $null
+  return $false
+}
+
 # Khổ giấy 10 × 15 cm (4 × 6 inch) của driver (driver có thể khai báo dọc hoặc ngang).
 # Driver DNP khai báo khổ 4x6 dọc hoặc ngang, có khi lớn hơn một chút vì phần tràn lề (vd. 4,13 × 6,15
 # inch), với tên "(6x4)", "PR (4x6)"…: nhận cả khoảng đó, ưu tiên khổ không phải "x2 / cắt", gần 4 × 6 nhất.
@@ -189,7 +292,8 @@ function Find-Paper($settings) {
     Select-Object -First 1
 }
 
-function Send-Sheets([string]$printerName, [string[]]$files, [string]$docName) {
+# $cut: 'on' = máy cắt đôi tờ (2 dải 5 × 15), 'off' = in nguyên tờ 10 × 15, '' = giữ cài đặt của hàng in.
+function Send-Sheets([string]$printerName, [string[]]$files, [string]$docName, [string]$cut = '') {
   if ($DryRunDir) {
     New-Item -ItemType Directory -Force -Path $DryRunDir | Out-Null
     $safe = $printerName -replace '[^\w.-]+', '_'
@@ -206,6 +310,11 @@ function Send-Sheets([string]$printerName, [string[]]$files, [string]$docName) {
   $document.PrinterSettings.PrinterName = $printerName
   if (-not $document.PrinterSettings.IsValid) { throw "Không thấy hàng in '$printerName' trong Windows." }
   $document.PrintController = New-Object System.Drawing.Printing.StandardPrintController
+  $script:cutApplied = $false
+  if ($cut) {
+    $devmode = Get-CutDevMode $printerName ($cut -eq 'on')
+    if ($devmode) { Set-DocumentDevMode $document $devmode; $script:cutApplied = $true }
+  }
   $paper = Find-Paper $document.PrinterSettings
   # Không nhận ra khổ 4x6 trong danh sách của driver: in bằng khổ đang đặt sẵn của hàng in (driver DNP mặc
   # định 4x6) thay vì bỏ lệnh in của khách; tên khổ ghi vào kết quả để kiểm tra.
@@ -222,10 +331,22 @@ function Send-Sheets([string]$printerName, [string[]]$files, [string]$docName) {
       # Tờ khác chiều với trang của máy in (vd. tờ ngang trên trang dọc): xoay 90 độ cho kín khổ.
       $pageLandscape = $event.PageBounds.Width -gt $event.PageBounds.Height
       if (($photo.Width -gt $photo.Height) -ne $pageLandscape) { $photo.RotateFlip([System.Drawing.RotateFlipType]::Rotate90FlipNone) }
-      $event.Graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-      $event.Graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
-      $event.Graphics.TranslateTransform(-$event.PageSettings.HardMarginX, -$event.PageSettings.HardMarginY)
-      $event.Graphics.DrawImage($photo, $event.PageBounds)
+      $g = $event.Graphics
+      $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+      $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+      $g.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+      $g.TranslateTransform(-$event.PageSettings.HardMarginX, -$event.PageSettings.HardMarginY)
+      # Phủ kín trang mà GIỮ tỉ lệ (trang DNP 6,15 × 4,13 inch có phần tràn lề, tỉ lệ khác tờ 1800 × 1200
+      # một chút): phóng đều rồi căn giữa, không kéo giãn méo hình; mép tràn lề bị máy xén như thường.
+      $b = $event.PageBounds
+      $scale = [Math]::Max($b.Width / $photo.Width, $b.Height / $photo.Height)
+      $w = $photo.Width * $scale; $h = $photo.Height * $scale
+      $dest = New-Object System.Drawing.Rectangle([int][Math]::Round($b.X + ($b.Width - $w) / 2)), ([int][Math]::Round($b.Y + ($b.Height - $h) / 2)), ([int][Math]::Ceiling($w)), ([int][Math]::Ceiling($h))
+      # Lặp điểm ở mép ảnh khi nội suy: không có viền mờ / viền xám quanh tờ.
+      $attrs = New-Object System.Drawing.Imaging.ImageAttributes
+      $attrs.SetWrapMode([System.Drawing.Drawing2D.WrapMode]::TileFlipXY)
+      try { $g.DrawImage($photo, $dest, 0, 0, $photo.Width, $photo.Height, [System.Drawing.GraphicsUnit]::Pixel, $attrs) }
+      finally { $attrs.Dispose() }
     } finally { $photo.Dispose() }
     $script:printIndex++
     $event.HasMorePages = $script:printIndex -lt $script:printPages.Count
@@ -363,15 +484,22 @@ function Invoke-Job($job) {
       $copies = [Math]::Max(1, [int]$job.copies)
       for ($n = 0; $n -lt $copies; $n++) { $files += $file }
     }
-    $queue = $config.printer; $note = ''
+    # Khung nhỏ: 1 tờ 1200 × 1800 (2 dải) bật "2inch cut" cho riêng lệnh này để máy cắt đôi; khung to:
+    # tắt cắt, in nguyên tờ. Có hàng in cắt đôi riêng thì tờ nhỏ vẫn đi qua hàng đó.
+    $queue = $config.printer; $note = ''; $cut = 'off'
     if ($job.printSize -eq 'strip') {
+      $cut = 'on'
       if ($config.stripPrinter -and (($DryRunDir) -or (Get-Printer -Name $config.stripPrinter -ErrorAction SilentlyContinue))) {
-        $queue = $config.stripPrinter; $note = ', tờ nhỏ qua hàng in cắt đôi 2 inch'
-      } else {
-        $note = ' — chưa có hàng in cắt đôi: tờ nhỏ ra nguyên tờ, nhân viên tự cắt'
+        $queue = $config.stripPrinter
       }
     }
-    $paper = Send-Sheets $queue $files ("NXC-$($job.code)")
+    $cutter = Set-PrinterCutter $cut
+    $paper = Send-Sheets $queue $files ("NXC-$($job.code)") $cut
+    if ($job.printSize -eq 'strip') {
+      if ($cutter) { $note = ', tờ nhỏ: máy cắt đôi 2 inch (dao cắt 120)' }
+      elseif ($script:cutApplied -or $queue -ne $config.printer) { $note = ', tờ nhỏ cắt đôi 2 inch' }
+      else { $note = ' — driver không nhận lệnh cắt đôi 2 inch: tờ nhỏ ra nguyên tờ, nhân viên tự cắt' }
+    } elseif ($cutter) { $note = ', tờ to: in nguyên tờ (dao cắt thường)' }
     return "Đã gửi $($files.Count) tờ tới máy DNP ($paper)$note.$(Get-PrinterProblem)"
   } finally {
     Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue

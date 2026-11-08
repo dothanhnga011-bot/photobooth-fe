@@ -7,8 +7,10 @@ import {
   drawSlot,
   frameCapacity,
   sharpenRect,
+  slotScale,
   frameOutputSize,
   instaxPrint,
+  isSingleStrip,
   loadFrameImage,
   packPrintSheets,
   photoLayout,
@@ -16,7 +18,7 @@ import {
 } from "../frame-utils.js";
 import { qrImage } from "../qr-image.js";
 import { fetchMediaBlob } from "../media-delivery.js";
-import { jpegDataUrl } from "../album/encode-jpeg.js";
+import { jpegDataUrl, pngDataUrl } from "../album/encode-jpeg.js";
 import { printPackUpload } from "../album/print-upload.js";
 import { drawStickers, filterPhotos, loadStickers, stickerArea } from "./decor.js";
 import { priority } from "./uplink.js";
@@ -135,14 +137,40 @@ export async function composePreview(frame, images, width = 900, qrUrl = "",
   return canvas;
 }
 
+// Vẽ ảnh vào ô in: thu nhỏ MỘT lần thẳng về đúng cỡ ô bằng bộ lọc chất lượng cao của trình duyệt
+// (createImageBitmap resizeQuality "high"), thay vì để drawImage thu nhỏ 3–6 lần trong một bước
+// (mờ / răng cưa chi tiết tóc, mắt). Ảnh thu đều cả hai chiều nên vị trí, phóng to, xoay giữ nguyên.
+async function drawSharpSlot(ctx, source, rect, t) {
+  const scale = slotScale(source, rect, t);
+  let fitted = null;
+  if (scale < 0.9 && typeof createImageBitmap === "function") {
+    try {
+      fitted = await createImageBitmap(source, {
+        resizeWidth: Math.max(1, Math.round(source.width * scale)),
+        resizeHeight: Math.max(1, Math.round(source.height * scale)),
+        resizeQuality: "high",
+      });
+    } catch { /* trình duyệt không hỗ trợ: vẽ thẳng từ ảnh gốc */ }
+  }
+  try {
+    drawSlot(ctx, fitted || source, rect, t);
+  } finally {
+    fitted?.close();
+  }
+}
+
 // Ghép bản in: đúng kích thước in của khung, mỗi ô vẽ từ ảnh chất lượng cao, lần lượt từng ảnh
 // (ảnh 26 MP giải mã ~100 MB nên không giữ nhiều ảnh cùng lúc). filters (màu từng ảnh, cùng thứ tự
 // shots) / stickers: màu ảnh và nhãn dán khách chọn, vẽ giống hệt ảnh xem trước.
-export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filters = [], stickers = [], transforms = [] } = {}) {
+// scale: 1 = đúng khổ in (1200 × 1800, 300 dpi); 2 = ảnh ghép cho album (2400 × 3600), ảnh vẽ thẳng
+// từ ảnh gốc nên khách phóng to trên điện thoại vẫn nét.
+export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filters = [], stickers = [], transforms = [], scale = 1 } = {}) {
   const layout = photoLayout(frame);
   const background = await loadFrameImage(frame.image);
   const canvas = document.createElement("canvas");
-  Object.assign(canvas, frameOutputSize(frame, background));
+  const size = frameOutputSize(frame, background);
+  canvas.width = Math.round(size.width * scale);
+  canvas.height = Math.round(size.height * scale);
   const ctx = canvas.getContext("2d");
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
@@ -161,10 +189,10 @@ export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filter
       }
       const source = sources.get(shot.key);
       const t = transforms[index];
-      drawSlot(ctx, source, slotRect(slot, canvas.width, canvas.height), t);
+      await drawSharpSlot(ctx, source, slotRect(slot, canvas.width, canvas.height), t);
       // Ô bản sao cùng số ảnh (vd. dải thứ hai của khung nhỏ).
       for (const copy of layout.copies)
-        if (copy.of === index) drawSlot(ctx, source, slotRect(copy.slot, canvas.width, canvas.height), t);
+        if (copy.of === index) await drawSharpSlot(ctx, source, slotRect(copy.slot, canvas.width, canvas.height), t);
     }
     filterPhotos(ctx, layout, filters, canvas.width, canvas.height);
     // Làm nét nhẹ các ô ảnh (bản in 300 dpi), trước khi vẽ mã QR / ngày in.
@@ -196,16 +224,16 @@ export async function printSheets(frameCanvas, frame, prints, printSize = frame.
     image.width = image.height = 0;
     return Array.from({ length: prints }, () => data);
   }
-  const layout = frame.sheet ? "full" : frame.printSize || "full";
+  // Khung nhỏ 1200 × 1800 đã có sẵn 2 dải: in nguyên tờ 1 lần (máy DNP cắt đôi), không nhân đôi nữa.
+  const layout = isSingleStrip(frame, frameCanvas.width, frameCanvas.height) ? "strip" : "full";
   const copies = layout === "strip" ? prints * 2 : prints;
   const outputs = Array.from({ length: copies }, () => ({ canvas: frameCanvas, printSize: layout }));
   const sheets = packPrintSheets(outputs);
-  const images = [];
-  for (const sheet of sheets) {
-    images.push(await jpegDataUrl(sheet.canvas, 0.95));
-    sheet.canvas.width = sheet.canvas.height = 0;
-  }
-  return images;
+  // Tờ in DNP: PNG không nén mất — giữ đủ màu từng điểm ảnh (JPEG giảm độ phân giải màu, nhoè viền
+  // chữ / khung). Mọi tờ của một lượt giống hệt nhau (cùng một khung), nên chỉ mã hoá một lần.
+  const data = await pngDataUrl(sheets[0].canvas);
+  for (const sheet of sheets) sheet.canvas.width = sheet.canvas.height = 0;
+  return sheets.map(() => data);
 }
 
 // ─── Hàng gửi in của máy chụp ─────────────────────────────────────────────

@@ -1136,15 +1136,10 @@ export function Kiosk() {
         const frameName = frame.themeName?.trim() || frame.name || "Khung ảnh";
         // Bản ghép chất lượng in: gửi vào album (khách xem / tải) và, nếu gói có in, ra máy in.
         (async () => {
-          let printFrame = null;
+          let printFrame = null, albumFrame = null;
           try {
+            // Tờ in trước (khách đang chờ ảnh ra): đúng khổ in 300 dpi.
             printFrame = await renderPrintFrame(frame, chosenShots, s.accessToken, albumLink, look);
-            await queueKioskComposite({
-              token: s.accessToken,
-              captureToken: s.captureToken,
-              image: await compositeJpeg(printFrame),
-              frameName,
-            }).catch(() => {});
             if (printsCount)
               await queueKioskPrint({
                 token: s.accessToken,
@@ -1153,8 +1148,23 @@ export function Kiosk() {
               });
           } catch (e) {
             if (printsCount) setPrint({ status: "failed", message: e.message });
+          }
+          try {
+            // Ảnh ghép cho album gấp đôi độ phân giải (vd. 2400 × 3600), vẽ lại từ ảnh gốc: khách tải
+            // về phóng to vẫn nét. Máy yếu / thiếu bộ nhớ thì dùng bản khổ in.
+            albumFrame = await renderPrintFrame(frame, chosenShots, s.accessToken, albumLink, { ...look, scale: 2 })
+              .catch(() => null);
+            const source = albumFrame || printFrame;
+            if (source)
+              await queueKioskComposite({
+                token: s.accessToken,
+                captureToken: s.captureToken,
+                image: await compositeJpeg(source),
+                frameName,
+              }).catch(() => {});
           } finally {
             if (printFrame) printFrame.width = printFrame.height = 0;
+            if (albumFrame) albumFrame.width = albumFrame.height = 0;
           }
         })();
       }

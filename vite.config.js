@@ -99,7 +99,18 @@ function guestStylesheet() {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const proxy = { '/api': env.API_PROXY_TARGET || 'http://localhost:8080' };
+  const target = env.API_PROXY_TARGET || 'http://localhost:8080';
+  // Thử máy local với API thật (API_PROXY_TARGET=https://…): máy chủ chỉ nhận yêu cầu từ trang của nó,
+  // nên proxy gửi Origin của máy chủ thay cho http://localhost:5173.
+  const proxy = {
+    '/api': {
+      target,
+      changeOrigin: true,
+      configure: (server) => server.on('proxyReq', (req) => {
+        if (req.getHeader('origin')) req.setHeader('origin', new URL(target).origin);
+      }),
+    },
+  };
   return {
     plugins: [react(), tailwindcss(), albumRoutePreload(), guestStylesheet(), printAgentDownload()],
     server: { host: '0.0.0.0', port: 5173, strictPort: true, proxy },

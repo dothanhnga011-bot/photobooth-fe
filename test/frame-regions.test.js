@@ -74,11 +74,11 @@ test("marks draw a white QR square and the date in the frame colour", () => {
 });
 
 test("print sharpening keeps flat areas and lifts edge contrast inside the photo slot only", () => {
-  const width = 6, height = 3;
+  const width = 8, height = 5;
   const pixels = new Uint8ClampedArray(width * height * 4);
   // Nửa trái xám 100, nửa phải xám 160.
   for (let y = 0; y < height; y++)
-    for (let x = 0; x < width; x++) pixels.set([x < 3 ? 100 : 160, x < 3 ? 100 : 160, x < 3 ? 100 : 160, 255], (y * width + x) * 4);
+    for (let x = 0; x < width; x++) pixels.set([x < 4 ? 100 : 160, x < 4 ? 100 : 160, x < 4 ? 100 : 160, 255], (y * width + x) * 4);
   const ctx = {
     canvas: { width, height },
     getImageData: (x, y, w, h) => {
@@ -87,13 +87,13 @@ test("print sharpening keeps flat areas and lifts edge contrast inside the photo
       return { data };
     },
     putImageData: (image, x, y) => {
-      const w = 6;
+      const w = width;
       for (let j = 0; j < height; j++) pixels.set(image.data.subarray(j * w * 4, (j + 1) * w * 4), ((y + j) * width + x) * 4);
     },
   };
-  sharpenRect(ctx, { x: 0, y: 0, w: 6, h: 3 }, 0.4);
+  sharpenRect(ctx, { x: 0, y: 0, w: width, h: height }, 0.4);
   const at = (x, y) => pixels[(y * width + x) * 4];
-  assert.equal(at(1, 1), 100, "vùng phẳng giữ nguyên");
-  assert.ok(at(2, 1) < 100 && at(3, 1) > 160, `cạnh rõ hơn: ${at(2, 1)} / ${at(3, 1)}`);
-  assert.equal(pixels[(1 * width + 2) * 4 + 3], 255, "kênh trong suốt không đổi");
+  assert.equal(at(1, 2), 100, "vùng phẳng giữ nguyên");
+  assert.ok(at(3, 2) < 100 && at(4, 2) > 160, `cạnh rõ hơn: ${at(3, 2)} / ${at(4, 2)}`);
+  assert.equal(pixels[(2 * width + 3) * 4 + 3], 255, "kênh trong suốt không đổi");
 });
