@@ -287,11 +287,12 @@ async function watchSpool(token, requestKey) {
   }
 }
 
-export async function queueKioskPrint({ token, images, frameName }) {
+// printSize: khổ của khung được in ("strip" → máy cắt đôi, "full" → nguyên tờ; Instax bỏ trống).
+export async function queueKioskPrint({ token, images, frameName, printSize }) {
   if (!images.length) return;
   const queue = (await readSetting(QUEUE_KEY).catch(() => null)) || [];
   if (!queue.some((job) => job.token === token))
-    queue.push({ token, frameName, images, requestKey: crypto.randomUUID(), queuedAt: Date.now() });
+    queue.push({ token, frameName, printSize, images, requestKey: crypto.randomUUID(), queuedAt: Date.now() });
   await saveSetting(QUEUE_KEY, queue);
   notify(token, { status: "sending" });
   runKioskPrints();
@@ -307,7 +308,7 @@ export function runKioskPrints() {
         for (const job of queue) {
           try {
             const printed = await priority(() => api(`/albums/${job.token}/print-pack`, printPackUpload({
-              images: job.images, frameName: job.frameName, requestKey: job.requestKey,
+              images: job.images, frameName: job.frameName, requestKey: job.requestKey, printSize: job.printSize,
             })));
             notify(job.token, spoolState(printed));
             watchSpool(job.token, job.requestKey);

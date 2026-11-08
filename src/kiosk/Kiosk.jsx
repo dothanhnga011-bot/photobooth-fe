@@ -1157,6 +1157,9 @@ export function Kiosk() {
                 token: s.accessToken,
                 images: await printSheets(printFrame, frame, printsCount, s.booking.printSize),
                 frameName,
+                // Khung nhỏ → máy cắt đôi; khung lớn → nguyên tờ (kể cả khi gói ảnh nhỏ chưa có khung
+                // nhỏ nên dùng khung lớn). Instax: máy in riêng, theo gói.
+                printSize: s.booking.printSize === "instax" ? undefined : frame.printSize === "strip" ? "strip" : "full",
               });
           } catch (e) {
             if (printsCount) setPrint({ status: "failed", message: e.message });

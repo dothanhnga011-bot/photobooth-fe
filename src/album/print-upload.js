@@ -11,7 +11,9 @@ export function dataUrlBytes(dataUrl) {
   return bytes;
 }
 
-export function printPackUpload({ images, frameName, requestKey }) {
+// printSize ("full" / "strip", không bắt buộc): khổ của khung được in — máy DNP cắt đôi tờ "strip",
+// in nguyên tờ "full". Bỏ trống thì máy chủ theo khổ của gói.
+export function printPackUpload({ images, frameName, requestKey, printSize }) {
   const sheets = images.map(dataUrlBytes);
   return {
     method: "POST",
@@ -23,6 +25,7 @@ export function printPackUpload({ images, frameName, requestKey }) {
       "X-Print-Key": requestKey,
       "X-Print-Frame": encodeURIComponent(frameName),
       "X-Print-Sheets": sheets.map((sheet) => sheet.length).join(","),
+      ...(printSize && { "X-Print-Size": printSize }),
     },
   };
 }

@@ -79,4 +79,7 @@ test("print sheets go as raw bytes in order, with their sizes, key and theme in 
   });
   // About a quarter smaller than the same sheets as base64 JSON.
   assert.ok(request.body.size < JSON.stringify({ images }).length * 0.8);
+  // Khổ của khung được in (máy DNP cắt đôi "strip", nguyên tờ "full") đi kèm khi có.
+  const strip = printPackUpload({ images, frameName: "x", requestKey: "8b7f5a9e-1c2d-4e3f-9a0b-1c2d3e4f5a6b", printSize: "strip" });
+  assert.equal(strip.headers["X-Print-Size"], "strip");
 });
