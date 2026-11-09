@@ -473,20 +473,20 @@ function Send-Status {
   } })
 }
 
-function Invoke-Job($job) {
+function Invoke-Job($job, [string[]]$localFiles = @()) {
   $config = $script:Config
   $dir = Join-Path $env:TEMP ('nxc-print-' + [guid]::NewGuid().ToString('N'))
   New-Item -ItemType Directory -Path $dir | Out-Null
   try {
-    $files = @()
-    foreach ($sheet in @($job.sheets)) {
+    $files = @($localFiles)
+    if (-not $localFiles.Count) { foreach ($sheet in @($job.sheets)) {
       $file = Join-Path $dir ('{0}.{1}' -f $sheet.index, $sheet.extension)
       Invoke-WebRequest -Uri "$($config.api)/api/print-agent/jobs/$($job.id)/sheets/$($sheet.index)" `
         -Headers @{ Authorization = "Bearer $($config.token)"; 'X-Print-Lease' = $job.leaseId } `
         -OutFile $file -UseBasicParsing -TimeoutSec 120
       $copies = [Math]::Max(1, [int]$job.copies)
       for ($n = 0; $n -lt $copies; $n++) { $files += $file }
-    }
+    } }
     # Khung nhỏ: 1 tờ 1200 × 1800 (2 dải) bật "2inch cut" cho riêng lệnh này để máy cắt đôi; khung to:
     # tắt cắt, in nguyên tờ. Có hàng in cắt đôi riêng thì tờ nhỏ vẫn đi qua hàng đó.
     $queue = $config.printer; $note = ''; $cut = 'off'
@@ -509,6 +509,112 @@ function Invoke-Job($job) {
   }
 }
 
+function Start-LocalPrinter {
+  $script:LocalListener = New-Object Net.HttpListener
+  $script:LocalListener.Prefixes.Add('http://127.0.0.1:8789/')
+  try {
+    $script:LocalListener.Start()
+    $script:LocalRequest = $script:LocalListener.BeginGetContext($null, $null)
+    Write-Log 'Direct RX1 printing: http://127.0.0.1:8789 (no print dialog).'
+  } catch {
+    Write-Log "Cannot start direct printing: $($_.Exception.Message). Run the room printer installer again."
+    $script:LocalListener = $null
+  }
+}
+
+function Write-LocalResponse($response, [int]$status, $body) {
+  $bytes = [Text.Encoding]::UTF8.GetBytes(($body | ConvertTo-Json -Depth 6 -Compress))
+  $response.StatusCode = $status
+  $response.ContentType = 'application/json; charset=utf-8'
+  $response.ContentLength64 = $bytes.Length
+  try { $response.OutputStream.Write($bytes, 0, $bytes.Length) } finally { $response.Close() }
+}
+
+function Receive-LocalPrint {
+  if (-not $script:LocalListener -or -not $script:LocalRequest.IsCompleted) { return }
+  $context = $script:LocalListener.EndGetContext($script:LocalRequest)
+  $script:LocalRequest = $script:LocalListener.BeginGetContext($null, $null)
+  $request = $context.Request; $response = $context.Response
+  $response.Headers['Cache-Control'] = 'no-store'
+  $origin = [string]$request.Headers['Origin']
+  $apiOrigin = ([uri]$script:Config.api).GetLeftPart([UriPartial]::Authority)
+  $allowed = @($apiOrigin, 'https://mellowptb.com', 'https://photobooth.ngathanh.workers.dev', 'https://studio.selfbooth.workers.dev', 'http://localhost:5173', 'http://127.0.0.1:5173')
+  if ($request.UserHostName -ne '127.0.0.1:8789' -or -not $origin -or $origin -notin $allowed) {
+    Write-LocalResponse $response 403 @{ message = 'Kiosk origin not allowed.' }; return
+  }
+  $response.Headers['Access-Control-Allow-Origin'] = $origin
+  $response.Headers['Vary'] = 'Origin'
+  $response.Headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+  $response.Headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Album-Token, X-Print-Key, X-Print-Frame, X-Print-Sheets, X-Print-Size'
+  $response.Headers['Access-Control-Allow-Private-Network'] = 'true'
+  if ($request.HttpMethod -eq 'OPTIONS') { Write-LocalResponse $response 200 @{ ok = $true }; return }
+  if ($request.HttpMethod -eq 'GET' -and $request.Url.AbsolutePath -eq '/health') {
+    Write-LocalResponse $response 200 @{ directPrint = 1; room = [string]$script:Config.room }; return
+  }
+  if ($request.HttpMethod -ne 'POST' -or $request.Url.AbsolutePath -ne '/print') {
+    Write-LocalResponse $response 404 @{ message = 'Unknown local printer endpoint.' }; return
+  }
+  $directory = $null
+  try {
+    $albumToken = [string]$request.Headers['X-Album-Token']
+    if ($albumToken -notmatch '^[a-zA-Z0-9_-]{8,200}$') { throw 'Invalid album token.' }
+    if ($request.ContentLength64 -le 0 -or $request.ContentLength64 -gt 64MB) { throw 'Print body must be between 1 byte and 64 MB.' }
+    $memory = New-Object IO.MemoryStream
+    try {
+      $buffer = New-Object byte[] 65536
+      while (($read = $request.InputStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+        $memory.Write($buffer, 0, $read)
+        if ($memory.Length -gt 64MB) { throw 'Print body exceeds 64 MB.' }
+      }
+      $bytes = $memory.ToArray()
+    } finally { $memory.Dispose() }
+    $headers = @{ Authorization = "Bearer $($script:Config.token)" }
+    foreach ($name in @('X-Print-Key', 'X-Print-Frame', 'X-Print-Sheets', 'X-Print-Size')) {
+      if ($request.Headers[$name]) { $headers[$name] = [string]$request.Headers[$name] }
+    }
+    # Validate quota and persist the immutable sheets, without a queued job or another download.
+    $result = Invoke-RestMethod -Method Post -Uri "$($script:Config.api)/api/print-agent/direct/$albumToken" `
+      -Headers $headers -ContentType 'application/octet-stream' -Body $bytes -TimeoutSec 120
+    if (-not $result.direct.fresh) {
+      if ($result.spoolStatus -eq 'sent') { Write-LocalResponse $response 200 @{ sent = $true; duplicate = $true }; return }
+      throw 'This request was already received. Check the printer before reprinting.'
+    }
+    $job = $result.direct.job
+    $directory = Join-Path $env:TEMP ('nxc-direct-' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $directory | Out-Null
+    $sizes = @(([string]$request.Headers['X-Print-Sheets']).Split(',') | ForEach-Object { [int]$_ })
+    $offset = 0; $files = @()
+    foreach ($sheet in @($job.sheets)) {
+      $length = $sizes[[int]$sheet.index]
+      $file = Join-Path $directory ("$($sheet.index).$($sheet.extension)")
+      $stream = [IO.File]::Create($file)
+      try { $stream.Write($bytes, $offset, $length) } finally { $stream.Dispose() }
+      $offset += $length; $files += $file
+    }
+    $sent = $false; $message = ''
+    try {
+      if (Get-OfflineQueue) { throw 'The Windows printer queue is offline.' }
+      $message = Invoke-Job $job $files
+      $sent = $true
+    } catch { $message = $_.Exception.Message }
+    try {
+      [void](Invoke-Api 'POST' "/jobs/$($job.id)/complete" @{ leaseId = [string]$job.leaseId; sent = $sent; message = $message.Substring(0, [Math]::Min(480, $message.Length)) })
+    } catch { Write-Log 'Direct print acknowledgement failed; do not automatically resend this print.' }
+    Write-LocalResponse $response $(if ($sent) { 200 } else { 503 }) @{ sent = $sent; message = $message }
+  } catch {
+    try { Write-LocalResponse $response 503 @{ sent = $false; message = $_.Exception.Message } } catch {}
+  } finally {
+    if ($directory -and (Split-Path -Parent $directory) -eq $env:TEMP -and (Split-Path -Leaf $directory) -like 'nxc-direct-*') {
+      Remove-Item -LiteralPath $directory -Recurse -Force -ErrorAction SilentlyContinue
+    }
+  }
+}
+
+function Wait-WithLocalPrinter([int]$seconds) {
+  $until = (Get-Date).AddSeconds($seconds)
+  do { Receive-LocalPrint; Start-Sleep -Milliseconds 100 } while ((Get-Date) -lt $until)
+}
+
 function Start-Agent {
   $script:Config = Read-Config
   if (-not $Once) {
@@ -518,11 +624,13 @@ function Start-Agent {
     if (Update-Self) { Restart-Agent }
   }
   $updateAt = Get-Date
+  if (-not $Once -and -not $DryRunDir) { Start-LocalPrinter }
   Write-Log "Bắt đầu nhận lệnh in phòng '$($script:Config.room)' → $($script:Config.printer) (tờ nhỏ: $($script:Config.stripPrinter))."
   $statusAt = [datetime]::MinValue
   $delay = 3
   while ($true) {
     try {
+      Receive-LocalPrint
       if (-not $Once -and ((Get-Date) - $updateAt).TotalMinutes -ge 30) {
         $updateAt = Get-Date
         if (Update-Self) { Restart-Agent }
@@ -537,7 +645,7 @@ function Start-Agent {
         $script:OfflineQueue = $offline
         if ($Once) { break }
         $delay = 10
-        Start-Sleep -Seconds $delay
+        Wait-WithLocalPrinter $delay
         continue
       }
       $script:OfflineQueue = $null
@@ -574,7 +682,7 @@ function Start-Agent {
       }
       if ($Once) { throw }
     }
-    if ($delay -gt 0) { Start-Sleep -Seconds $delay }
+    if ($delay -gt 0) { Wait-WithLocalPrinter $delay }
   }
 }
 
@@ -608,6 +716,12 @@ function Install-Agent {
   $setup = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($payload.Groups[1].Value)) | ConvertFrom-Json
   New-Item -ItemType Directory -Force -Path (Split-Path -Parent $ConfigPath) | Out-Null
   Disable-QuickEdit
+  # Http.sys binding limited to the current Windows account and loopback address.
+  if (-not $env:NXC_STARTUP_DIR) {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+    & netsh.exe http add urlacl url=http://127.0.0.1:8789/ "user=$identity" 2>&1 | Out-Null
+    # An existing reservation is normal on reinstall; listener startup reports an actual failure.
+  }
   Write-Host "Cài máy in DNP cho phòng: $($setup.room)"
 
   $main = Find-Dnp

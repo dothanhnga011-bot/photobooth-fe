@@ -22,6 +22,7 @@ import { jpegDataUrl, pngDataUrl } from "../album/encode-jpeg.js";
 import { printPackUpload } from "../album/print-upload.js";
 import { drawStickers, filterPhotos, loadStickers, stickerArea } from "./decor.js";
 import { priority } from "./uplink.js";
+import { sendDirectPrint } from "./direct-print.js";
 
 // Ghép khung và in ngay tại máy chụp (khách chọn ảnh → chọn khung → lấy ảnh ở khay in).
 // Một "tấm" (shot): { key, preview: Blob | URL, image?: Blob gốc chưa lật, mirrored, serverId? }.
@@ -266,6 +267,22 @@ export function watchKioskPrint(listener) {
   return () => listeners.delete(listener);
 }
 export const kioskPrintState = (token) => states.get(token);
+
+export async function directKioskPrint(job) {
+  const key = `kiosk-direct-request:${job.token}`;
+  const saved = await readSetting(key);
+  const requestKey = saved?.requestKey || crypto.randomUUID();
+  // Keep the identity even if the browser reloads after a lost acknowledgement.
+  await saveSetting(key, { requestKey });
+  notify(job.token, { status: 'sending' });
+  try {
+    await sendDirectPrint({ ...job, requestKey });
+    notify(job.token, { status: 'printed' });
+  } catch (error) {
+    notify(job.token, { status: 'failed', message: error.message });
+    throw error;
+  }
+}
 
 // Trạng thái máy in thật của lệnh in (print-agent ở quầy nhận lệnh → hàng in DNP của Windows / Mac).
 function spoolState(job) {

@@ -56,6 +56,7 @@ import {
   printSheets,
   queueKioskComposite,
   queueKioskPrint,
+  directKioskPrint,
   renderPrintFrame,
   runKioskComposites,
   runKioskPrints,
@@ -1157,7 +1158,7 @@ export function Kiosk() {
               ...look, scale: printScale, strict: s.booking.printSize !== "instax",
             });
             if (printsCount)
-              await queueKioskPrint({
+              await (s.booking.printSize !== "instax" && printCapabilities?.dnpDirectPrint ? directKioskPrint : queueKioskPrint)({
                 token: s.accessToken,
                 images: await printSheets(printFrame, frame, printsCount, s.booking.printSize, printScale),
                 frameName,
