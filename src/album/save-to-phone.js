@@ -33,7 +33,7 @@ export async function fetchFiles(entries, cache, onProgress = () => {}) {
       const i = next++;
       const entry = entries[i];
       if (!cache.has(entry.url)) {
-        // Fetch unchanged original bytes from storage. Expired links, missing
+        // Fetch the prepared guest JPEG (or video) from storage. Expired links, missing
         // bucket CORS and older servers still use the authenticated API stream.
         const blob = await fetchMediaBlob(entry.url, { link: entry.link, timeout: 180000 });
         cache.set(entry.url, new File([blob], entry.name, { type: entry.type || blob.type }));

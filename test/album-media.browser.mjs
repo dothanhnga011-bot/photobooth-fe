@@ -12,6 +12,8 @@ const fixture = `
   import { createRoot } from 'react-dom/client';
   import { ToastProvider } from '/src/studio.jsx';
   import { AlbumViewer } from '/src/album/AlbumViewer.jsx';
+  import { renderPrintFrame } from '/src/kiosk/compose.js';
+  window.renderGuestFrame = renderPrintFrame;
   const root = createRoot(document.getElementById('root'));
   window.showAlbum = booking => root.render(React.createElement(ToastProvider, null,
     React.createElement(AlbumViewer, { token: 'fixture', booking })));
@@ -176,4 +178,94 @@ test("the big photo shows its thumbnail at once while the sharp version loads, a
     assert.equal(await page.locator(".album-viewer-main").evaluate(img => img.complete && img.naturalWidth > 0), true);
     assert.deepEqual(errors, []);
   } finally { release(); await page.close(); }
+});
+
+test("iPhone Save all shares prepared guest JPEGs and never the unmirrored camera links", async () => {
+  const page = await browser.newPage({ userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile Safari/604.1" });
+  const requests = [];
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "canShare", { value: () => true });
+    Object.defineProperty(navigator, "share", { value: async ({ files }) => {
+      window.shared = await Promise.all(files.map(async file => ({ name: file.name, bytes: [...new Uint8Array(await file.arrayBuffer())] })));
+    } });
+  });
+  await page.route("**/api/**", route => route.abort());
+  await page.route(storage + "**", route => {
+    requests.push(route.request().url());
+    return route.fulfill({ contentType: "image/jpeg", body: imageBytes,
+      headers: { "Access-Control-Allow-Origin": "*" } });
+  });
+  try {
+    await page.goto(base);
+    const value = booking();
+    value.video = undefined;
+    value.photos[0].links.original = storage + "camera-unmirrored.jpg";
+    value.photos[0].links.download = storage + "guest-mirrored.jpg";
+    await page.evaluate(value => window.showAlbum(value), value);
+    await page.getByRole("button", { name: "Lưu tất cả (2)", exact: true }).click();
+    await page.waitForFunction(() => window.shared?.length === 2);
+    const shared = await page.evaluate(() => window.shared);
+    assert.deepEqual(shared.map(file => file.name), ["NXC-123456-anh-ghep.jpg", "NXC-123456-01.jpg"]);
+    assert.deepEqual(Buffer.from(shared[1].bytes), imageBytes);
+    assert.ok(requests.includes(storage + "guest-mirrored.jpg"));
+    assert.ok(!requests.includes(storage + "camera-unmirrored.jpg"));
+    await page.getByRole("tab", { name: "Ảnh 1", exact: true }).click();
+    await page.getByRole("button", { name: "Lưu ảnh", exact: true }).click();
+    await page.waitForFunction(() => window.shared?.length === 1);
+    assert.equal((await page.evaluate(() => window.shared))[0].name, "NXC-123456-01.jpg");
+  } finally { await page.close(); }
+});
+
+test("browser downloads request the guest endpoint and pending originals cannot be saved as previews", async () => {
+  const page = await browser.newPage();
+  await page.route(storage + "**", route => route.fulfill({ contentType: "image/png", body: imageBytes }));
+  await page.route("**/api/**", route => route.fulfill({ contentType: "image/jpeg", body: imageBytes,
+    headers: { "Content-Disposition": 'attachment; filename="NXC-123456-01.jpg"' } }));
+  try {
+    await page.goto(base);
+    const value = booking();
+    await page.evaluate(value => window.showAlbum(value), value);
+    await page.getByRole("tab", { name: "Ảnh 1", exact: true }).click();
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Lưu ảnh", exact: true }).click();
+    const result = await download;
+    const url = new URL(result.url());
+    assert.equal(url.pathname, "/api/albums/fixture/photos/photo");
+    assert.equal(url.searchParams.get("download"), "1");
+    assert.equal(url.searchParams.get("direct"), "1");
+    assert.equal(result.suggestedFilename(), "NXC-123456-01.jpg");
+    value.photos[0].originalPending = true;
+    await page.evaluate(value => window.showAlbum(value), value);
+    assert.equal(await page.getByRole("button", { name: "Lưu ảnh", exact: true }).isDisabled(), true);
+    assert.equal(await page.getByRole("button", { name: "Lưu tất cả (3)", exact: true }).isDisabled(), true);
+  } finally { await page.close(); }
+});
+
+test("new guest composites render near 20 MP for portrait, landscape, single strips and Instax frames", async () => {
+  const page = await browser.newPage();
+  try {
+    await page.goto(base);
+    const sizes = await page.evaluate(async () => {
+      const results = [];
+      for (const [width, height, printSize] of [[2, 3, "full"], [3, 2, "full"], [1, 3, "strip"], [3, 2, "instax"]]) {
+        const background = document.createElement("canvas");
+        background.width = width; background.height = height;
+        background.getContext("2d").fillRect(0, 0, width, height);
+        const frame = { image: background.toDataURL(), printSize, slots: [] };
+        const guest = await window.renderGuestFrame(frame, [], "token", "", { pixels: 20_000_000, strict: true });
+        results.push({ width: guest.width, height: guest.height, ratio: width / height });
+        guest.width = guest.height = 0;
+        const print = await window.renderGuestFrame(frame, [], "token", "", { scale: 2 });
+        results.at(-1).printPixels = print.width * print.height;
+        print.width = print.height = 0;
+      }
+      return results;
+    });
+    for (const size of sizes) {
+      assert.ok(size.width * size.height <= 20_000_000);
+      assert.ok(size.width * size.height > 19_980_000);
+      assert.ok(Math.abs(size.width / size.height - size.ratio) < 0.002);
+      assert.ok(size.printPixels <= 8_640_000, "physical print sizes retain their existing resolution");
+    }
+  } finally { await page.close(); }
 });

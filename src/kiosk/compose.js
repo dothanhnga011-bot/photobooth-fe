@@ -176,15 +176,16 @@ async function drawSharpSlot(ctx, source, rect, t) {
 // Ghép bản in: đúng kích thước in của khung, mỗi ô vẽ từ ảnh chất lượng cao, lần lượt từng ảnh
 // (ảnh 26 MP giải mã ~100 MB nên không giữ nhiều ảnh cùng lúc). filters (màu từng ảnh, cùng thứ tự
 // shots) / stickers: màu ảnh và nhãn dán khách chọn, vẽ giống hệt ảnh xem trước.
-// scale: 1 = đúng khổ in (1200 × 1800, 300 dpi); 2 = ảnh ghép cho album (2400 × 3600), ảnh vẽ thẳng
-// từ ảnh gốc nên khách phóng to trên điện thoại vẫn nét.
-export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filters = [], stickers = [], transforms = [], scale = 1, strict = false } = {}) {
+// scale: 1 = 1200 × 1800, 2 = 2400 × 3600 for RX1. pixels overrides scale for
+// guest composites (~20 MP), rendered from the full camera source with strict=true.
+export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filters = [], stickers = [], transforms = [], scale = 1, pixels = 0, strict = false } = {}) {
   const layout = photoLayout(frame);
   const background = await loadFrameImage(frame.image);
   const canvas = document.createElement("canvas");
   const size = frameOutputSize(frame, background);
-  canvas.width = Math.round(size.width * scale);
-  canvas.height = Math.round(size.height * scale);
+  if (pixels > 0) scale = Math.sqrt(pixels / (size.width * size.height));
+  canvas.width = pixels > 0 ? Math.floor(size.width * scale) : Math.round(size.width * scale);
+  canvas.height = pixels > 0 ? Math.floor(size.height * scale) : Math.round(size.height * scale);
   const ctx = canvas.getContext("2d");
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";

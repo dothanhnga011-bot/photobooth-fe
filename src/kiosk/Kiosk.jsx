@@ -1172,22 +1172,26 @@ export function Kiosk() {
               });
           } catch (e) {
             if (printsCount) setPrint({ status: "failed", message: e.message });
+          } finally {
+            // Release the RX1 canvas before allocating the larger guest composite.
+            if (printFrame) printFrame.width = printFrame.height = 0;
+            printFrame = null;
           }
           try {
-            // Ảnh ghép cho album gấp đôi độ phân giải (vd. 2400 × 3600), vẽ lại từ ảnh gốc: khách tải
-            // về phóng to vẫn nét. Máy yếu / thiếu bộ nhớ thì dùng bản khổ in.
-            albumFrame = await renderPrintFrame(frame, chosenShots, s.accessToken, albumLink, { ...look, scale: 2 })
-              .catch(() => null);
-            const source = albumFrame || printFrame;
-            if (source)
-              await queueKioskComposite({
-                token: s.accessToken,
-                captureToken: s.captureToken,
-                image: await compositeJpeg(source),
-                frameName,
-              }).catch(() => {});
+            // Guest composites target 20 MP, drawn directly from the full camera sources.
+            // Physical RX1 sheets retain their existing dimensions.
+            albumFrame = await renderPrintFrame(frame, chosenShots, s.accessToken, albumLink, {
+              ...look, pixels: 20_000_000, strict: true,
+            });
+            await queueKioskComposite({
+              token: s.accessToken,
+              captureToken: s.captureToken,
+              image: await compositeJpeg(albumFrame),
+              frameName,
+            });
+          } catch {
+            toast.error("Chưa lưu được ảnh ghép vào album. Vui lòng báo nhân viên.");
           } finally {
-            if (printFrame) printFrame.width = printFrame.height = 0;
             if (albumFrame) albumFrame.width = albumFrame.height = 0;
           }
         })();

@@ -93,8 +93,8 @@ export function AlbumViewer({ token, booking }) {
       sources: albumMediaSources(photo, photoUrl(token, photo.id, "preview"), "preview"),
       placeholder: thumbSources(photo, token)[0],
       save: {
-        url: photoUrl(token, photo.id),
-        link: storageLink(photo, "original"),
+        url: `${photoUrl(token, photo.id)}?download=1`,
+        link: storageLink(photo, "download"),
         name: `NXC-${booking.code}-${String(i + 1).padStart(2, "0")}.jpg`,
         type: "image/jpeg",
       },
@@ -152,6 +152,8 @@ export function AlbumViewer({ token, booking }) {
   }
   async function save(scope, list) {
     if (saving) return;
+    if (list.some((entry) => entry.photo?.originalPending))
+      return toast.info("Ảnh gốc đang tải lên. Vui lòng chờ rồi lưu ảnh lại.");
     const entries = entriesOf(list);
     if (!entries.length) return toast.info("iPhone không lưu được video này vào Ảnh.");
     if (!shareSheet) return downloadEach(entries);
@@ -219,12 +221,12 @@ export function AlbumViewer({ token, booking }) {
         </p>
       )}
       <div className="album-viewer-actions">
-        <button type="button" className="button small" disabled={Boolean(saving)} onClick={() => save(item.key, [item])}>
+        <button type="button" className="button small" disabled={Boolean(saving) || Boolean(item.photo?.originalPending)} onClick={() => save(item.key, [item])}>
           <PiDownloadSimpleBold aria-hidden="true" />
           {buttonText(item.key, item.kind === "video" ? "Lưu video" : item.key === "composite" ? "Lưu ảnh ghép" : "Lưu ảnh")}
         </button>
         {allCount > 1 && (
-          <button type="button" className="button outline small" disabled={Boolean(saving)} onClick={() => save("all", items)}>
+          <button type="button" className="button outline small" disabled={Boolean(saving) || pendingOriginals > 0} onClick={() => save("all", items)}>
             <PiImagesBold aria-hidden="true" /> {buttonText("all", `Lưu tất cả (${allCount})`)}
           </button>
         )}
