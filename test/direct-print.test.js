@@ -7,7 +7,7 @@ test('direct print sends original bytes to loopback with the same request identi
   const calls = [];
   const result = await sendDirectPrint(job, { fetcher: async (url, options) => {
     calls.push({ url, options });
-    return Response.json(calls.length === 1 ? { directPrint: 1 } : { sent: true });
+    return Response.json(calls.length === 1 ? { directPrint: 2 } : { sent: true });
   } });
   assert.equal(result.sent, true);
   assert.deepEqual(calls.map(c => c.url), ['http://127.0.0.1:8789/health', 'http://127.0.0.1:8789/print']);
@@ -21,7 +21,7 @@ test('direct print sends original bytes to loopback with the same request identi
 test('ambiguous local response is never retried or redirected to a cloud queue', async () => {
   let calls = 0;
   await assert.rejects(sendDirectPrint(job, { fetcher: async () => {
-    if (++calls === 1) return Response.json({ directPrint: 1 });
+    if (++calls === 1) return Response.json({ directPrint: 2 });
     throw new TypeError('Disconnected after printing');
   } }), /không tự gửi lại/);
   assert.equal(calls, 2);

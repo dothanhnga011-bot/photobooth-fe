@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
 
 test('local PowerShell bridge enforces origin and forwards the exact bytes only once', { skip: process.platform !== 'win32', timeout: 45000 }, async () => {
   const folder = await mkdtemp(path.join(os.tmpdir(), 'nxc-local-test-'));
@@ -25,19 +26,16 @@ foreach($f in $ast.FindAll({param($n) $n -is [System.Management.Automation.Langu
  if($f.Name -in @('Start-LocalPrinter','Receive-LocalPrint','Write-LocalResponse')) {Invoke-Expression ($f.Extent.Text.Replace('8789',[string]$Port))}
 }
 $script:Config=@{api='https://mellowptb.com';room='Test room';token='test-only'}
-$script:Posts=0
+$ConfigPath=Join-Path (Split-Path -Parent $Output) 'config.json'
+Add-Type -AssemblyName System.Drawing
+$bitmap=New-Object Drawing.Bitmap(1200,1800)
+try {$bitmap.Save(($Output+'.png'),[Drawing.Imaging.ImageFormat]::Png)} finally {$bitmap.Dispose()}
 function Write-Log($text){Write-Host $text}
 function Get-OfflineQueue {return $null}
-function Invoke-Api {return @{ok=$true}}
-function Invoke-RestMethod {
- param($Method,$Uri,$Headers,$ContentType,$Body,$TimeoutSec)
- if(($Body -join ',') -ne '1,2,3'){throw 'Wrong transferred bytes'}
- $script:Posts++
- if($script:Posts -gt 1){return @{direct=@{fresh=$false};spoolStatus='sent'}}
- return @{direct=@{fresh=$true;job=@{id='test-job';leaseId='test-lease';code='123456';printSize='full';copies=1;sheets=@(@{index=0;extension='png'})}}}
-}
+function Invoke-Api {throw 'Network access during local printing is forbidden in this test'}
+function Invoke-RestMethod {throw 'Network access during local printing is forbidden in this test'}
 function Invoke-Job($job,$files) {
- if(([IO.File]::ReadAllBytes($files[0]) -join ',') -ne '1,2,3'){throw 'Wrong local file bytes'}
+ if([Convert]::ToBase64String([IO.File]::ReadAllBytes($files[0])) -ne [Convert]::ToBase64String([IO.File]::ReadAllBytes($Output+'.png'))){throw 'Wrong local file bytes'}
  [IO.File]::AppendAllText($Output,'printed-once')
  return 'Mock spool accepted'
 }
@@ -57,19 +55,27 @@ try {while($true){Receive-LocalPrint;Start-Sleep -Milliseconds 20}} finally {$sc
       child.once('exit', code => { clearTimeout(timer); reject(new Error(`Bridge exited ${code}: ${diagnostic}`)); });
     });
     const base = `http://127.0.0.1:${port}`;
-    const headers = { Origin: 'https://mellowptb.com', 'Content-Type': 'application/octet-stream', 'X-Album-Token': 'album-token', 'X-Print-Key': 'same-request', 'X-Print-Sheets': '3' };
-    const wrong = await fetch(`${base}/print`, { method: 'POST', headers: { ...headers, Origin: 'https://untrusted.example' }, body: Buffer.from([1,2,3]) });
+    const bytes = await readFile(output + '.png');
+    const headers = { Origin: 'https://mellowptb.com', 'Content-Type': 'application/octet-stream', 'X-Album-Token': 'album-token', 'X-Print-Key': randomUUID(), 'X-Print-Sheets': String(bytes.length), 'X-Print-Size': 'full' };
+    const wrong = await fetch(`${base}/print`, { method: 'POST', headers: { ...headers, Origin: 'https://untrusted.example' }, body: bytes });
     assert.equal(wrong.status, 403);
     const preflight = await fetch(`${base}/print`, { method: 'OPTIONS', headers: { Origin: headers.Origin } });
     assert.equal(preflight.headers.get('access-control-allow-private-network'), 'true');
     const health = await fetch(`${base}/health`, { headers: { Origin: headers.Origin } });
-    assert.equal((await health.json()).directPrint, 1);
-    const send = () => fetch(`${base}/print`, { method: 'POST', headers, body: Buffer.from([1,2,3]) });
+    assert.equal((await health.json()).directPrint, 2);
+    const send = () => fetch(`${base}/print`, { method: 'POST', headers, body: bytes });
     const first = await send();
     const result = await first.json();
     assert.equal(first.status, 200, JSON.stringify(result));
     assert.equal(result.sent, true);
     assert.equal((await (await send()).json()).duplicate, true);
+    const journal = path.join(folder, 'direct-print-records', headers['X-Print-Key'] + '.json');
+    const record = JSON.parse((await readFile(journal, 'utf8')).replace(/^\uFEFF/, ''));
+    await writeFile(journal, JSON.stringify({ ...record, state: 'sending' }));
+    const uncertain = await send();
+    assert.equal(uncertain.status, 503, 'a durable uncertain record cannot print again');
+    const invalid = await fetch(`${base}/print`, { method: 'POST', headers: { ...headers, 'X-Print-Key': randomUUID(), 'X-Print-Sheets': '3' }, body: bytes });
+    assert.equal(invalid.status, 503, 'invalid sheet sizes are rejected without printing');
     assert.equal(await readFile(output, 'utf8'), 'printed-once');
   } finally {
     const exited = new Promise(resolve => child.once('exit', resolve));

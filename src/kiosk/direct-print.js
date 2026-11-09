@@ -9,7 +9,7 @@ export async function sendDirectPrint(job, { fetcher = fetch, base = LOCAL_PRINT
     const response = await fetcher(`${base}/health`, { signal: AbortSignal.timeout(15000) });
     if (!response.ok) throw new Error('Local printer unavailable');
     health = await response.json();
-    if (health.directPrint !== 1) throw new Error('Unsupported local printer');
+    if (health.directPrint !== 2) throw new Error('Update the local printer agent');
   } catch {
     throw new Error('Chưa kết nối chương trình in trực tiếp. Chạy lại bộ cài máy in của phòng và cho phép trình duyệt kết nối mạng cục bộ.');
   }

@@ -549,7 +549,7 @@ function Receive-LocalPrint {
   $response.Headers['Access-Control-Allow-Private-Network'] = 'true'
   if ($request.HttpMethod -eq 'OPTIONS') { Write-LocalResponse $response 200 @{ ok = $true }; return }
   if ($request.HttpMethod -eq 'GET' -and $request.Url.AbsolutePath -eq '/health') {
-    Write-LocalResponse $response 200 @{ directPrint = 1; room = [string]$script:Config.room }; return
+    Write-LocalResponse $response 200 @{ directPrint = 2; room = [string]$script:Config.room }; return
   }
   if ($request.HttpMethod -ne 'POST' -or $request.Url.AbsolutePath -ne '/print') {
     Write-LocalResponse $response 404 @{ message = 'Unknown local printer endpoint.' }; return
@@ -568,38 +568,59 @@ function Receive-LocalPrint {
       }
       $bytes = $memory.ToArray()
     } finally { $memory.Dispose() }
-    $headers = @{ Authorization = "Bearer $($script:Config.token)" }
-    foreach ($name in @('X-Print-Key', 'X-Print-Frame', 'X-Print-Sheets', 'X-Print-Size')) {
-      if ($request.Headers[$name]) { $headers[$name] = [string]$request.Headers[$name] }
-    }
-    # Validate quota and persist the immutable sheets, without a queued job or another download.
-    $result = Invoke-RestMethod -Method Post -Uri "$($script:Config.api)/api/print-agent/direct/$albumToken" `
-      -Headers $headers -ContentType 'application/octet-stream' -Body $bytes -TimeoutSec 120
-    if (-not $result.direct.fresh) {
-      if ($result.spoolStatus -eq 'sent') { Write-LocalResponse $response 200 @{ sent = $true; duplicate = $true }; return }
+    $requestKey = [string]$request.Headers['X-Print-Key']
+    $parsedKey = [guid]::Empty
+    if (-not [guid]::TryParse($requestKey, [ref]$parsedKey)) { throw 'Invalid print request ID.' }
+    $requestKey = $parsedKey.ToString('D')
+    $sizeText = [string]$request.Headers['X-Print-Sheets']
+    if ($sizeText -notmatch '^\d{1,9}(,\d{1,9}){0,19}$') { throw 'Invalid sheet lengths.' }
+    $sizes = @($sizeText.Split(',') | ForEach-Object { [int]$_ })
+    if (@($sizes | Where-Object { $_ -le 0 -or $_ -gt 36MB }).Count -or ($sizes | Measure-Object -Sum).Sum -ne $bytes.Length) { throw 'Sheet lengths do not match the image bytes.' }
+    $printSize = [string]$request.Headers['X-Print-Size']
+    if ($printSize -notin @('full','strip')) { throw 'Direct RX1 printing requires full or strip paper.' }
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { $fingerprint = [Convert]::ToBase64String($sha.ComputeHash($bytes)) + ':' + $sizeText + ':' + $printSize + ':' + $albumToken }
+    finally { $sha.Dispose() }
+    $journal = Join-Path (Split-Path -Parent $ConfigPath) 'direct-print-records'
+    New-Item -ItemType Directory -Force -Path $journal | Out-Null
+    $recordPath = Join-Path $journal ($requestKey + '.json')
+    if (Test-Path -LiteralPath $recordPath) {
+      $previous = Get-Content -LiteralPath $recordPath -Raw -Encoding UTF8 | ConvertFrom-Json
+      if ($previous.fingerprint -ne $fingerprint) { throw 'The images for this print request have changed.' }
+      if ($previous.state -eq 'sent') { Write-LocalResponse $response 200 @{ sent = $true; duplicate = $true }; return }
       throw 'This request was already received. Check the printer before reprinting.'
     }
-    $job = $result.direct.job
+    $job = @{ code = $requestKey.Substring(0,8); printSize = $printSize; copies = 1 }
     $directory = Join-Path $env:TEMP ('nxc-direct-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $directory | Out-Null
-    $sizes = @(([string]$request.Headers['X-Print-Sheets']).Split(',') | ForEach-Object { [int]$_ })
     $offset = 0; $files = @()
-    foreach ($sheet in @($job.sheets)) {
-      $length = $sizes[[int]$sheet.index]
-      $file = Join-Path $directory ("$($sheet.index).$($sheet.extension)")
+    Add-Type -AssemblyName System.Drawing
+    for ($index = 0; $index -lt $sizes.Count; $index++) {
+      $length = $sizes[$index]
+      $file = Join-Path $directory ("$index.png")
       $stream = [IO.File]::Create($file)
       try { $stream.Write($bytes, $offset, $length) } finally { $stream.Dispose() }
+      $image = [Drawing.Image]::FromFile($file)
+      try {
+        $short = [Math]::Min($image.Width, $image.Height); $long = [Math]::Max($image.Width, $image.Height)
+        if (-not (($short -eq 1200 -and $long -eq 1800) -or ($short -eq 2400 -and $long -eq 3600))) { throw 'RX1 sheet must be 1200x1800 or 2400x3600 pixels.' }
+      } finally { $image.Dispose() }
       $offset += $length; $files += $file
     }
+    if (Get-OfflineQueue) { throw 'The Windows printer queue is offline.' }
+    # Durable marker BEFORE physical output. An interrupted process must never print this ID again.
+    $record = @{ fingerprint = $fingerprint; state = 'sending'; at = (Get-Date).ToUniversalTime().ToString('o') }
+    $marker = [Text.Encoding]::UTF8.GetBytes(($record | ConvertTo-Json -Compress))
+    $stream = New-Object IO.FileStream($recordPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+    try { $stream.Write($marker, 0, $marker.Length); $stream.Flush($true) } finally { $stream.Dispose() }
     $sent = $false; $message = ''
     try {
-      if (Get-OfflineQueue) { throw 'The Windows printer queue is offline.' }
       $message = Invoke-Job $job $files
       $sent = $true
     } catch { $message = $_.Exception.Message }
-    try {
-      [void](Invoke-Api 'POST' "/jobs/$($job.id)/complete" @{ leaseId = [string]$job.leaseId; sent = $sent; message = $message.Substring(0, [Math]::Min(480, $message.Length)) })
-    } catch { Write-Log 'Direct print acknowledgement failed; do not automatically resend this print.' }
+    $record.state = if ($sent) { 'sent' } else { 'uncertain' }
+    try { $record | ConvertTo-Json -Compress | Set-Content -LiteralPath $recordPath -Encoding UTF8 }
+    catch { Write-Log 'Could not update local print record; do not resend this print automatically.' }
     Write-LocalResponse $response $(if ($sent) { 200 } else { 503 }) @{ sent = $sent; message = $message }
   } catch {
     try { Write-LocalResponse $response 503 @{ sent = $false; message = $_.Exception.Message } } catch {}
@@ -624,7 +645,15 @@ function Start-Agent {
     if (Update-Self) { Restart-Agent }
   }
   $updateAt = Get-Date
-  if (-not $Once -and -not $DryRunDir) { Start-LocalPrinter }
+  if (-not $Once -and -not $DryRunDir) {
+    Start-LocalPrinter
+    if ($script:LocalListener) {
+      Write-Log 'RX1 direct mode: browser -> local agent -> Windows printer. No cloud print queue or network authorization.'
+      # A cloud status request must not block a local customer print when the Internet is down.
+      while ($true) { Receive-LocalPrint; Start-Sleep -Milliseconds 50 }
+    }
+    throw 'Direct printer could not start. Run the room printer installer again.'
+  }
   Write-Log "Bắt đầu nhận lệnh in phòng '$($script:Config.room)' → $($script:Config.printer) (tờ nhỏ: $($script:Config.stripPrinter))."
   $statusAt = [datetime]::MinValue
   $delay = 3

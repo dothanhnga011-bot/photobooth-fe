@@ -108,7 +108,7 @@ function readSale() {
 export function Kiosk() {
   const [params] = useSearchParams(),
     toast = useToast();
-  const { packages = [], frames: catalogFrames = [], settings = {}, stickers: shopStickers = [], printCapabilities } = useStudio();
+  const { packages = [], frames: catalogFrames = [], settings = {}, stickers: shopStickers = [] } = useStudio();
   const device =
     params.get("device") || localStorage.getItem("harrod-device") || "";
   const [code, setCode] = useState(""),
@@ -1151,14 +1151,13 @@ export function Kiosk() {
         (async () => {
           let printFrame = null, albumFrame = null;
           try {
-            // Match the counter's lossless 600 ppi sheet when the server supports it.
-            // Older servers retain the established 300 ppi API contract during rolling deployment.
-            const printScale = s.booking.printSize !== "instax" && printCapabilities?.dnpSheetScale === 2 ? 2 : 1;
+            // Local RX1 output uses the same 600 ppi PNG as the counter; no server capability gate.
+            const printScale = s.booking.printSize !== "instax" ? 2 : 1;
             printFrame = await renderPrintFrame(frame, chosenShots, s.accessToken, albumLink, {
               ...look, scale: printScale, strict: s.booking.printSize !== "instax",
             });
             if (printsCount)
-              await (s.booking.printSize !== "instax" && printCapabilities?.dnpDirectPrint ? directKioskPrint : queueKioskPrint)({
+              await (s.booking.printSize !== "instax" ? directKioskPrint : queueKioskPrint)({
                 token: s.accessToken,
                 images: await printSheets(printFrame, frame, printsCount, s.booking.printSize, printScale),
                 frameName,
