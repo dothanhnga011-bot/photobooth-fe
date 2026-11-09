@@ -17,6 +17,7 @@ export function watchCameraFolder({
   notifyOnce,
   onScan,
   onScanSuccess,
+  accessHint = FOLDER_ACCESS_HINT,
 }) {
   let stopped = false,
     timer,
@@ -142,7 +143,7 @@ export function watchCameraFolder({
       notifyOnce(
         "folder",
         "error",
-        `Không đọc được thư mục ảnh của máy ảnh: ${problem}. ${FOLDER_ACCESS_HINT}`,
+        `Không đọc được thư mục ảnh của máy ảnh: ${problem}. ${accessHint}`,
         15000,
       );
     } finally {

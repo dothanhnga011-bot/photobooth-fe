@@ -26,7 +26,7 @@ export function LayoutCard({ pack, onPick, as: Tag = "button" }) {
       aria-label={Tag === "button" ? `${photos} · ${pack.name} · ${money(pack.price)}` : undefined}>
       <LayoutArt count={pack.selectCount} />
       <strong>{photos}</strong>
-      <small>{[pack.name, `${pack.shots || 8} tấm · ${pack.countdownSeconds || 10} giây/tấm`].filter(Boolean).join(" · ")}</small>
+      <small>{[pack.name, `${pack.shots || 8} lần bấm dây`].filter(Boolean).join(" · ")}</small>
       <b>{money(pack.price)}</b>
       <span className="kiosk-layout-go" aria-hidden="true"><PiArrowRightBold /></span>
     </Tag>

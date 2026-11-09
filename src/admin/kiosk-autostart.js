@@ -4,6 +4,7 @@
 // Windows có menu nhỏ để điều khiển cửa sổ; Mac dùng nút cửa sổ và menu Xem của trình duyệt.
 import windowsCornerControl from "./installers/kiosk-window-control.ps1?raw";
 import startFujiAcquire from "./installers/start-fuji-acquire.ps1?raw";
+import startEosUtility from "./installers/start-eos-utility.ps1?raw";
 import { encodePayload } from "./installers/payload.js";
 
 const FLAGS =
@@ -16,12 +17,15 @@ const safe = (url) => {
   return url;
 };
 
-// Phòng Photobooth và Polaroid đều chụp bằng Fujifilm + dây bấm: mở FUJIFILM X Acquire.
-export function windowsScript(url, room) {
+// Launch the transfer application for this room's camera, alongside the kiosk.
+export function windowsScript(url, room, kind = "photobooth") {
+  const canon = kind === "polaroid";
+  const key = canon ? "EOS_UTILITY" : "FUJI_ACQUIRE";
+  const filename = canon ? "start-eos-utility.ps1" : "start-fuji-acquire.ps1";
   const camera = [
-    'set "NXC_FUJI_ACQUIRE=%LOCALAPPDATA%\\NXC-Kiosk\\start-fuji-acquire.ps1"',
-    `powershell -NoProfile -Command "try { $source = [IO.File]::ReadAllText($env:NXC_KIOSK_INSTALLER); $payload = [regex]::Match($source, '(?m)^rem NXC_FUJI_ACQUIRE_BASE64:([A-Za-z0-9+/=]+)'); if (-not $payload.Success) { exit 1 }; [IO.File]::WriteAllBytes($env:NXC_FUJI_ACQUIRE, [Convert]::FromBase64String($payload.Groups[1].Value)) } catch { exit 1 }"`,
-    'if not errorlevel 1 start "" /min powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "%NXC_FUJI_ACQUIRE%"',
+    `set "NXC_${key}=%LOCALAPPDATA%\\NXC-Kiosk\\${filename}"`,
+    `powershell -NoProfile -Command "try { $source = [IO.File]::ReadAllText($env:NXC_KIOSK_INSTALLER); $payload = [regex]::Match($source, '(?m)^rem NXC_${key}_BASE64:([A-Za-z0-9+/=]+)'); if (-not $payload.Success) { exit 1 }; [IO.File]::WriteAllBytes($env:NXC_${key}, [Convert]::FromBase64String($payload.Groups[1].Value)) } catch { exit 1 }"`,
+    `if not errorlevel 1 start "" /min powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "%NXC_${key}%"`,
   ];
   const lines = [
     "@echo off",
@@ -56,13 +60,13 @@ export function windowsScript(url, room) {
     'if "%NXC_KIOSK_CONTROL_READY%"=="1" start "" powershell -NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File "%NXC_KIOSK_CONTROL%" -ProfileDirectory "%LOCALAPPDATA%\\NXC-Kiosk"',
     "exit /b",
     `rem NXC_WINDOW_CONTROL_BASE64:${encodePayload(windowsCornerControl)}`,
-    `rem NXC_FUJI_ACQUIRE_BASE64:${encodePayload(startFujiAcquire)}`,
+    `rem NXC_${key}_BASE64:${encodePayload(canon ? startEosUtility : startFujiAcquire)}`,
     "",
   ];
   return lines.join("\r\n");
 }
 
-export function macScript(url, room) {
+export function macScript(url, room, kind = "photobooth") {
   return `#!/bin/bash
 # NXC Photobooth - tự mở máy chụp phòng: ${room.replace(/[^\p{L}\p{N} .-]/gu, "")}
 # Chạy một lần: mỗi lần đăng nhập Mac sẽ tự mở Chrome toàn màn hình.
@@ -72,7 +76,7 @@ mkdir -p "$DIR"
 printf '%s' "$URL" > "$DIR/url.txt"
 cat > "$DIR/mo-kiosk.sh" <<'SCRIPT'
 #!/bin/bash
-# Mo phan mem nhan anh tren may rieng truoc khi don khach.
+open -a "${kind === "polaroid" ? "EOS Utility" : "FUJIFILM X Acquire"}" >/dev/null 2>&1 || true
 APP="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 [ -x "$APP" ] || APP="/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"
 "$APP" --start-fullscreen --new-window --user-data-dir="$HOME/NXC-Kiosk/chrome" ${FLAGS} "$(cat "$HOME/NXC-Kiosk/url.txt")" >/dev/null 2>&1 &

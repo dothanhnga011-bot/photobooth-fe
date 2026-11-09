@@ -165,14 +165,14 @@ Một web, hai **loại phòng**. Đầu ca, nhân viên mở máy chụp từng
   - **Tiền mặt**: chọn loại tờ (tờ bé / tờ to) → chọn số lượng → màn đọc tiền. Mỗi tờ tiền máy nhận
     được cộng ngay trên màn hình; đủ tiền là vào màn chụp. Chưa lắp máy đọc tiền thì bật “Chế độ
     thử tiền mặt” trong hộp Cài máy chụp để thử bằng nút giả lập.
-- **Polaroid** (máy ảnh Fujifilm xuất hình qua thẻ ghi hình HDMI, in ở máy **Instax Link WIDE** qua print
+- **Polaroid** (máy ảnh **Canon EOS R100 + EOS Utility + dây bấm RS-60E3**, hình trực tiếp qua HDMI, in ở máy **Instax Link WIDE** qua print
   agent — xem README của `photobooth-be`): Chạm để bắt đầu → **Chọn layout** (2 layout: **1 ảnh to** hoặc **2 ảnh
-  dọc chia đôi** thẻ; thẻ hiện số ảnh, số tấm, giây mỗi tấm, giá) → thông báo “Chọn layout này, vào chụp nha!” →
-  **máy tự chụp**: đếm ngược (mặc định 10 giây) rồi lấy khung hình từ hình trực tiếp HDMI, lặp tới đủ số tấm
-  (mặc định 8), không cần dây bấm hay thư mục ảnh → chọn ảnh & khung → in 1 tấm Instax → màn QR tải toàn bộ ảnh
+  dọc chia đôi** thẻ; thẻ hiện số ảnh, số lần bấm dây, giá) → thông báo “Chọn layout này, vào chụp nha!” →
+  **khách bấm dây chụp**: EOS Utility lưu JPEG vào thư mục Canon, kiosk đọc ảnh chụp thật
+  → chọn ảnh & khung → in 1 tấm Instax → màn QR tải toàn bộ ảnh
   gốc (không quay video). Khách **trả tiền ở quầy**: đơn ghi “Polaroid · chưa thu tiền”, nhân viên bấm “Đã thu
   tiền mặt / chuyển khoản” ở Đơn hàng. Layout là các gói khổ Instax ở Khổ ảnh & bảng giá → tab **Polaroid** (layout
-  chọn bằng hình 1 / 2 ảnh, giá, số tấm tự chụp, giây mỗi tấm; luôn in 1 tấm); nút **Tạo 2 layout mẫu** tạo 2 layout
+  chọn bằng hình 1 / 2 ảnh, giá, số lần bấm dây; luôn in 1 tấm); nút **Tạo 2 layout mẫu** tạo 2 layout
   100.000 đ (8 tấm, 10 giây/tấm) kèm khung trắng. Khung Instax là thẻ Instax Wide ngang 1800 × 1200, mỗi tấm in
   1260 × 840.
 
@@ -195,6 +195,11 @@ Quản trị → Khổ ảnh & bảng giá; tờ thêm cộng theo “Giá in th
 mở lượt chụp (`/api/kiosk/sale`).
 
 ## Fujifilm X-T3 / X-S10 / X-S20: chụp bằng dây bấm
+
+Phần này dành cho **Photobooth**. Phòng **Polaroid/Canon R100** làm theo
+[hướng dẫn kết nối Canon R100](docs/CANON-R100-POLAROID.md).
+Ảnh RX1 sáng gắt/ngả vàng: xem [kiểm tra màu in](docs/PRINT-COLOR-RX1.md).
+Admin sửa lời nhắc mũi tên ở **Thiết lập → Chữ trên máy chụp → Hướng dẫn đổi frame trên màn chọn ảnh**.
 
 Kiosk nhận JPEG từ thư mục trên máy tính khi khách bấm dây remote. USB dùng để truyền ảnh qua
 FUJIFILM X Acquire; micro-HDMI + thẻ ghi hình USB dùng cho hình xem trước. Kiosk không bật nguồn

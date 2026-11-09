@@ -647,6 +647,7 @@ export function KioskSelect({
               {frames.length > 1 && <> · khung {index + 1}/{frames.length}</>}
             </p>
           )}
+          {frame && frames.length > 1 && <p className="select-frame-hint">{t("select.frameHint")}</p>}
         </div>
         <i className="select-divider" aria-hidden="true" />
         <div className="select-panel">

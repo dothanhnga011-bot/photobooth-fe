@@ -140,45 +140,7 @@ export function slotScale(image, rect, t = DEFAULT_TRANSFORM) {
   );
 }
 
-// Vẽ ảnh vào ô theo phóng to (zoom), kéo (x, y — tỉ lệ theo kích thước ô) và xoay 90°.
-// Làm nét bản in (unsharp mask kiểu in ảnh 300 dpi): ảnh trừ bản làm mờ Gauss (bán kính ~1 px,
-// nhân [1 4 6 4 1]) rồi cộng lại phần chênh × amount. Ngưỡng (threshold) bỏ qua chênh lệch nhỏ —
-// da mịn, nền trơn, hạt nhiễu ISO không bị làm sần; chỉ viền thật (tóc, mắt, chữ) sắc lên.
-// Làm nét trên độ sáng (cùng một lượng cho R, G, B) nên không lệch màu, không viền màu.
-export function sharpenRect(ctx, rect, amount = 0.8, threshold = 3) {
-  const x = Math.max(0, Math.floor(rect.x)), y = Math.max(0, Math.floor(rect.y));
-  const w = Math.min(ctx.canvas.width - x, Math.ceil(rect.w)), h = Math.min(ctx.canvas.height - y, Math.ceil(rect.h));
-  if (w < 5 || h < 5 || amount <= 0) return;
-  const image = ctx.getImageData(x, y, w, h);
-  const px = image.data;
-  const n = w * h;
-  const luma = new Float32Array(n);
-  for (let i = 0, p = 0; i < n; i++, p += 4) luma[i] = 0.299 * px[p] + 0.587 * px[p + 1] + 0.114 * px[p + 2];
-  // Gauss tách hai chiều, mép ảnh lặp điểm ngoài cùng.
-  const tmp = new Float32Array(n), blur = new Float32Array(n);
-  for (let j = 0; j < h; j++) {
-    const r = j * w;
-    for (let i = 0; i < w; i++) {
-      const a = luma[r + Math.max(0, i - 2)], b = luma[r + Math.max(0, i - 1)], c = luma[r + i];
-      const d = luma[r + Math.min(w - 1, i + 1)], e = luma[r + Math.min(w - 1, i + 2)];
-      tmp[r + i] = (a + 4 * b + 6 * c + 4 * d + e) / 16;
-    }
-  }
-  for (let j = 0; j < h; j++) {
-    const j2 = Math.max(0, j - 2) * w, j1 = Math.max(0, j - 1) * w, k1 = Math.min(h - 1, j + 1) * w, k2 = Math.min(h - 1, j + 2) * w;
-    for (let i = 0; i < w; i++)
-      blur[j * w + i] = (tmp[j2 + i] + 4 * tmp[j1 + i] + 6 * tmp[j * w + i] + 4 * tmp[k1 + i] + tmp[k2 + i]) / 16;
-  }
-  for (let i = 0, p = 0; i < n; i++, p += 4) {
-    const diff = luma[i] - blur[i];
-    if (Math.abs(diff) <= threshold) continue;
-    // Giảm dần quanh ngưỡng để không có bậc thang giữa vùng được / không được làm nét.
-    const boost = amount * (diff - Math.sign(diff) * threshold * 0.5);
-    px[p] += boost; px[p + 1] += boost; px[p + 2] += boost; // Uint8ClampedArray tự giới hạn 0–255
-  }
-  ctx.putImageData(image, x, y);
-}
-
+// Draw a photo with the selected crop, zoom and rotation.
 export function drawSlot(ctx, image, rect, t = DEFAULT_TRANSFORM) {
   const angle = ((t.rotate || 0) * Math.PI) / 180;
   const cos = Math.cos(angle),

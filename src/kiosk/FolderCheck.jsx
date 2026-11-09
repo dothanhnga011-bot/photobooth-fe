@@ -3,13 +3,13 @@ import { PiCameraDuotone as Camera } from "react-icons/pi";
 import { Button } from "../studio";
 import {
   baseName,
-  FOLDER_ACCESS_HINT,
+  folderAccessHint,
   isJpeg,
-  isMac,
   isRaw,
   listCameraFiles,
   RAW_ONLY_MESSAGE,
 } from "./folder.js";
+import { cameraProfile } from "./camera-profile.js";
 
 const CHECK_SECONDS = 60;
 const skewText = (minutes) => {
@@ -19,7 +19,8 @@ const skewText = (minutes) => {
   return `${m} phút`;
 };
 // Nhân viên thử cả chuỗi dây bấm → phần mềm nhận ảnh → thư mục → máy chụp, không cần mã vé.
-export function FolderCheck({ folder }) {
+export function FolderCheck({ folder, kind }) {
+  const profile = cameraProfile(kind);
   const [check, setCheck] = useState(null);
   const run = useRef(0);
   useEffect(() => () => void run.current++, []);
@@ -92,7 +93,7 @@ export function FolderCheck({ folder }) {
       {check?.status === "waiting" ? (
         <div className="kiosk-check-waiting">
           <p>
-            <span className="spinner" aria-hidden="true" /> Bấm dây chụp trên Fujifilm… còn {check.left}s
+            <span className="spinner" aria-hidden="true" /> Bấm dây chụp trên {profile.label}… còn {check.left}s
           </p>
           <Button type="button" className="outline small" onClick={stopCheck}>
             Dừng thử
@@ -115,7 +116,7 @@ export function FolderCheck({ folder }) {
               <small>
                 Giờ ghi trên tệp ảnh lệch khoảng {skewText(check.skew)} so với
                 máy tính. Máy chụp vẫn nhận ảnh bình thường, nhưng nên chỉnh lại
-                ngày giờ trên máy ảnh (SET UP → USER SETTING → DATE/TIME).
+                ngày giờ trên máy ảnh.
               </small>
             )}
           </div>
@@ -131,23 +132,13 @@ export function FolderCheck({ folder }) {
             {folder.name}”. Kiểm tra lần lượt:
           </p>
           <ol>
-            <li>
-              X-T3/X-S10/X-S20: bật máy, chọn USB TETHER SHOOTING AUTO, cắm USB và dây bấm tương thích, đặt FINE JPEG.
-            </li>
+            {profile.checks.map((text) => <li key={text}>{text}</li>)}
             <li>
               Cáp USB-C cắm thẳng vào máy tính và là cáp truyền dữ liệu (cáp chỉ
               sạc không dùng được).
             </li>
-            <li>
-              FUJIFILM X Acquire đang mở và kết nối máy ảnh. Đóng gPhoto2, darktable
-              và các chương trình khác đang chiếm USB.
-            </li>
-            <li>{FOLDER_ACCESS_HINT}</li>
-            <li>
-              Thư mục tải ảnh trong phần mềm máy ảnh trùng với thư mục đã chọn
-              ở đây.
-            </li>
-            <li>IMAGE QUALITY trên Fujifilm là FINE hoặc FINE + RAW, định dạng JPEG, không chỉ RAW (.RAF) hay HEIF.</li>
+            <li>{folderAccessHint(profile.folder)}</li>
+            <li>Chọn JPEG chất lượng cao hoặc JPEG + RAW; kiosk không nhận ảnh chỉ có RAW hay HEIF.</li>
           </ol>
         </div>
       )}

@@ -6,7 +6,6 @@ import {
   drawMarks,
   drawSlot,
   frameCapacity,
-  sharpenRect,
   slotScale,
   frameOutputSize,
   instaxPrint,
@@ -210,9 +209,6 @@ export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filter
         if (copy.of === index) await drawSharpSlot(ctx, source, slotRect(copy.slot, canvas.width, canvas.height), t);
     }
     filterPhotos(ctx, layout, filters, canvas.width, canvas.height);
-    // Làm nét nhẹ các ô ảnh (bản in 300 dpi), trước khi vẽ mã QR / ngày in.
-    for (const slot of [...layout.slots, ...layout.copies.map((c) => c.slot)])
-      sharpenRect(ctx, slotRect(slot, canvas.width, canvas.height));
     if (layout.marks.length) {
       const qr = layout.marks.some((m) => m.kind === "qr") && qrUrl
         ? await qrImage(qrUrl).catch(() => null) : null;

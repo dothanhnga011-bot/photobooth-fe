@@ -63,3 +63,37 @@ export function printerInstaller({ script, api, token, room }) {
 export const printerInstallerName = (room) =>
   `cai-may-in-${room.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\u0111/gi, "d")
     .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "phong"}.bat`;
+
+// Standalone colour repair: no room token, agent installation or physical print.
+export function printerColorInstaller(script) {
+  return [
+    "@echo off",
+    "setlocal DisableDelayedExpansion",
+    'set "NXC_SELF=%~f0"',
+    'powershell -NoProfile -Command "$p = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent()); if ($p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 0 }; exit 1"',
+    "if errorlevel 1 (",
+    "  echo Run using the kiosk Windows account. Allow administrator access to update both print defaults.",
+    '  powershell -NoProfile -Command "Start-Process -FilePath $env:NXC_SELF -Verb RunAs"',
+    "  exit /b",
+    ")",
+    'set "NXC_COLOR_SCRIPT=%LOCALAPPDATA%\\NXC-Printer\\configure-rx1-color.ps1"',
+    'if not exist "%LOCALAPPDATA%\\NXC-Printer" mkdir "%LOCALAPPDATA%\\NXC-Printer"',
+    `powershell -NoProfile -Command "try { $s = [IO.File]::ReadAllText($env:NXC_SELF); $m = [regex]::Match($s, '(?m)^rem NXC_COLOR_BASE64:([A-Za-z0-9+/=]+)'); if (-not $m.Success) { exit 1 }; [IO.File]::WriteAllBytes($env:NXC_COLOR_SCRIPT, [Convert]::FromBase64String($m.Groups[1].Value)) } catch { exit 1 }"`,
+    "if errorlevel 1 (",
+    "  echo Could not unpack the RX1 colour tool. Download it again.",
+    "  pause",
+    "  exit /b 1",
+    ")",
+    'powershell -NoProfile -ExecutionPolicy Bypass -File "%NXC_COLOR_SCRIPT%"',
+    "if errorlevel 1 (",
+    "  echo RX1 colour configuration failed. Read the error above; old settings are backed up before changes.",
+    "  pause",
+    "  exit /b 1",
+    ")",
+    "echo ICM configuration completed. Check the RX1 ICC profile and verify with a kiosk test print.",
+    "pause",
+    "exit /b",
+    `rem NXC_COLOR_BASE64:${encodePayload(script)}`,
+    "",
+  ].join("\r\n");
+}

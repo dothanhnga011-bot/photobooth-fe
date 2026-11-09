@@ -444,6 +444,16 @@ test("opening a configured kiosk uses the returned device token and displays QR 
   const agent = Buffer.from(/^rem NXC_PRINT_AGENT_BASE64:(\S+)/m.exec(bat)[1], "base64").toString("utf8");
   assert.match(agent, /^﻿# NXC Photobooth - chương trình in tự động cho máy DNP DS-RX1/);
   await page.getByRole("status").filter({ hasText: "Đã tải file cài máy in" }).first().waitFor();
+  const [colorDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    printerSetup.getByRole("button", { name: "Đồng bộ màu RX1 (Windows)" }).click(),
+  ]);
+  assert.equal(colorDownload.suggestedFilename(), "cai-mau-RX1.bat");
+  const colorBat = await readFile(await colorDownload.path(), "utf8");
+  const colorTool = Buffer.from(/^rem NXC_COLOR_BASE64:(\S+)/m.exec(colorBat)[1], "base64").toString("utf8");
+  assert.match(colorTool, /function Set-Rx1QueueColor/);
+  assert.match(colorTool, /RestoreBackup/);
+  assert.doesNotMatch(colorBat, /NXC_PRINT_CONFIG_BASE64|printer-token\.room-1/);
   await mkdir(screenshots, { recursive: true });
   await printerSetup.scrollIntoViewIfNeeded();
   await dialog.screenshot({ path: join(screenshots, "room-setup-printer.png") });

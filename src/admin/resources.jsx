@@ -29,13 +29,14 @@ import { TableHeading } from "./table-heading";
 import { Guide } from "../guide";
 import { download, macScript, windowsScript } from "./kiosk-autostart";
 import dnpAgent from "./installers/print-agent-dnp.ps1?raw";
-import { printerInstaller, printerInstallerName } from "./printer-installer";
+import rx1Color from "./installers/configure-rx1-color.ps1?raw";
+import { printerColorInstaller, printerInstaller, printerInstallerName } from "./printer-installer";
 import { CatalogToolbar } from "./catalog-toolbar";
 import { PackageCatalog } from "./package-catalog";
 import { ResourceEditor } from "./resource-editor";
 import { ServiceTabs, serviceOf, useServiceTab } from "./service-tabs";
 import { LAYOUT_COUNTS } from "../polaroid-layouts.js";
-import { createSampleLayouts, SAMPLE_PRICE, SAMPLE_SECONDS, SAMPLE_SHOTS } from "./polaroid-presets";
+import { createSampleLayouts, SAMPLE_PRICE, SAMPLE_SHOTS } from "./polaroid-presets";
 
 const searchable = (value) =>
   String(value || "")
@@ -208,7 +209,7 @@ export function ResourceManager({ resource, notify, me }) {
   };
   const fields = definitions[resource];
   // Gói mới theo khổ ảnh: khổ nhỏ kèm 1 tờ (cắt đôi = 2 tờ nhỏ), khổ to kèm 2 tờ; layout Polaroid
-  // (khổ Instax) mặc định 1 ảnh, 100.000 đ, máy tự chụp 8 tấm, 10 giây mỗi tấm, in 1 tấm.
+  // (khổ Instax) mặc định 1 ảnh, 100.000 đ, 8 lần bấm dây, in 1 tấm.
   function newItem(printSize = "full") {
     openEditor(
       Object.fromEntries([
@@ -221,8 +222,6 @@ export function ResourceManager({ resource, notify, me }) {
                 ? printSize === "instax" ? SAMPLE_SHOTS : 12
                 : key === "selectCount"
                   ? printSize === "instax" ? 1 : 4
-                  : key === "countdownSeconds"
-                    ? SAMPLE_SECONDS
                   : key === "price" && printSize === "instax"
                     ? SAMPLE_PRICE
                   : key === "prints"
@@ -286,7 +285,7 @@ export function ResourceManager({ resource, notify, me }) {
   // khung đã có cùng số ảnh thì giữ nguyên.
   async function createSamples() {
     if (!canManage || busy) return;
-    if (!confirm(`Tạo layout mẫu ${LAYOUT_COUNTS.join(" và ")} ảnh (${SAMPLE_PRICE.toLocaleString("vi-VN")} đ, máy tự chụp ${SAMPLE_SHOTS} tấm, ${SAMPLE_SECONDS} giây mỗi tấm, in 1 tấm) kèm khung trắng Instax Wide?
+    if (!confirm(`Tạo layout mẫu ${LAYOUT_COUNTS.join(" và ")} ảnh (${SAMPLE_PRICE.toLocaleString("vi-VN")} đ, ${SAMPLE_SHOTS} lần bấm dây, in 1 tấm) kèm khung trắng Instax Wide?
 Layout hoặc khung đã có cùng số ảnh được giữ nguyên. Sửa giá, số tấm sau ở từng layout.`)) return;
     setBusy(true);
     try {
@@ -723,7 +722,7 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
               <p>
                 Tải file cài về <b>máy tính trong phòng</b> rồi chạy một lần: từ
                 đó mỗi lần bật máy Windows sẽ mở Chrome toàn màn hình đúng phòng này.{" "}
-                FUJIFILM X Acquire sẽ tự mở nếu đã cài; lần đầu nhớ cho phép camera và chọn thư mục ảnh trong “Cài đặt máy chụp”.
+                {device.kind === "polaroid" ? "Canon EOS Utility" : "FUJIFILM X Acquire"} sẽ tự mở nếu đã cài; lần đầu nhớ cấu hình thư mục tải JPEG, cho phép camera và chọn cùng thư mục trong “Cài đặt máy chụp”.
               </p>
               <div className="kiosk-autostart-actions">
                 <Button
@@ -731,7 +730,7 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
                   onClick={() => {
                     download(
                       "cai-kiosk-NXC.bat",
-                      windowsScript(device.url, device.name),
+                      windowsScript(device.url, device.name, device.kind),
                     );
                     notify(
                       "Đã tải file cài cho Windows. Mở file trên máy trong phòng (nếu Windows hỏi: “Thêm thông tin” → “Vẫn chạy”).",
@@ -745,7 +744,7 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
                   onClick={() => {
                     download(
                       "cai-kiosk-NXC.command",
-                      macScript(device.url, device.name),
+                      macScript(device.url, device.name, device.kind),
                     );
                     notify(
                       "Đã tải file cài cho Mac. Mở Terminal, gõ “bash ” rồi kéo file vào và bấm Enter.",
@@ -789,12 +788,23 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
                   <Button className="outline small" disabled={printerBusy} onClick={downloadPrinter}>
                     <Download size={15} /> {printerBusy ? "Đang tạo file…" : "File cài máy in (Windows)"}
                   </Button>
+                  <Button className="outline small" onClick={() => {
+                    download("cai-mau-RX1.bat", printerColorInstaller(rx1Color));
+                    notify("Đã tải công cụ đồng bộ ICM. Chạy trên PC cắm RX1 bằng tài khoản Windows đang dùng kiosk; công cụ sao lưu trước khi sửa.");
+                  }}>
+                    <Download size={15} /> Đồng bộ màu RX1 (Windows)
+                  </Button>
                 </div>
                 <small>
                   Cần cài driver DNP và cắm máy in trước. Nếu cửa sổ cài đặt in hiện ra: Advanced… → Printer
                   Features → 2inch cut → Enable → OK (chỉ làm một lần). Tình trạng máy in hiện ở mục “Máy in tự
                   động” trên trang Quản lý máy.
                 </small>
+                <p>
+                  Ảnh in sáng gắt hoặc ám màu: dùng “Đồng bộ màu RX1” để đặt cùng chế độ ICM cho tờ to và
+                  cắt đôi. Trong Color Management → Devices, kiểm tra đúng profile RX1/giấy cho cả hai hàng.
+                  In thử cùng một ảnh qua kiosk để đối chiếu màu.
+                </p>
               </section>
             )}
             </>

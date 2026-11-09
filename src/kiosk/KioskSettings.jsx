@@ -12,7 +12,8 @@ import {
   liveUsableFor,
   NO_HDMI_MESSAGE,
 } from "./camera.js";
-import { canPickFolder, PHOTO_FOLDER_EXAMPLE } from "./folder.js";
+import { canPickFolder } from "./folder.js";
+import { cameraProfile } from "./camera-profile.js";
 import { FolderCheck } from "./FolderCheck.jsx";
 import { KioskDevices } from "./KioskDevices.jsx";
 
@@ -37,6 +38,7 @@ export function KioskSettings({
   setLowPower = () => {},
 }) {
   const usable = liveUsableFor({ webcam: webcamTest });
+  const profile = cameraProfile(roomInfo?.kind);
   return (
     <details className="kiosk-settings">
       <summary>
@@ -57,17 +59,14 @@ export function KioskSettings({
         <Guide
           id="kiosk-camera"
           dark
-          title="kết nối Fujifilm X-T3 / X-S10 / X-S20 (phòng Photobooth & Polaroid)"
-          steps={[
-            "Cắm USB dữ liệu từ Fujifilm vào máy tính và micro HDMI vào thẻ ghi hình; bật máy ảnh.",
-            "Trên máy ảnh chọn USB TETHER SHOOTING AUTO, FINE hoặc FINE + RAW, định dạng JPEG, Single shooting và tắt self-timer.",
-            `Mở FUJIFILM X Acquire, chọn tự tải JPEG vào ${PHOTO_FOLDER_EXAMPLE}; không mở gPhoto2 hoặc darktable cùng lúc.`,
-            "Lần đầu bấm “Chọn thư mục ảnh”, chọn đúng thư mục đó. Nếu lần mở sau cần cấp quyền, bấm “Cho phép đọc thư mục” và chọn “Cho phép mỗi lần truy cập”.",
-            "Bấm “Thử nhận ảnh từ máy ảnh”, rồi nhấn dây bấm tương thích Fujifilm; xác nhận JPEG gốc xuất hiện trong thư mục và kiosk.",
-            "“Hình trực tiếp từ máy ảnh”: để Tự động hoặc chọn thẻ ghi hình (USB Video), không chọn webcam máy tính.",
-          ]}
-          note="Máy ảnh phải bật nguồn và FUJIFILM X Acquire phải kết nối. Khách bấm dây để chụp — phòng Polaroid cũng vậy, không còn tự chụp theo đếm ngược."
+          title={`kết nối ${profile.label}`}
+          steps={profile.steps}
+          note={profile.note}
         />
+        <p className="kiosk-device-note">
+          <a href={profile.downloadUrl} target="_blank" rel="noreferrer">Tải {profile.app}</a>
+          {" · "}<a href={profile.manualUrl} target="_blank" rel="noreferrer">Hướng dẫn máy ảnh chính hãng</a>
+        </p>
         <div className="kiosk-folder">
           <p>
             Thư mục ảnh: <b>{folder ? folder.name : "chưa chọn"}</b>
@@ -93,7 +92,7 @@ export function KioskSettings({
             )}
           </div>
           {folder && folderAccess === "granted" && (
-            <FolderCheck key={folder.name} folder={folder} />
+            <FolderCheck key={`${profile.id}:${folder.name}`} folder={folder} kind={roomInfo?.kind} />
           )}
           <details className="kiosk-camera-note">
             <summary>
@@ -102,10 +101,7 @@ export function KioskSettings({
             </summary>
             <small>
               Chọn đúng thư mục phần mềm máy ảnh lưu JPEG —
-              nên là thư mục riêng, vd. {PHOTO_FOLDER_EXAMPLE}.
-              X-T3/X-S10/X-S20 dùng USB dữ liệu và FUJIFILM X Acquire để lưu JPEG xuống máy tính.
-              Hình trực tiếp dùng micro-HDMI + thẻ ghi hình; không dùng USB streaming đồng thời.
-              Khách dùng dây bấm tương thích RR-100 để chụp; X-S10/X-S20 cần đầu chuyển 2,5 mm sang 3,5 mm đúng chân remote.
+              nên là thư mục riêng, vd. {profile.folder}. {profile.note}
             </small>
           </details>
         </div>

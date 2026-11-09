@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { drawMarks, frameCapacity, frameOutputSize, photoLayout, printDate, sharpenRect } from "../src/frame-utils.js";
+import { drawMarks, frameCapacity, frameOutputSize, photoLayout, printDate } from "../src/frame-utils.js";
 
 const region = (x, y, extra = {}) => ({ x, y, w: 0.4, h: 0.2, ...extra });
 
@@ -71,29 +71,4 @@ test("marks draw a white QR square and the date in the frame colour", () => {
   assert.ok(calls.some(([k, ...a]) => k === "drawImage" && a[0] === qr), "QR được vẽ");
   assert.ok(calls.some(([k, key, value]) => k === "set" && key === "fillStyle" && value === "#ff0000"), "màu chữ ngày in");
   assert.ok(calls.some(([k, text]) => k === "fillText" && /^\d\d\.\d\d\.\d{4}$/.test(text)), "ngày dạng dd.MM.yyyy");
-});
-
-test("print sharpening keeps flat areas and lifts edge contrast inside the photo slot only", () => {
-  const width = 8, height = 5;
-  const pixels = new Uint8ClampedArray(width * height * 4);
-  // Nửa trái xám 100, nửa phải xám 160.
-  for (let y = 0; y < height; y++)
-    for (let x = 0; x < width; x++) pixels.set([x < 4 ? 100 : 160, x < 4 ? 100 : 160, x < 4 ? 100 : 160, 255], (y * width + x) * 4);
-  const ctx = {
-    canvas: { width, height },
-    getImageData: (x, y, w, h) => {
-      const data = new Uint8ClampedArray(w * h * 4);
-      for (let j = 0; j < h; j++) data.set(pixels.subarray(((y + j) * width + x) * 4, ((y + j) * width + x + w) * 4), j * w * 4);
-      return { data };
-    },
-    putImageData: (image, x, y) => {
-      const w = width;
-      for (let j = 0; j < height; j++) pixels.set(image.data.subarray(j * w * 4, (j + 1) * w * 4), ((y + j) * width + x) * 4);
-    },
-  };
-  sharpenRect(ctx, { x: 0, y: 0, w: width, h: height }, 0.4);
-  const at = (x, y) => pixels[(y * width + x) * 4];
-  assert.equal(at(1, 2), 100, "vùng phẳng giữ nguyên");
-  assert.ok(at(3, 2) < 100 && at(4, 2) > 160, `cạnh rõ hơn: ${at(3, 2)} / ${at(4, 2)}`);
-  assert.equal(pixels[(2 * width + 3) * 4 + 3], 255, "kênh trong suốt không đổi");
 });

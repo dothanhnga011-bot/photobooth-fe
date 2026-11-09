@@ -4,6 +4,7 @@ import postcss from 'postcss';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { printerColorInstaller } from './src/admin/printer-installer.js';
 
 // Guests open the album from a QR code on a phone. Its code is a separate chunk that the browser
 // only discovered after the main bundle had run (measured live on 4G). On /album/ pages a tiny
@@ -46,6 +47,9 @@ function printAgentDownload() {
     name: 'print-agent-download',
     apply: 'build',
     generateBundle() {
+      const colorScript = readFileSync(new URL('./src/admin/installers/configure-rx1-color.ps1', import.meta.url), 'utf8');
+      this.emitFile({ type: 'asset', fileName: 'downloads/configure-rx1-color.ps1', source: colorScript });
+      this.emitFile({ type: 'asset', fileName: 'downloads/cai-mau-RX1.bat', source: printerColorInstaller(colorScript) });
       this.emitFile({
         type: 'asset',
         fileName: 'downloads/print-agent-dnp.ps1',

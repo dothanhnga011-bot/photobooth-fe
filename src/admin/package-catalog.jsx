@@ -17,7 +17,7 @@ import { includedSheets, INSTAX_SHEETS, isInstax, isStrip, piecesLabel, printSiz
 const SIZE_GROUPS = [
   ["strip", "Khổ nhỏ", "gói khổ nhỏ", "1 tờ 10 × 15 cm cắt đôi thành 2 tờ nhỏ (5 × 15 cm) · khách in tối thiểu 2 tờ nhỏ"],
   ["full", "Khổ to", "gói khổ to", "Ảnh 10 × 15 cm nguyên tờ · khách in tối thiểu 2 tờ"],
-  ["instax", "Layout Polaroid", "layout", "Phòng Polaroid: layout 1 ảnh to hoặc 2 ảnh dọc chia đôi trên thẻ Instax Wide (in ở máy Instax Link WIDE). Khách chọn layout, máy tự chụp theo đếm ngược, trả tiền ở quầy"],
+  ["instax", "Layout Polaroid", "layout", "Phòng Polaroid: layout 1 ảnh to hoặc 2 ảnh dọc chia đôi trên thẻ Instax Wide (in ở máy Instax Link WIDE). Khách chọn layout, bấm dây chụp Canon R100, trả tiền ở quầy"],
 ];
 const ART = { strip: 2, full: 2, instax: 1 };
 
@@ -150,7 +150,7 @@ function PackageCards({ items, onEdit, onDeactivate }) {
             <p className="package-card-included">
               <Images size={17} aria-hidden="true" />
               {isInstax(item)
-                ? `Layout ${item.selectCount || 1} ảnh · tự chụp ${item.shots || 8} tấm, ${item.countdownSeconds || 10} giây/tấm · Instax Wide`
+                ? `Layout ${item.selectCount || 1} ảnh · ${item.shots || 8} lần bấm dây · Instax Wide`
                 : `${item.shots || 12} lần chụp · chọn ${item.selectCount || 4} ảnh · ${isStrip(item) ? "khổ nhỏ (cắt đôi)" : "khổ to 10 × 15"}`}
             </p>
             <p className="package-card-branches">

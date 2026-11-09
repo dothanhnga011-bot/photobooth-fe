@@ -2,6 +2,7 @@
 // Isolated API fixtures; the photos, frame and sticker are generated solid-colour PNGs.
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -48,11 +49,13 @@ const inside = (x, y) => SLOTS.some((s) => x >= s.x && x <= s.x + s.w && y >= s.
 const frameImage = png(200, 300, (x, y) => (inside(x / 200, y / 300) ? [255, 255, 255, 255] : PINK));
 const photoImage = png(300, 200, () => RED);
 const stickerImage = png(60, 60, () => BLUE);
+const brandLogo = await readFile(new URL('../public/logo-m-384.jpg', import.meta.url));
 
 const FRAME = { _id: "frame-decor", name: "Khung thử", printSize: "full", active: true, image: dataUrl(frameImage), slots: SLOTS };
 const STICKER = { _id: "sticker-blue", name: "Tim xanh", image: dataUrl(stickerImage), thumb: dataUrl(stickerImage) };
 const STAR = { _id: "sticker-star", name: "Sao vàng", image: dataUrl(png(40, 40, () => [240, 190, 40, 255])), thumb: "" };
-const SETTINGS = { enabledFilters: ["original", "mono"], customFilters: [] };
+const SETTINGS = { enabledFilters: ["original", "mono"], customFilters: [],
+  kioskTexts: { "select.frameHint": "Bấm mũi tên để chọn frame tiếp theo nhé" } };
 
 let server, browser, base;
 const fixture = `
@@ -61,14 +64,29 @@ const fixture = `
   import { MemoryRouter } from 'react-router-dom';
   import { StudioContext, ToastProvider } from '/src/studio.jsx';
   import { Kiosk } from '/src/kiosk/Kiosk.jsx';
+  import { KioskCode } from '/src/kiosk/KioskSale.jsx';
+  import { KioskSettings } from '/src/kiosk/KioskSettings.jsx';
+  import { windowsScript, macScript } from '/src/admin/kiosk-autostart.js';
   import '/src/tailwind.css';
-  const studio = ${JSON.stringify({ settings: SETTINGS, packages: [], frames: [FRAME], stickers: [STICKER, STAR] })};
+  const studio = ${JSON.stringify({ settings: SETTINGS, packages: [], frames: [FRAME, { ...FRAME, _id: "frame-second", name: "Khung thứ hai" }], stickers: [STICKER, STAR] })};
   // Tiệm chưa tải nhãn dán nào (?stickers=0): máy chụp ẩn mục Nhãn dán.
   if (new URLSearchParams(location.search).get('stickers') === '0') studio.stickers = [];
-  createRoot(document.getElementById('root')).render(React.createElement(React.StrictMode, null,
+  const root = createRoot(document.getElementById('root'));
+  const wrap = child => React.createElement(React.StrictMode, null,
     React.createElement(MemoryRouter, { initialEntries: ['/kiosk?device=fixture-device'] },
       React.createElement(StudioContext.Provider, { value: studio },
-        React.createElement(ToastProvider, null, React.createElement(Kiosk))))));
+        React.createElement(ToastProvider, null, child))));
+  root.render(wrap(React.createElement(Kiosk)));
+  window.showCodeScreen = () => root.render(wrap(React.createElement('main', { className: 'kiosk-shell' },
+    React.createElement(KioskCode, { code: '123456', setCode: () => {}, onSubmit: event => event.preventDefault(),
+      onBack: () => {}, device: 'fixture', cameraReady: true }))));
+  window.showCameraSetup = kind => root.render(wrap(React.createElement('main', { className: 'kiosk-shell' },
+    React.createElement(KioskSettings, { cameras: [{ deviceId: 'hdmi', label: 'USB Video' }], cameraId: 'hdmi',
+      roomInfo: { kind }, zoom: 0, mirror: true, toast: { success() {}, error() {} } }))));
+  window.makeKioskScripts = kind => ({
+    windows: windowsScript('https://studio.example/kiosk?device=fixture', 'Room', kind),
+    mac: macScript('https://studio.example/kiosk?device=fixture', 'Room', kind),
+  });
 `;
 
 before(async () => {
@@ -86,6 +104,10 @@ before(async () => {
   const entry = bundle.output.find((a) => a.isEntry).fileName;
   const css = bundle.output.filter((a) => a.fileName.endsWith(".css"));
   server = createServer((req, res) => {
+    if (/^\/logo-m(?:-384)?\.jpg/.test(req.url)) {
+      res.setHeader('Content-Type', 'image/jpeg');
+      return res.end(brandLogo);
+    }
     if (assets.has(req.url)) {
       res.setHeader("Content-Type", req.url.endsWith(".css") ? "text/css" : "application/javascript");
       res.end(assets.get(req.url));
@@ -105,6 +127,13 @@ async function selectScreen({ query = "", shots = 3, viewport = { width: 1366, h
   const page = await browser.newPage({ viewport });
   const errors = [], uploads = { composite: null, print: null };
   page.on("pageerror", (e) => errors.push(e.message));
+  await page.route('http://127.0.0.1:8789/**', route => {
+    if (new URL(route.request().url()).pathname === '/print') {
+      uploads.print = route.request().headers()['x-print-sheets'];
+      return route.fulfill({ json: { sent: true, message: 'Fixture spool accepted' }, headers: { 'Access-Control-Allow-Origin': '*' } });
+    }
+    return route.fulfill({ json: { directPrint: 2 }, headers: { 'Access-Control-Allow-Origin': '*' } });
+  });
   const booking = {
     _id: "fixture-booking", code: "123456", packageName: "Gói thử", shots, selectCount: 2,
     prints: 1, printSize: "full", status: "checked_in", captureDuration: 10,
@@ -216,13 +245,78 @@ test("guests pick photos, a colour and a sticker; the print shows exactly that",
     assert.equal(uploads.print?.split(",").length, 1, "gói 1 tờ in → 1 tờ gửi máy in");
     const { width, height, colors: [onSticker, onPhoto, onFrame] } =
       await samples(page, uploads.composite, [[0.5, 0.26], [0.15, 0.12], [0.02, 0.5]]);
-    assert.deepEqual([width, height], [1200, 1800]);
+    assert.ok(width * height > 19_980_000 && width * height <= 20_000_000);
     const close = (actual, expected, tolerance = 24) =>
       actual.every((v, i) => Math.abs(v - expected[i]) <= tolerance);
     // Nhãn dán vẽ sau màu ảnh: vẫn xanh. Ảnh đỏ thành xám (trắng đen). Viền khung giữ màu hồng.
     assert.ok(close(onSticker, BLUE), `nhãn dán: ${onSticker}`);
     assert.ok(close(onPhoto, [70, 70, 70]), `ảnh trắng đen: ${onPhoto}`);
     assert.ok(close(onFrame, PINK), `viền khung: ${onFrame}`);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("the frame hint uses admin text and arrow navigation still switches frames", async () => {
+  const { page, errors } = await selectScreen();
+  try {
+    await page.getByText(SETTINGS.kioskTexts["select.frameHint"], { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Khung sau", exact: true }).click();
+    await page.getByText("Khung thứ hai · khung 2/2", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Khung trước", exact: true }).click();
+    assert.match(await page.locator(".select-frame-name").innerText(), /khung 1\/2/);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("code entry uses larger touch text without overflowing short and full-HD kiosk screens", async () => {
+  const { page, errors } = await selectScreen();
+  try {
+    await page.evaluate(() => window.showCodeScreen());
+    for (const viewport of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }, { width: 1024, height: 600 }]) {
+      await page.setViewportSize(viewport);
+      const layout = await page.evaluate(() => {
+        const input = document.querySelector('#kiosk-code'), keypad = document.querySelector('.voucher-keypad button');
+        const card = document.querySelector('.code-card').getBoundingClientRect();
+        return { input: parseFloat(getComputedStyle(input).fontSize), keypad: parseFloat(getComputedStyle(keypad).fontSize),
+          height: keypad.getBoundingClientRect().height, inside: card.left >= 0 && card.right <= innerWidth,
+          submitVisible: document.querySelector('.code-card button[type=submit]').getBoundingClientRect().bottom <= innerHeight };
+      });
+      assert.ok(layout.input >= 32, JSON.stringify(layout));
+      assert.ok(layout.keypad >= 24);
+      assert.ok(layout.height >= 46);
+      assert.equal(layout.inside, true);
+      assert.equal(layout.submitVisible, true);
+    }
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.screenshot({ path: join(tmpdir(), 'photobooth-code-larger.png') });
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("Polaroid staff setup and startup scripts select Canon; Photobooth retains Fujifilm", async () => {
+  const { page, errors } = await selectScreen();
+  try {
+    await page.evaluate(() => window.showCameraSetup('polaroid'));
+    await page.locator('.kiosk-settings > summary').click();
+    await page.getByRole('button', { name: /Hướng dẫn: kết nối Canon EOS R100/ }).click();
+    await page.getByText(/Cài EOS Utility hỗ trợ EOS R100/).waitFor();
+    assert.ok((await page.locator('.guide-body').innerText()).includes('RS-60E3'));
+    assert.equal(await page.getByRole('link', { name: 'Tải Canon EOS Utility' }).count(), 1);
+    assert.equal(await page.getByText('Máy đọc tiền (ICT)', { exact: true }).count(), 0);
+    const canon = await page.evaluate(() => window.makeKioskScripts('polaroid'));
+    const payload = /rem NXC_EOS_UTILITY_BASE64:([A-Za-z0-9+/=]+)/.exec(canon.windows);
+    assert.ok(payload);
+    const decoded = Buffer.from(payload[1], 'base64').toString('utf8');
+    assert.ok(decoded.includes('C:\\PhotoBooth\\Canon'));
+    assert.ok(decoded.includes('EOS Utility 3.exe'));
+    assert.ok(!canon.windows.includes('NXC_FUJI_ACQUIRE_BASE64:'));
+    assert.ok(canon.mac.includes('open -a "EOS Utility"'));
+    await page.evaluate(() => window.showCameraSetup('photobooth'));
+    assert.equal(await page.getByRole('link', { name: 'Tải FUJIFILM X Acquire' }).count(), 1);
+    assert.equal(await page.getByText('Máy đọc tiền (ICT)', { exact: true }).count(), 1);
+    const fuji = await page.evaluate(() => window.makeKioskScripts('photobooth'));
+    assert.ok(fuji.windows.includes('NXC_FUJI_ACQUIRE_BASE64:'));
+    assert.ok(!fuji.windows.includes('NXC_EOS_UTILITY_BASE64:'));
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });

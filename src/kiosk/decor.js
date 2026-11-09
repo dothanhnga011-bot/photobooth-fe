@@ -5,7 +5,7 @@ import {
   customCss,
   filterRegion,
   filterSteps,
-} from "../beauty-render.js";
+} from "../color-filters.js";
 import {
   DECOR_COLORS,
   DECOR_FONTS,

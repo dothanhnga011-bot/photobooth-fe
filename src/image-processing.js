@@ -1,6 +1,4 @@
-import { applyBeauty } from "./beauty-render.js";
 import { prepareCameraImage } from "./kiosk/camera-image.js";
-import { decodePhoto } from "./decode-photo.js";
 
 let worker;
 let unavailable = false;
@@ -23,8 +21,7 @@ function stopWorker() {
 function getWorker() {
   if (unavailable || typeof Worker === "undefined" ||
       typeof OffscreenCanvas === "undefined" || typeof createImageBitmap === "undefined" ||
-      typeof OffscreenCanvas.prototype.convertToBlob !== "function" ||
-      typeof OffscreenCanvas.prototype.transferToImageBitmap !== "function")
+      typeof OffscreenCanvas.prototype.convertToBlob !== "function")
     throw workerError();
   if (!worker) {
     try {
@@ -82,28 +79,4 @@ function run(task, makeInput, fallback) {
 export function prepareCameraImageAsync(file, mirror) {
   return run("camera", () => ({ input: { file, mirror } }),
     () => prepareCameraImage(file, mirror));
-}
-
-function canvasFromBitmap(result) {
-  if (typeof ImageBitmap === "undefined" || !(result instanceof ImageBitmap)) return result;
-  try {
-    const canvas = document.createElement("canvas");
-    canvas.width = result.width;
-    canvas.height = result.height;
-    canvas.getContext("2d").drawImage(result, 0, 0);
-    return canvas;
-  } finally { result.close(); }
-}
-
-export async function decodePhotoAsync(file, options = {}) {
-  return canvasFromBitmap(await run("photo", () => ({ input: { file, ...options } }),
-    () => decodePhoto(file, options)));
-}
-
-export async function applyBeautyAsync(source, faces, adjust) {
-  const result = await run("beauty", async () => {
-    const bitmap = await createImageBitmap(source);
-    return { input: { source: bitmap, faces, adjust }, transfer: [bitmap] };
-  }, () => applyBeauty(source, faces, adjust));
-  return canvasFromBitmap(result);
 }

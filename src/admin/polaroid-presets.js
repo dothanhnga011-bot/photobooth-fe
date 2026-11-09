@@ -3,11 +3,10 @@ import { frameCapacity } from "../frame-utils";
 import { LAYOUT_COUNTS, WIDE_FRAME, layoutSlots } from "../polaroid-layouts.js";
 
 // Layout mẫu của phòng Polaroid (Khổ ảnh & bảng giá → Polaroid → "Tạo layout mẫu"): 1 ảnh to và 2 ảnh
-// dọc chia đôi, mỗi layout một gói khổ Instax (100.000 đ, máy tự chụp 8 tấm, 10 giây mỗi tấm) và một
+// dọc chia đôi, mỗi layout một gói khổ Instax (100.000 đ, 8 lần bấm dây) và một
 // khung trắng Instax Wide đúng số ô. Khung Polaroid không thuộc chủ đề nào.
 export const SAMPLE_PRICE = 100000;
 export const SAMPLE_SHOTS = 8;
-export const SAMPLE_SECONDS = 10;
 
 // Khung trắng 1800 × 1200: nền trắng, ô ảnh màu kem nhạt (ảnh của khách phủ lên ô khi ghép).
 export function whiteFrame(count) {
@@ -65,7 +64,6 @@ export async function createSampleLayouts(packages) {
         price: SAMPLE_PRICE,
         duration: 5,
         shots: SAMPLE_SHOTS,
-        countdownSeconds: SAMPLE_SECONDS,
         selectCount: count,
         printSize: "instax",
         prints: 1,

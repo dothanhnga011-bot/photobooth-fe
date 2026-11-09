@@ -482,10 +482,8 @@ test("adding a package validates required fields and sends numeric values", asyn
         price: 150000,
         duration: 25,
         prints: 3,
-        // Defaults of a new package: 12 shots (cable presses; the countdown field is only shown for
-        // Polaroid layouts and stays at its default), pick 4, full 10 × 15 sheet, every branch.
+        // Defaults: 12 cable presses, pick 4, full 10 × 15 sheet, every branch.
         shots: 12,
-        countdownSeconds: 10,
         selectCount: 4,
         printSize: "full",
         branches: [],
@@ -565,10 +563,10 @@ test("the Polaroid tab lists only layouts and creates the 2 sample layouts (1 bi
   }), frames[1].image);
   assert.deepEqual(size, [1800, 1200]);
   const packs = made.slice(2).map((m) => m.body);
-  // Layout mẫu: 100.000 đ, máy tự chụp 8 tấm, 10 giây mỗi tấm, in 1 tấm.
+  // Layout mẫu: 100.000 đ, 8 lần bấm dây, in 1 tấm.
   assert.deepEqual(packs.map((p) => [p.printSize, p.selectCount, p.price, p.prints, p.shots, p.countdownSeconds]),
-    [["instax", 1, 100000, 1, 8, 10], ["instax", 2, 100000, 1, 8, 10]]);
-  assert.match(await layouts.locator(".package-card").nth(1).innerText(), /tự chụp 8 tấm, 10 giây\/tấm/);
+    [["instax", 1, 100000, 1, 8, undefined], ["instax", 2, 100000, 1, 8, undefined]]);
+  assert.match(await layouts.locator(".package-card").nth(1).innerText(), /8 lần bấm dây/);
   assert.deepEqual(await notifications(), ["Đã tạo 2 layout và 2 khung trắng mẫu."]);
   await mkdir(screenshotDirectory, { recursive: true });
   await page.screenshot({ path: join(screenshotDirectory, "packages-polaroid.png"), fullPage: true });
@@ -584,20 +582,20 @@ test("the Polaroid tab lists only layouts and creates the 2 sample layouts (1 bi
   assert.equal(await dialog.locator('select[name="printSize"]').count(), 0);
   assert.equal(await dialog.locator('input[name="prints"]').count(), 0);
   assert.equal(await dialog.locator('input[name="shots"]').inputValue(), "8");
-  assert.equal(await dialog.locator('input[name="countdownSeconds"]').inputValue(), "10");
+  assert.equal(await dialog.locator('input[name="countdownSeconds"]').count(), 0);
   assert.equal(await dialog.locator('input[name="price"]').inputValue(), "100000");
   assert.deepEqual(await dialog.getByRole("radio").evaluateAll((radios) => radios
     .filter((r) => r.name === "selectCount").map((r) => r.value)), ["1", "2"]);
   await dialog.getByRole("radio", { name: "2 ảnh" }).check({ force: true });
   assert.equal(await dialog.locator(".kiosk-layout-preview .layout-art i").count(), 2);
-  assert.match(await dialog.locator(".kiosk-layout-preview").innerText(), /8 tấm · 10 giây\/tấm/i);
+  assert.match(await dialog.locator(".kiosk-layout-preview").innerText(), /8 lần bấm dây/i);
   await page.screenshot({ path: join(screenshotDirectory, "packages-polaroid-editor.png") });
   await dialog.locator('input[name="name"]').fill("Layout thử");
   await dialog.getByRole("button", { name: "Lưu thay đổi", exact: true }).click();
   await dialog.waitFor({ state: "hidden" });
   assert.deepEqual(
     mutations().map((m) => [m.method, m.body.printSize, m.body.selectCount, m.body.prints, m.body.shots, m.body.countdownSeconds]),
-    [["POST", "instax", 2, 1, 8, 10]],
+    [["POST", "instax", 2, 1, 8, undefined]],
   );
   // Tab Photobooth vẫn chỉ có gói 10 × 15.
   await page.getByRole("tab", { name: /Photobooth/ }).click();

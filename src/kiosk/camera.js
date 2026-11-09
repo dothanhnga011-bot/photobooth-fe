@@ -3,7 +3,7 @@ import { isMac } from "./folder.js";
 // Tether software transfers JPEGs over USB; preview uses an HDMI capture device.
 export const isCameraUsbVideo = (d) => /canon|eos|\br100\b|fujifilm|fuji|\bx-[st](?:3|10|20)\b/i.test(d?.label || "");
 export const CAMERA_USB_MESSAGE =
-  "Fujifilm X-T3/X-S10/X-S20 dùng USB tether và FUJIFILM X Acquire để lưu JPEG xuống máy tính. Hình trực tiếp dùng micro-HDMI qua thẻ ghi hình USB; chọn thẻ đó tại Hình trực tiếp từ máy ảnh.";
+  "USB chuyển JPEG bằng FUJIFILM X Acquire (Photobooth) hoặc Canon EOS Utility (Polaroid/R100). Hình trực tiếp dùng micro-HDMI qua thẻ ghi hình USB; chọn thẻ đó tại Hình trực tiếp từ máy ảnh.";
 export const CAMERA_ERROR =
   "Không mở được hình trực tiếp. Kiểm tra cáp micro-HDMI, thẻ ghi hình USB và quyền camera của trình duyệt.";
 const isVirtual = (d) => /obs|virtual/i.test(d.label);

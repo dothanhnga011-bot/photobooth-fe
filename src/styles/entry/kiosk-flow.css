@@ -184,40 +184,6 @@
     text-align: center;
   }
   .shoot-capture-status p { margin: 0; color: inherit; }
-  /* Hướng dẫn bấm dây chỉ dành cho chế độ khách chọn “Bấm dây”. */
-  .shoot-press {
-    position: absolute;
-    bottom: 7%;
-    left: 50%;
-    z-index: 3;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 16px 28px;
-    translate: -50% 0;
-    border-radius: 999px;
-    background: rgb(33 23 19 / 86%);
-    color: #fff;
-    font-size: clamp(20px, 3vh, 30px);
-    white-space: nowrap;
-    box-shadow: 0 10px 30px rgb(0 0 0 / 35%);
-  }
-  .shoot-stage:has(.shoot-press) .shoot-capture-status { bottom: 20%; }
-  .shoot-press svg {
-    flex: none;
-    font-size: 1.5em;
-    animation: shoot-press 1.1s ease-in-out infinite;
-  }
-  @keyframes shoot-press {
-    50% {
-      scale: 0.82;
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .shoot-press svg {
-      animation: none;
-    }
-  }
   .shoot-ending {
     position: absolute;
     inset: 0;
@@ -580,12 +546,20 @@
 
   /* Nhập mã chụp: ô mã + bàn phím số */
   .code-card {
-    width: min(460px, 100%);
+    width: min(540px, 100%);
     margin: auto;
   }
+  .code-screen .flow-head h1 { font-size: clamp(36px, 3.4vw, 60px); }
+  .code-screen .flow-head p { font-size: clamp(18px, 1.5vw, 24px); line-height: 1.45; }
+  .code-screen .code-card label { font-size: 20px; }
+  .code-screen .code-card input { height: 64px; font-size: 36px; }
+  .code-card .voucher-keypad { gap: 8px; }
+  .code-card .voucher-keypad button { min-height: 58px; font-size: 28px; }
   .code-card .button {
     width: 100%;
     margin-top: 6px;
+    min-height: 58px;
+    font-size: 22px;
   }
   .code-screen .soft-note {
     width: min(600px, 100%);
@@ -643,6 +617,9 @@
     .payment-voucher input { height: 40px; }
     .voucher-keypad button { min-height: 40px; }
     .payment-voucher .button { min-height: 44px; }
+    .code-screen .code-card input { height: 52px; font-size: 32px; }
+    .code-card .voucher-keypad button { min-height: 46px; font-size: 24px; }
+    .code-card .button { min-height: 48px; font-size: 20px; }
   }
 
   .pay-board {
@@ -1181,6 +1158,16 @@
     color: var(--mellow-muted, #7a5a48);
     font-size: 14px;
   }
+  .select-frame-hint {
+    margin: 0;
+    max-width: 34ch;
+    color: var(--mellow-cocoa, #522e22);
+    font-size: clamp(17px, 1.4vw, 23px);
+    font-weight: 600;
+    line-height: 1.35;
+    text-align: center;
+    text-wrap: balance;
+  }
   /* Màu ảnh: ảnh khách đã chọn hiện với từng màu */
   .select-filters {
     display: grid;
@@ -1637,14 +1624,6 @@
     font-size: 13px;
     font-weight: 600;
     opacity: 0.85;
-  }
-  .kiosk-device-steps {
-    display: grid;
-    gap: 4px;
-    margin: 0;
-    padding-left: 20px;
-    font-size: 12.5px;
-    line-height: 1.5;
   }
   .kiosk-device-box {
     display: grid;

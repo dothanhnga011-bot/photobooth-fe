@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { filterRegion } from "../src/beauty-render.js";
+import { filterRegion } from "../src/color-filters.js";
 import {
   STICKER_SCALE,
   clampScale,

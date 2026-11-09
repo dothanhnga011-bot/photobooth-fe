@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ImagePlus, Pencil, Plus, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { api } from "../api";
-import { COLOR_FILTERS, FILTER_CSS, customCss, NEUTRAL_CUSTOM } from "../beauty-render.js";
+import { COLOR_FILTERS, FILTER_CSS, customCss, NEUTRAL_CUSTOM } from "../color-filters.js";
 import { Button, ErrorBox, useStudio, useToast } from "../studio";
 
 // Thanh trượt của filter tự tạo: [khóa, nhãn, nhỏ nhất, lớn nhất, đơn vị].

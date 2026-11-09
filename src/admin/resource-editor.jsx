@@ -7,7 +7,7 @@ import { definitions, DEFAULT_STAFF_PERMISSIONS, PERMISSION_GROUPS, ROOM_KINDS }
 import { includedSheets, INSTAX_SHEETS, isInstax, isStrip, piecesLabel, printSizeOf } from "../kiosk/print-count.js";
 import { LayoutArt, LayoutCard } from "../kiosk/KioskPolaroid.jsx";
 import { LAYOUT_COUNTS } from "../polaroid-layouts.js";
-import { SAMPLE_SECONDS, SAMPLE_SHOTS } from "./polaroid-presets.js";
+import { SAMPLE_SHOTS } from "./polaroid-presets.js";
 
 // Loại phòng quyết định màn đầu tiên khách thấy sau “Chạm để bắt đầu”.
 const ALL_PERMISSIONS = PERMISSION_GROUPS.flatMap(([, items]) => items.map(([key]) => key));
@@ -122,15 +122,13 @@ export function ResourceEditor({
     name: "Tên layout (thẻ trên màn Chọn layout)",
     price: "Giá layout (VND)",
     selectCount: "Layout (số ảnh trên thẻ Instax Wide)",
-    shots: "Số tấm máy tự chụp",
-    countdownSeconds: "Đếm ngược mỗi tấm (giây)",
+    shots: "Số lần bấm dây chụp",
   };
   const field = ([key, baseLabel, type = "text"]) => {
     const label = catalog && edit.printSize === "instax" ? POLAROID_LABELS[key] || baseLabel : baseLabel;
     if (type === "permissions" && edit.role !== "staff") return null;
-    // Layout Polaroid luôn in 1 tấm Instax; đếm ngược chỉ có ở layout Polaroid (máy tự chụp).
+    // Layout Polaroid luôn in 1 tấm Instax.
     if (catalog && isInstax(edit) && key === "prints") return null;
-    if (catalog && !isInstax(edit) && key === "countdownSeconds") return null;
     // Loại phòng: chỉ chọn lúc thêm phòng mới.
     if (type === "roomKind") {
       if (edit._id) return null;
@@ -342,7 +340,7 @@ export function ResourceEditor({
                   <li>
                     <InfinityIcon size={17} aria-hidden="true" />
                     {isInstax(edit)
-                      ? `Layout ${Number(edit.selectCount) || 1} ảnh · máy tự chụp ${Number(edit.shots) || SAMPLE_SHOTS} tấm, ${Number(edit.countdownSeconds) || SAMPLE_SECONDS} giây mỗi tấm · QR nhận ảnh gốc`
+                      ? `Layout ${Number(edit.selectCount) || 1} ảnh · ${Number(edit.shots) || SAMPLE_SHOTS} lần bấm dây · QR nhận ảnh gốc`
                       : `${Number(edit.shots) || 0} lần chụp · chọn ${Number(edit.selectCount) || 4} ảnh ghép khung`}
                   </li>
                 </ul>

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   PiArrowClockwiseBold,
-  PiCameraBold,
   PiCheckBold,
   PiImagesDuotone,
   PiVideoCameraSlashDuotone,
@@ -9,7 +8,6 @@ import {
 } from "react-icons/pi";
 import { Button } from "../studio";
 import { CameraPreview } from "./CameraPreview.jsx";
-import { useKioskText } from "./use-kiosk-text.js";
 
 // Ảnh trên máy (Blob) hoặc trên máy chủ (URL).
 export function useObjectUrl(source) {
@@ -85,25 +83,20 @@ export function KioskShoot({
   onEnd,
   onReopenCamera,
   webcam = null,
-  auto = null,
   canvasPreview = false,
   mirror = false,
 }) {
-  const t = useKioskText();
   const portrait = usePortrait();
   const shooting = phase === "shoot" && !ending;
   const full = Boolean(quota) && taken >= quota;
-  // auto (phòng Polaroid): máy tự chụp, { count: số giây đếm ngược tới tấm kế tiếp, seconds }.
-  const testing = Boolean(webcam?.on && ready && !auto);
+  const testing = Boolean(webcam?.on && ready);
   const centerCount =
     phase === "ready"
       ? preCount
       : webcam?.count
         ? webcam.count
-        : auto?.count
-          ? auto.count
-          : shooting && sessionLeft > 0 && sessionLeft <= 3
-            ? sessionLeft : null;
+        : shooting && sessionLeft > 0 && sessionLeft <= 3
+          ? sessionLeft : null;
   // Thử máy bằng webcam (không có dây bấm): bấm phím Space / Enter để chụp — không có nút trên màn.
   useEffect(() => {
     if (!testing || !shooting || full) return;
@@ -164,20 +157,10 @@ export function KioskShoot({
           </div>
         )}
         {centerCount ? (
-          <strong className="shoot-count" key={`${phase}-${webcam?.count ? "snap" : auto?.count ? "auto" : ""}${centerCount}`} role="timer" aria-live="assertive">
+          <strong className="shoot-count" key={`${phase}-${webcam?.count ? "snap" : ""}${centerCount}`} role="timer" aria-live="assertive">
             {centerCount}
           </strong>
         ) : null}
-        {shooting && !full && (auto ? (
-          <div className="shoot-press shoot-auto" role="status">
-            <PiCameraBold aria-hidden="true" />
-            <strong>
-              {auto.count
-                ? t("shoot.auto", { s: auto.count, n: taken + 1, total: quota || "" })
-                : "Đang chụp…"}
-            </strong>
-          </div>
-        ) : null)}
         {flashing > 0 && (
           <div className="camera-flash" key={flashing} aria-hidden="true" onAnimationEnd={() => setFlashing(0)} />
         )}

@@ -195,11 +195,10 @@ test("polaroid room: touch → layout cards (photos, price) → “vào chụp n
     await page.getByRole("heading", { name: "Chọn layout" }).waitFor();
     assert.equal(await page.getByRole("heading", { name: "Chọn cách thanh toán" }).count(), 0, "a polaroid room takes no payment");
     const cards = page.getByRole("group", { name: "Chọn layout" }).getByRole("button");
-    // Chỉ 2 layout Instax (1 ảnh to, 2 ảnh dọc chia đôi), xếp theo số ảnh; mỗi thẻ có số ảnh, số tấm tự
-    // chụp, giây mỗi tấm và giá. Layout 6 ảnh cũ không hiện.
+    // Two Instax layouts with photo count, cable presses and price. Old layouts stay hidden.
     const texts = await cards.allInnerTexts();
     assert.equal(texts.length, 2);
-    assert.match(texts[0], /1 ảnh[\s\S]*1 ảnh to[\s\S]*8 tấm · 10 giây\/tấm[\s\S]*100\.000/i);
+    assert.match(texts[0], /1 ảnh[\s\S]*1 ảnh to[\s\S]*8 lần bấm dây[\s\S]*100\.000/i);
     assert.match(texts[1], /2 ảnh[\s\S]*Polaroid đôi[\s\S]*100\.000/i);
     assert.equal(await cards.nth(0).locator(".layout-art i").count(), 1);
     assert.equal(await cards.nth(1).locator(".layout-art i").count(), 2);

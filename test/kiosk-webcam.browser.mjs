@@ -16,7 +16,19 @@ const fixture = `
   import { MemoryRouter } from 'react-router-dom';
   import { StudioContext, ToastProvider } from '/src/studio.jsx';
   import { Kiosk } from '/src/kiosk/Kiosk.jsx';
+  window.deliverCanonPhoto = async number => {
+    const folder = await navigator.storage.getDirectory();
+    const file = await folder.getFileHandle('IMG_' + number + '.JPG', { create: true });
+    const canvas = document.createElement('canvas'); canvas.width = 1200; canvas.height = 800;
+    const ctx = canvas.getContext('2d'); ctx.fillStyle = number === 1 ? '#ed1923' : '#1e32e1'; ctx.fillRect(0, 0, 1200, 800);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', .95));
+    const write = await file.createWritable(); await write.write(blob); await write.close();
+  };
   import '/src/tailwind.css';
+  if (new URLSearchParams(location.search).has('canon-folder')) {
+    // OPFS is already granted; it is only the fixture's source of camera JPEGs.
+    Object.defineProperty(FileSystemHandle.prototype, 'queryPermission', { configurable: true, value: async () => 'granted' });
+  }
   createRoot(document.getElementById('root')).render(React.createElement(React.StrictMode, null,
     React.createElement(MemoryRouter, { initialEntries: ['/kiosk?device=fixture-device'] },
       React.createElement(StudioContext.Provider, { value: { settings: {}, packages: [], frames: [] } },
@@ -32,6 +44,17 @@ before(async () => {
       name: "kiosk-webcam-fixture", enforce: "pre",
       resolveId: (id) => id.startsWith("virtual:") ? "\0" + id : null,
       load: (id) => id === "\0virtual:kiosk-webcam.jsx" ? fixture : null,
+      transform(code, id) {
+        if (!id.replaceAll("\\", "/").endsWith("/src/capture-store.js")) return;
+        // Windows headless Chromium crashes when deserializing OPFS handles from
+        // IndexedDB. Supply the Canon setting directly; JPEG IO and the actual
+        // kiosk folder watcher stay real. All other settings use the real store.
+        const declaration = 'export const readSetting = (key) => run(';
+        assert.ok(code.includes(declaration));
+        return code.replace(declaration, `export const readSetting = (key) =>
+          key === 'camera-folder-canon-r100' && new URLSearchParams(location.search).has('canon-folder')
+            ? navigator.storage.getDirectory() : run(`);
+      },
     }],
   });
   const assets = new Map(bundle.output.map((a) => ["/" + a.fileName, a.code || a.source]));
@@ -111,7 +134,7 @@ async function booth(launched, { webcam, room = { _id: "room", flip: "device" },
       captureToken: "fixture-capture", accessToken: "fixture-album", booking, phase: "shoot", mode: "remote",
     }));
   }, { booking, webcam, lowPower });
-  await page.goto(base);
+  await page.goto(base + (room.kind === 'polaroid' ? '?canon-folder=1' : ''));
   return { page, errors, videos, close: () => context.close() };
 }
 
@@ -175,21 +198,22 @@ test("in webcam test mode the Space key counts down, takes a photo from the webc
   } finally { await b.close(); }
 });
 
-test("polaroid room counts down and shoots by itself from the live view, up to the layout's shots, then photo selection", async () => {
+test("Polaroid waits for Canon shutter JPEGs, never captures HDMI automatically, then opens photo selection", async () => {
   const b = await booth(fakeCamera, {
     webcam: false,
     room: { _id: "room", flip: "device", kind: "polaroid" },
-    // Layout Polaroid: máy tự chụp 2 tấm (thật: 8), đếm ngược 3 giây mỗi tấm (thật: 10).
+    // Even a legacy booking with a countdown must use the physical shutter JPEGs.
     extra: { shots: 2, selectCount: 1, countdownSeconds: 3, printSize: "instax" },
   });
   try {
-    await b.page.getByText("Tấm 1/2 · nhìn vào máy ảnh, tự chụp sau 3 giây").waitFor({ timeout: 15000 });
-    await b.page.getByRole("timer").filter({ hasText: /^3$/ }).waitFor();
-    // Không cần bấm dây hay chạm màn hình.
+    await b.page.locator('.shoot-screen:not(.no-live)').waitFor();
+    await b.page.waitForTimeout(3500);
+    assert.equal(await b.page.locator('.shoot-thumbs .shoot-thumb-no').count(), 0, 'HDMI is preview only');
     assert.equal(await b.page.getByRole("button", { name: "Chạm để chụp" }).count(), 0);
     assert.equal(await b.page.getByText("Nhấn nút trên dây bấm để chụp").count(), 0);
+    await b.page.evaluate(() => window.deliverCanonPhoto(1));
     await b.page.locator(".shoot-thumbs .shoot-thumb-no", { hasText: "1" }).waitFor({ timeout: 15000 });
-    await b.page.getByText(/Tấm 2\/2 · nhìn vào máy ảnh/).waitFor({ timeout: 15000 });
+    await b.page.evaluate(() => window.deliverCanonPhoto(2));
     // Đủ 2 tấm: tự sang chọn ảnh.
     await b.page.getByRole("heading", { name: /để chọn ảnh/ }).waitFor({ timeout: 30000 });
     const picks = b.page.getByRole("group", { name: "Ảnh đã chụp" }).getByRole("button");

@@ -12,8 +12,9 @@ const fixture = `
   import { createRoot } from 'react-dom/client';
   import { ToastProvider } from '/src/studio.jsx';
   import { AlbumViewer } from '/src/album/AlbumViewer.jsx';
-  import { renderPrintFrame } from '/src/kiosk/compose.js';
+  import { composePreview, renderPrintFrame } from '/src/kiosk/compose.js';
   window.renderGuestFrame = renderPrintFrame;
+  window.composeFramePreview = composePreview;
   const root = createRoot(document.getElementById('root'));
   window.showAlbum = booking => root.render(React.createElement(ToastProvider, null,
     React.createElement(AlbumViewer, { token: 'fixture', booking })));
@@ -267,5 +268,39 @@ test("new guest composites render near 20 MP for portrait, landscape, single str
       assert.ok(Math.abs(size.width / size.height - size.ratio) < 0.002);
       assert.ok(size.printPixels <= 8_640_000, "physical print sizes retain their existing resolution");
     }
+  } finally { await page.close(); }
+});
+
+test("print rendering preserves preview colours and highlights without extra sharpening", async () => {
+  const page = await browser.newPage();
+  try {
+    await page.goto(base);
+    const diff = await page.evaluate(async () => {
+      const camera = document.createElement("canvas");
+      camera.width = 1200; camera.height = 1800;
+      const ctx = camera.getContext("2d"), data = ctx.createImageData(camera.width, camera.height);
+      for (let y = 0; y < camera.height; y++) for (let x = 0; x < camera.width; x++) {
+        const i = (y * camera.width + x) * 4;
+        data.data.set((Math.floor(x / 8) + Math.floor(y / 8)) % 2 ? [248, 230, 201, 255] : [222, 211, 190, 255], i);
+      }
+      ctx.putImageData(data, 0, 0);
+      const image = await new Promise(resolve => camera.toBlob(resolve, "image/png"));
+      const background = document.createElement("canvas");
+      background.width = 2; background.height = 3;
+      const frame = { image: background.toDataURL(), printSize: "full", slots: [{ x: 0, y: 0, w: 1, h: 1, kind: "photo" }] };
+      const preview = await window.composeFramePreview(frame, [camera], "print");
+      const print = await window.renderGuestFrame(frame, [{ key: "photo", image }], "token", "", { strict: true });
+      const before = preview.getContext("2d").getImageData(0, 0, 1200, 1800).data;
+      const after = print.getContext("2d").getImageData(0, 0, 1200, 1800).data;
+      let max = 0, changed = 0;
+      for (let i = 0; i < before.length; i++) {
+        const difference = Math.abs(before[i] - after[i]);
+        max = Math.max(max, difference);
+        if (difference) changed++;
+      }
+      camera.width = camera.height = preview.width = preview.height = print.width = print.height = 0;
+      return { max, changed };
+    });
+    assert.deepEqual(diff, { max: 0, changed: 0 });
   } finally { await page.close(); }
 });

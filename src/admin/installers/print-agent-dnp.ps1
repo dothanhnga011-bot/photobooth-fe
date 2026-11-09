@@ -4,7 +4,7 @@
 #
 #   -Install   tìm máy DNP, tạo hàng in "cắt đôi 2x6" cho tờ nhỏ (bật 2inch cut), lưu cấu hình và tự
 #              chạy mỗi lần bật máy.
-#   -Diagnose  chỉ xem: liệt kê máy in, khổ giấy, tuỳ chọn cắt của driver (không đổi gì).
+#   -Diagnose  chỉ xem: máy in, khổ giấy, cắt, ICM của Defaults/Preferences và ICC (không đổi gì).
 #   (mặc định) mỗi 3 giây hỏi web có lệnh in của phòng không, tải tờ in và in ra máy DNP:
 #              tờ to (10 × 15 cm) in nguyên tờ ở hàng in chính; tờ nhỏ (2 dải 5 × 15 cm trên một tờ) in
 #              qua hàng in cắt đôi để máy tự cắt thành 2 dải.
@@ -329,7 +329,7 @@ function Send-Sheets([string]$printerName, [string[]]$files, [string]$docName, [
   $script:printIndex = 0
   $document.add_PrintPage({
     param($sender, $event)
-    $photo = [System.Drawing.Image]::FromFile($script:printPages[$script:printIndex])
+    $photo = [System.Drawing.Image]::FromFile($script:printPages[$script:printIndex], $true)
     try {
       # Tờ khác chiều với trang của máy in (vd. tờ ngang trên trang dọc): xoay 90 độ cho kín khổ.
       $pageLandscape = $event.PageBounds.Width -gt $event.PageBounds.Height
@@ -715,6 +715,58 @@ function Start-Agent {
   }
 }
 
+function Show-ColorDiagnosis([string]$name) {
+  Write-Host "== Color settings: $name"
+  try {
+    Add-Type -AssemblyName System.Printing, ReachFramework
+    $server = New-Object System.Printing.LocalPrintServer
+    $queue = $null
+    try {
+      $queue = $server.GetPrintQueue($name)
+      $scopes = [ordered]@{ 'Printing Defaults' = $queue.DefaultPrintTicket; 'Printing Preferences (current user)' = $queue.UserPrintTicket }
+      foreach ($scope in $scopes.GetEnumerator()) {
+        Write-Host "  $($scope.Key)"
+        if ($null -eq $scope.Value) { Write-Host '    Inherits Printing Defaults'; continue }
+        $reader = New-Object IO.StreamReader($scope.Value.GetXmlStream())
+        try { [xml]$ticket = $reader.ReadToEnd() } finally { $reader.Dispose() }
+        $ns = New-Object Xml.XmlNamespaceManager($ticket.NameTable)
+        $ns.AddNamespace('psf', $PsfNs)
+        foreach ($feature in $ticket.SelectNodes('//psf:Feature', $ns)) {
+          if ($feature.GetAttribute('name') -notmatch 'Color|ICM|Intent|Resolution|Gamma|Brightness|Contrast|Chroma') { continue }
+          $values = @($feature.SelectNodes('psf:Option', $ns) | ForEach-Object {
+            $_.GetAttribute('name')
+            $_.SelectNodes('.//psf:Value', $ns) | ForEach-Object { $_.InnerText }
+          })
+          Write-Host ('    {0}: {1}' -f $feature.GetAttribute('name'), ($values -join ' '))
+        }
+      }
+    } finally { if ($queue) { $queue.Dispose() }; $server.Dispose() }
+    if (-not ('NxcPrinterColor' -as [type])) {
+      Add-Type -TypeDefinition @'
+using System;
+using System.Text;
+using System.Runtime.InteropServices;
+public static class NxcPrinterColor {
+  [DllImport("gdi32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+  public static extern IntPtr CreateDC(string driver, string device, string output, IntPtr mode);
+  [DllImport("gdi32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+  public static extern bool GetICMProfile(IntPtr dc, ref uint size, StringBuilder profile);
+  [DllImport("gdi32.dll")] public static extern bool DeleteDC(IntPtr dc);
+}
+'@
+    }
+    $dc = [NxcPrinterColor]::CreateDC('WINSPOOL', $name, $null, [IntPtr]::Zero)
+    if ($dc -eq [IntPtr]::Zero) { throw 'Cannot read the printer color profile.' }
+    try {
+      [uint32]$size = 2048
+      $profile = New-Object Text.StringBuilder 2048
+      if ([NxcPrinterColor]::GetICMProfile($dc, [ref]$size, $profile)) {
+        Write-Host "  ICC selected by Windows: $profile"
+      } else { Write-Host '  ICC: Windows did not return a profile. Check Color Management for this queue.' }
+    } finally { [void][NxcPrinterColor]::DeleteDC($dc) }
+  } catch { Write-Host "  Cannot read color settings: $($_.Exception.Message)" }
+}
+
 function Show-Diagnosis {
   Write-Host '== Máy in trong Windows'
   Get-Printer | Format-Table -AutoSize Name, DriverName, PortName, PrinterStatus, WorkOffline | Out-String -Width 200 | Write-Host
@@ -729,6 +781,7 @@ function Show-Diagnosis {
   Write-Host "  khổ dùng để in: $(if ($paper) { $paper.PaperName } else { 'KHÔNG CÓ 4x6' })"
   foreach ($name in @($main.Name, $main.Name + $StripSuffix)) {
     if (-not (Get-Printer -Name $name -ErrorAction SilentlyContinue)) { continue }
+    Show-ColorDiagnosis $name
     try {
       $on = Find-CutOption $name $true; $off = Find-CutOption $name $false
       Write-Host "  cắt đôi qua PrintTicket ($name): bật = $(if ($on) { $on.label } else { 'không có' }); tắt = $(if ($off) { $off.label } else { 'không có' })"
@@ -770,6 +823,12 @@ function Install-Agent {
     } @($stripName, $main.DriverName, $main.PortName) 120 'Tạo hàng in cho tờ nhỏ')
     $created = $true
     Write-Host "Đã tạo hàng in cho tờ nhỏ: $stripName"
+    # Same printer/driver: start both queues with the same quality and ICM options.
+    # Existing queues keep their calibrated settings when the installer is run again.
+    try {
+      $mainSettings = Get-PrintConfiguration -PrinterName $main.Name
+      Set-PrintConfiguration -PrinterName $stripName -PrintTicketXml $mainSettings.PrintTicketXML
+    } catch { Write-Log "Cannot copy initial print settings to strip queue: $($_.Exception.Message)" }
   } else {
     Write-Host "Đã có hàng in cho tờ nhỏ: $stripName"
   }

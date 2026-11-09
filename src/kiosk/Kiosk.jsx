@@ -14,7 +14,7 @@ import {
   isPreviewPending,
 } from "../capture-store";
 import { transition } from "../transitions";
-import { CAMERA_KEY, FOLDER_KEY, LOW_POWER_KEY, MIRROR_KEY, QR_SECONDS, WEBCAM_KEY } from "./constants.js";
+import { CAMERA_KEY, LOW_POWER_KEY, MIRROR_KEY, QR_SECONDS, WEBCAM_KEY } from "./constants.js";
 import {
   CAMERA_ERROR,
   cameraRank,
@@ -27,12 +27,13 @@ import {
 } from "./camera.js";
 import {
   canPickFolder,
-  FOLDER_ACCESS_HINT,
+  folderAccessHint,
   folderPermission,
   isJpeg,
   listCameraFiles,
 } from "./folder.js";
 import { cameraPhotoId, prepareCameraPhoto } from "./photo.js";
+import { cameraProfile } from "./camera-profile.js";
 import { directMediaUrl } from "../media-delivery.js";
 import { saveOriginal, savePhoto, savePreview, saveVideo } from "./direct-upload.js";
 import { priority, whenUplinkIdle } from "./uplink.js";
@@ -71,7 +72,6 @@ import { KioskSettings } from "./KioskSettings.jsx";
 import { KioskShoot } from "./KioskShoot.jsx";
 import { KioskSelect, useShotBitmaps } from "./KioskSelect.jsx";
 import { NO_DECOR, filterChoices, filterStepsFor, photoFilterId } from "./decor.js";
-import { visibleRegion } from "./live-preview-layout.js";
 import { KioskCode, KioskPackages, KioskPayChoice, KioskPayment, KioskPrintCount } from "./KioskSale.jsx";
 import { KioskLayouts } from "./KioskPolaroid.jsx";
 import { LAYOUT_COUNTS } from "../polaroid-layouts.js";
@@ -173,12 +173,9 @@ export function Kiosk() {
     recorder = useRef(createClipRecorder()),
     endingRef = useRef(false),
     webcamRef = useRef(webcamTest),
-    // Phòng Polaroid: máy tự chụp từ hình trực tiếp (không dây bấm, không thư mục ảnh).
-    polaroidRef = useRef(false),
     snapping = useRef(false),
     opening = useRef(false);
   current.current = session;
-  polaroidRef.current = roomInfo?.kind === "polaroid";
   const phase = phaseOf(session);
   const key = "photo-capture-" + device.slice(-24);
   const shown = useRef({});
@@ -323,23 +320,31 @@ export function Kiosk() {
     toast[type](message, duration);
   };
   // Thư mục ảnh của máy ảnh đã chọn trước đó (trình duyệt có thể hỏi lại quyền đọc).
+  const cameraSetup = cameraProfile(roomInfo?.kind);
   useEffect(() => {
-    readSetting(FOLDER_KEY).then(
+    if (!roomInfo) return;
+    let active = true;
+    setFolder(null);
+    setFolderAccess("none");
+    readSetting(cameraSetup.folderKey).then(
       async (handle) => {
-        if (!handle) return;
+        if (!handle || !active) return;
+        const access = await folderPermission(handle, false);
+        if (!active) return;
         setFolder(handle);
-        setFolderAccess(await folderPermission(handle, false));
+        setFolderAccess(access);
       },
       () => {},
     );
-  }, []);
+    return () => { active = false; };
+  }, [Boolean(roomInfo), cameraSetup.folderKey]);
   async function pickFolder() {
     try {
       const handle = await window.showDirectoryPicker({
-        id: "photo-camera",
+        id: cameraSetup.id,
         mode: "read",
       });
-      await saveSetting(FOLDER_KEY, handle);
+      await saveSetting(cameraSetup.folderKey, handle);
       setFolder(handle);
       setFolderAccess("granted");
       let jpegs = 0;
@@ -355,7 +360,7 @@ export function Kiosk() {
         );
       else
         toast.warning(
-          `Đã chọn thư mục ảnh “${handle.name}” nhưng máy chụp chưa thấy ảnh JPG nào. Hãy chọn đúng thư mục FUJIFILM X Acquire đang lưu JPEG, hoặc chụp thử 1 tấm rồi bấm “Thử nhận ảnh từ máy ảnh”. Thư mục có ảnh mà vẫn báo 0: ${FOLDER_ACCESS_HINT}`,
+          `Đã chọn thư mục ảnh “${handle.name}” nhưng máy chụp chưa thấy ảnh JPG nào. Hãy chọn đúng thư mục ${cameraSetup.app} đang lưu JPEG, hoặc chụp thử 1 tấm rồi bấm “Thử nhận ảnh từ máy ảnh”. Thư mục có ảnh mà vẫn báo 0: ${folderAccessHint(cameraSetup.folder)}`,
           15000,
         );
     } catch (e) {
@@ -598,9 +603,8 @@ export function Kiosk() {
     }), "zoom");
     shown.current = {};
   }
-  // Phòng photobooth chụp bằng dây bấm: cần thư mục ảnh của máy ảnh. Phòng Polaroid (máy tự chụp) và
-  // thử máy bằng webcam lấy ảnh thẳng từ hình trực tiếp, không cần thư mục.
-  const needsFolder = () => !webcamRef.current && !polaroidRef.current;
+  // Both rooms use the physical shutter cable and full-size JPEGs from transfer software.
+  const needsFolder = () => !webcamRef.current;
   const checkFolder = () => {
     if (!needsFolder()) return true;
     if (!canPickFolder) {
@@ -707,6 +711,7 @@ export function Kiosk() {
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
       setSnapCount(0);
+      if (!webcamRef.current) return;
       await grabLiveFrame();
     } finally {
       snapping.current = false;
@@ -717,17 +722,15 @@ export function Kiosk() {
   async function grabLiveFrame() {
     const v = video$.current;
     if (!v?.videoWidth || phaseOf(current.current) !== "shoot") throw new Error("Chưa có hình trực tiếp để chụp.");
-    const region = webcamRef.current ? { x: 0, y: 0, w: 1, h: 1 } : visibleRegion(zoomRef.current);
-    const sx = Math.round(v.videoWidth * region.x), sy = Math.round(v.videoHeight * region.y);
-    const sw = Math.round(v.videoWidth * region.w), sh = Math.round(v.videoHeight * region.h);
+    const sw = v.videoWidth, sh = v.videoHeight;
     const canvas = document.createElement("canvas");
     canvas.width = sw;
     canvas.height = sh;
-    canvas.getContext("2d").drawImage(v, sx, sy, sw, sh, 0, 0, sw, sh);
+    canvas.getContext("2d").drawImage(v, 0, 0, sw, sh);
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
     canvas.width = canvas.height = 0;
     if (!blob) throw new Error("Không chụp được khung hình.");
-    const name = `${webcamRef.current ? "WEBCAM" : "LIVE"}_${Date.now()}.jpg`;
+    const name = `WEBCAM_${Date.now()}.jpg`;
     await importCameraPhoto(new File([blob], name, { type: "image/jpeg", lastModified: Date.now() }), `live/${name}`);
   }
   // Loại phòng (Quản lý máy → Cài máy chụp): photobooth (khách chọn Nhập mã / Tiền mặt, in DNP) hoặc
@@ -1375,14 +1378,14 @@ export function Kiosk() {
       trackReading(-1);
     }
   }
-  // Theo dõi thư mục ảnh của máy ảnh trong suốt lúc chụp (không khởi động lại mỗi lần có ảnh). Phòng
-  // Polaroid tự chụp từ hình trực tiếp: không nhận ảnh từ thư mục (khách có bấm dây cũng không trộn ảnh).
+  // Watch camera JPEGs for both Fujifilm and Canon rooms. HDMI is preview only.
   useEffect(() => {
     const s = session;
-    if (polaroid || done || phase !== "shoot" || !folder || folderAccess !== "granted" || !s?.booking.captureStartedAt)
+    if (webcamTest || done || phase !== "shoot" || !folder || folderAccess !== "granted" || !s?.booking.captureStartedAt)
       return;
     const stopWatching = watchCameraFolder({
       folder,
+      accessHint: folderAccessHint(cameraSetup.folder),
       booking: s.booking,
       onPhoto: importCameraPhoto,
       notifyOnce,
@@ -1403,46 +1406,7 @@ export function Kiosk() {
       setScanInfo(null);
       scanRef.current = null;
     };
-  }, [polaroid, done, phase, folder, folderAccess, session?.accessToken, session?.booking.captureStartedAt]);
-  // Phòng Polaroid: máy tự chụp — đếm ngược (mặc định 10 giây mỗi tấm) rồi lấy khung hình từ hình trực
-  // tiếp HDMI, lặp tới đủ số tấm của layout (mặc định 8); đủ tấm thì sang chọn ảnh (hiệu ứng bên dưới).
-  const [autoCount, setAutoCount] = useState(0);
-  const autoSeconds = Math.max(3, Math.min(30, Number(session?.booking.countdownSeconds) || 10));
-  useEffect(() => {
-    if (!polaroid || phase !== "shoot" || !ready || done || ending || !session?.booking.captureStartedAt) return;
-    let stopped = false;
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    (async () => {
-      let failures = 0;
-      while (!stopped && alive.current) {
-        const s = current.current;
-        if (phaseOf(s) !== "shoot" || endingRef.current) break;
-        const quota = Number(s.booking.shots) || 8;
-        if (shotsOf(s).length + readingRef.current >= quota) break;
-        for (let n = autoSeconds; n > 0 && !stopped; n--) {
-          setAutoCount(n);
-          await wait(1000);
-        }
-        if (stopped) break;
-        setAutoCount(0);
-        try {
-          await grabLiveFrame();
-          failures = 0;
-        } catch (e) {
-          if (++failures >= 3) {
-            notifyOnce("auto-shot", "error", `Máy chưa tự chụp được: ${e.message} Nhờ nhân viên kiểm tra thẻ ghi hình.`, 12000);
-            break;
-          }
-          await wait(1000);
-        }
-      }
-      if (!stopped) setAutoCount(0);
-    })();
-    return () => {
-      stopped = true;
-      setAutoCount(0);
-    };
-  }, [polaroid, phase, ready, done, ending, autoSeconds, session?.accessToken, session?.booking.captureStartedAt]);
+  }, [webcamTest, done, phase, folder, folderAccess, cameraSetup.folder, session?.accessToken, session?.booking.captureStartedAt]);
   // Đủ số tấm của gói: sang chọn ảnh.
   useEffect(() => {
     if (phase !== "shoot" || !shotQuota || done || reading || detecting) return;
@@ -1504,7 +1468,6 @@ export function Kiosk() {
           onEnd={() => endCapture(false)}
           onReopenCamera={() => openCamera()}
           webcam={{ on: webcamTest, label: liveLabel, count: snapCount, onSnap: snapWebcam, onToggle: setWebcamTest }}
-          auto={polaroid ? { count: autoCount, seconds: autoSeconds } : null}
           canvasPreview={lowPower}
           mirror={mirror}
         />
