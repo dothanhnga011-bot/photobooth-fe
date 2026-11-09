@@ -65,6 +65,7 @@ import {
 } from "./compose.js";
 import { billAcceptor } from "./bill-acceptor.js";
 import { KioskDone } from "./KioskDone.jsx";
+import { checkDirectPrinter } from "./direct-print.js";
 import { KioskEntry } from "./KioskEntry.jsx";
 import { KioskSettings } from "./KioskSettings.jsx";
 import { KioskShoot } from "./KioskShoot.jsx";
@@ -1122,6 +1123,10 @@ export function Kiosk() {
     };
     setComposing(true);
     try {
+      // Ask for local-device access while the customer is still at the print button.
+      // Do not move to the QR screen or start expensive rendering with a disconnected printer.
+      if (Number(s.booking.prints) > 0 && s.booking.printSize !== "instax")
+        await checkDirectPrinter();
       let composite = "";
       const albumLink = `${window.location.origin}/album/${s.accessToken}`;
       const shown = chosenShots.filter((x) => bitmaps.has(x.key));
@@ -1187,6 +1192,9 @@ export function Kiosk() {
           }
         })();
       }
+    } catch (error) {
+      setError(error.message);
+      toast.error(error.message);
     } finally {
       setComposing(false);
     }

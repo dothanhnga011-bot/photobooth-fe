@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sendDirectPrint } from '../src/kiosk/direct-print.js';
+import { sendDirectPrint, checkDirectPrinter } from '../src/kiosk/direct-print.js';
 const job = { token: 'album-token', requestKey: 'stable-key', frameName: 'Pink', printSize: 'strip', images: ['data:image/png;base64,AQID'] };
 
 test('direct print sends original bytes to loopback with the same request identity', async () => {
@@ -12,6 +12,8 @@ test('direct print sends original bytes to loopback with the same request identi
   assert.equal(result.sent, true);
   assert.deepEqual(calls.map(c => c.url), ['http://127.0.0.1:8789/health', 'http://127.0.0.1:8789/print']);
   const options = calls[1].options;
+  assert.equal(calls[0].options.targetAddressSpace, 'loopback');
+  assert.equal(options.targetAddressSpace, 'loopback');
   assert.equal(options.headers['X-Print-Key'], job.requestKey);
   assert.equal(options.headers['X-Album-Token'], job.token);
   assert.equal(options.headers['X-Print-Size'], 'strip');
@@ -31,4 +33,11 @@ test('missing local agent fails before sending any image', async () => {
   let calls = 0;
   await assert.rejects(sendDirectPrint(job, { fetcher: async () => { calls++; throw new TypeError('Offline'); } }), /Chưa kết nối/);
   assert.equal(calls, 1);
+});
+
+test('printer preflight checks permission/connectivity without submitting an image', async () => {
+  const calls = [];
+  const health = await checkDirectPrinter({ fetcher: async (url) => { calls.push(url); return Response.json({ directPrint: 2 }); } });
+  assert.equal(health.directPrint, 2);
+  assert.deepEqual(calls, ['http://127.0.0.1:8789/health']);
 });

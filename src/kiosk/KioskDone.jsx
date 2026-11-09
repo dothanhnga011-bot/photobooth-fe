@@ -78,6 +78,9 @@ export function KioskDone({ done, pending, left, nextGuest }) {
             : "Chưa có khung ảnh để in — nhờ nhân viên in giúp bạn."}
         {" · "}Vé {done.code} · ảnh lưu 24 giờ
       </p>
+      {PRINT_WARN.has(print) && done.print?.message && (
+        <p className="done-print is-warn" role="alert">{done.print.message}</p>
+      )}
       {pending > 0 && <p className="done-sync">Đang tải {pending} ảnh gốc lên album — vui lòng giữ nguyên màn hình…</p>}
       <footer className="flow-foot">
         <Button className="kiosk-next" onClick={nextGuest}>Khách tiếp theo ({left}s)</Button>
