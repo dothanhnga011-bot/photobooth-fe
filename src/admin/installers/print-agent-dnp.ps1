@@ -280,9 +280,51 @@ function Set-PrinterCutter([string]$cut) {
 }
 
 # Khổ giấy 10 × 15 cm (4 × 6 inch) của driver (driver có thể khai báo dọc hoặc ngang).
-# Driver DNP khai báo khổ 4x6 dọc hoặc ngang, có khi lớn hơn một chút vì phần tràn lề (vd. 4,13 × 6,15
-# inch), với tên "(6x4)", "PR (4x6)"…: nhận cả khoảng đó, ưu tiên khổ không phải "x2 / cắt", gần 4 × 6 nhất.
-# (7/11: driver ở tiệm không có khổ đúng 4,00 × 6,00 nên mọi lệnh in bị từ chối.)
+# Output compensation belongs to the printer only; camera files and QR downloads stay untouched.
+function Get-Rx1OutputSettings([string]$settingsPath = (Join-Path $env:LOCALAPPDATA 'NXC-Printer\rx1-output.json')) {
+  $defaults = @{ gamma = 1.07; maxResolution = $true; warning = '' }
+  if (-not (Test-Path -LiteralPath $settingsPath)) { return $defaults }
+  try {
+    $profile = Get-Content -LiteralPath $settingsPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $gammaValue = 1.07
+    $maximum = $true
+    if ($null -ne $profile.PSObject.Properties['gamma']) {
+      if ($profile.gamma -is [bool]) { throw 'gamma must be a number' }
+      $gammaValue = [double]$profile.gamma
+    }
+    if ([double]::IsNaN($gammaValue) -or [double]::IsInfinity($gammaValue) -or $gammaValue -lt 0.85 -or $gammaValue -gt 1.25) { throw 'gamma must be between 0.85 and 1.25' }
+    if ($null -ne $profile.PSObject.Properties['maxResolution']) {
+      if ($profile.maxResolution -isnot [bool]) { throw 'maxResolution must be true or false' }
+      $maximum = $profile.maxResolution
+    }
+    return @{ gamma = $gammaValue; maxResolution = $maximum; warning = '' }
+  } catch {
+    $defaults.warning = "Invalid rx1-output.json; using gamma 1.07 and maximum supported DPI: $($_.Exception.Message)"
+    return $defaults
+  }
+}
+function Set-Rx1MaximumResolution($settings, $page) {
+  # Use only positive DPI pairs advertised by this driver; never invent a 600 DPI mode.
+  $current = $page.PrinterResolution
+  try {
+    $best = @($settings.PrinterResolutions | Where-Object { $_.X -gt 0 -and $_.Y -gt 0 } |
+      Sort-Object @{ Expression = { [long]$_.X * $_.Y }; Descending = $true }, @{ Expression = { $_.X }; Descending = $true } |
+      Select-Object -First 1)
+    if ($best.Count -and ([long]$best[0].X * $best[0].Y -gt [long]$current.X * $current.Y -or $current.X -le 0 -or $current.Y -le 0)) {
+      $page.PrinterResolution = $best[0]
+    }
+  } catch { $page.PrinterResolution = $current }
+}
+function New-Rx1ImageAttributes([double]$gamma) {
+  $attributes = New-Object System.Drawing.Imaging.ImageAttributes
+  $attributes.SetWrapMode([System.Drawing.Drawing2D.WrapMode]::TileFlipXY)
+  # Gamma > 1 darkens midtones while pure white/black stay white/black.
+  # Apply exactly once at DrawImage, before Windows/driver ICM.
+  if ([Math]::Abs($gamma - 1.0) -gt 0.00001) { $attributes.SetGamma([single]$gamma) }
+  return $attributes
+}
+
+# Driver DNP có phần tràn lề: nhận khoảng 4x6, ưu tiên khổ không phải x2/cắt.
 function Find-Paper($settings) {
   return @($settings.PaperSizes | Where-Object {
     $short = [Math]::Min($_.Width, $_.Height); $long = [Math]::Max($_.Width, $_.Height)
@@ -322,9 +364,13 @@ function Send-Sheets([string]$printerName, [string[]]$files, [string]$docName, [
   else { $paper = $document.DefaultPageSettings.PaperSize }
   $document.DefaultPageSettings.Landscape = $false
   $document.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(0, 0, 0, 0)
-  # Respect the user's driver resolution and colour adjustments; only the cutter is changed per job.
+  $outputSettings = Get-Rx1OutputSettings
+  if ($outputSettings.warning) { Write-Log $outputSettings.warning }
+  if ($outputSettings.maxResolution) { Set-Rx1MaximumResolution $document.PrinterSettings $document.DefaultPageSettings }
+  $script:printGamma = $outputSettings.gamma
+  # Resolution is selected per job; queue defaults, ICC and cutter settings remain separate.
   $quality = $document.DefaultPageSettings.PrinterResolution
-  Write-Log "Print quality follows Windows driver: $($quality.X)x$($quality.Y) dpi; color follows the queue settings."
+  Write-Log "RX1 output: $($quality.X)x$($quality.Y) dpi; gamma $script:printGamma; Windows/driver ICM."
   $script:printPages = $files
   $script:printIndex = 0
   $document.add_PrintPage({
@@ -346,8 +392,7 @@ function Send-Sheets([string]$printerName, [string[]]$files, [string]$docName, [
       $w = $photo.Width * $scale; $h = $photo.Height * $scale
       $dest = New-Object System.Drawing.Rectangle([int][Math]::Round($b.X + ($b.Width - $w) / 2)), ([int][Math]::Round($b.Y + ($b.Height - $h) / 2)), ([int][Math]::Ceiling($w)), ([int][Math]::Ceiling($h))
       # Lặp điểm ở mép ảnh khi nội suy: không có viền mờ / viền xám quanh tờ.
-      $attrs = New-Object System.Drawing.Imaging.ImageAttributes
-      $attrs.SetWrapMode([System.Drawing.Drawing2D.WrapMode]::TileFlipXY)
+      $attrs = New-Rx1ImageAttributes $script:printGamma
       try { $g.DrawImage($photo, $dest, 0, 0, $photo.Width, $photo.Height, [System.Drawing.GraphicsUnit]::Pixel, $attrs) }
       finally { $attrs.Dispose() }
     } finally { $photo.Dispose() }
@@ -768,6 +813,9 @@ public static class NxcPrinterColor {
 }
 
 function Show-Diagnosis {
+  $outputSettings = Get-Rx1OutputSettings
+  Write-Host "== RX1 output per job: gamma $($outputSettings.gamma); maximum supported DPI = $($outputSettings.maxResolution)"
+  if ($outputSettings.warning) { Write-Host $outputSettings.warning }
   Write-Host '== Máy in trong Windows'
   Get-Printer | Format-Table -AutoSize Name, DriverName, PortName, PrinterStatus, WorkOffline | Out-String -Width 200 | Write-Host
   $main = Find-Dnp
