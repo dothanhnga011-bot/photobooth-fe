@@ -10,6 +10,7 @@ import { Button, ErrorBox, useToast } from "../studio";
 import { CounterTicket } from "../counter-ticket";
 import { ExtraPrints } from "../extra-prints";
 import { PeriodPicker, monthRange } from "./period-picker";
+import { ManualAlbum } from "./manual-album";
 
 // Khổ in của đơn: DNP 10 × 15 (to / nhỏ cắt đôi) hoặc Instax Wide.
 const SIZE_NAMES = { full: "Lớn", strip: "Nhỏ", instax: "Instax" };
@@ -106,6 +107,7 @@ function DownloadMenu({ booking }) {
 }
 
 function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
+  const [manual, setManual] = useState(false);
   const toast = useToast();
   const [copies, setCopies] = useState(1);
   const [busy, setBusy] = useState(false);
@@ -125,6 +127,7 @@ function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
       setBusy(false);
     }
   }
+  if (manual) return <ManualAlbum booking={booking} onClose={() => setManual(false)} />;
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <section className="modal order-print-dialog" role="dialog" aria-modal="true"
@@ -152,6 +155,7 @@ function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
         )}
         <div className="order-print-actions">
           {booking.accessToken && <Link className="button outline" to={`/album/${booking.accessToken}`} target="_blank">Mở album <ExternalLink size={15} /></Link>}
+          {booking.accessToken && <Button className="outline" onClick={() => setManual(true)}>Ghép ảnh thủ công</Button>}
           <Button className="outline" onClick={onExtra}>+ Thêm lượt in</Button>
           {job && <Button disabled={busy} onClick={reprint}><Printer size={16} /> {busy ? "Đang gửi…" : "In lại ảnh"}</Button>}
         </div>
