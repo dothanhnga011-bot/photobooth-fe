@@ -61,6 +61,9 @@ export function ManualAlbum({ booking, onClose }) {
   function adjust(key, value) {
     setTransforms(current => { const next = [...current]; next[slot] = { ...next[slot], [key]: value }; return next; });
   }
+  function chooseFrame(id) {
+    setFrameId(id); setSelected([]); setTransforms([]); setSlot(0); setSheet("");
+  }
   async function printLocal() {
     if (!sheet || busy) return;
     const popup = window.open("", "_blank", "width=850,height=700");
@@ -86,7 +89,16 @@ export function ManualAlbum({ booking, onClose }) {
       <div className="modal-header"><div><h2>Mở album & ghép ảnh · #{booking.code}</h2><p>Chọn ô rồi chọn ảnh khách để đặt vào khung.</p></div><button className="icon-button" aria-label="Đóng" onClick={onClose}>×</button></div>
       <ErrorBox error={error} />
       <div className="manual-album-grid"><div>
-        <label>Khung ảnh<select value={frameId} onChange={e => { setFrameId(e.target.value); setSelected([]); setTransforms([]); setSlot(0); setSheet(""); }}><option value="" disabled>Chọn khung</option>{available.map(f => <option key={f._id} value={f._id}>{f.themeName ? `${f.themeName} · ` : ""}{f.name}</option>)}</select></label>
+        <label>Khung ảnh<select value={frameId} onChange={e => chooseFrame(e.target.value)}><option value="" disabled>Chọn khung</option>{available.map(f => <option key={f._id} value={f._id}>{f.themeName ? `${f.themeName} · ` : ""}{f.name}</option>)}</select></label>
+        <details className="manual-album-frame-picker" open>
+          <summary>Chọn khung bằng hình xem trước</summary>
+          <div className="manual-album-frames" role="group" aria-label="Khung ảnh xem trước">
+            {available.map(f => <button type="button" key={f._id} aria-pressed={frameId === f._id} onClick={() => chooseFrame(f._id)}>
+              <img src={f.thumb || f.image} alt={`Khung ${f.name}`} loading="lazy" />
+              <span>{f.themeName && <small>{f.themeName}</small>}{f.name}</span>
+            </button>)}
+          </div>
+        </details>
         {!available.length && <p>Chưa có khung phù hợp với khổ của đơn này.</p>}
         <div className="manual-album-slots">{slots.map((_, i) => <button key={i} aria-pressed={slot === i} onClick={() => setSlot(i)}>Ô {i + 1}{selected[i] ? " ✓" : ""}</button>)}</div>
         {!!slots.length && <fieldset><legend>Chỉnh ảnh ô {slot + 1}</legend>{[["zoom", "Phóng to", 1, 3, 1], ["x", "Dịch ngang", -1, 1, 0], ["y", "Dịch dọc", -1, 1, 0]].map(([key, label, min, max, fallback]) => <label key={key}>{label}<input type="range" min={min} max={max} step="0.01" value={transforms[slot]?.[key] ?? fallback} onChange={e => adjust(key, Number(e.target.value))} /></label>)}<button onClick={() => adjust("rotate", ((transforms[slot]?.rotate || 0) + 90) % 360)}>Xoay 90°</button></fieldset>}
@@ -98,7 +110,10 @@ export function ManualAlbum({ booking, onClose }) {
           setTransforms(current => { const next = [...current]; next[slot] = {}; return next; });
           setSlot(Math.min(slot + 1, slots.length - 1));
         }}>{p.photo ? <PhotoThumb photo={p.photo} token={booking.accessToken} alt={`Ảnh ${i + 1}`} /> : <img src={p.preview} alt={p.name} />}<span>{i + 1}</span></button>)}</div>
-      </div><div className="manual-album-preview">{sheet ? <img src={sheet} alt="Tờ in đã ghép" /> : <p role="status">{rendering ? "Đang ghép ảnh chất lượng in…" : "Chọn đủ ảnh cho các ô để xem tờ in."}</p>}</div></div>
+      </div><div className="manual-album-preview">{sheet ? <img src={sheet} alt="Tờ in đã ghép" /> : frame ? <>
+        <img key={frame._id} src={frame.image} alt={`Xem trước khung ${frame.name}`} />
+        <p className="manual-album-preview-caption" role="status">{rendering ? "Đang ghép ảnh chất lượng in…" : `${frame.name} · Chọn ảnh cho ${slots.length} ô để ghép và in.`}</p>
+      </> : <p role="status">Chọn khung để xem trước.</p>}</div></div>
       <p className="soft-note">Cắm máy quầy vào RX1 và cài driver. Trong hộp in, chọn đúng máy, giấy 4 × 6 inch, lề 0, tắt đầu/chân trang. Khung nhỏ cần bật “2inch cut” trong driver. Chọn số bản trong hộp in; lệnh này không gửi đến máy phòng chụp và không tự trừ lượt in.</p>
       <div className="order-print-actions"><Button className="outline" onClick={onClose}>Đóng</Button>{sheet && <a className="button outline" href={sheet} download={`NXC-${booking.code}-in.${booking.printSize === "instax" ? "jpg" : "png"}`}>Tải file in</a>}<Button disabled={!sheet || rendering || busy || booking.printSize === "instax"} onClick={printLocal}>{busy ? "Đang mở…" : "In bằng máy quầy"}</Button></div>
       {booking.printSize === "instax" && <p>Khổ Instax: tải file và in bằng phần mềm dành cho máy Instax.</p>}
