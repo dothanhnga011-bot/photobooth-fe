@@ -39,10 +39,12 @@ export async function previewBitmap(shot, token) {
 
 // Ảnh để in: ảnh gốc máy ảnh trên máy chụp (lật theo lựa chọn, thu về ≤ 3000 px), không còn trên
 // máy thì lấy nguồn in 3000 px máy chủ đã làm (đã lật sẵn), cuối cùng là ảnh xem nhanh.
-async function printSource(shot, token) {
+export async function printSource(shot, token, { strict = false } = {}) {
+  if (strict && shot.originalPending)
+    throw new Error("Ảnh gốc đang tải lên. Vui lòng chờ ảnh gốc hoặc thêm file gốc từ máy quầy trước khi in.");
   if (shot.image instanceof Blob) {
     const bitmap = await createImageBitmap(shot.image, { imageOrientation: "from-image" });
-    const scale = Math.min(1, PRINT_EDGE / Math.max(bitmap.width, bitmap.height));
+    const scale = strict ? 1 : Math.min(1, PRINT_EDGE / Math.max(bitmap.width, bitmap.height));
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(bitmap.width * scale);
     canvas.height = Math.round(bitmap.height * scale);
@@ -59,9 +61,11 @@ async function printSource(shot, token) {
   if (shot.serverId)
     try {
       return await createImageBitmap(await fetchMediaBlob(urlOf(token, shot.serverId, "print")));
-    } catch {
+    } catch (error) {
+      if (strict) throw new Error("Không tải được ảnh chất lượng in. Vui lòng thử lại; chưa dùng ảnh xem nhanh để in.", { cause: error });
       /* dùng ảnh xem nhanh */
     }
+  if (strict) throw new Error("Thiếu ảnh gốc để in. Hãy chọn lại ảnh hoặc thêm file gốc từ máy quầy.");
   return previewBitmap(shot, token);
 }
 const release = (image) => {
@@ -173,7 +177,7 @@ async function drawSharpSlot(ctx, source, rect, t) {
 // shots) / stickers: màu ảnh và nhãn dán khách chọn, vẽ giống hệt ảnh xem trước.
 // scale: 1 = đúng khổ in (1200 × 1800, 300 dpi); 2 = ảnh ghép cho album (2400 × 3600), ảnh vẽ thẳng
 // từ ảnh gốc nên khách phóng to trên điện thoại vẫn nét.
-export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filters = [], stickers = [], transforms = [], scale = 1 } = {}) {
+export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filters = [], stickers = [], transforms = [], scale = 1, strict = false } = {}) {
   const layout = photoLayout(frame);
   const background = await loadFrameImage(frame.image);
   const canvas = document.createElement("canvas");
@@ -194,7 +198,7 @@ export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filter
       if (!sources.has(shot.key)) {
         for (const image of sources.values()) release(image);
         sources.clear();
-        sources.set(shot.key, await printSource(shot, token));
+        sources.set(shot.key, await printSource(shot, token, { strict }));
       }
       const source = sources.get(shot.key);
       const t = transforms[index];
@@ -225,7 +229,7 @@ export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filter
 // Tờ in 10 × 15 cm cho cả lượt: khung nguyên tờ (kể cả khung nhỏ phủ cả tờ — 2 dải, máy in cắt đôi)
 // in `prints` tờ; khung dải cũ (một dải) ghép 2 dải / tờ.
 // Khổ Instax (printSize của vé): mỗi tấm là một ảnh ngang 1260 × 840 riêng, máy Instax Link WIDE in từng tấm.
-export async function printSheets(frameCanvas, frame, prints, printSize = frame.printSize) {
+export async function printSheets(frameCanvas, frame, prints, printSize = frame.printSize, scale = 1) {
   if (!prints) return [];
   if (printSize === "instax") {
     const image = instaxPrint(frameCanvas);
@@ -237,7 +241,7 @@ export async function printSheets(frameCanvas, frame, prints, printSize = frame.
   const layout = isSingleStrip(frame, frameCanvas.width, frameCanvas.height) ? "strip" : "full";
   const copies = layout === "strip" ? prints * 2 : prints;
   const outputs = Array.from({ length: copies }, () => ({ canvas: frameCanvas, printSize: layout }));
-  const sheets = packPrintSheets(outputs);
+  const sheets = packPrintSheets(outputs, scale);
   // Tờ in DNP: PNG không nén mất — giữ đủ màu từng điểm ảnh (JPEG giảm độ phân giải màu, nhoè viền
   // chữ / khung). Mọi tờ của một lượt giống hệt nhau (cùng một khung), nên chỉ mã hoá một lần.
   const data = await pngDataUrl(sheets[0].canvas);

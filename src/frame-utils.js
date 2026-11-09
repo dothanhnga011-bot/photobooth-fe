@@ -398,12 +398,13 @@ export function instaxPrint(canvas) {
 // Xếp khung lên tờ 10 × 15: khung nguyên tờ chiếm 1 tờ (khung ngang → tờ ngang
 // 15 × 10, máy in tự xoay), khung dải ghép 2 dải / tờ dọc.
 // Trả về [{ canvas, frames }] — frames: số khung nằm trên tờ đó.
-export function packPrintSheets(outputs) {
+export function packPrintSheets(outputs, scale = 1) {
+  const sheetSize = { w: Math.round(SHEET.w * scale), h: Math.round(SHEET.h * scale) };
   const sheets = [];
   const blank = (landscape = false) => {
     const c = document.createElement("canvas");
-    c.width = landscape ? SHEET.h : SHEET.w;
-    c.height = landscape ? SHEET.w : SHEET.h;
+    c.width = landscape ? sheetSize.h : sheetSize.w;
+    c.height = landscape ? sheetSize.w : sheetSize.h;
     const ctx = c.getContext("2d");
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, c.width, c.height);
@@ -416,10 +417,10 @@ export function packPrintSheets(outputs) {
         placeOn(
           half.canvas.getContext("2d"),
           canvas,
-          SHEET.w / 2,
+          sheetSize.w / 2,
           0,
-          SHEET.w / 2,
-          SHEET.h,
+          sheetSize.w / 2,
+          sheetSize.h,
         );
         half.frames = 2;
         half = null;
@@ -430,8 +431,8 @@ export function packPrintSheets(outputs) {
           canvas,
           0,
           0,
-          SHEET.w / 2,
-          SHEET.h,
+          sheetSize.w / 2,
+          sheetSize.h,
         );
         sheets.push(half);
       }
@@ -444,7 +445,7 @@ export function packPrintSheets(outputs) {
   // A single strip design still fills both halves of its 4×6 sheet.
   // The DS-RX1 driver cuts the sheet after printing when 2inch cut is enabled.
   if (half) {
-    placeOn(half.canvas.getContext("2d"), half.source, SHEET.w / 2, 0, SHEET.w / 2, SHEET.h);
+    placeOn(half.canvas.getContext("2d"), half.source, sheetSize.w / 2, 0, sheetSize.w / 2, sheetSize.h);
     half.frames = 2;
   }
   return sheets;

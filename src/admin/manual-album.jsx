@@ -27,7 +27,7 @@ export function ManualAlbum({ booking, onClose }) {
   useEffect(() => {
     let active = true;
     api(`/albums/${booking.accessToken}`).then(album => {
-      if (active) setPhotos((album.photos || []).filter(p => p.kind === "original").map(p => ({ key: p.id, serverId: p.id, photo: p })));
+      if (active) setPhotos((album.photos || []).filter(p => p.kind === "original").map(p => ({ key: p.id, serverId: p.id, originalPending: p.originalPending, photo: p })));
     }).catch(e => { if (active) setError(e.message); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [booking.accessToken]);
@@ -41,8 +41,8 @@ export function ManualAlbum({ booking, onClose }) {
       let canvas;
       try {
         canvas = await renderPrintFrame(frame, selected.slice(0, slots.length), booking.accessToken,
-          `${window.location.origin}/album/${booking.accessToken}`, { transforms });
-        const result = await printSheets(canvas, frame, 1, booking.printSize || "full");
+          `${window.location.origin}/album/${booking.accessToken}`, { transforms, scale: booking.printSize === "instax" ? 1 : 2, strict: true });
+        const result = await printSheets(canvas, frame, 1, booking.printSize || "full", booking.printSize === "instax" ? 1 : 2);
         if (active) { setSheet(result[0]); setError(""); }
       } catch (e) { if (active) setError(e.message); }
       finally { if (canvas) canvas.width = canvas.height = 0; if (active) setRendering(false); }
@@ -75,7 +75,7 @@ export function ManualAlbum({ booking, onClose }) {
       await image.decode();
       const landscape = image.naturalWidth > image.naturalHeight;
       const style = popup.document.createElement("style");
-      style.textContent = `@page { size: ${landscape ? "6in 4in" : "4in 6in"}; margin: 0; } html,body { margin:0; padding:0; } img { display:block; width:100%; height:auto; }`;
+      style.textContent = `@page { size: ${landscape ? "6in 4in" : "4in 6in"}; margin: 0; } html,body { margin:0; padding:0; print-color-adjust:exact; -webkit-print-color-adjust:exact; } img { display:block; width:100%; height:auto; }`;
       popup.document.head.append(style);
       popup.document.title = `In ảnh #${booking.code}`;
       popup.document.body.append(image);
@@ -115,6 +115,7 @@ export function ManualAlbum({ booking, onClose }) {
         <p className="manual-album-preview-caption" role="status">{rendering ? "Đang ghép ảnh chất lượng in…" : `${frame.name} · Chọn ảnh cho ${slots.length} ô để ghép và in.`}</p>
       </> : <p role="status">Chọn khung để xem trước.</p>}</div></div>
       <p className="soft-note">Cắm máy quầy vào RX1 và cài driver. Trong hộp in, chọn đúng máy, giấy 4 × 6 inch, lề 0, tắt đầu/chân trang. Khung nhỏ cần bật “2inch cut” trong driver. Chọn số bản trong hộp in; lệnh này không gửi đến máy phòng chụp và không tự trừ lượt in.</p>
+      {booking.printSize !== "instax" && <p className="soft-note">File in PNG 2400 × 3600 px (hoặc ngang), tương đương 600 ppi trên giấy 4 × 6 inch. Độ nét thực tế phụ thuộc ảnh và khung gốc. RX1: chọn chất lượng 600 × 600 dpi trong driver (driver chuyển về chế độ máy 300 × 600 dpi). Dùng đúng ICC RX1 và ICM; không tăng màu vàng hoặc độ nét ở nhiều nơi cùng lúc.</p>}
       <div className="order-print-actions"><Button className="outline" onClick={onClose}>Đóng</Button>{sheet && <a className="button outline" href={sheet} download={`NXC-${booking.code}-in.${booking.printSize === "instax" ? "jpg" : "png"}`}>Tải file in</a>}<Button disabled={!sheet || rendering || busy || booking.printSize === "instax"} onClick={printLocal}>{busy ? "Đang mở…" : "In bằng máy quầy"}</Button></div>
       {booking.printSize === "instax" && <p>Khổ Instax: tải file và in bằng phần mềm dành cho máy Instax.</p>}
     </section>
