@@ -107,7 +107,7 @@ function readSale() {
 export function Kiosk() {
   const [params] = useSearchParams(),
     toast = useToast();
-  const { packages = [], frames: catalogFrames = [], settings = {}, stickers: shopStickers = [] } = useStudio();
+  const { packages = [], frames: catalogFrames = [], settings = {}, stickers: shopStickers = [], printCapabilities } = useStudio();
   const device =
     params.get("device") || localStorage.getItem("harrod-device") || "";
   const [code, setCode] = useState(""),
@@ -1150,14 +1150,16 @@ export function Kiosk() {
         (async () => {
           let printFrame = null, albumFrame = null;
           try {
-            // Tờ in trước (khách đang chờ ảnh ra): đúng khổ in 300 dpi.
+            // Match the counter's lossless 600 ppi sheet when the server supports it.
+            // Older servers retain the established 300 ppi API contract during rolling deployment.
+            const printScale = s.booking.printSize !== "instax" && printCapabilities?.dnpSheetScale === 2 ? 2 : 1;
             printFrame = await renderPrintFrame(frame, chosenShots, s.accessToken, albumLink, {
-              ...look, strict: s.booking.printSize !== "instax",
+              ...look, scale: printScale, strict: s.booking.printSize !== "instax",
             });
             if (printsCount)
               await queueKioskPrint({
                 token: s.accessToken,
-                images: await printSheets(printFrame, frame, printsCount, s.booking.printSize),
+                images: await printSheets(printFrame, frame, printsCount, s.booking.printSize, printScale),
                 frameName,
                 // Khung nhỏ → máy cắt đôi; khung lớn → nguyên tờ (kể cả khi gói ảnh nhỏ chưa có khung
                 // nhỏ nên dùng khung lớn). Instax: máy in riêng, theo gói.
