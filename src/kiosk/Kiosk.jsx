@@ -1151,7 +1151,9 @@ export function Kiosk() {
           let printFrame = null, albumFrame = null;
           try {
             // Tờ in trước (khách đang chờ ảnh ra): đúng khổ in 300 dpi.
-            printFrame = await renderPrintFrame(frame, chosenShots, s.accessToken, albumLink, look);
+            printFrame = await renderPrintFrame(frame, chosenShots, s.accessToken, albumLink, {
+              ...look, strict: s.booking.printSize !== "instax",
+            });
             if (printsCount)
               await queueKioskPrint({
                 token: s.accessToken,

@@ -8,6 +8,7 @@ dist/
 !.env.example
 *.log
 .cache/
+.local/rx1-quality-backups/
 uploads/
 scripts/canon-camera/.runtime/
 public/downloads/canon-camera-agent.zip
