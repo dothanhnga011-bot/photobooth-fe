@@ -322,15 +322,9 @@ function Send-Sheets([string]$printerName, [string[]]$files, [string]$docName, [
   else { $paper = $document.DefaultPageSettings.PaperSize }
   $document.DefaultPageSettings.Landscape = $false
   $document.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(0, 0, 0, 0)
-  # RX1: 600x600 is the driver's symmetric input for its native 300x600 HQ mode.
-  # Apply after the cut DEVMODE, which would otherwise restore the queue's fast-mode resolution.
-  $quality = @($document.PrinterSettings.PrinterResolutions | Where-Object {
-    ($_.X -eq 600 -and $_.Y -eq 600) -or ($_.X -eq 300 -and $_.Y -eq 600)
-  }) | Sort-Object @{ Expression = { $_.X * $_.Y }; Descending = $true } | Select-Object -First 1
-  if ($quality) {
-    $document.DefaultPageSettings.PrinterResolution = $quality
-    Write-Log "Print quality: $($quality.X)x$($quality.Y) dpi; color management follows the queue ICC settings."
-  } else { Write-Log 'HQ resolution not advertised; using the configured queue resolution.' }
+  # Respect the user's driver resolution and colour adjustments; only the cutter is changed per job.
+  $quality = $document.DefaultPageSettings.PrinterResolution
+  Write-Log "Print quality follows Windows driver: $($quality.X)x$($quality.Y) dpi; color follows the queue settings."
   $script:printPages = $files
   $script:printIndex = 0
   $document.add_PrintPage({
