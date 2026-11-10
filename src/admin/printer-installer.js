@@ -97,3 +97,24 @@ export function printerColorInstaller(script) {
     "",
   ].join("\r\n");
 }
+
+// No elevation: Preferences and ICC associations belong to the kiosk Windows account.
+// Only the two fixed UI modes can be passed to the embedded, self-contained tool.
+export function printerDriverLauncher(script, mode = "preferences") {
+  if (!["preferences", "properties"].includes(mode)) throw new Error("Chế độ driver không hợp lệ.");
+  return [
+    "@echo off",
+    "setlocal DisableDelayedExpansion",
+    'set "NXC_RX1_LAUNCHER=%~f0"',
+    "echo Opening installed RX1 driver settings. Use the Windows account running the kiosk.",
+    `powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $s = [IO.File]::ReadAllText($env:NXC_RX1_LAUNCHER); $m = [regex]::Match($s, '(?m)^rem NXC_RX1_DRIVER_BASE64:([A-Za-z0-9+/=]+)'); if (-not $m.Success) { throw 'Driver tool payload missing.' }; $code = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($m.Groups[1].Value)); & ([scriptblock]::Create($code)) -Mode ${mode} } catch { Write-Host $_.Exception.Message; exit 1 }"`,
+    "if errorlevel 1 (",
+    "  echo Could not open RX1 settings. Read the message above.",
+    "  pause",
+    "  exit /b 1",
+    ")",
+    "exit /b 0",
+    `rem NXC_RX1_DRIVER_BASE64:${encodePayload(script, { bom: false })}`,
+    "",
+  ].join("\r\n");
+}

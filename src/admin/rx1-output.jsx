@@ -1,10 +1,42 @@
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, RefreshCw, Save } from "lucide-react";
+import { Download, ImagePlus, RefreshCw, Save } from "lucide-react";
 import { api, formatDateTime } from "../api.js";
 import { Button, ErrorBox } from "../studio.jsx";
 import { useLiveData } from "../use-live-data.js";
 import defaultPreview from "./assets/rx1-preview-default.jpg";
+import rx1Driver from "./installers/open-rx1-driver.ps1?raw";
+import rx1Color from "./installers/configure-rx1-color.ps1?raw";
+import { printerColorInstaller, printerDriverLauncher } from "./printer-installer.js";
+import { download } from "./kiosk-autostart.js";
 import "./rx1-output.css";
+
+function DriverTools() {
+  const [message, setMessage] = useState("");
+  function driver(mode) {
+    const name = mode === "preferences" ? "mo-driver-RX1.bat" : "mo-thuoc-tinh-RX1.bat";
+    download(name, printerDriverLauncher(rx1Driver, mode));
+    setMessage(`Đã tải ${name}. Chạy file trên PC Windows cắm RX1 bằng tài khoản đang dùng kiosk. Đóng cửa sổ của từng hàng in để mở hàng tiếp theo.`);
+  }
+  return <section className="rx1-driver">
+    <h3>Cài đặt driver trên PC RX1</h3>
+    <p>Gamma và DPI lưu trực tiếp ở trên. Với tuỳ chọn riêng của DNP, tải công cụ bên dưới rồi chạy trên PC Windows cắm máy in.</p>
+    <div className="rx1-driver-actions">
+      <Button className="outline" onClick={() => driver("preferences")}><Download size={16} /> Tải công cụ mở driver</Button>
+      <Button className="outline" onClick={() => driver("properties")}><Download size={16} /> Tải công cụ mở thuộc tính / ICC</Button>
+      <Button className="outline" onClick={() => {
+        download("cai-mau-RX1.bat", printerColorInstaller(rx1Color));
+        setMessage("Đã tải cai-mau-RX1.bat. Đợi in xong, chạy trên PC cắm RX1 bằng tài khoản kiosk và cho phép quyền quản trị Windows. Công cụ sao lưu trước khi đặt System ICM / Pictures / Color cho các hàng RX1.");
+      }}><Download size={16} /> Tải công cụ đồng bộ ICM</Button>
+    </div>
+    <ul>
+      <li><strong>Driver:</strong> chỉnh Sharpness, Color Adjustment và các tuỳ chọn DNP trong Printing Preferences của từng hàng in.</li>
+      <li><strong>ICC:</strong> trong Printer Properties, mở Color Management → Devices, chọn đúng hàng RX1 và profile của giấy đang dùng.</li>
+      <li><strong>Đồng bộ ICM:</strong> đặt cùng chế độ quản lý màu cho tờ lớn và cắt đôi, có sao lưu để khôi phục. ICC vẫn kiểm tra trong Windows.</li>
+    </ul>
+    <p>Cài đặt driver áp dụng cho PC chạy công cụ. Nếu chỉnh trên điện thoại hoặc máy khác, chuyển file sang PC RX1 để chạy.</p>
+    {message && <p className="rx1-driver-message" role="status">{message}</p>}
+  </section>;
+}
 
 function TonePreview({ gamma }) {
   const [file, setFile] = useState(null);
@@ -136,6 +168,7 @@ export function Rx1OutputManager({ notify }) {
       </form>
       <TonePreview gamma={valid ? gamma : 1.5} />
     </div>}
+    {form && !loadError && <DriverTools />}
     <section className="rx1-sync">
       <div className="rx1-sync-heading"><h3>Máy in đã nhận cấu hình</h3><Button className="outline small" onClick={() => refreshPrinters()}><RefreshCw size={15} /> Làm mới trạng thái</Button></div>
       {statusError && <p role="status">Chưa đọc được trạng thái: {statusError}</p>}

@@ -909,10 +909,12 @@ test("RX1 color controls are admin-only even when staff have every delegated per
   await navButton("Màu in RX1").click();
   await page.getByLabel("Độ tối bản in (gamma)").waitFor();
   assert.equal(await page.getByRole("button", { name: "Lưu cấu hình màu in", exact: true }).count(), 1);
+  assert.equal(await page.getByRole("button", { name: "Tải công cụ mở driver", exact: true }).count(), 1);
   assertClean();
   await mountAdmin({ role: "staff", permissions: ["revenue:view", "orders:export", "orders:cancel", "print:operate", "shift:operate", "rooms:setup"] });
   assert.equal(await navButton("Màu in RX1").count(), 0);
   assert.equal(await page.getByLabel("Độ tối bản in (gamma)").count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Tải công cụ mở driver", exact: true }).count(), 0);
   assert.equal(requests.some((entry) => entry.path === "/api/admin/settings/rx1-output"), false);
   assertClean();
 });

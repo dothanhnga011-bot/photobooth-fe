@@ -1,6 +1,6 @@
   .admin-shell .rx1-color-page { display: grid; gap: 22px; }
   .admin-shell .rx1-color-grid { display: grid; grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.15fr); gap: 22px; }
-  .admin-shell :is(.rx1-color-controls, .rx1-preview, .rx1-sync) { min-width: 0; padding: 24px; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
+  .admin-shell :is(.rx1-color-controls, .rx1-preview, .rx1-sync, .rx1-driver) { min-width: 0; padding: 24px; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
   .admin-shell .rx1-color-page h3 { margin: 0 0 12px; }
   .admin-shell .rx1-color-controls { display: block; }
   .admin-shell .rx1-color-page p { color: var(--muted); font-size: 13px; line-height: 1.6; }
@@ -27,9 +27,13 @@
   .admin-shell .rx1-sync-heading h3 { margin: 0; }
   .admin-shell .rx1-sync-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; padding: 14px 0; border-top: 1px solid var(--line); font-size: 13px; }
   .admin-shell .rx1-sync-row small { margin-left: auto; color: var(--muted); }
+  .admin-shell .rx1-driver-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-block: 18px; }
+  .admin-shell .rx1-driver li { margin-block: 8px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+  .admin-shell .rx1-driver-message { padding: 12px 16px; border-radius: 10px; background: #f7eee7; }
   @media (max-width: 1000px) { .admin-shell .rx1-color-grid { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 600px) {
-    .admin-shell :is(.rx1-color-controls, .rx1-preview, .rx1-sync) { padding: 18px; }
+    .admin-shell :is(.rx1-color-controls, .rx1-preview, .rx1-sync, .rx1-driver) { padding: 18px; }
+    .admin-shell .rx1-driver-actions .button { width: 100%; white-space: normal; }
     .admin-shell .rx1-sync-row { align-items: start; flex-direction: column; }
     .admin-shell .rx1-sync-row small { margin-left: 0; }
   }

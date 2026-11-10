@@ -81,9 +81,21 @@ Các profile **sRGB IEC61966-2.1**, **sRGB Color Space Profile** và **Agfa: Swo
 
 Nếu RX1_131101.ICC đã là mặc định trên cả hai hàng, giữ nguyên profile đó làm mốc in thử; chưa có cơ sở kết luận ICC đang sai hoặc tự chuyển sang một profile RX1 khác. Nếu cả hai tờ vẫn sáng gắt/ngả vàng, đối chiếu file PNG đã in, loại giấy/profile tương ứng và thiết lập màu riêng của driver theo các phần dưới.
 
+## Mở cài đặt driver từ web
+
+Trong **Thiết lập → Màu in RX1**, tài khoản admin có ba công cụ Windows:
+
+- **Tải công cụ mở driver**: chạy `mo-driver-RX1.bat` để mở Printing Preferences của từng hàng dùng driver RX1, gồm Sharpness và Color Adjustment.
+- **Tải công cụ mở thuộc tính / ICC**: chạy `mo-thuoc-tinh-RX1.bat`, mở Color Management → Devices trong cửa sổ thuộc tính để kiểm tra profile ICC đúng hàng in.
+- **Tải công cụ đồng bộ ICM**: công cụ có sao lưu/khôi phục được mô tả bên dưới.
+
+Trình duyệt tải file; cần tự chạy file trên **PC Windows cắm RX1**, bằng tài khoản đang dùng kiosk. Nếu tải bằng điện thoại/máy khác, chuyển file sang PC đó. Công cụ mở driver dùng [PrintUIEntry của Windows](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/rundll32-printui) (`/e` cho Preferences, `/p` cho Properties), tìm hàng in theo driver thực tế, đợi đóng từng cửa sổ rồi mở hàng tiếp theo. Nếu có lệnh in đang chờ hoặc chưa cài driver RX1, công cụ dừng và báo lý do.
+
+Hai công cụ mở cửa sổ không yêu cầu nâng quyền, không tự sửa cấu hình, không cài lại driver và không gửi lệnh in. Chỉ ICM tự động cần quyền quản trị Windows. Gamma/DPI vẫn lưu và đồng bộ trực tiếp qua web như trên; tuỳ chọn DNP và ICC được lưu tại PC. Sau khi chỉnh trong driver, bấm Apply/OK và in thử cùng một ảnh.
+
 ## Đồng bộ ICM trên PC cắm RX1
 
-Trong **Quản trị → Quản lý máy → Cài máy chụp → Máy in DNP**, tải **Đồng bộ màu RX1 (Windows)**. Hoặc dùng file `downloads/cai-mau-RX1.bat` trong bản build. Chép file sang PC đang cắm RX1 và chạy bằng tài khoản Windows đang dùng kiosk; Windows hỏi quyền quản trị thì cho phép. Đợi các lệnh đang in hoàn tất trước khi chạy.
+Trong **Quản trị → Thiết lập → Màu in RX1**, tải **Tải công cụ đồng bộ ICM**. Mục **Quản lý máy → Cài máy chụp → Máy in DNP** cũng giữ nút **Đồng bộ màu RX1 (Windows)**. Hoặc dùng file `downloads/cai-mau-RX1.bat` trong bản build. Chép file sang PC đang cắm RX1 và chạy bằng tài khoản Windows đang dùng kiosk; Windows hỏi quyền quản trị thì cho phép. Đợi các lệnh đang in hoàn tất trước khi chạy.
 
 Công cụ đặt **System ICM / Pictures / Color** cho cả **Printing Defaults** và **Printing Preferences** hiện có của các hàng dùng driver RX1. Công cụ kiểm tra để giữ độ phân giải, giấy, chế độ cắt và bề mặt theo từng hàng. Cấu hình được sao lưu trước khi sửa tại `%LOCALAPPDATA%\NXC-Printer\color-backups\<thời điểm>\color-settings.json`; lỗi lưu hoặc driver không giữ thiết lập sẽ kích hoạt khôi phục. Nếu Windows không cho phép khôi phục, lỗi sẽ kèm vị trí bản sao lưu.
 

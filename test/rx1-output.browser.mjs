@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { createServer } from "node:http";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRequire } from "node:module";
@@ -120,9 +120,35 @@ test("out-of-range gamma and failed saves never claim that a new configuration w
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     JSON.stringify(await page.locator('*').evaluateAll((elements) => elements.filter((el) => el.getBoundingClientRect().right > innerWidth).slice(0, 8).map((el) => ({ tag: el.tagName, class: el.className, width: el.getBoundingClientRect().width })))));
 });
+
+test("driver tools download self-contained Windows helpers without saving settings or sending a print", async () => {
+  await mount();
+  const source = await readFile(new URL("../src/admin/installers/open-rx1-driver.ps1", import.meta.url), "utf8");
+  for (const [label, name, mode] of [
+    ["Tải công cụ mở driver", "mo-driver-RX1.bat", "preferences"],
+    ["Tải công cụ mở thuộc tính / ICC", "mo-thuoc-tinh-RX1.bat", "properties"],
+    ["Tải công cụ đồng bộ ICM", "cai-mau-RX1.bat", null],
+  ]) {
+    const downloaded = page.waitForEvent("download");
+    await page.getByRole("button", { name: label, exact: true }).click();
+    const file = await downloaded;
+    assert.equal(file.suggestedFilename(), name);
+    const stream = await file.createReadStream(), chunks = [];
+    for await (const chunk of stream) chunks.push(chunk);
+    const bat = Buffer.concat(chunks).toString("utf8");
+    if (mode) {
+      assert.ok(bat.includes(`-Mode ${mode}`));
+      const payload = /^rem NXC_RX1_DRIVER_BASE64:([A-Za-z0-9+/=]+)\r$/m.exec(bat)[1];
+      assert.equal(Buffer.from(payload, "base64").toString("utf8"), source);
+    } else assert.match(bat, /NXC_COLOR_BASE64:/);
+    await page.getByRole("status").filter({ hasText: `Đã tải ${name}.` }).waitFor();
+  }
+  assert.equal(requests.some((request) => request.method !== "GET"), false);
+});
 test("an older backend without this API leaves configuration controls unavailable", async () => {
   await mount({ loadError: true });
   await page.getByText("Cần cập nhật máy chủ để dùng chức năng màu in RX1, rồi tải lại trang.", { exact: true }).waitFor();
   assert.equal(await page.getByLabel("Độ tối bản in (gamma)").count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Tải công cụ mở driver", exact: true }).count(), 0);
   assert.equal(requests.filter((req) => req.method === "PUT").length, 0);
 });
