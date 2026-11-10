@@ -16,6 +16,8 @@ import { canPickFolder } from "./folder.js";
 import { cameraProfile } from "./camera-profile.js";
 import { FolderCheck } from "./FolderCheck.jsx";
 import { KioskDevices } from "./KioskDevices.jsx";
+import { isAudioEnabled, setAudioEnabled } from "./kiosk-audio.js";
+import { useState } from "react";
 
 export function KioskSettings({
   folder,
@@ -39,6 +41,7 @@ export function KioskSettings({
 }) {
   const usable = liveUsableFor({ webcam: webcamTest });
   const profile = cameraProfile(roomInfo?.kind);
+  const [soundOn, setSoundOn] = useState(isAudioEnabled);
   return (
     <details className="kiosk-settings">
       <summary>
@@ -177,6 +180,22 @@ export function KioskSettings({
           <input type="checkbox" checked={lowPower} onChange={(e) => setLowPower(e.target.checked)} />
           Chế độ máy yếu (mini PC đời cũ, đồ họa Intel HD 5xx/6xx): hình trực tiếp vẽ bằng canvas — bật khi
           hình trực tiếp bị trắng hoặc giật sau khi chụp.
+        </label>
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={soundOn}
+            onChange={(e) => {
+              setSoundOn(e.target.checked);
+              setAudioEnabled(e.target.checked);
+              toast.success(
+                e.target.checked
+                  ? "Đã bật âm thanh: tiếng bíp đếm ngược 3-2-1 và tiếng màn trập khi chụp."
+                  : "Đã tắt âm thanh hiệu ứng chụp.",
+              );
+            }}
+          />
+          Âm thanh máy chụp: phát tiếng bíp đếm ngược 3, 2, 1 và tiếng màn trập "tách" khi chụp ảnh.
         </label>
         <KioskDevices zoom={zoom} setZoom={setZoom} roomInfo={roomInfo} toast={toast} />
         <Button

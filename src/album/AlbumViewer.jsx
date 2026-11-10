@@ -131,7 +131,7 @@ export function AlbumViewer({ token, booking }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, [index, items.length]);
   // Vuốt ngang trên ảnh lớn để chuyển ảnh.
   const swipe = useRef(null);
   // Lưu vào thư viện ảnh. iPhone: tải tệp về trang rồi mở bảng chia sẻ ("Lưu N mục"). Tải lâu thì
@@ -155,11 +155,25 @@ export function AlbumViewer({ token, booking }) {
     if (list.some((entry) => entry.photo?.originalPending))
       return toast.info("Ảnh gốc đang tải lên. Vui lòng chờ rồi lưu ảnh lại.");
     const entries = entriesOf(list);
-    if (!entries.length) return toast.info("iPhone không lưu được video này vào Ảnh.");
+    if (!entries.length) {
+      // Trường hợp video không đưa được vào app Ảnh của iOS (như WebM), tải về mục Tệp (Files)
+      const directEntries = list.map((entry) => entry.save);
+      if (directEntries.length) {
+        toast.info("Đang tải video về mục Tệp (Files). (Định dạng WebM sẽ lưu vào Tệp thay vì app Ảnh).");
+        return downloadEach(directEntries);
+      }
+      return;
+    }
     if (!shareSheet) return downloadEach(entries);
+    const unsavableVideo = shareSheet && list.find((entry) => entry.kind === "video" && !savableOnIOS(entry.save));
     if (ready?.scope === scope) {
       setReady(null);
-      return share(scope, ready.files);
+      await share(scope, ready.files);
+      if (unsavableVideo) {
+        downloadEach([unsavableVideo.save]);
+        toast.info("Ảnh đã lưu vào app Ảnh. Video đang được tải về mục Tệp (Files).");
+      }
+      return;
     }
     setReady(null);
     setSaving({ scope, done: 0, total: entries.length });
@@ -174,6 +188,10 @@ export function AlbumViewer({ token, booking }) {
       setSaving(null);
     }
     await share(scope, files);
+    if (unsavableVideo) {
+      downloadEach([unsavableVideo.save]);
+      toast.info("Ảnh đã lưu vào app Ảnh. Video đang được tải về mục Tệp (Files).");
+    }
   }
   const buttonText = (scope, idle) =>
     saving?.scope === scope
@@ -182,7 +200,7 @@ export function AlbumViewer({ token, booking }) {
         ? ready.files.length > 1 ? `Bấm để lưu ${ready.files.length} mục` : "Bấm để lưu vào Ảnh"
         : idle;
   if (!item) return null;
-  const allCount = entriesOf(items).length;
+  const allCount = items.length;
   return (
     <section className="album-viewer" aria-label="Ảnh và video của bạn">
       <div

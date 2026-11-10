@@ -44,7 +44,7 @@ function RoomTile({ room, offset }) {
             </div>
             {total > 0 && (
               <div className="room-progress" role="progressbar" aria-label="Thời gian chụp đã dùng"
-                aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(100 - (100 * left) / total)}>
+                aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100, Math.max(0, Math.round(100 - (100 * left) / total)))}>
                 <i style={{ width: `${Math.min(100, Math.max(0, 100 - (100 * left) / total))}%` }} />
               </div>
             )}

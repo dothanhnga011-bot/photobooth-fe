@@ -295,10 +295,16 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
               </label>
               <label>
                 Chi nhánh
-                <select value={form.branch} onChange={(e) => change("branch", e.target.value)}>
+                <select
+                  name="branch"
+                  aria-invalid={Boolean(v.errors.branch)}
+                  value={form.branch}
+                  onChange={(e) => change("branch", e.target.value)}
+                >
                   <option value="">Chọn chi nhánh</option>
                   {branches.map((name) => <option key={name} value={name}>{name}</option>)}
                 </select>
+                <FieldError error={v.errors.branch} />
               </label>
               <label>
                 Thanh toán

@@ -458,7 +458,7 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, [selected, slots]);
 
   async function save() {
     const themeName = instax ? "" : (frame.themeName === "__new" ? newTheme : frame.themeName || "").trim();

@@ -48,6 +48,7 @@ export function LoginPage({ session }) {
             <input
               name="email"
               type="email"
+              autoFocus
               autoComplete="username"
               aria-invalid={Boolean(loginForm.errors.email)}
               value={credentials.email}

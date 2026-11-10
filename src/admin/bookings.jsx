@@ -180,7 +180,7 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
         paymentLabel(booking.paymentMethod), labels[booking.status]]),
     ];
     const url = URL.createObjectURL(new Blob(["\ufeff" + rows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/^[=+@-]/, "'").replaceAll('"', '""')}"`).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8;" }));
-    const anchor = document.createElement("a"); anchor.href = url; anchor.download = "don-hang-photobooth.csv"; anchor.click();
+    const anchor = document.createElement("a"); anchor.href = url; anchor.download = `don-hang-photobooth-${from || "tat-ca"}-den-${to || "nay"}.csv`; anchor.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000); notify(`Đã xuất ${filtered.length} đơn hàng.`);
   }
 
@@ -200,7 +200,7 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
     </div>
     <div className="order-actions-bar">
       <div className="search-box"><Search size={17} /><input aria-label="Tìm đơn" placeholder="Mã đơn, tên, số điện thoại…" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
-      {canExport && <Button className="outline small" onClick={csv}><Download size={15} /> Tải về (Excel)</Button>}
+      {canExport && <Button className="outline small" onClick={csv}><Download size={15} /> Xuất CSV (Excel)</Button>}
       <Button className="outline small" onClick={() => load()} aria-label="Làm mới"><RefreshCw size={15} /></Button>
       {hasFilters && <Button className="outline small" onClick={resetFilters}><X size={15} /> Xóa bộ lọc</Button>}
       <Button onClick={() => setCreating(true)}><Plus size={15} /> Tạo đơn</Button>
@@ -239,7 +239,7 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
           {canSeeMoney && <dl className="order-pricing"><div><dt>Đơn giá:</dt><dd>{money((booking.total || 0) + (booking.discount || 0))}</dd></div>
             <div><dt>Giảm giá:</dt><dd>{money(booking.discount || 0)}</dd></div><div><dt>Tổng đơn:</dt><dd>{money(booking.total)}</dd></div></dl>}
           <dl className="order-payment"><div><dt>Thanh toán:</dt><dd>{awaitingPayment(booking) ? "Trả ở quầy" : paymentLabel(booking.paymentMethod)}</dd></div>
-            {canSeeMoney && <><div><dt>Tổng đơn:</dt><dd>{money(booking.total)}</dd></div><div className={booking.paid ? "received" : "unpaid"}><dt>Thực nhận:</dt><dd>{money(booking.paid ? booking.total : 0)}</dd></div></>}
+            {canSeeMoney && <div className={booking.paid ? "received" : "unpaid"}><dt>Thực nhận:</dt><dd>{money(booking.paid ? booking.total : 0)}</dd></div>}
           </dl>
           {((booking.status === "completed" && !booking.mediaDeleted && booking.accessToken) || awaitingPayment(booking) ||
             (booking.status === "pending" && booking.source === "counter") ||

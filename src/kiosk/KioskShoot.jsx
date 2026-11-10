@@ -8,6 +8,7 @@ import {
 } from "react-icons/pi";
 import { Button } from "../studio";
 import { CameraPreview } from "./CameraPreview.jsx";
+import { playCountdownBeep, playShutterSound } from "./kiosk-audio.js";
 
 // Ảnh trên máy (Blob) hoặc trên máy chủ (URL).
 export function useObjectUrl(source) {
@@ -108,14 +109,25 @@ export function KioskShoot({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, [testing, shooting, full, webcam]);
   // Ảnh mới nhất ở đầu cột: có ảnh mới thì cuộn lên đầu để khách thấy ngay.
   const rail = useRef(null);
   useEffect(() => {
     rail.current?.scrollTo({ top: 0, behavior: "smooth" });
   }, [shots.length, receiving]);
   const progress = quota ? Math.min(100, (Math.min(taken, quota) / quota) * 100) : 0;
-  // Nháy trắng lúc chụp: hiện 0,4 giây rồi gỡ hẳn, không để lớp trắng nằm đè hình trực tiếp.
+  // Phát âm thanh đếm ngược "3, 2, 1"
+  const lastCount = useRef(null);
+  useEffect(() => {
+    if (centerCount && centerCount !== lastCount.current) {
+      lastCount.current = centerCount;
+      playCountdownBeep(centerCount);
+    } else if (!centerCount) {
+      lastCount.current = null;
+    }
+  }, [centerCount]);
+
+  // Nháy trắng và phát tiếng màn trập lúc chụp: hiện 0,4 giây rồi gỡ hẳn, không để lớp trắng nằm đè hình trực tiếp.
   // Lượt nháy có từ trước khi màn chụp mở (lượt khách trước) không nháy lại.
   const [flashing, setFlashing] = useState(0);
   const lastFlash = useRef(flash);
@@ -123,6 +135,7 @@ export function KioskShoot({
     if (!flash || flash === lastFlash.current) return;
     lastFlash.current = flash;
     setFlashing(flash);
+    playShutterSound();
     const timer = setTimeout(() => setFlashing(0), 400);
     return () => clearTimeout(timer);
   }, [flash]);

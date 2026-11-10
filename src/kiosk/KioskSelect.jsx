@@ -443,7 +443,7 @@ export function KioskSelect({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, [frames.length, index]);
   // Không có khung thì không có gì để trang trí: chỉ chọn ảnh. Nhãn dán chỉ lấy từ trang quản trị
   // Thiết lập → Nhãn dán (không có bộ biểu tượng dựng sẵn): tiệm chưa tải nhãn dán nào thì ẩn mục.
   const tabs = [
