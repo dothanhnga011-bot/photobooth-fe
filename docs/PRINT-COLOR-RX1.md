@@ -72,6 +72,8 @@ Script cũ `scripts/configure-rx1-quality.ps1` chuyển tiếp sang cùng công 
 
 ## Khoanh vùng bằng đúng file đã in
 
+Luồng **Đơn hàng → In ảnh** dùng chung bộ in RX1 cho in lại và ghép thủ công; file được lưu để xem lại từng tờ. Xem [hướng dẫn in từ đơn hàng](./ORDER-PRINTING.md) về lưu nền, chống trùng và các bản in cũ chưa có file lưu.
+
 1. Tại Quản trị, tải **file PNG của lệnh in** và mở trên cùng màn hình đang dùng để so màu. Không dùng JPEG gốc hoặc bản xem nhanh thay cho file đã in.
 2. Nếu PNG cũng sáng gắt/ngả vàng, kiểm tra bộ lọc khách đã chọn, ảnh nguồn và cài đặt màu của màn hình.
 3. Nếu khác biệt chủ yếu xuất hiện trên giấy, kiểm tra ICC/ICM của hàng in và xem bản in trong ánh sáng trắng ổn định. Giữ nguyên một file và điều kiện xem khi in thử.

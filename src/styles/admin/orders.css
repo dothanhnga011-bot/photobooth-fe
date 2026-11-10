@@ -461,51 +461,6 @@
     background: #fdf1dc;
     color: #8a5a10;
   }
-  .admin-shell .order-print-dialog {
-    width: min(520px, calc(100vw - 30px));
-  }
-  .admin-shell .order-print-body {
-    display: grid;
-    grid-template-columns: 120px minmax(0, 1fr);
-    gap: 18px;
-    align-items: start;
-    padding: 20px 0;
-  }
-  .admin-shell .order-print-body > img {
-    grid-row: 1 / 3;
-    width: 120px;
-    height: 165px;
-    object-fit: contain;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--stone, #f5f1ec);
-  }
-  .admin-shell .order-print-body dl {
-    display: grid;
-    gap: 9px;
-    margin: 0;
-  }
-  .admin-shell .order-print-body dl div {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  .admin-shell .order-print-body dt { color: var(--muted); }
-  .admin-shell .order-print-body dd { margin: 0; font-weight: 600; }
-  .admin-shell .order-print-body label {
-    display: grid;
-    gap: 6px;
-  }
-  .admin-shell .order-print-empty {
-    display: grid;
-    justify-items: center;
-    gap: 7px;
-    padding: 28px 10px;
-    text-align: center;
-    color: var(--muted);
-  }
-  .admin-shell .order-print-empty h3,
-  .admin-shell .order-print-empty p { margin: 0; }
   .admin-shell .order-print-actions {
     display: flex;
     justify-content: flex-end;
@@ -591,8 +546,6 @@
     .admin-shell .order-card { grid-template-columns: minmax(0, 1fr); }
     .admin-shell .order-card > * + * { border-left: 0; border-top: 1px solid var(--line); }
     .admin-shell .order-more-actions { position: static; padding: 0 16px 14px; }
-    .admin-shell .order-print-body { grid-template-columns: 90px minmax(0, 1fr); }
-    .admin-shell .order-print-body > img { width: 90px; height: 130px; }
   }
   @media (max-width: 400px) {
     /* Điện thoại hẹp: hai ô ngày (chữ 16 px để iOS không tự phóng to) xếp dọc, mỗi ô đủ rộng để hiện

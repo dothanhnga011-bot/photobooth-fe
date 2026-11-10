@@ -648,7 +648,7 @@ function Receive-LocalPrint {
       $image = [Drawing.Image]::FromFile($file)
       try {
         $short = [Math]::Min($image.Width, $image.Height); $long = [Math]::Max($image.Width, $image.Height)
-        if (-not (($short -eq 1200 -and $long -eq 1800) -or ($short -eq 2400 -and $long -eq 3600))) { throw 'RX1 sheet must be 1200x1800 or 2400x3600 pixels.' }
+        if (-not (($short -eq 1200 -and $long -eq 1800) -or ($short -eq 1181 -and $long -eq 1772) -or ($short -eq 2400 -and $long -eq 3600))) { throw 'RX1 sheet must be 1181x1772, 1200x1800 or 2400x3600 pixels.' }
       } finally { $image.Dispose() }
       $offset += $length; $files += $file
     }

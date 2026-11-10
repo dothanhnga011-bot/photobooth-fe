@@ -43,6 +43,8 @@ export function PrintAlerts() {
     };
     const onPrint = (e) => {
       const job = JSON.parse(e.data);
+      // A locally acknowledged print is an archive update, not another job to print at the desk.
+      if (job.spoolStatus === "sent") { window.dispatchEvent(new Event("nxc:print")); return; }
       const text = `Lệnh in mới · vé #${job.code} (${job.sheetCount || 1} ${unit(job)})`;
       toast.info(text, 8000);
       notify("NXC — Lệnh in mới", text);

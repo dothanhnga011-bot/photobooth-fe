@@ -275,6 +275,9 @@ export async function directKioskPrint(job) {
   try {
     await sendDirectPrint({ ...job, requestKey });
     notify(job.token, { status: 'printed' });
+    // Archive in the background only after the local acknowledgement. Upload retries never print.
+    await queueKioskPrint({ ...job, requestKey, archive: true }).catch((error) =>
+      console.warn('RX1 accepted the print; could not persist its archive upload.', error));
   } catch (error) {
     notify(job.token, { status: 'failed', message: error.message });
     throw error;
@@ -306,13 +309,13 @@ async function watchSpool(token, requestKey) {
 }
 
 // printSize: khổ của khung được in ("strip" → máy cắt đôi, "full" → nguyên tờ; Instax bỏ trống).
-export async function queueKioskPrint({ token, images, frameName, printSize }) {
+export async function queueKioskPrint({ token, images, frameName, printSize, archive = false, requestKey = crypto.randomUUID() }) {
   if (!images.length) return;
   const queue = (await readSetting(QUEUE_KEY).catch(() => null)) || [];
   if (!queue.some((job) => job.token === token))
-    queue.push({ token, frameName, printSize, images, requestKey: crypto.randomUUID(), queuedAt: Date.now() });
+    queue.push({ token, frameName, printSize, images, archive, requestKey, queuedAt: Date.now() });
   await saveSetting(QUEUE_KEY, queue);
-  notify(token, { status: "sending" });
+  if (!archive) notify(token, { status: "sending" });
   runKioskPrints();
 }
 
@@ -325,19 +328,21 @@ export function runKioskPrints() {
         const left = [];
         for (const job of queue) {
           try {
-            const printed = await priority(() => api(`/albums/${job.token}/print-pack`, printPackUpload({
+            const printed = await priority(() => api(`/albums/${job.token}/${job.archive ? "print-archive" : "print-pack"}`, printPackUpload({
               images: job.images, frameName: job.frameName, requestKey: job.requestKey, printSize: job.printSize,
             })));
-            notify(job.token, spoolState(printed));
-            watchSpool(job.token, job.requestKey);
+            if (!job.archive) {
+              notify(job.token, spoolState(printed));
+              watchSpool(job.token, job.requestKey);
+            }
           } catch (error) {
             // Vé đã in hết số tờ / album không còn: không thử lại nữa.
-            const tooLate = Date.now() - job.queuedAt > 45 * 60000;
-            if ((error.status === 409 && /tờ in/.test(error.message)) || error.status === 404 || tooLate) {
-              notify(job.token, { status: "failed", message: error.message });
+            const tooLate = Date.now() - job.queuedAt > (job.archive ? 24 * 60 : 45) * 60000;
+            if ((!job.archive && ((error.status === 409 && /tờ in/.test(error.message)) || error.status === 404)) || tooLate) {
+              if (!job.archive) notify(job.token, { status: "failed", message: error.message });
               continue;
             }
-            notify(job.token, { status: "waiting", message: error.message });
+            if (!job.archive) notify(job.token, { status: "waiting", message: error.message });
             left.push(job);
           }
         }

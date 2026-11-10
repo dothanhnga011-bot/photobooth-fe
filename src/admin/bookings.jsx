@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { CalendarDays, ChevronDown, Copy, Download, ExternalLink, FileArchive, Image as ImageIcon, Plus, Printer, RefreshCw, Search, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { api, assetUrl, formatDateTime, getApiUrl, labels, localDate, money } from "../api";
@@ -10,11 +9,10 @@ import { Button, ErrorBox, useToast } from "../studio";
 import { CounterTicket } from "../counter-ticket";
 import { ExtraPrints } from "../extra-prints";
 import { PeriodPicker, monthRange } from "./period-picker";
-import { ManualAlbum } from "./manual-album";
+import { PrintOrderDialog } from "./print-order-dialog.jsx";
 
 // Khổ in của đơn: DNP 10 × 15 (to / nhỏ cắt đôi) hoặc Instax Wide.
 const SIZE_NAMES = { full: "Lớn", strip: "Nhỏ", instax: "Instax" };
-const SIZE_CM = { full: "10 × 15 cm", strip: "5 × 15 cm", instax: "Instax Wide" };
 
 const paymentLabel = (method) => method === "cash" ? "Tiền mặt" : method === "transfer" ? "Chuyển khoản" : "—";
 // Lượt chụp phòng Polaroid: khách trả tiền ở quầy sau khi chọn layout — nhân viên bấm "Đã thu".
@@ -102,64 +100,6 @@ function DownloadMenu({ booking }) {
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
-  const [manual, setManual] = useState(false);
-  const toast = useToast();
-  const [copies, setCopies] = useState(1);
-  const [busy, setBusy] = useState(false);
-  const job = booking.latestPrint;
-  async function reprint() {
-    if (!job || busy) return;
-    setBusy(true);
-    try {
-      await api(`/admin/bookings/${booking._id}/reprint`, {
-        method: "POST", body: { jobId: job._id, copies },
-      });
-      toast.success(`Đã gửi ${copies} bản vào hàng chờ in.`);
-      onPrinted();
-    } catch (error) {
-      toast.error(error.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  if (manual) return <ManualAlbum booking={booking} onClose={() => setManual(false)} />;
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <section className="modal order-print-dialog" role="dialog" aria-modal="true"
-        aria-label={`In ảnh đơn ${booking.code}`} onClick={(event) => event.stopPropagation()}>
-        <div className="modal-header">
-          <div><h2>In ảnh · #{booking.code}</h2><p>In lại file đã ghép gần nhất hoặc cộng thêm lượt in cho khách.</p></div>
-          <button className="icon-button" aria-label="Đóng" onClick={onClose}><X /></button>
-        </div>
-        {job ? (
-          <div className="order-print-body">
-            <img src={assetUrl(`${job.image}?size=thumbnail`)} alt={`Ảnh in của đơn ${booking.code}`} />
-            <dl>
-              <div><dt>Khung ảnh</dt><dd>{job.frameName || "Khung đã ghép"}</dd></div>
-              <div><dt>Kích thước</dt><dd>{SIZE_CM[booking.printSize] || SIZE_CM.full}</dd></div>
-              <div><dt>Số tờ trong file</dt><dd>{job.sheetCount || 1}</dd></div>
-            </dl>
-            <label>Số bản in lại
-              <select value={copies} onChange={(event) => setCopies(Number(event.target.value))}>
-                {Array.from({ length: 20 }, (_, index) => index + 1).map((value) => <option key={value} value={value}>{value}</option>)}
-              </select>
-            </label>
-          </div>
-        ) : (
-          <div className="order-print-empty"><ImageIcon /><h3>Chưa có file in</h3><p>Máy chụp gửi file in sau khi khách chọn ảnh và khung. Đơn này chưa có file in nào.</p></div>
-        )}
-        <div className="order-print-actions">
-          {booking.accessToken && <Link className="button outline" to={`/album/${booking.accessToken}`} target="_blank">Mở album <ExternalLink size={15} /></Link>}
-          {booking.accessToken && <Button className="outline" onClick={() => setManual(true)}>Ghép ảnh thủ công</Button>}
-          <Button className="outline" onClick={onExtra}>+ Thêm lượt in</Button>
-          {job && <Button disabled={busy} onClick={reprint}><Printer size={16} /> {busy ? "Đang gửi…" : "In lại ảnh"}</Button>}
-        </div>
-      </section>
     </div>
   );
 }
@@ -328,7 +268,7 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
         <a className="button outline small" href={albumUrl(albumQr)} target="_blank" rel="noreferrer">Mở album <ExternalLink size={15} /></a>
       </div>
     </section></div>}
-    {printing && <PrintOrderDialog booking={printing} onClose={() => setPrinting(null)} onExtra={() => { setSelling(printing); setPrinting(null); }} onPrinted={() => { setPrinting(null); load(); }} />}
+    {printing && <PrintOrderDialog booking={printing} onClose={() => setPrinting(null)} onExtra={(latest) => { setSelling(latest); setPrinting(null); }} onPrinted={() => load()} />}
     {selling && <ExtraPrints booking={selling} canEditPrice={canSeeMoney} onClose={() => setSelling(null)} onSold={(updated, sheets) => { setSelling(null); load(); notify(`Đã cộng ${sheets} tờ in cho đơn #${updated.code}.`); }} />}
   </>;
 }
