@@ -837,7 +837,7 @@ export function Kiosk() {
     if (phase === "ready" && !preCount) patch({ phase: "shoot" });
   }, [phase, preCount]);
 
-  // Ảnh gốc 15 MB của máy ảnh: gửi sau ảnh xem trước, từng tấm theo thứ tự chụp, chỉ khi không có việc
+  // Ảnh gốc 15 MB của máy ảnh: gửi sau ảnh xem trước, tối đa hai tệp nền (chung với video), khi không có việc
   // khách đang chờ (ảnh xem trước, tờ in Instax, ảnh ghép — uplink.js). Lỗi mạng: thử lại sau 20 giây.
   // Ảnh lỗi được giữ lại và thử sau, không chặn ảnh của khách khác. Chỉ bỏ ảnh / album không còn
   // (410), hoặc 404 sau 1 ngày; không thay thời điểm gốc khi thử lại.
@@ -848,6 +848,9 @@ export function Kiosk() {
         // Pending previews of the active session go first; their acknowledgements wake this again.
         isActive: () => alive.current && !pendingRef.current.length,
         beforeNext: whenUplinkIdle,
+        // One extra original can prepare/send while two earlier commits are waiting.
+        // direct-upload.js still caps the actual photo/video transfers at two.
+        concurrency: 3,
         readPending,
         upload: (row) => saveOriginal(row.token, row),
         removePending,

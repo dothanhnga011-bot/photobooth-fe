@@ -109,3 +109,50 @@ test("gone photos are removed while server errors retain the original even after
   assert.equal(queue.rows()[0].id, "server-busy");
   assert.equal(queue.rows()[0].originalRetryAt, clock + 90000);
 });
+
+test("two originals overlap without duplicate sends or deleting before acknowledgement", async () => {
+  const acknowledgements = new Map();
+  const queue = outbox([original("first"), original("second"), original("third")], { concurrency: 2 });
+  queue.options.upload = (row) => {
+    queue.sent.push(row.id);
+    return new Promise((resolve) => { acknowledgements.set(row.id, resolve); });
+  };
+  const work = flushOriginalPhotos(queue.options);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(queue.sent, ["first", "second"]);
+  assert.deepEqual(queue.removed, []);
+  acknowledgements.get("second")();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(queue.sent, ["first", "second", "third"]);
+  assert.deepEqual(queue.removed, ["second"]);
+  acknowledgements.get("first")();
+  acknowledgements.get("third")();
+  await work;
+  assert.deepEqual(queue.rows(), []);
+  assert.equal(new Set(queue.sent).size, 3);
+});
+
+test("a parallel queue waits for its in-flight sibling after a storage failure before allowing another drain", async () => {
+  let acknowledge, reads = 0, settled = false;
+  const queue = outbox([original("first"), original("second"), original("third")], { concurrency: 2 });
+  const read = queue.options.readPending;
+  queue.options.readPending = async () => {
+    if (++reads > 2) throw new Error("IndexedDB unavailable");
+    return read();
+  };
+  queue.options.upload = (row) => {
+    queue.sent.push(row.id);
+    if (row.id === "first") return Promise.resolve();
+    return new Promise((resolve) => { acknowledge = resolve; });
+  };
+  const work = flushOriginalPhotos(queue.options);
+  const rejection = assert.rejects(work, /IndexedDB unavailable/);
+  work.then(() => { settled = true; }, () => { settled = true; });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(queue.sent, ["first", "second"]);
+  assert.equal(settled, false);
+  acknowledge();
+  await rejection;
+  assert.deepEqual(queue.removed, ["first", "second"]);
+  assert.equal(queue.rows()[0].id, "third");
+});

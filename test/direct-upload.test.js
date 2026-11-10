@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
 import { createRequire } from "node:module";
-import { savePhoto, saveVideo, resetDirectUploads } from "../src/kiosk/direct-upload.js";
+import { saveOriginal, savePhoto, saveVideo, resetDirectUploads } from "../src/kiosk/direct-upload.js";
+import { priority } from "../src/kiosk/uplink.js";
 import { cleanJpegMetadata } from "../../photobooth-be/src/services/jpeg-metadata.js";
 
 const sharp = createRequire(new URL("../../photobooth-be/package.json", import.meta.url))("sharp");
@@ -22,7 +23,7 @@ function network(answers) {
   const calls = [];
   globalThis.fetch = async (url, init = {}) => {
     const kind = String(url).includes(".r2.cloudflarestorage.com") ? "storage"
-      : String(url).endsWith("/upload-url") ? "ticket" : "commit";
+      : /\/(upload-url|original-url)$/.test(String(url)) ? "ticket" : "commit";
     const call = { kind, url: String(url), init };
     calls.push(call);
     return answers[kind](call);
@@ -31,6 +32,13 @@ function network(answers) {
 }
 const json = (body, status = 200) => () => Response.json(body, { status });
 const bytes = async (body) => Buffer.from(await body.arrayBuffer());
+const until = async (check) => {
+  for (let i = 0; i < 200; i++) {
+    if (check()) return;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  assert.fail("expected upload did not start");
+};
 
 test("the camera original goes straight to storage and the server only gets the preview", async () => {
   const calls = network({
@@ -220,4 +228,112 @@ test("videos go through the server with MongoDB storage, a refused upload or an 
   await saveVideo(new Blob([Buffer.alloc(30)], { type: "video/mp4" }), "capture-token");
   assert.deepEqual(calls.map((c) => c.kind), ["ticket", "storage", "commit", "commit"]);
   assert.ok(calls.slice(2).every(isServerVideo));
+});
+
+test("a photo storage failure does not force the next video through the server", async () => {
+  const calls = network({
+    ticket: (call) => Response.json({ upload: {
+      url: call.url.includes("/video/") ? VIDEO_STORAGE : STORAGE, stored: "upload-token",
+    } }),
+    storage: (call) => call.init.body.type.startsWith("video/")
+      ? new Response(null, { status: 200 }) : new Response(null, { status: 503 }),
+    commit: json({ ok: true }),
+  });
+  await savePhoto("/kiosk/photo", image, options);
+  const firstVideoCall = calls.length;
+  await saveVideo(video, "capture-token");
+  assert.deepEqual(calls.slice(firstVideoCall).map((call) => call.kind), ["ticket", "storage", "commit"]);
+  assert.equal(calls[firstVideoCall + 1].init.body, video);
+  assert.equal(calls.some(isServerVideo), false, "the full video never goes through the backend");
+});
+
+test("a video storage failure does not disable direct uploads of camera originals", async () => {
+  const calls = network({
+    ticket: (call) => Response.json({ upload: {
+      url: call.url.includes("/video/") ? VIDEO_STORAGE : STORAGE, stored: "upload-token",
+    } }),
+    storage: (call) => new Response(null, { status: call.init.body.type.startsWith("video/") ? 503 : 200 }),
+    commit: json({ ok: true }),
+  });
+  await saveVideo(video, "capture-token");
+  const firstPhotoCall = calls.length;
+  await saveOriginal("album-token", { id: options.clientKey, image });
+  assert.deepEqual(calls.slice(firstPhotoCall).map((call) => call.kind), ["ticket", "storage", "commit"]);
+  assert.deepEqual(await bytes(calls[firstPhotoCall + 1].init.body), cleaned);
+});
+
+test("photos and video share two upload slots, yield to previews and give a ready video its FIFO turn", async () => {
+  const acknowledgements = new Map(), started = [];
+  let releaseForeground, releaseAll = false, active = 0, highest = 0;
+  const foreground = priority(() => new Promise((resolve) => { releaseForeground = resolve; }));
+  const calls = network({
+    ticket: (call) => {
+      const body = JSON.parse(call.init.body), id = body.clientKey || "video";
+      return Response.json({ upload: { url: `${STORAGE}&id=${id}`, stored: `stored-${id}` } });
+    },
+    storage: async (call) => {
+      const id = new URL(call.url).searchParams.get("id");
+      started.push(id);
+      active++; highest = Math.max(highest, active);
+      try {
+        if (!releaseAll) await new Promise((resolve) => { acknowledgements.set(id, resolve); });
+        return new Response(null, { status: 200 });
+      } finally { active--; }
+    },
+    commit: json({ ok: true }),
+  });
+  const jobs = [
+    saveOriginal("album", { id: "first", image }),
+    saveOriginal("album", { id: "second", image }),
+  ];
+  try {
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(calls.length, 0, "foreground previews go before all large uploads");
+    releaseForeground(); await foreground;
+    await until(() => started.length === 2);
+    assert.deepEqual([...started].sort(), ["first", "second"]);
+    jobs.push(saveVideo(video, "capture-token"));
+    await until(() => calls.some((call) => call.kind === "ticket" && call.url.includes("/video/")));
+    await new Promise((resolve) => setImmediate(resolve));
+    jobs.push(saveOriginal("album", { id: "third", image }));
+    acknowledgements.get("first")();
+    await until(() => started.length === 3);
+    assert.equal(started[2], "video");
+    acknowledgements.get("second")();
+    await until(() => started.length === 4);
+    assert.equal(started[3], "third");
+    assert.equal(highest, 2);
+  } finally {
+    releaseAll = true;
+    releaseForeground();
+    for (const release of acknowledgements.values()) release();
+    await foreground;
+    await Promise.allSettled(jobs);
+  }
+});
+
+test("a video can upload while two originals wait for their small commit replies", async () => {
+  const acknowledgements = [];
+  let videoStarted = false, photosFinished = 0;
+  network({
+    ticket: (call) => Response.json({ upload: {
+      url: call.url.includes("/video/") ? VIDEO_STORAGE : STORAGE, stored: "upload-token",
+    } }),
+    storage: (call) => {
+      if (call.init.body.type.startsWith("video/")) videoStarted = true;
+      return new Response(null, { status: 200 });
+    },
+    commit: (call) => call.url.includes("/video/") ? Response.json({ ok: true })
+      : new Promise((resolve) => { acknowledgements.push(() => resolve(Response.json({ attached: true }))); }),
+  });
+  const jobs = ["first", "second"].map((id) => saveOriginal("album", { id, image }).then(() => { photosFinished++; }));
+  try {
+    await until(() => acknowledgements.length === 2);
+    jobs.push(saveVideo(video, "capture-token"));
+    await until(() => videoStarted);
+    assert.equal(photosFinished, 0, "large-transfer slots are free before either original commit returns");
+  } finally {
+    for (const acknowledge of acknowledgements) acknowledge();
+    await Promise.allSettled(jobs);
+  }
 });

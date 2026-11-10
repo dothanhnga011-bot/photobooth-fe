@@ -12,12 +12,17 @@ Không có thời gian cố định từ lúc chụp xong đến khi toàn bộ 
 - Việc chuẩn bị file tải về chỉ giữ tham chiếu file, chạy từng ảnh, chờ các lượt lưu ảnh đang được nhận và khi RAM gần ngưỡng. Đây là công việc phụ: lỗi chuẩn bị không làm mất ảnh, endpoint tải về vẫn tạo file theo yêu cầu như trước.
 - Nếu file camera đã lên R2 nhưng mất phản hồi gắn file vào album, lần thử lại trong cùng trang chỉ xác nhận lại, không tải toàn bộ JPEG lên lần nữa.
 - Một ảnh gốc gửi lỗi không chặn các ảnh còn lại hoặc album của khách khác. File lỗi vẫn nằm trong IndexedDB, có thời điểm thử lại riêng (tăng từ 20 giây đến 5 phút, tôn trọng Retry-After). Lỗi 404 không đặt lại tuổi file nên album đã mất không chiếm đầu hàng mãi.
+- Ảnh gốc được gửi tối đa hai tấm song song thay vì chờ từng tấm xác nhận. Ảnh gốc và video dùng chung giới hạn hai tệp nền; video sẵn sàng nhận lượt theo thứ tự vào hàng, không phải chờ hết ảnh của album. Ảnh xem trước và ảnh ghép vẫn đi trước các tệp nền chưa bắt đầu. Cách này chồng thời gian chờ mạng/xác nhận, không thay bytes hay chất lượng file.
+- Lượt truyền lớn được giải phóng ngay khi R2 nhận xong tệp, trước bước API xác nhận. Tối đa ba ảnh gốc có thể chuẩn bị/chờ xác nhận trong pipeline, còn số tệp lớn thực sự truyền (gồm cả video) vẫn tối đa hai. Nhờ vậy bước xác nhận chậm không giữ hết chỗ và chặn video.
+- Kho R2 có thời gian thử lại riêng cho ảnh và video. Một lần tải ảnh lỗi không buộc video đi qua máy chủ trong 10 phút, và lỗi video cũng không tắt đường tải thẳng ảnh gốc.
 
 Ảnh camera dùng để ghép và in giữ nguồn cũ. Các thay đổi tốc độ không giảm độ phân giải hoặc chất lượng của file khách lưu về máy. Ảnh nguồn nhỏ hơn 20 MP không bị phóng lên để tạo độ nét giả.
 
 ## Giới hạn thực tế
 
 Thời gian truyền tối thiểu xấp xỉ `dung lượng MB × 8 / tốc độ Mbps`. Ví dụ, còn 12 ảnh × 15 MB = 180 MB, upload thực tế 20 Mbps thì riêng truyền dữ liệu đã cần khoảng 72 giây, chưa tính tải khác và xác nhận lưu. Ảnh được gửi dần trong lúc chụp/chọn khung nên thời gian khách còn chờ sau khi quét QR có thể ngắn hơn.
+
+Gửi song song giúp tận dụng khoảng chờ của từng yêu cầu; mức cải thiện thực tế còn phụ thuộc đường truyền có đang đầy tải hay không. Video vẫn giữ cùng codec, độ phân giải, bitrate và nội dung; bước ghép video còn cần thời gian xử lý trên PC, rồi mới tải tệp lên kho. Đã có [phép đo tải thật lên R2 trên máy thử nghiệm](./ALBUM-UPLOAD-BENCHMARK.md), với dữ liệu tổng hợp và API cục bộ; chưa đo tốc độ sau thay đổi này tại tiệm nên không cam kết nhanh gấp hai hay album đầy đủ sau một số giây cố định.
 
 Đã thử bằng ảnh mẫu trong dự án, dựng đủ gần 20 MP chỉ để đo payload: file đầy đủ 1.777.233 byte, bản xem 1600 px 166.141 byte, giảm khoảng 91% dữ liệu cho bước hiển thị. Đây không phải phép đo Wi-Fi, camera hay điện thoại tại tiệm; không dùng làm cam kết thời gian mở album.
 

@@ -17,6 +17,31 @@ export function createSingleFlight() {
   };
 }
 
+// Share slots across large photo/video transfers, yielding them before the small
+// commit request. FIFO keeps ready videos moving through the same upload queue.
+export function createUploadPool(limit = 2) {
+  let active = 0;
+  const waiting = [];
+  const pump = () => {
+    while (active < limit && waiting.length) {
+      const { task, resolve, reject } = waiting.shift();
+      active++;
+      Promise.resolve().then(task).then(resolve, reject).finally(() => {
+        active--;
+        pump();
+      });
+    }
+  };
+  return {
+    run(task) {
+      return new Promise((resolve, reject) => {
+        waiting.push({ task, resolve, reject });
+        pump();
+      });
+    },
+  };
+}
+
 export function sameKioskSession(left, right) {
   return Boolean(
     left && right &&
@@ -116,36 +141,46 @@ export async function flushPendingPhotos({
 // before deleting; retain failures with a per-file retry time and try other rows.
 export async function flushOriginalPhotos({
   isActive, readPending, upload, removePending, savePending,
-  beforeNext = async () => {}, onError = () => {}, now = Date.now,
+  beforeNext = async () => {}, onError = () => {}, now = Date.now, concurrency = 1,
 }) {
   const attempted = new Set();
-  let retry = false;
-  while (isActive()) {
-    await beforeNext();
-    if (!isActive()) break;
-    const rows = (await readPending()).filter((row) => row.stage === "original");
-    retry ||= rows.some((row) => row.originalRetryAt > now());
-    const row = rows.filter((row) => !attempted.has(row.id) && !(row.originalRetryAt > now()))
-      .sort((a, b) => (a.originalAt || 0) - (b.originalAt || 0))[0];
-    if (!row) break;
-    attempted.add(row.id);
+  let retry = false, stopped = false, failure;
+  const worker = async () => {
     try {
-      await upload(row);
-      await removePending(row.id);
-    } catch (error) {
-      if (error.status === 410 || (error.status === 404 && now() - (row.originalAt || 0) > 86400000)) {
-        await removePending(row.id);
-        continue;
+      while (!stopped && isActive()) {
+        await beforeNext();
+        if (stopped || !isActive()) break;
+        const rows = (await readPending()).filter((row) => row.stage === "original");
+        if (stopped || !isActive()) break;
+        retry ||= rows.some((row) => row.originalRetryAt > now());
+        const row = rows.filter((row) => !attempted.has(row.id) && !(row.originalRetryAt > now()))
+          .sort((a, b) => (a.originalAt || 0) - (b.originalAt || 0))[0];
+        if (!row) break;
+        attempted.add(row.id);
+        try {
+          await upload(row);
+          await removePending(row.id);
+        } catch (error) {
+          if (error.status === 410 || (error.status === 404 && now() - (row.originalAt || 0) > 86400000)) {
+            await removePending(row.id);
+            continue;
+          }
+          const originalFailures = Math.min(10, (row.originalFailures || 0) + 1);
+          const delay = Math.max(error.retryAfterMs || 0, Math.min(300000, 20000 * 2 ** (originalFailures - 1)));
+          await savePending({ ...row, originalFailures, originalRetryAt: now() + delay });
+          retry = true;
+          onError(row, error);
+          // A real connection outage affects all files. Already running requests
+          // still settle before the caller releases its single-flight gate.
+          if (isConnectivityError(error)) stopped = true;
+        }
       }
-      const originalFailures = Math.min(10, (row.originalFailures || 0) + 1);
-      const delay = Math.max(error.retryAfterMs || 0, Math.min(300000, 20000 * 2 ** (originalFailures - 1)));
-      await savePending({ ...row, originalFailures, originalRetryAt: now() + delay });
-      retry = true;
-      onError(row, error);
-      // A real connection outage affects all files. Resume after recovery/backoff,
-      // while a rejected file alone must not stop another guest's originals.
-      if (isConnectivityError(error)) break;
+    } catch (error) {
+      stopped = true;
+      failure ||= error;
     }
-  }
+  };
+  await Promise.all(Array.from({ length: concurrency }, worker));
+  if (failure) throw failure;
   return retry;
 }

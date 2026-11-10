@@ -1,0 +1,324 @@
+{
+  "scope": "Live R2 synthetic upload benchmark from current PC, not shop PC; local API fixture excludes production API/MongoDB and video encoding",
+  "final": {
+    "timestamp": "2026-11-10T07:34:59.569Z",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "browser": "153.0.8010.12",
+    "baseline": "df7946ea80d79bea990868e0e5c446ced024e8d3",
+    "firstVariant": "new",
+    "currentUploadSha256": "858e7c593411766daca2459ac0413b56269ea5a55f062c658b31a07676604c93",
+    "method": "Live Chromium PUTs to R2, API intercepted locally; no Render/MongoDB writes or timings; all files ready at start; video payload excludes encoding",
+    "fixtures": {
+      "photoBytes": 15856567,
+      "videoBytes": 31457280,
+      "photoPixels": 25958400,
+      "photoSha256": "f206ad80406ce2be248e355710fa501dacee8881cb46c933a35d83cb399eea32",
+      "videoSha256": "0a141d0544efb6e9ce1394724d1b4bc45beaf8589dd530532a9d1aebe7a9b423"
+    },
+    "photoCount": 12,
+    "rounds": 1,
+    "pilot": {
+      "variant": "new",
+      "run": "warmup",
+      "photoMs": 6285.300000000745,
+      "totalMs": 6285.300000000745,
+      "completed": 1,
+      "directUploads": 1,
+      "bytes": 15856567
+    },
+    "results": [
+      {
+        "variant": "new",
+        "run": "new-1",
+        "photoMs": 47840.29999999702,
+        "videoMs": 11723.79999999702,
+        "totalMs": 47840.29999999702,
+        "completed": 12,
+        "directUploads": 13,
+        "bytes": 221736084
+      },
+      {
+        "variant": "old",
+        "run": "old-1",
+        "photoMs": 111074.70000000298,
+        "videoMs": 17513.5,
+        "totalMs": 111074.70000000298,
+        "completed": 12,
+        "directUploads": 13,
+        "bytes": 221736084
+      }
+    ],
+    "summary": {
+      "old": {
+        "photoMs": 111074.70000000298,
+        "videoMs": 17513.5,
+        "totalMs": 111074.70000000298
+      },
+      "new": {
+        "photoMs": 47840.29999999702,
+        "videoMs": 11723.79999999702,
+        "totalMs": 47840.29999999702
+      }
+    },
+    "speedup": {
+      "photoMs": 2.3217810088985624,
+      "videoMs": 1.4938415871990696,
+      "totalMs": 2.3217810088985624
+    },
+    "cleanup": "all uniquely prefixed objects deleted after every run"
+  },
+  "earlierTwoSlotCandidate": {
+    "timestamp": "2026-11-10T07:22:21.095Z",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "browser": "153.0.8010.12",
+    "baseline": "df7946ea80d79bea990868e0e5c446ced024e8d3",
+    "currentUploadSha256": "018f8a12132d314ef5aa88d0abba237fed2d159ce0adf5fbdf347beb5f253178",
+    "method": "Live Chromium PUTs to R2, API intercepted locally; no Render/MongoDB writes or timings; all files ready at start; video payload excludes encoding",
+    "fixtures": {
+      "photoBytes": 15854047,
+      "videoBytes": 31457280,
+      "photoPixels": 25958400,
+      "photoSha256": "0e88313f672ac7303f0d998361d050ee51066985d8b819d6f7bae5cf8c6fb2e1",
+      "videoSha256": "182951deea91b7b94e9265d8ca2405d2036bbda606f571faad151c105cd2d4cc"
+    },
+    "photoCount": 12,
+    "rounds": 1,
+    "pilot": {
+      "variant": "new",
+      "run": "warmup",
+      "photoMs": 6298.79999999702,
+      "totalMs": 6298.89999999851,
+      "completed": 1,
+      "directUploads": 1,
+      "bytes": 15854047
+    },
+    "results": [
+      {
+        "variant": "old",
+        "run": "old-1",
+        "photoMs": 59161.70000000298,
+        "videoMs": 10580.20000000298,
+        "totalMs": 59161.70000000298,
+        "completed": 12,
+        "directUploads": 13,
+        "bytes": 221705844
+      },
+      {
+        "variant": "new",
+        "run": "new-1",
+        "photoMs": 32128.60000000149,
+        "videoMs": 9900.300000000745,
+        "totalMs": 32128.60000000149,
+        "completed": 12,
+        "directUploads": 13,
+        "bytes": 221705844
+      }
+    ],
+    "summary": {
+      "old": {
+        "photoMs": 59161.70000000298,
+        "videoMs": 10580.20000000298,
+        "totalMs": 59161.70000000298
+      },
+      "new": {
+        "photoMs": 32128.60000000149,
+        "videoMs": 9900.300000000745,
+        "totalMs": 32128.60000000149
+      }
+    },
+    "speedup": {
+      "photoMs": 1.8414029867470179,
+      "videoMs": 1.0686746866258785,
+      "totalMs": 1.8414029867470179
+    },
+    "cleanup": "all uniquely prefixed objects deleted after every run"
+  },
+  "finalPhotoProgress": [
+    {
+      "event": "progress",
+      "run": "new-1",
+      "kind": "photo",
+      "completed": 1,
+      "ms": 10531.39999999851
+    },
+    {
+      "event": "progress",
+      "run": "new-1",
+      "kind": "photo",
+      "completed": 2,
+      "ms": 17186.5
+    },
+    {
+      "event": "progress",
+      "run": "new-1",
+      "kind": "photo",
+      "completed": 3,
+      "ms": 20065.5
+    },
+    {
+      "event": "progress",
+      "run": "new-1",
+      "kind": "photo",
+      "completed": 4,
+      "ms": 22875.29999999702
+    },
+    {
+      "event": "progress",
+      "run": "new-1",
+      "kind": "photo",
+      "completed": 5,
+      "ms": 28497.29999999702
+    },
+    {
+      "event": "progress",
+      "run": "new-1",
+      "kind": "photo",
+      "completed": 6,
+      "ms": 29150.29999999702
+    },
+    {
+      "event": "progress",
+      "run": "new-1",
+      "kind": "photo",
+      "completed": 7,
+      "ms": 33312.5
+    },
+    {
+      "event": "progress",
+      "run": "new-1",
+      "kind": "photo",
+      "completed": 8,
+      "ms": 36968.699999999255
+    },
+    {
+      "event": "progress",
+      "run": "new-1",
+      "kind": "photo",
+      "completed": 9,
+      "ms": 39021.79999999702
+    },
+    {
+      "event": "progress",
+      "run": "new-1",
+      "kind": "photo",
+      "completed": 10,
+      "ms": 43695
+    },
+    {
+      "event": "progress",
+      "run": "new-1",
+      "kind": "photo",
+      "completed": 11,
+      "ms": 44929.79999999702
+    },
+    {
+      "event": "progress",
+      "run": "new-1",
+      "kind": "photo",
+      "completed": 12,
+      "ms": 47840.29999999702
+    },
+    {
+      "event": "progress",
+      "run": "old-1",
+      "kind": "photo",
+      "completed": 1,
+      "ms": 6597.400000002235
+    },
+    {
+      "event": "progress",
+      "run": "old-1",
+      "kind": "photo",
+      "completed": 2,
+      "ms": 12897.5
+    },
+    {
+      "event": "progress",
+      "run": "old-1",
+      "kind": "photo",
+      "completed": 3,
+      "ms": 18303.70000000298
+    },
+    {
+      "event": "progress",
+      "run": "old-1",
+      "kind": "photo",
+      "completed": 4,
+      "ms": 24370.900000002235
+    },
+    {
+      "event": "progress",
+      "run": "old-1",
+      "kind": "photo",
+      "completed": 5,
+      "ms": 29447.20000000298
+    },
+    {
+      "event": "progress",
+      "run": "old-1",
+      "kind": "photo",
+      "completed": 6,
+      "ms": 35893.400000002235
+    },
+    {
+      "event": "progress",
+      "run": "old-1",
+      "kind": "photo",
+      "completed": 7,
+      "ms": 85628.70000000298
+    },
+    {
+      "event": "progress",
+      "run": "old-1",
+      "kind": "photo",
+      "completed": 8,
+      "ms": 91498.10000000149
+    },
+    {
+      "event": "progress",
+      "run": "old-1",
+      "kind": "photo",
+      "completed": 9,
+      "ms": 94927.5
+    },
+    {
+      "event": "progress",
+      "run": "old-1",
+      "kind": "photo",
+      "completed": 10,
+      "ms": 98456.80000000075
+    },
+    {
+      "event": "progress",
+      "run": "old-1",
+      "kind": "photo",
+      "completed": 11,
+      "ms": 105224.5
+    },
+    {
+      "event": "progress",
+      "run": "old-1",
+      "kind": "photo",
+      "completed": 12,
+      "ms": 111074.60000000149
+    }
+  ],
+  "largestOldPhotoGapMs": 49735.300000000745,
+  "excludedInterruptedRepeat": {
+    "candidateMs": 84862.4,
+    "videoMs": 25397,
+    "oldCompletedPhotos": 4,
+    "reason": "Interrupted before old candidate completed; excluded from ratios"
+  },
+  "validation": {
+    "unitTests": 191,
+    "browserTests": 20,
+    "buildPassed": true
+  },
+  "cleanup": {
+    "finalObjects": 27,
+    "finalVerifiedEmpty": true,
+    "interruptedBenchmarkObjectsManuallyRemoved": 5,
+    "interruptedPrefixVerifiedEmpty": true
+  }
+}
