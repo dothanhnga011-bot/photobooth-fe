@@ -3,21 +3,11 @@ import { Check, Copy, X } from "lucide-react";
 import { api, money } from "./api";
 import { includedSheets, isStrip, piecesLabel } from "./kiosk/print-count.js";
 import { Button, ErrorBox, useStudio, useToast } from "./studio";
-import {
-  FieldError,
-  chosen,
-  maxLength,
-  phoneVN,
-  required,
-  useValidation,
-} from "./validate";
+import { FieldError, chosen, useValidation } from "./validate";
 
 const RULES = {
   package: ["Gói chụp", chosen],
   branch: ["Chi nhánh", chosen],
-  // Bắt buộc: tên và số điện thoại để tra cứu lại album của khách.
-  name: ["Tên khách", required, maxLength(100)],
-  phone: ["Số điện thoại khách", required, phoneVN],
 };
 
 // Số tờ khách nhận: "2 tờ nhỏ (1 tờ 10 × 15 cắt đôi)" / "2 tờ 10 × 15 cm" / "2 tấm Instax".
@@ -35,8 +25,6 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
   const [form, setForm] = useState({
     package: packages[0]?._id || "",
     branch: initialDraft?.branch || assignedBranch || branches[0] || "",
-    name: "",
-    phone: "",
     // Khách mua mã ở quầy thường chuyển khoản (trả tiền mặt thì đút vào máy ở phòng đút tiền):
     // tiệm đã nhập tài khoản / QR ngân hàng thì mặc định chuyển khoản, QR hiện ngay.
     paymentMethod: settings.bankAccount || settings.bankQrImage ? "transfer" : "cash",
@@ -98,8 +86,6 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
       const result = await api("/admin/tickets/draft", {
         method: "POST",
         body: {
-          name: form.name,
-          phone: form.phone,
           branch: form.branch,
           package: form.package,
           expectedTotal: quote.total,
@@ -262,37 +248,6 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
                   {pack.shots || "—"} lần chụp · {printsText(pack)}
                 </p>
               )}
-              <label>
-                Tên khách
-                <input
-                  name="name"
-                  autoComplete="off"
-                  aria-invalid={Boolean(v.errors.name)}
-                  value={form.name}
-                  onChange={(e) => change("name", e.target.value)}
-                />
-                <FieldError error={v.errors.name} />
-              </label>
-              <label>
-                Số điện thoại khách
-                <input
-                  name="phone"
-                  type="tel"
-                  inputMode="tel"
-                  autoComplete="off"
-                  placeholder="VD: 0912345678"
-                  aria-invalid={Boolean(v.errors.phone)}
-                  value={form.phone}
-                  onChange={(e) =>
-                    change(
-                      "phone",
-                      e.target.value.replace(/[^\d]/g, "").slice(0, 10),
-                    )
-                  }
-                />
-                <FieldError error={v.errors.phone} />
-                <small className="muted">Dùng để tra cứu lại album của khách.</small>
-              </label>
               <label>
                 Chi nhánh
                 <select
