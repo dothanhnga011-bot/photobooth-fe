@@ -359,11 +359,30 @@ test("the album checks every 5 seconds while photos are still arriving, then cal
   } finally { await f.context.close(); }
 });
 
-test("a sleeping server is a calm wait on the album page, not a connection error", async () => {
+test("pending originals keep two-second updates even after three minutes without a change", async () => {
+  const album = { code: '333333', status: 'completed', photos: [{ id: 'waiting', kind: 'original', originalPending: true }] };
+  const f = await setup((item) => respond(item, item.path.endsWith('/print') ? null : album), { clock: true });
+  const polls = () => f.requests.filter((r) => r.path === '/api/albums/A').length;
+  try {
+    await f.page.evaluate(() => window.mount('album'));
+    await until(() => polls() >= 1);
+    for (let elapsed = 0; elapsed < 190_000; elapsed += 1000) {
+      await f.page.clock.runFor(1000); await f.page.waitForTimeout(5);
+    }
+    const before = polls();
+    for (let elapsed = 0; elapsed < 10_000; elapsed += 1000) {
+      await f.page.clock.runFor(1000); await f.page.waitForTimeout(5);
+    }
+    assert.ok(polls() - before >= 4, 'a long camera upload cannot silently switch to one-minute polling');
+    assert.deepEqual(f.errors, []);
+  } finally { await f.context.close(); }
+});
+
+test("a slow album connection stays a calm wait without inventing a cold-start cause or ETA", async () => {
   const f = await setup((item) => item.route.abort("failed"));
   try {
     await f.page.evaluate(() => window.mount('album'));
-    await f.page.getByText(/Máy chủ vừa nghỉ nên lần mở đầu có thể mất khoảng 1 phút/).waitFor({ timeout: 8000 });
+    await f.page.getByText(/Kết nối đang chậm. Album sẽ tự cập nhật khi có ảnh/).waitFor({ timeout: 8000 });
     assert.equal(await f.page.getByText('Đang mở album…', { exact: true }).count(), 1);
     assert.equal(await f.page.locator('.error, [role="alert"]').count(), 0, "no error box while waiting");
     assert.deepEqual(f.errors, []);

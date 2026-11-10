@@ -837,7 +837,7 @@ export function Kiosk() {
   }, [phase, preCount]);
 
   // Ảnh gốc 15 MB của máy ảnh: gửi sau ảnh xem trước, từng tấm theo thứ tự chụp, chỉ khi không có việc
-  // khách đang chờ (ảnh xem trước, tờ in, ảnh ghép, video — uplink.js). Lỗi mạng: thử lại sau 20 giây.
+  // khách đang chờ (ảnh xem trước, tờ in Instax, ảnh ghép — uplink.js). Lỗi mạng: thử lại sau 20 giây.
   // Album / ảnh không còn: bỏ dòng ảnh (410), hoặc đẩy xuống cuối hàng rồi bỏ sau 1 ngày (404).
   function sendOriginals() {
     return originalRequests.current.run(async () => {
@@ -980,7 +980,8 @@ export function Kiosk() {
     for (let attempt = 0; attempt < 6; attempt++) {
       try {
         // Thẳng lên kho R2 khi được, không thì qua máy chủ (direct-upload.js).
-        await priority(() => saveVideo(body, s.captureToken));
+        // Large videos must not prevent the next original photo from starting its upload.
+        await saveVideo(body, s.captureToken);
         return;
       } catch (e) {
         if (!isTransient(e) && !(e.status >= 500)) return;
@@ -1158,21 +1159,30 @@ export function Kiosk() {
         // Bản ghép chất lượng in: gửi vào album (khách xem / tải) và, nếu gói có in, ra máy in.
         (async () => {
           let printFrame = null, albumFrame = null;
+          let releaseArchive;
+          const albumQueued = new Promise((resolve) => { releaseArchive = resolve; });
+          let printing = Promise.resolve();
           try {
             // Local RX1 output uses the same 600 ppi PNG as the counter; no server capability gate.
             const printScale = s.booking.printSize !== "instax" ? 2 : 1;
             printFrame = await renderPrintFrame(frame, chosenShots, s.accessToken, albumLink, {
               ...look, scale: printScale, strict: s.booking.printSize !== "instax",
             });
-            if (printsCount)
-              await (s.booking.printSize !== "instax" ? directKioskPrint : queueKioskPrint)({
+            if (printsCount) {
+              const images = await printSheets(printFrame, frame, printsCount, s.booking.printSize, printScale);
+              // Retain encoded bytes, not two large canvases. Printing/spooling can run while the
+              // guest composite is rendered, so a slow RX1 never holds the album back.
+              printFrame.width = printFrame.height = 0;
+              printFrame = null;
+              printing = (s.booking.printSize !== "instax" ? directKioskPrint : queueKioskPrint)({
                 token: s.accessToken,
-                images: await printSheets(printFrame, frame, printsCount, s.booking.printSize, printScale),
+                images,
                 frameName,
                 // Khung nhỏ → máy cắt đôi; khung lớn → nguyên tờ (kể cả khi gói ảnh nhỏ chưa có khung
                 // nhỏ nên dùng khung lớn). Instax: máy in riêng, theo gói.
                 printSize: s.booking.printSize === "instax" ? undefined : frame.printSize === "strip" ? "strip" : "full",
-              });
+              }, { archiveAfter: albumQueued }).catch((e) => setPrint({ status: "failed", message: e.message }));
+            }
           } catch (e) {
             if (printsCount) setPrint({ status: "failed", message: e.message });
           } finally {
@@ -1196,7 +1206,9 @@ export function Kiosk() {
             toast.error("Chưa lưu được ảnh ghép vào album. Vui lòng báo nhân viên.");
           } finally {
             if (albumFrame) albumFrame.width = albumFrame.height = 0;
+            releaseArchive();
           }
+          await printing;
         })();
       }
     } catch (error) {

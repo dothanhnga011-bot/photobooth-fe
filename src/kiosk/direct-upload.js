@@ -13,11 +13,12 @@ let directOffUntil = 0;
 // Uploads already in storage whose commit did not get an answer: a retry commits them again
 // instead of uploading 15 MB a second time.
 const storedUploads = new Map();
+const storedOriginals = new Map();
 
 // Video đã nằm trên kho mà chưa xác nhận được: thử lại thì chỉ xác nhận, không tải lại cả video.
 const storedVideos = new WeakMap();
 
-export const resetDirectUploads = () => { directOffUntil = 0; storedUploads.clear(); };
+export const resetDirectUploads = () => { directOffUntil = 0; storedUploads.clear(); storedOriginals.clear(); };
 
 const isStorageUrl = (src) => {
   try {
@@ -122,26 +123,34 @@ export async function saveOriginal(token, row) {
   }
   const body = file.type === "image/jpeg" ? file : file.slice(0, file.size, "image/jpeg");
   const viaServer = () => api(base, { method: "POST", body, timeout: 600000, headers: { "X-Photo-Key": row.id } });
-  if (Date.now() < directOffUntil) return viaServer();
-  let ticket;
-  try {
-    ticket = await api(`${base}-url`, { method: "POST", body: { clientKey: row.id, size: body.size } });
-  } catch (error) {
-    if (error.status === 404) return viaServer(); // kho MongoDB không tải thẳng được
-    throw error;
+  const key = `${token}:${row.id}`;
+  let stored = storedOriginals.get(key);
+  if (!stored) {
+    if (Date.now() < directOffUntil) return viaServer();
+    let ticket;
+    try {
+      ticket = await api(`${base}-url`, { method: "POST", body: { clientKey: row.id, size: body.size } });
+    } catch (error) {
+      if (error.status === 404) return viaServer();
+      throw error;
+    }
+    if (ticket?.saved) return ticket;
+    if (!isStorageUrl(ticket?.upload?.url) || typeof ticket.upload.stored !== "string") return viaServer();
+    try {
+      await putToStorage(ticket.upload.url, body, { timeout: 600000 });
+    } catch {
+      directOffUntil = Date.now() + DIRECT_PAUSE_MS;
+      return viaServer();
+    }
+    stored = ticket.upload.stored;
+    storedOriginals.set(key, stored);
   }
-  if (ticket?.saved) return ticket;
-  if (!isStorageUrl(ticket?.upload?.url) || typeof ticket.upload.stored !== "string") return viaServer();
   try {
-    // Mạng tiệm chậm: 15 MB có thể mất vài phút.
-    await putToStorage(ticket.upload.url, body, { timeout: 600000 });
-  } catch {
-    directOffUntil = Date.now() + DIRECT_PAUSE_MS;
-    return viaServer();
-  }
-  try {
-    return await api(base, { method: "POST", timeout: 60000, retry: 1, body: { clientKey: row.id, stored: ticket.upload.stored } });
+    const result = await api(base, { method: "POST", timeout: 60000, retry: 1, body: { clientKey: row.id, stored } });
+    storedOriginals.delete(key);
+    return result;
   } catch (error) {
+    if ([404, 410, 422].includes(error.status)) storedOriginals.delete(key);
     if (error.status === 422) return viaServer();
     throw error;
   }

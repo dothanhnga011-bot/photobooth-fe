@@ -69,7 +69,7 @@ function booking(signature = "first") {
   return {
     code: "123456", status: "completed", printSheets: 0,
     video: { size: videoBytes.length, mimeType: "video/webm", links: { until, original: `${storage}video.webm?sig=${signature}` } },
-    composite: { links: { until, original: `${storage}composite.jpg?sig=${signature}`, thumbnail: `${storage}thumb.jpg?sig=${signature}` } },
+    composite: { links: { until, original: `${storage}composite.jpg?sig=${signature}`, preview: `${storage}composite-preview.jpg?sig=${signature}`, thumbnail: `${storage}thumb.jpg?sig=${signature}` } },
     photos: [{ id: "photo", kind: "original", links: { until, preview: `${storage}preview.jpg?sig=${signature}`, thumbnail: `${storage}photo-thumb.jpg?sig=${signature}` } }],
   };
 }
@@ -87,7 +87,7 @@ test("album displays R2 media directly and refreshed links do not restart a play
     await page.evaluate(value => window.showAlbum(value), booking());
     const composite = page.locator(".album-viewer-stage img.album-viewer-main");
     await composite.waitFor();
-    assert.equal(await composite.getAttribute("src"), storage + "composite.jpg?sig=first");
+    assert.equal(await composite.getAttribute("src"), storage + "composite-preview.jpg?sig=first");
     await page.getByRole("tab", { name: "Video tua nhanh" }).click();
     await page.waitForFunction(() => document.querySelector("video")?.videoWidth === 64);
     await page.evaluate(() => { window.playingVideo = document.querySelector("video"); window.playingVideo.pause(); });
@@ -116,7 +116,7 @@ test("unavailable or expired R2 media falls back to the authenticated image and 
     await page.evaluate(value => window.showAlbum(value), booking());
     await page.waitForFunction(() => {
       const image = document.querySelector(".album-viewer-stage img.album-viewer-main");
-      return image?.complete && image.naturalWidth > 0 && image.getAttribute("src") === "/api/albums/fixture/composite";
+      return image?.complete && image.naturalWidth > 0 && image.getAttribute("src") === "/api/albums/fixture/composite?size=preview";
     });
     await page.getByRole("tab", { name: "Video tua nhanh" }).click();
     await page.waitForFunction(() => document.querySelector("video")?.videoWidth === 64);
@@ -141,7 +141,7 @@ test("a newly uploaded composite replaces the legacy print sheet already on scre
       "/api/albums/fixture/prints/legacy-sheet?direct=1");
     await page.evaluate(value => window.showAlbum(value), booking());
     await page.waitForFunction(expected => document.querySelector(".album-viewer-stage img.album-viewer-main")?.getAttribute("src") === expected,
-      storage + "composite.jpg?sig=first");
+      storage + "composite-preview.jpg?sig=first");
     assert.equal(await page.getByRole("tab", { name: "Ảnh ghép khung" }).locator("img").getAttribute("src"),
       storage + "thumb.jpg?sig=first");
   } finally { await page.close(); }
@@ -209,6 +209,7 @@ test("iPhone Save all shares prepared guest JPEGs and never the unmirrored camer
     assert.deepEqual(shared.map(file => file.name), ["NXC-123456-anh-ghep.jpg", "NXC-123456-01.jpg"]);
     assert.deepEqual(Buffer.from(shared[1].bytes), imageBytes);
     assert.ok(requests.includes(storage + "guest-mirrored.jpg"));
+    assert.ok(requests.includes(storage + "composite.jpg?sig=first"), "Save uses the full composite, not its screen preview");
     assert.ok(!requests.includes(storage + "camera-unmirrored.jpg"));
     await page.getByRole("tab", { name: "Ảnh 1", exact: true }).click();
     await page.getByRole("button", { name: "Lưu ảnh", exact: true }).click();

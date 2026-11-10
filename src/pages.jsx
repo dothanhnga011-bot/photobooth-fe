@@ -36,14 +36,12 @@ function AlbumSession({ token }) {
   const [booking, setBooking] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
-  // The free server sleeps when nobody used it for a while and needs about a minute to wake.
-  // Until the album first loads, a slow or unanswered request is that wait, not a failure:
-  // say so calmly (the page keeps retrying by itself) instead of showing a connection error.
-  const [waking, setWaking] = useState(false);
+  // A slow first reply does not prove the server is sleeping. Keep retrying without inventing an ETA.
+  const [slow, setSlow] = useState(false);
   const loaded = Boolean(booking);
   useEffect(() => {
     if (loaded) return;
-    const timer = setTimeout(() => setWaking(true), 6000);
+    const timer = setTimeout(() => setSlow(true), 6000);
     return () => clearTimeout(timer);
   }, [loaded]);
   const lastStatus = useRef("");
@@ -58,7 +56,8 @@ function AlbumSession({ token }) {
       const signature = albumSignature(b);
       if (signature !== lastChange.current.signature)
         lastChange.current = { signature, at: Date.now() };
-      setSettled(b.status === "completed" && Date.now() - lastChange.current.at >= ALBUM_SETTLE_MS);
+      setSettled(b.status === "completed" && !b.photos?.some((photo) => photo.originalPending)
+        && Date.now() - lastChange.current.at >= ALBUM_SETTLE_MS);
       // Khách đang xem vé thì buổi chụp kết thúc: báo ảnh đã sẵn sàng.
       if (
         lastStatus.current &&
@@ -73,7 +72,7 @@ function AlbumSession({ token }) {
     },
     (e) => {
       if (!booking && isConnectivityError(e)) {
-        setWaking(true);
+        setSlow(true);
         return;
       }
       setError(e.message);
@@ -84,7 +83,7 @@ function AlbumSession({ token }) {
     // Đang chụp hoặc ảnh / video vẫn đang lên: 5 giây/lần để hiện ngay (trả lời 304 rỗng khi chưa có
     // gì mới). Album đứng yên 3 phút: 60 giây/lần (vẫn kịp làm mới link kho ảnh, hạn 5 phút) — khách
     // hay để trang mở trên điện thoại.
-    settled ? 60000 : 5000,
+    settled ? 60000 : booking?.photos?.some((photo) => photo.originalPending) ? 2000 : 5000,
     (b) => b.status === "cancelled" || b.mediaDeleted,
   );
   const ready = booking?.status === "completed" && !booking.mediaDeleted;
@@ -95,10 +94,9 @@ function AlbumSession({ token }) {
       {!booking && !error && (
         <div className="center" role="status">
           <p>Đang mở album…</p>
-          {waking && (
+          {slow && (
             <p className="soft-note">
-              Máy chủ vừa nghỉ nên lần mở đầu có thể mất khoảng 1 phút. Trang sẽ tự mở,
-              bạn không cần tải lại.
+              Kết nối đang chậm. Album sẽ tự cập nhật khi có ảnh, bạn không cần tải lại.
             </p>
           )}
         </div>

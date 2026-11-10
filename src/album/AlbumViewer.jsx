@@ -60,7 +60,8 @@ export function AlbumViewer({ token, booking }) {
       ? [{
           key: "composite",
           kind: "image",
-          sources: albumMediaSources(booking.composite, composite || sheet),
+          // Display a 1600 px derivative; Save still requests the untouched 20 MP composite.
+          sources: albumMediaSources(booking.composite, composite ? `${composite}?size=preview` : sheet, composite ? "preview" : "original"),
           thumbs: compositeThumbs,
           placeholder: { src: compositeThumbs[0], cors: false },
           save: {
@@ -235,7 +236,7 @@ export function AlbumViewer({ token, booking }) {
       </div>
       {pendingOriginals > 0 && (
         <p className="album-viewer-note" role="status">
-          Đang nhận ảnh gốc độ nét cao ({pendingOriginals} ảnh) — vài phút nữa bấm Lưu để có bản nét nhất.
+          Đang nhận ảnh gốc độ nét cao ({pendingOriginals} ảnh). Nút Lưu sẽ bật khi file gốc sẵn sàng.
         </p>
       )}
       <div className="album-viewer-actions">

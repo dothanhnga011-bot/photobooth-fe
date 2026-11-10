@@ -22,8 +22,10 @@ import React from 'react'; import {createRoot} from 'react-dom/client';
 import {MemoryRouter} from 'react-router-dom'; import {StudioContext,ToastProvider} from '/src/studio.jsx';
 import {PrintOrderDialog} from '/src/admin/print-order-dialog.jsx'; import '/src/tailwind.css';
 import {directKioskPrint,kioskPrintState,runKioskPrints} from '/src/kiosk/compose.js';
-import {readSetting} from '/src/capture-store.js';
+import {readSetting,saveSetting,savePending,removePending} from '/src/capture-store.js';
 window.runLocalKioskPrint=directKioskPrint;window.kioskPrintState=kioskPrintState;window.readSetting=readSetting;window.flushKioskPrints=runKioskPrints;
+window.savePending=savePending;window.removePending=removePending;
+window.saveSetting=saveSetting;
 const booking=${JSON.stringify(BOOKING)};
 const frame={_id:'frame',name:'Khung thử',active:true,printSize:'full',image:'/frame.png',slots:[{x:.05,y:.05,w:.9,h:.9,kind:'photo',photo:1}]};
 function App(){const [open,setOpen]=React.useState(true); return React.createElement('main',{className:'admin-shell'},
@@ -172,5 +174,33 @@ test("direct kiosk prints archive in the background; a failed upload never resen
   assert.equal(archives[0].headers["x-print-key"], archives[1].headers["x-print-key"]);
   assert.equal(requests.filter((entry) => entry.path.endsWith("/print-pack")).length, 0);
   assert.equal(await page.evaluate(() => window.kioskPrintState("album-token").status), "printed");
+  assert.deepEqual(errors, []);
+});
+
+test("print archives yield to their guest's originals without being blocked by another old album", async () => {
+  await mount({ jobs: [] });
+  await page.evaluate(async () => {
+    await window.savePending({ id: 'current-original', token: 'album-token', stage: 'original' });
+    await window.savePending({ id: 'older-original', token: 'older-album', stage: 'original' });
+  });
+  await page.evaluate((image) => window.runLocalKioskPrint({ token: 'album-token', printSize: 'full', frameName: 'Pink', images: [image] }), `data:image/png;base64,${png.toString('base64')}`);
+  await page.waitForTimeout(150);
+  assert.equal(requests.filter((entry) => entry.path.endsWith('/print-archive')).length, 0, 'originals get the uplink first');
+  await page.evaluate(async () => { await window.removePending('current-original'); await window.flushKioskPrints(); });
+  assert.equal(requests.filter((entry) => entry.path.endsWith('/print-archive')).length, 1, 'another album cannot starve this archive');
+  assert.equal(local.filter((entry) => entry.path === '/print').length, 1);
+  assert.deepEqual(errors, []);
+});
+
+test("an expired archive is removed even if the guest still has an unavailable original", async () => {
+  await mount({ jobs: [] });
+  await page.evaluate(async () => {
+    await window.savePending({ id: 'unavailable-original', token: 'album-token', stage: 'original' });
+    await window.saveSetting('kiosk-print-queue', [{ token: 'album-token', archive: true, images: [], requestKey: crypto.randomUUID(), queuedAt: Date.now() - 25 * 3600000 }]);
+    await window.flushKioskPrints();
+  });
+  assert.deepEqual(await page.evaluate(() => window.readSetting('kiosk-print-queue')), []);
+  assert.equal(requests.filter((entry) => entry.path.endsWith('/print-archive')).length, 0);
+  assert.equal(local.filter((entry) => entry.path === '/print').length, 0);
   assert.deepEqual(errors, []);
 });

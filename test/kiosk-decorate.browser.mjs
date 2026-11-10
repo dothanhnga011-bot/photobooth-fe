@@ -123,13 +123,16 @@ before(async () => {
 
 after(async () => { await browser?.close(); await new Promise((resolve) => server?.close(resolve)); });
 
-async function selectScreen({ query = "", shots = 3, viewport = { width: 1366, height: 768 } } = {}) {
+async function selectScreen({ query = "", shots = 3, viewport = { width: 1366, height: 768 }, holdPrint = false } = {}) {
   const page = await browser.newPage({ viewport });
   const errors = [], uploads = { composite: null, print: null };
+  let releasePrint;
+  const printerReady = new Promise((resolve) => { releasePrint = resolve; });
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.route('http://127.0.0.1:8789/**', route => {
+  await page.route('http://127.0.0.1:8789/**', async route => {
     if (new URL(route.request().url()).pathname === '/print') {
       uploads.print = route.request().headers()['x-print-sheets'];
+      if (holdPrint) await printerReady;
       return route.fulfill({ json: { sent: true, message: 'Fixture spool accepted' }, headers: { 'Access-Control-Allow-Origin': '*' } });
     }
     return route.fulfill({ json: { directPrint: 2 }, headers: { 'Access-Control-Allow-Origin': '*' } });
@@ -167,7 +170,7 @@ async function selectScreen({ query = "", shots = 3, viewport = { width: 1366, h
     }));
   }, booking);
   await page.goto(base + query);
-  return { page, errors, uploads };
+  return { page, errors, uploads, releasePrint };
 }
 const saved = (page) => page.evaluate(() => JSON.parse(sessionStorage.getItem("photo-capture-fixture-device")));
 
@@ -188,6 +191,21 @@ async function samples(page, jpeg, points) {
     };
   }, { b64: jpeg.toString("base64"), points });
 }
+
+test("the 20 MP album composite uploads while the local RX1 acknowledgement is still pending", async () => {
+  const { page, errors, uploads, releasePrint } = await selectScreen({ holdPrint: true });
+  try {
+    const photos = page.getByRole("group", { name: "Ảnh đã chụp" }).getByRole("button");
+    await photos.nth(0).click(); await photos.nth(1).click();
+    await page.getByRole("button", { name: "In ảnh", exact: true }).click();
+    for (let i = 0; i < 100 && !uploads.composite; i++) await page.waitForTimeout(100);
+    assert.ok(uploads.print, 'the local print has started');
+    assert.ok(uploads.composite, 'album preparation must not await a slow print response');
+    const { width, height } = await samples(page, uploads.composite, []);
+    assert.ok(width * height > 19_980_000 && width * height <= 20_000_000);
+    assert.deepEqual(errors, []);
+  } finally { releasePrint(); await page.close(); }
+});
 
 test("guests pick photos, a colour and a sticker; the print shows exactly that", async () => {
   const { page, errors, uploads } = await selectScreen();

@@ -84,7 +84,21 @@ test("without direct storage (or when storage refuses) the original goes through
   await assert.rejects(saveOriginal(row.token, row), (error) => error.status === 410);
 });
 
-test("originals wait while the guest's own uploads (preview, print, composite, video) are sending", async () => {
+test("a lost original commit reply never uploads the camera file to storage a second time", async () => {
+  let commits = 0;
+  const calls = network({
+    ticket: json({ upload: { url: STORAGE, stored: "stored-original-token" } }),
+    storage: () => new Response(null, { status: 200 }),
+    attach: () => Response.json(++commits < 3 ? { message: "Reply lost" } : { attached: true }, { status: commits < 3 ? 503 : 200 }),
+  });
+  await assert.rejects(saveOriginal(row.token, row), (error) => error.status === 503);
+  await saveOriginal(row.token, row);
+  assert.equal(calls.filter((call) => call.kind === "storage").length, 1);
+  assert.equal(calls.filter((call) => call.kind === "ticket").length, 1);
+  assert.equal(calls.filter((call) => call.kind === "attach").length, 3);
+});
+
+test("originals wait while the guest's foreground uploads (preview, print, composite) are sending", async () => {
   let release;
   const sending = priority(() => new Promise((resolve) => { release = resolve; }));
   assert.equal(uplinkBusy(), true);

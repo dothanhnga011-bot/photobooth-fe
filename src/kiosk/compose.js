@@ -1,5 +1,5 @@
 import { api, getApiUrl } from "../api.js";
-import { readSetting, saveSetting } from "../capture-store.js";
+import { readPending, readSetting, saveSetting } from "../capture-store.js";
 import { compareFrameOrder } from "../frame-catalog-data.js";
 import {
   composeLayout,
@@ -20,7 +20,7 @@ import { fetchMediaBlob } from "../media-delivery.js";
 import { jpegDataUrl, pngDataUrl } from "../album/encode-jpeg.js";
 import { printPackUpload } from "../album/print-upload.js";
 import { drawStickers, filterPhotos, loadStickers, stickerArea } from "./decor.js";
-import { priority } from "./uplink.js";
+import { priority, whenUplinkIdle } from "./uplink.js";
 import { sendDirectPrint } from "./direct-print.js";
 
 // Ghép khung và in ngay tại máy chụp (khách chọn ảnh → chọn khung → lấy ảnh ở khay in).
@@ -265,7 +265,7 @@ export function watchKioskPrint(listener) {
 }
 export const kioskPrintState = (token) => states.get(token);
 
-export async function directKioskPrint(job) {
+export async function directKioskPrint(job, { archiveAfter } = {}) {
   const key = `kiosk-direct-request:${job.token}`;
   const saved = await readSetting(key);
   const requestKey = saved?.requestKey || crypto.randomUUID();
@@ -275,6 +275,7 @@ export async function directKioskPrint(job) {
   try {
     await sendDirectPrint({ ...job, requestKey });
     notify(job.token, { status: 'printed' });
+    if (archiveAfter) await archiveAfter;
     // Archive in the background only after the local acknowledgement. Upload retries never print.
     await queueKioskPrint({ ...job, requestKey, archive: true }).catch((error) =>
       console.warn('RX1 accepted the print; could not persist its archive upload.', error));
@@ -328,9 +329,16 @@ export function runKioskPrints() {
         const left = [];
         for (const job of queue) {
           try {
-            const printed = await priority(() => api(`/albums/${job.token}/${job.archive ? "print-archive" : "print-pack"}`, printPackUpload({
+            if (job.archive) {
+              if (Date.now() - job.queuedAt > 24 * 60 * 60000) continue;
+              // Guest photos and composites get the upload link before bulky duplicate print PNGs.
+              await whenUplinkIdle();
+              if ((await readPending(job.token)).length) { left.push(job); continue; }
+            }
+            const upload = () => api(`/albums/${job.token}/${job.archive ? "print-archive" : "print-pack"}`, printPackUpload({
               images: job.images, frameName: job.frameName, requestKey: job.requestKey, printSize: job.printSize,
-            })));
+            }));
+            const printed = await (job.archive ? upload() : priority(upload));
             if (!job.archive) {
               notify(job.token, spoolState(printed));
               watchSpool(job.token, job.requestKey);
