@@ -14,6 +14,7 @@ import { FramesManager } from "./admin/frames";
 import { StickersManager } from "./admin/stickers";
 import { FiltersManager } from "./admin/filters";
 import { KioskTextsManager } from "./admin/kiosk-texts";
+import { Rx1OutputManager } from "./admin/rx1-output.jsx";
 import { Reconciliation } from "./admin/reconciliation";
 import { useAdminSession } from "./admin/use-admin-session";
 import { LoginPage, PasswordDialog } from "./admin/auth";
@@ -190,6 +191,8 @@ export function Admin() {
               <FiltersManager notify={notify} />
             ) : currentTab === "kiosk-texts" ? (
               <KioskTextsManager notify={notify} />
+            ) : currentTab === "rx1-output" ? (
+              <Rx1OutputManager notify={notify} />
             ) : currentTab === "reconciliation" ? (
               <Reconciliation
                 assignedBranch={user.branch}

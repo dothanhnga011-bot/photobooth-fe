@@ -315,6 +315,80 @@ function Set-Rx1MaximumResolution($settings, $page) {
     }
   } catch { $page.PrinterResolution = $current }
 }
+
+# Chỉ cấu hình màu: đồng bộ nền, không nhận hoặc phát lệnh in. Giữ file cuối cùng khi mất mạng.
+function Set-Rx1RemoteOutput($profile, [string]$settingsPath = (Join-Path $env:LOCALAPPDATA 'NXC-Printer\rx1-output.json')) {
+  if ($null -eq $profile) { return $false }
+  if ($null -eq $profile.PSObject.Properties['gamma'] -or $profile.gamma -is [bool] -or
+      $profile.maxResolution -isnot [bool]) { throw 'Invalid RX1 output settings from web.' }
+  $gamma = [double]$profile.gamma
+  if ([double]::IsNaN($gamma) -or [double]::IsInfinity($gamma) -or $gamma -lt 0.85 -or $gamma -gt 1.50) {
+    throw 'Web gamma must be between 0.85 and 1.50.'
+  }
+  $current = Get-Rx1OutputSettings $settingsPath
+  if ((Test-Path -LiteralPath $settingsPath) -and -not $current.warning -and
+      [Math]::Abs($current.gamma - $gamma) -lt 0.000001 -and $current.maxResolution -eq $profile.maxResolution) { return $false }
+  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $settingsPath) | Out-Null
+  $temp = $settingsPath + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
+  try {
+    $json = @{ gamma = $gamma; maxResolution = [bool]$profile.maxResolution } | ConvertTo-Json -Compress
+    [IO.File]::WriteAllText($temp, $json, (New-Object Text.UTF8Encoding($false)))
+    if (Test-Path -LiteralPath $settingsPath) { [IO.File]::Replace($temp, $settingsPath, ($temp + '.previous')) }
+    else { [IO.File]::Move($temp, $settingsPath) }
+  } finally {
+    foreach ($file in @($temp, ($temp + '.previous'))) {
+      if (Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file -Force }
+    }
+  }
+  Write-Log "RX1 output received from web: gamma $gamma; maximum supported DPI = $($profile.maxResolution)."
+  return $true
+}
+
+function Receive-Rx1OutputSettings {
+  if ($script:OutputSyncRetryAt -and (Get-Date) -lt $script:OutputSyncRetryAt) { return }
+  if (-not $script:OutputSync) {
+    Add-Type -AssemblyName System.Net.Http
+    $client = New-Object Net.Http.HttpClient
+    $client.Timeout = [TimeSpan]::FromSeconds(10)
+    $client.MaxResponseContentBufferSize = 65536
+    $client.DefaultRequestHeaders.Authorization = New-Object Net.Http.Headers.AuthenticationHeaderValue('Bearer', [string]$script:Config.token)
+    $script:OutputSync = @{ client = $client; task = $null; content = $null; next = [datetime]::MinValue; error = '' }
+  }
+  $sync = $script:OutputSync
+  if ($sync.task) {
+    if (-not $sync.task.IsCompleted) { return }
+    $response = $null
+    try {
+      $response = $sync.task.GetAwaiter().GetResult()
+      if (-not $response.IsSuccessStatusCode) { throw "RX1 settings sync HTTP $([int]$response.StatusCode)." }
+      $result = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult() | ConvertFrom-Json
+      [void](Set-Rx1RemoteOutput $result.rx1Output)
+      $sync.error = ''
+      $sync.next = (Get-Date).AddSeconds(5)
+    } catch {
+      $message = $_.Exception.Message
+      if ($sync.error -ne $message) { Write-Log "Cannot sync RX1 color settings; keeping local settings: $message" }
+      $sync.error = $message
+      $sync.next = (Get-Date).AddSeconds(15)
+    } finally {
+      if ($response) { $response.Dispose() }
+      if ($sync.content) { $sync.content.Dispose() }
+      $sync.task = $null; $sync.content = $null
+    }
+  }
+  if ((Get-Date) -lt $sync.next) { return }
+  try {
+    $current = Get-Rx1OutputSettings
+    $body = @{ applied = @{ gamma = $current.gamma; maxResolution = $current.maxResolution } } | ConvertTo-Json -Compress
+    $sync.content = New-Object Net.Http.StringContent($body, [Text.Encoding]::UTF8, 'application/json')
+    $url = $script:Config.api.TrimEnd('/') + '/api/print-agent/output-settings/sync'
+    $sync.task = $sync.client.PostAsync($url, $sync.content)
+  } catch {
+    if ($sync.content) { $sync.content.Dispose(); $sync.content = $null }
+    $sync.next = (Get-Date).AddSeconds(15)
+    Write-Log "Cannot start RX1 color sync; keeping local settings: $($_.Exception.Message)"
+  }
+}
 function New-Rx1ImageAttributes([double]$gamma) {
   $attributes = New-Object System.Drawing.Imaging.ImageAttributes
   $attributes.SetWrapMode([System.Drawing.Drawing2D.WrapMode]::TileFlipXY)
@@ -594,7 +668,9 @@ function Receive-LocalPrint {
   $response.Headers['Access-Control-Allow-Private-Network'] = 'true'
   if ($request.HttpMethod -eq 'OPTIONS') { Write-LocalResponse $response 200 @{ ok = $true }; return }
   if ($request.HttpMethod -eq 'GET' -and $request.Url.AbsolutePath -eq '/health') {
-    Write-LocalResponse $response 200 @{ directPrint = 2; room = [string]$script:Config.room }; return
+    $output = Get-Rx1OutputSettings
+    Write-LocalResponse $response 200 @{ directPrint = 2; room = [string]$script:Config.room; outputSettingsVersion = 1;
+      output = @{ gamma = $output.gamma; maxResolution = $output.maxResolution } }; return
   }
   if ($request.HttpMethod -ne 'POST' -or $request.Url.AbsolutePath -ne '/print') {
     Write-LocalResponse $response 404 @{ message = 'Unknown local printer endpoint.' }; return
@@ -695,7 +771,14 @@ function Start-Agent {
     if ($script:LocalListener) {
       Write-Log 'RX1 direct mode: browser -> local agent -> Windows printer. No cloud print queue or network authorization.'
       # A cloud status request must not block a local customer print when the Internet is down.
-      while ($true) { Receive-LocalPrint; Start-Sleep -Milliseconds 50 }
+      while ($true) {
+        Receive-LocalPrint
+        try { Receive-Rx1OutputSettings } catch {
+          $script:OutputSyncRetryAt = (Get-Date).AddSeconds(15)
+          Write-Log "RX1 color sync unavailable: $($_.Exception.Message)"
+        }
+        Start-Sleep -Milliseconds 50
+      }
     }
     throw 'Direct printer could not start. Run the room printer installer again.'
   }

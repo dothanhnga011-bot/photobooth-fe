@@ -4,7 +4,25 @@ Phần mềm xuất PNG từ cùng nguồn ảnh và cùng bộ lọc màu của
 
 ## In nét tối đa, giảm sáng bản in
 
-Mặc định mới của bộ in RX1:
+### Chỉnh trực tiếp trên web
+
+Vào **Quản trị → Thiết lập → Màu in RX1** (tài khoản quản trị). Chọn gamma 0.85–1.50 và
+bật/tắt DPI cao nhất, rồi bấm **Lưu cấu hình màu in**. Mức được lưu chung cho các bộ in RX1 của tiệm,
+áp dụng cả tờ lớn và tờ cắt đôi. Trang có ảnh xem thử xử lý trong trình duyệt và trạng thái từng máy
+đã nhận mức nào; ảnh xem thử chưa mô phỏng ICC/giấy của RX1.
+
+Phát hành lần đầu: cập nhật backend trước, frontend sau, rồi cập nhật/mở lại chương trình in trên PC RX1
+khi hàng in đã trống. Bộ in cũ chưa có đồng bộ cần được cập nhật một lần. Sau đó thay đổi trên web
+được bộ in đang chạy lấy nền mỗi khoảng 5 giây, không cần sửa code, JSON hay khởi động lại mỗi lần chỉnh.
+Trạng thái trên web cập nhật mỗi 10 giây, chỉ báo đã nhận khi bộ in báo lại đúng mức và còn kết nối.
+
+Việc đồng bộ không nhận hoặc tạo lệnh in và không chặn in trực tiếp khi máy chủ/mạng chậm. Mất mạng
+hoặc máy chủ trả cấu hình không hợp lệ: giữ cấu hình đã lưu gần nhất trên PC. Lệnh/tờ đã gửi tới Windows
+giữ mức cũ. Khi đã lưu cấu hình trên web, bộ in đồng bộ sẽ cập nhật `rx1-output.json` theo web;
+chỉnh file thủ công sẽ bị thay lại ở lần đồng bộ tiếp theo. Khi chưa từng lưu trên web, cấu hình riêng
+đang có của từng PC được giữ. Chỉ bước gửi giấy áp dụng bù tông; ảnh gốc/album QR vẫn giữ màu nguồn.
+
+Khi chưa có cấu hình trên web hoặc file riêng, bộ in RX1 dùng mặc định:
 
 - Chọn mức DPI cao nhất trong danh sách driver thực sự hỗ trợ cho từng lệnh: ưu tiên 600×600 khi có; driver chỉ có 300×600 thì dùng 300×600. Không tự tạo một chế độ DPI không được driver công bố.
 - Ảnh từ kiosk đã xuất PNG 2400×3600 px (hoặc 3600×2400 khi nằm ngang), lấy từ ảnh gốc. Nguồn này giữ chi tiết cho bản in chất lượng cao.
@@ -14,7 +32,7 @@ Mặc định mới của bộ in RX1:
 
 Sau khi cập nhật, in thử cùng một ảnh. Giữ **ICM**, ICC RX1 hiện có và **Sharpness 0** làm mốc. Nếu cần thử tăng nét bằng driver, chỉ tăng từng nấc sau bản đối chiếu; kiểm tra tóc, mắt và viền sáng quanh khuôn mặt.
 
-Có thể điều chỉnh riêng bản in bằng file `%LOCALAPPDATA%\NXC-Printer\rx1-output.json` trên tài khoản Windows chạy bộ in:
+Cách cục bộ bên dưới dành cho máy chưa dùng cấu hình từ web. Có thể điều chỉnh riêng bản in bằng file `%LOCALAPPDATA%\NXC-Printer\rx1-output.json` trên tài khoản Windows chạy bộ in:
 
 ```json
 {"gamma": 1.50, "maxResolution": true}
@@ -33,7 +51,7 @@ New-Item -ItemType Directory -Path "$env:LOCALAPPDATA\NXC-Printer" -Force | Out-
 
 Lệnh ghi file bù bản in với hai giá trị trên, không đụng vào `config.json` chứa mã máy. **Lệnh in mới tiếp theo sẽ đọc mức 1.50** trên bộ in đã cập nhật; không cần F5 hoặc mở lại chương trình in để đọc riêng thay đổi JSON này. Tờ đã gửi vào hàng in Windows giữ mức cũ. In thử một tờ của cùng một file, xem dưới ánh sáng trắng ổn định trước khi đổi tiếp. Nhật ký `%LOCALAPPDATA%\NXC-Printer\print-agent.log` phải có dòng `RX1 output: ... gamma 1.5` cho lần in mới.
 
-Nếu đã có `rx1-output.json` đặt gamma 1.07, 1.15, 1.18 hoặc 1.30, cập nhật chương trình in sẽ vẫn tôn trọng mức đó. Cần sửa file hoặc chạy lệnh trên để áp dụng 1.50. Muốn trở về mức trước, chạy lại lệnh với `1.30`; muốn về tông nguồn, dùng `1.0`.
+Khi chưa lưu cấu hình từ web, nếu đã có `rx1-output.json` đặt gamma 1.07, 1.15, 1.18 hoặc 1.30, cập nhật chương trình in vẫn tôn trọng mức đó. Cần sửa file hoặc chạy lệnh trên để áp dụng 1.50. Muốn trở về mức trước, chạy lại lệnh với `1.30`; muốn về tông nguồn, dùng `1.0`. Khi đã bật cấu hình web, đổi các mức này trong **Thiết lập → Màu in RX1**.
 
 Hướng dẫn độ phân giải của [driver RX1](https://new.dnpphoto.com/Portals/0/Resources/DS-RX1_PrinterDriverInstruction_For7%2C8%2C10_V1.13_1_English.pdf); API bù tông [Microsoft ImageAttributes.SetGamma](https://learn.microsoft.com/en-us/dotnet/api/system.drawing.imaging.imageattributes.setgamma).
 

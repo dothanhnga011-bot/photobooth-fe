@@ -13,6 +13,7 @@ import {
   SlidersHorizontal,
   ClipboardList,
   Type,
+  Printer,
 } from "lucide-react";
 import {
   custom,
@@ -99,6 +100,7 @@ export const NAV_TREE = [
     ["packages", "Khổ ảnh & bảng giá", Package],
     ["stickers", "Nhãn dán", Sticker],
     ["filters", "Quản lý filter", SlidersHorizontal],
+    ["rx1-output", "Màu in RX1", Printer],
     ["kiosk-texts", "Chữ trên máy chụp", Type],
   ]],
   ["users", "Tài khoản", Users],
@@ -150,6 +152,7 @@ export const NAV_DESCRIPTIONS = {
   packages: "Các khổ ảnh khách chọn ở máy chụp: sửa hoặc thêm gói (giá, số lần chụp, số tờ in), chi nhánh áp dụng và giá in thêm.",
   stickers: "Nhãn dán khách dán lên khung ở màn chọn ảnh của máy chụp.",
   filters: "Màu ảnh khách chọn ở màn chọn ảnh của máy chụp: bộ lọc có sẵn và filter riêng của tiệm.",
+  "rx1-output": "Chỉnh độ tối và độ nét bản in RX1; lưu trên web để các máy in tự nhận.",
   "kiosk-texts": "Sửa chữ trên màn hình máy chụp: phòng photobooth, phòng Polaroid và các màn chung.",
   users: "Tài khoản nhân viên, chi nhánh phụ trách và phân quyền truy cập.",
   reconciliation: "Mở, đóng ca và đối soát tiền theo ca, theo tháng và từng chi nhánh.",

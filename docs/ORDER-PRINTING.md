@@ -8,6 +8,8 @@ Mở **Đơn hàng → In ảnh** để đọc lại dữ liệu của đúng đ
 - Số bộ nhân với số tờ trong bộ là số tờ 10 × 15 cm cần in. Khổ nhỏ cắt mỗi tờ thành hai dải. Mỗi thao tác RX1 giới hạn 20 tờ, tổng file gửi tối đa 64 MB.
 - **In lại qua RX1** gửi bytes PNG/JPEG đầy đủ đến chương trình in trên chính PC đang dùng. Không gửi ảnh thumbnail, không nén lại và không tự chuyển sang hàng chờ trên máy chủ khi không thấy RX1.
 - Bộ in áp dụng mức gamma trong `rx1-output.json` hoặc mặc định của script (hiện là 1.50), DPI cao nhất driver hỗ trợ và chế độ cắt của file. RX1 cần được cắm vào PC đang mở hộp này; thao tác không điều khiển máy in ở một PC khác.
+- Quản trị chỉnh gamma/DPI tại **Thiết lập → Màu in RX1** rồi lưu để các bộ in đã cập nhật tự nhận.
+  Mục này có trạng thái mức đã nhận của từng máy; không cần sửa file thủ công cho các lần đổi sau.
 - “Đã gửi tới hàng in” chỉ xác nhận Windows đã nhận lệnh, không khẳng định giấy đã ra. Cần kiểm tra khay máy khi mất xác nhận.
 - In lại là thao tác hỗ trợ, không trừ hạn mức và không cộng tiền. Khách mua thêm bản in vẫn dùng **Thêm lượt in** để ghi nhận thu tiền và cộng quyền in.
 

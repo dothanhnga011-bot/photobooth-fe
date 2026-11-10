@@ -23,7 +23,7 @@ $errors=$null
 $ast=[System.Management.Automation.Language.Parser]::ParseFile($Agent,[ref]$null,[ref]$errors)
 if($errors){throw ($errors | Out-String)}
 foreach($f in $ast.FindAll({param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst]},$true)) {
- if($f.Name -in @('Start-LocalPrinter','Receive-LocalPrint','Write-LocalResponse')) {Invoke-Expression ($f.Extent.Text.Replace('8789',[string]$Port))}
+ if($f.Name -in @('Start-LocalPrinter','Receive-LocalPrint','Write-LocalResponse','Get-Rx1OutputSettings')) {Invoke-Expression ($f.Extent.Text.Replace('8789',[string]$Port))}
 }
 $script:Config=@{api='https://mellowptb.com';room='Test room';token='test-only'}
 $ConfigPath=Join-Path (Split-Path -Parent $Output) 'config.json'
@@ -44,7 +44,7 @@ if(-not $script:LocalListener){throw 'Cannot start test listener'}
 Write-Host 'READY'
 try {while($true){Receive-LocalPrint;Start-Sleep -Milliseconds 20}} finally {$script:LocalListener.Close()}
 `);
-  const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-Agent', agent, '-Port', String(port), '-Output', output], { windowsHide: true });
+  const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-Agent', agent, '-Port', String(port), '-Output', output], { windowsHide: true, env: { ...process.env, LOCALAPPDATA: folder } });
   let diagnostic = '';
   try {
     await new Promise((resolve, reject) => {
@@ -62,7 +62,10 @@ try {while($true){Receive-LocalPrint;Start-Sleep -Milliseconds 20}} finally {$sc
     const preflight = await fetch(`${base}/print`, { method: 'OPTIONS', headers: { Origin: headers.Origin } });
     assert.equal(preflight.headers.get('access-control-allow-private-network'), 'true');
     const health = await fetch(`${base}/health`, { headers: { Origin: headers.Origin } });
-    assert.equal((await health.json()).directPrint, 2);
+    const printer = await health.json();
+    assert.equal(printer.directPrint, 2);
+    assert.equal(printer.outputSettingsVersion, 1);
+    assert.deepEqual(printer.output, { gamma: 1.5, maxResolution: true });
     const send = () => fetch(`${base}/print`, { method: 'POST', headers, body: bytes });
     const first = await send();
     const result = await first.json();
@@ -80,6 +83,7 @@ try {while($true){Receive-LocalPrint;Start-Sleep -Milliseconds 20}} finally {$sc
   } finally {
     const exited = new Promise(resolve => child.once('exit', resolve));
     if (child.exitCode === null) { child.kill(); await exited; }
+    assert.equal(path.resolve(path.dirname(folder)), path.resolve(os.tmpdir()));
     await rm(folder, { recursive: true, force: true });
   }
 });
