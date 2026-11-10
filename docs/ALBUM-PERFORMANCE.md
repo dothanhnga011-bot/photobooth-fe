@@ -11,6 +11,7 @@ Không có thời gian cố định từ lúc chụp xong đến khi toàn bộ 
 - Với kho R2, sau khi kết thúc chụp, backend chuẩn bị sẵn JPEG nhận qua QR khi có ảnh gốc. Dùng đúng bộ mã hóa hiện có: tối đa 20 MP, JPEG 95, 4:4:4, sRGB, xoay đúng chiều rồi lật gương một lần. Khi khách bấm Lưu, thường đã có file cache để tải thẳng từ kho.
 - Việc chuẩn bị file tải về chỉ giữ tham chiếu file, chạy từng ảnh, chờ các lượt lưu ảnh đang được nhận và khi RAM gần ngưỡng. Đây là công việc phụ: lỗi chuẩn bị không làm mất ảnh, endpoint tải về vẫn tạo file theo yêu cầu như trước.
 - Nếu file camera đã lên R2 nhưng mất phản hồi gắn file vào album, lần thử lại trong cùng trang chỉ xác nhận lại, không tải toàn bộ JPEG lên lần nữa.
+- Một ảnh gốc gửi lỗi không chặn các ảnh còn lại hoặc album của khách khác. File lỗi vẫn nằm trong IndexedDB, có thời điểm thử lại riêng (tăng từ 20 giây đến 5 phút, tôn trọng Retry-After). Lỗi 404 không đặt lại tuổi file nên album đã mất không chiếm đầu hàng mãi.
 
 Ảnh camera dùng để ghép và in giữ nguồn cũ. Các thay đổi tốc độ không giảm độ phân giải hoặc chất lượng của file khách lưu về máy. Ảnh nguồn nhỏ hơn 20 MP không bị phóng lên để tạo độ nét giả.
 
@@ -23,5 +24,7 @@ Thời gian truyền tối thiểu xấp xỉ `dung lượng MB × 8 / tốc đ�
 Album API trả `Server-Timing`: `album-read` cho đọc vé, `album-links` cho chuẩn bị link kho, `guest-file` cho lấy/tạo file tải về. Có thể đối chiếu với thời gian mạng trong DevTools để đo nút thắt trên máy thật.
 
 ## Áp dụng
+
+Nếu album vẫn báo chờ ảnh gốc nhiều phút, đó chưa chắc là mạng chậm: kiểm tra hàng gửi trên đúng PC/trình duyệt đã chụp. Máy online chỉ xác nhận trang còn mở, không xác nhận ảnh gốc đã lên kho. Sau khi triển khai bản sửa, đợi lượt chụp hiện tại kết thúc rồi tải lại trang máy chụp trên đúng tên miền và hồ sơ trình duyệt để gửi tiếp hàng IndexedDB. Không xóa dữ liệu trang hay chuyển hồ sơ trình duyệt khi còn ảnh chưa gửi. Khi chờ hơn 5 phút sau giờ kết thúc, album hướng khách nhờ nhân viên kiểm tra thay vì chỉ báo tiếp tục đợi.
 
 Cập nhật backend trước, sau đó frontend. Album mới có ảnh ghép xem nhanh; album cũ thiếu bản xem vẫn tải file cũ để tương thích. Chuẩn bị file tải về dùng cùng cache `downloadFile` được dọn theo hạn ảnh, không tạo thêm định dạng tải về. Kho GridFS nhỏ mặc định vẫn tạo file khi khách tải; có thể bật chuẩn bị sớm bằng `PHOTO_DOWNLOAD_PREWARM=1`, hoặc tắt trên R2 bằng `PHOTO_DOWNLOAD_PREWARM=0`.

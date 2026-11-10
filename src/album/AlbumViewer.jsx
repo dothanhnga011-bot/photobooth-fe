@@ -52,6 +52,7 @@ export function AlbumViewer({ token, booking }) {
   const originals = booking.photos.filter((p) => p.kind === "original");
   // Máy chụp gửi ảnh xem trước trước (khách thấy ảnh ngay), ảnh gốc độ nét cao tới sau ít phút.
   const pendingOriginals = originals.filter((p) => p.originalPending).length;
+  const delayedOriginals = Date.now() - new Date(booking.captureEndsAt).getTime() > 5 * 60 * 1000;
   const compositeThumbs = composite || sheet
     ? albumMediaSources(booking.composite, `${composite || sheet}?size=thumbnail`, "thumbnail")
     : [];
@@ -236,7 +237,9 @@ export function AlbumViewer({ token, booking }) {
       </div>
       {pendingOriginals > 0 && (
         <p className="album-viewer-note" role="status">
-          Đang nhận ảnh gốc độ nét cao ({pendingOriginals} ảnh). Nút Lưu sẽ bật khi file gốc sẵn sàng.
+          {delayedOriginals
+            ? `Máy chụp chưa gửi đủ ảnh gốc (${pendingOriginals} ảnh). Bạn có thể quay lại link này sau hoặc nhờ nhân viên kiểm tra máy chụp.`
+            : `Đang nhận ảnh gốc độ nét cao (${pendingOriginals} ảnh). Nút Lưu sẽ bật khi file gốc sẵn sàng.`}
         </p>
       )}
       <div className="album-viewer-actions">

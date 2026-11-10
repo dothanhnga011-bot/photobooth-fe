@@ -240,6 +240,15 @@ test("browser downloads request the guest endpoint and pending originals cannot 
     await page.evaluate(value => window.showAlbum(value), value);
     assert.equal(await page.getByRole("button", { name: "Lưu ảnh", exact: true }).isDisabled(), true);
     assert.equal(await page.getByRole("button", { name: "Lưu tất cả (3)", exact: true }).isDisabled(), true);
+    value.captureEndsAt = new Date(Date.now() - 2 * 3600000).toISOString();
+    await page.evaluate(value => window.showAlbum(value), value);
+    await page.getByRole("status").filter({ hasText: "nhờ nhân viên kiểm tra máy chụp" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Lưu tất cả (3)", exact: true }).isDisabled(), true);
+    value.photos[0].originalPending = false;
+    await page.evaluate(value => window.showAlbum(value), value);
+    await page.waitForFunction(() => !document.querySelector(".album-viewer-note"));
+    assert.equal(await page.getByRole("button", { name: "Lưu ảnh", exact: true }).isEnabled(), true);
+    assert.equal(await page.getByRole("button", { name: "Lưu tất cả (3)", exact: true }).isEnabled(), true);
   } finally { await page.close(); }
 });
 

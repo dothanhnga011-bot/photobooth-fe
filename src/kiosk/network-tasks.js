@@ -1,3 +1,5 @@
+import { isConnectivityError } from "../network.js";
+
 // Keep a slow request in flight instead of starting it again on each timer tick.
 // Callers share the running promise; missed ticks do not queue stale callbacks.
 export function createSingleFlight() {
@@ -108,4 +110,42 @@ export async function flushPendingPhotos({
       // Retain this row and its original idempotency key for the next retry.
     }
   }
+}
+
+// An unusable original must not hold every later photo/album behind it. Acknowledge
+// before deleting; retain failures with a per-file retry time and try other rows.
+export async function flushOriginalPhotos({
+  isActive, readPending, upload, removePending, savePending,
+  beforeNext = async () => {}, onError = () => {}, now = Date.now,
+}) {
+  const attempted = new Set();
+  let retry = false;
+  while (isActive()) {
+    await beforeNext();
+    if (!isActive()) break;
+    const rows = (await readPending()).filter((row) => row.stage === "original");
+    retry ||= rows.some((row) => row.originalRetryAt > now());
+    const row = rows.filter((row) => !attempted.has(row.id) && !(row.originalRetryAt > now()))
+      .sort((a, b) => (a.originalAt || 0) - (b.originalAt || 0))[0];
+    if (!row) break;
+    attempted.add(row.id);
+    try {
+      await upload(row);
+      await removePending(row.id);
+    } catch (error) {
+      if (error.status === 410 || (error.status === 404 && now() - (row.originalAt || 0) > 86400000)) {
+        await removePending(row.id);
+        continue;
+      }
+      const originalFailures = Math.min(10, (row.originalFailures || 0) + 1);
+      const delay = Math.max(error.retryAfterMs || 0, Math.min(300000, 20000 * 2 ** (originalFailures - 1)));
+      await savePending({ ...row, originalFailures, originalRetryAt: now() + delay });
+      retry = true;
+      onError(row, error);
+      // A real connection outage affects all files. Resume after recovery/backoff,
+      // while a rejected file alone must not stop another guest's originals.
+      if (isConnectivityError(error)) break;
+    }
+  }
+  return retry;
 }

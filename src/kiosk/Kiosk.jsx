@@ -44,6 +44,7 @@ import {
   createSingleFlight,
   drainPendingPhotos,
   flushPendingPhotos,
+  flushOriginalPhotos,
   kioskPhotoPath,
   sameKioskSession,
 } from "./network-tasks.js";
@@ -838,33 +839,23 @@ export function Kiosk() {
 
   // Ảnh gốc 15 MB của máy ảnh: gửi sau ảnh xem trước, từng tấm theo thứ tự chụp, chỉ khi không có việc
   // khách đang chờ (ảnh xem trước, tờ in Instax, ảnh ghép — uplink.js). Lỗi mạng: thử lại sau 20 giây.
-  // Album / ảnh không còn: bỏ dòng ảnh (410), hoặc đẩy xuống cuối hàng rồi bỏ sau 1 ngày (404).
+  // Ảnh lỗi được giữ lại và thử sau, không chặn ảnh của khách khác. Chỉ bỏ ảnh / album không còn
+  // (410), hoặc 404 sau 1 ngày; không thay thời điểm gốc khi thử lại.
   function sendOriginals() {
     return originalRequests.current.run(async () => {
       clearTimeout(originalRetry.current);
-      while (alive.current) {
-        await whenUplinkIdle();
-        // Ảnh xem trước của lượt đang chụp còn chờ: chúng đi trước, gửi xong sẽ gọi lại.
-        if (pendingRef.current.length) return;
-        const rows = (await readPending().catch(() => []))
-          .filter((row) => !isPreviewPending(row))
-          .sort((a, b) => (a.originalAt || 0) - (b.originalAt || 0));
-        const row = rows[0];
-        if (!row) return;
-        try {
-          await saveOriginal(row.token, row);
-          await removePending(row.id);
-        } catch (error) {
-          if (error.status === 410 || (error.status === 404 && Date.now() - (row.originalAt || 0) > 86400000)) {
-            await removePending(row.id).catch(() => {});
-            continue;
-          }
-          if (error.status === 404) await savePending({ ...row, originalAt: Date.now() }).catch(() => {});
-          originalRetry.current = setTimeout(sendOriginals, 20000);
-          return;
-        }
-      }
-    }).catch(() => {});
+      const retry = await flushOriginalPhotos({
+        // Pending previews of the active session go first; their acknowledgements wake this again.
+        isActive: () => alive.current && !pendingRef.current.length,
+        beforeNext: whenUplinkIdle,
+        readPending,
+        upload: (row) => saveOriginal(row.token, row),
+        removePending,
+        savePending,
+        onError: (_row, error) => console.warn("Chưa gửi được ảnh gốc; giữ ảnh trên máy và tự thử lại.", error.status || error.code || "", error.message),
+      });
+      if (retry && alive.current) originalRetry.current = setTimeout(sendOriginals, 20000);
+    }).catch((error) => console.warn("Chưa đọc/lưu được hàng ảnh gốc trên máy.", error.message));
   }
   useEffect(() => {
     sendOriginals();
