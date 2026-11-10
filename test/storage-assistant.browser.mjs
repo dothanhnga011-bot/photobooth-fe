@@ -130,6 +130,8 @@ function adminPage(path) {
       };
     case "/api/admin/settings":
       return { enabledFilters: [], customFilters: [] };
+    case "/api/admin/settings/rx1-output":
+      return { configured: true, settings: { gamma: 1.5, maxResolution: true } };
     case "/api/admin/bookings":
     case "/api/admin/rooms":
     case "/api/admin/packages":
@@ -156,6 +158,7 @@ let page;
 let currentSummary;
 let storageError;
 let authRole = "admin";
+let authPermissions;
 let authError = false;
 let mutationSummary = null;
 let holdStorageReads = false;
@@ -240,6 +243,7 @@ before(async () => {
               _id: "fixture-admin",
               name: "Quản trị NXC",
               role: authRole,
+              permissions: authPermissions,
             }),
           );
         }
@@ -841,6 +845,7 @@ async function mountAdmin({
   data = atlasSummary(),
   error = null,
   role = "admin",
+  permissions,
   signedIn = true,
   clock = false,
 } = {}) {
@@ -849,6 +854,7 @@ async function mountAdmin({
   currentSummary = data;
   storageError = error;
   authRole = role;
+  authPermissions = permissions;
   authError = !signedIn;
   mutationSummary = null;
   requests = [];
@@ -892,10 +898,24 @@ const ADMIN_PAGES = [
   "Khổ ảnh & bảng giá",
   "Nhãn dán",
   "Quản lý filter",
+  "Màu in RX1",
   "Tài khoản",
   "Đối soát",
   "Tổng hợp",
 ];
+
+test("RX1 color controls are admin-only even when staff have every delegated permission", async () => {
+  await mountAdmin();
+  await navButton("Màu in RX1").click();
+  await page.getByLabel("Độ tối bản in (gamma)").waitFor();
+  assert.equal(await page.getByRole("button", { name: "Lưu cấu hình màu in", exact: true }).count(), 1);
+  assertClean();
+  await mountAdmin({ role: "staff", permissions: ["revenue:view", "orders:export", "orders:cancel", "print:operate", "shift:operate", "rooms:setup"] });
+  assert.equal(await navButton("Màu in RX1").count(), 0);
+  assert.equal(await page.getByLabel("Độ tối bản in (gamma)").count(), 0);
+  assert.equal(requests.some((entry) => entry.path === "/api/admin/settings/rx1-output"), false);
+  assertClean();
+});
 
 async function pollOnce({ failing = false } = {}) {
   const previous = storageReads().length;

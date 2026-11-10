@@ -3,6 +3,7 @@ import { ImagePlus, RefreshCw, Save } from "lucide-react";
 import { api, formatDateTime } from "../api.js";
 import { Button, ErrorBox } from "../studio.jsx";
 import { useLiveData } from "../use-live-data.js";
+import defaultPreview from "./assets/rx1-preview-default.jpg";
 import "./rx1-output.css";
 
 function TonePreview({ gamma }) {
@@ -11,9 +12,8 @@ function TonePreview({ gamma }) {
   const [error, setError] = useState("");
   const original = useRef(null), adjusted = useRef(null);
   useEffect(() => {
-    if (!file) return;
     let active = true;
-    const url = URL.createObjectURL(file);
+    const url = file ? URL.createObjectURL(file) : defaultPreview;
     const image = new Image();
     setError(""); setPixels(null);
     image.onload = () => {
@@ -28,9 +28,11 @@ function TonePreview({ gamma }) {
         setPixels(context.getImageData(0, 0, canvas.width, canvas.height));
       } catch { setError("Không đọc được ảnh này. Hãy chọn ảnh JPG hoặc PNG khác."); }
     };
-    image.onerror = () => { if (active) setError("Không mở được ảnh. Hãy chọn ảnh JPG hoặc PNG."); };
+    image.onerror = () => { if (active) setError(file
+      ? "Không mở được ảnh. Hãy chọn ảnh JPG hoặc PNG."
+      : "Không tải được ảnh mẫu. Bạn có thể chọn ảnh khác để xem thử."); };
     image.src = url;
-    return () => { active = false; image.onload = image.onerror = null; URL.revokeObjectURL(url); };
+    return () => { active = false; image.onload = image.onerror = null; if (file) URL.revokeObjectURL(url); };
   }, [file]);
   useEffect(() => {
     if (!pixels) return;
@@ -49,6 +51,7 @@ function TonePreview({ gamma }) {
     <label className="button outline rx1-file"><ImagePlus size={17} /> Chọn ảnh xem thử
       <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => {
         const selected = event.target.files?.[0];
+        event.target.value = "";
         if (!selected) return;
         if (selected.size > 25 * 1024 * 1024) { setError("Chọn ảnh dưới 25 MB để xem thử."); return; }
         setFile(selected);
@@ -58,8 +61,8 @@ function TonePreview({ gamma }) {
     {pixels ? <div className="rx1-preview-pair">
       <figure><figcaption>Ảnh nguồn</figcaption><canvas ref={original} aria-label="Ảnh nguồn" /></figure>
       <figure><figcaption>Gamma {gamma.toFixed(2)}</figcaption><canvas ref={adjusted} aria-label="Ảnh xem thử gamma" /></figure>
-    </div> : <div className="rx1-preview-empty">Chọn một ảnh để so độ tối trước khi lưu.</div>}
-    <p>Ảnh xem thử được xử lý ngay trên máy bạn. Màu trên giấy còn phụ thuộc ICC, driver và ánh sáng xem ảnh.</p>
+    </div> : <div className="rx1-preview-empty" role="status">{error ? "Chọn ảnh khác để xem thử." : "Đang tải ảnh xem thử…"}</div>}
+    <p>Bạn có thể chọn ảnh khác để thử; tải lại trang sẽ trở về ảnh mẫu mặc định. Ảnh xem thử được xử lý ngay trên máy bạn. Màu trên giấy còn phụ thuộc ICC, driver và ánh sáng xem ảnh.</p>
   </section>;
 }
 

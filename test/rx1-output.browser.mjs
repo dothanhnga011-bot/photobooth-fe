@@ -5,6 +5,7 @@ import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRequire } from "node:module";
+import { createHash } from "node:crypto";
 import { build } from "vite";
 import tailwindcss from "@tailwindcss/vite";
 import { chromium } from "../../photobooth-be/node_modules/playwright/index.mjs";
@@ -45,7 +46,7 @@ before(async () => {
         agent: { running: true }, rx1Output: { ...applied, at: applied.at || new Date().toISOString() } }]);
       return json({ message: "Unexpected API" }, 404);
     }
-    if (assets.has(url.pathname)) { res.writeHead(200, { "Content-Type": url.pathname.endsWith(".css") ? "text/css" : "text/javascript" }); return res.end(assets.get(url.pathname)); }
+    if (assets.has(url.pathname)) { res.writeHead(200, { "Content-Type": url.pathname.endsWith(".css") ? "text/css" : /\.jpe?g$/.test(url.pathname) ? "image/jpeg" : "text/javascript" }); return res.end(assets.get(url.pathname)); }
     res.writeHead(200, { "Content-Type": "text/html" });
     res.end(`<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${css}<div id="root"></div><script src="/${js}"></script></html>`);
   });
@@ -66,9 +67,13 @@ async function mount({ width = 1440, loadError = false } = {}) {
 test("gamma is previewed locally, saved centrally and shows the printer acknowledgement", async () => {
   await mount();
   const errors = []; page.on("pageerror", (error) => errors.push(error.message));
+  await page.waitForFunction(() => document.querySelector('canvas[aria-label="Ảnh nguồn"]')?.height === 600);
+  const previewHash = async () => createHash("sha256").update(
+    await page.getByLabel("Ảnh nguồn", { exact: true }).evaluate((canvas) => canvas.toDataURL())).digest("hex");
+  const defaultFrame = await previewHash();
   const png = await sharp({ create: { width: 200, height: 280, channels: 3, background: "#808080" } }).png().toBuffer();
   await page.locator('input[type="file"]').setInputFiles({ name: "preview.png", mimeType: "image/png", buffer: png });
-  await page.getByLabel("Ảnh xem thử gamma").waitFor();
+  await page.waitForFunction(() => document.querySelector('canvas[aria-label="Ảnh nguồn"]')?.height === 280);
   const pixel = () => page.getByLabel("Ảnh xem thử gamma").evaluate((canvas) => canvas.getContext("2d").getImageData(1, 1, 1, 1).data[0]);
   assert.ok(Math.abs(await pixel() - 91) <= 1);
   await page.getByRole("button", { name: "1.30", exact: true }).click();
@@ -91,6 +96,11 @@ test("gamma is previewed locally, saved centrally and shows the printer acknowle
   await page.getByRole("button", { name: "Làm mới trạng thái" }).click();
   await page.getByText("Đã nhận cấu hình", { exact: true }).waitFor();
   assert.equal(requests.some((req) => /\/print$|\/reprint$|\/print-file$/.test(req.path)), false);
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector('canvas[aria-label="Ảnh nguồn"]')?.height === 600);
+  assert.equal(await previewHash(), defaultFrame,
+    "reloading restores the original default image after a temporary upload");
+  assert.equal(await page.getByLabel("Độ tối bản in (gamma)").inputValue(), "2.20", "restoring the preview does not reset saved gamma");
   await page.screenshot({ path: join(captures, "desktop.png"), fullPage: true });
   assert.deepEqual(errors, []);
 });
