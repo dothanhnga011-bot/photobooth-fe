@@ -33,12 +33,19 @@ function OrderThumb({ booking }) {
   const [failed, setFailed] = useState("");
   const [up, setUp] = useState(false);
   const shown = src && failed !== src;
+  const href = albumUrl(booking);
+  const Thumb = href ? "a" : "div";
   // Di chuột (hoặc chạm) vào ảnh: hiện ảnh lớn bên cạnh để xem rõ; ảnh ở nửa dưới màn hình thì
   // bật lên trên cho khỏi tràn mép.
   return (
-    <div
+    <Thumb
       className={`order-thumb-wrap ${up ? "zoom-up" : ""}`}
-      tabIndex={shown ? 0 : undefined}
+      href={href || undefined}
+      target={href ? "_blank" : undefined}
+      rel={href ? "noreferrer" : undefined}
+      aria-label={href ? `Mở album ảnh đơn #${booking.code}` : undefined}
+      title={href ? "Mở album ảnh" : undefined}
+      tabIndex={!href && shown ? 0 : undefined}
       onMouseEnter={(event) => setUp(event.currentTarget.getBoundingClientRect().top > window.innerHeight * 0.55)}
       onFocus={(event) => setUp(event.currentTarget.getBoundingClientRect().top > window.innerHeight * 0.55)}
     >
@@ -52,7 +59,7 @@ function OrderThumb({ booking }) {
           <img src={src} alt="" />
         </span>
       )}
-    </div>
+    </Thumb>
   );
 }
 

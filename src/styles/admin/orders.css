@@ -250,6 +250,7 @@
   /* Di chuột / chạm vào ảnh nhỏ: ảnh lớn hiện bên cạnh (như Snapbox) để xem rõ ảnh đã ghép. */
   .admin-shell .order-thumb-wrap {
     position: relative;
+    display: block;
     flex: 0 0 68px;
     align-self: flex-start;
     border-radius: 5px;
@@ -257,6 +258,12 @@
   }
   .admin-shell .order-thumb-wrap[tabindex] {
     cursor: zoom-in;
+  }
+  .admin-shell .order-thumb-wrap[href] {
+    cursor: pointer;
+  }
+  .admin-shell .order-thumb-wrap[href] .order-thumb-zoom {
+    pointer-events: auto;
   }
   .admin-shell .order-thumb-wrap:focus-visible .order-thumb {
     box-shadow: 0 0 0 2px var(--mellow-cocoa, var(--wine));
