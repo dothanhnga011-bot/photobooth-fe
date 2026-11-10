@@ -282,7 +282,7 @@ function Set-PrinterCutter([string]$cut) {
 # Khổ giấy 10 × 15 cm (4 × 6 inch) của driver (driver có thể khai báo dọc hoặc ngang).
 # Output compensation belongs to the printer only; camera files and QR downloads stay untouched.
 function Get-Rx1OutputSettings([string]$settingsPath = (Join-Path $env:LOCALAPPDATA 'NXC-Printer\rx1-output.json')) {
-  $defaults = @{ gamma = 1.30; maxResolution = $true; warning = '' }
+  $defaults = @{ gamma = 1.50; maxResolution = $true; warning = '' }
   if (-not (Test-Path -LiteralPath $settingsPath)) { return $defaults }
   try {
     $profile = Get-Content -LiteralPath $settingsPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -292,7 +292,7 @@ function Get-Rx1OutputSettings([string]$settingsPath = (Join-Path $env:LOCALAPPD
       if ($profile.gamma -is [bool]) { throw 'gamma must be a number' }
       $gammaValue = [double]$profile.gamma
     }
-    if ([double]::IsNaN($gammaValue) -or [double]::IsInfinity($gammaValue) -or $gammaValue -lt 0.85 -or $gammaValue -gt 1.30) { throw 'gamma must be between 0.85 and 1.30' }
+    if ([double]::IsNaN($gammaValue) -or [double]::IsInfinity($gammaValue) -or $gammaValue -lt 0.85 -or $gammaValue -gt 1.50) { throw 'gamma must be between 0.85 and 1.50' }
     if ($null -ne $profile.PSObject.Properties['maxResolution']) {
       if ($profile.maxResolution -isnot [bool]) { throw 'maxResolution must be true or false' }
       $maximum = $profile.maxResolution
