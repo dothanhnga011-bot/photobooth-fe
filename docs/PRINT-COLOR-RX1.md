@@ -17,8 +17,10 @@ tải lại trang hoặc mở lại mục Màu in RX1 sẽ trở về ảnh mẫ
 Chỉ tài khoản có vai trò **admin** được mở và lưu mục này. Nhân viên có quyền in ảnh vẫn không có quyền
 chỉnh màu; API kiểm tra vai trò và trả 403 nếu nhân viên gọi trực tiếp.
 
-Mặc định vẫn là **1.50**. Các nút chọn nhanh gồm 1.00, 1.30, 1.50, 1.80, 2.00 và 2.20;
-thanh kéo/ô nhập chỉnh từng 0.01. Đây là hệ số bù tối trước khi in: mức 2.20 bù mạnh hơn 1.50
+Mức ban đầu khi chưa lưu là **1.50**. Sau khi lưu thành công, nhãn **Mặc định** chuyển sang mức đã lưu
+(ví dụ **1.80 · Mặc định**) và giữ khi tải lại trang. Chọn thử hoặc lưu thất bại vẫn giữ nhãn ở mức đã lưu trước đó.
+Các nút chọn nhanh gồm 1.00, 1.30, 1.50, 1.80, 2.00 và 2.20; nếu lưu một mức khác như 1.83,
+trang thêm nút **1.83 · Mặc định**. Thanh kéo/ô nhập chỉnh từng 0.01. Đây là hệ số bù tối trước khi in: mức 2.20 bù mạnh hơn 1.50
 (xám 128 xuống khoảng 56 thay vì 91 trong phép thử GDI+). Dùng cùng một ảnh xem thử và in mẫu để chọn mức phù hợp.
 
 Phát hành lần đầu: cập nhật backend trước, frontend sau, rồi cập nhật/mở lại chương trình in trên PC RX1

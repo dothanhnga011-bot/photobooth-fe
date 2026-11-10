@@ -126,6 +126,8 @@ export function Rx1OutputManager({ notify }) {
   const valid = Boolean(form?.gamma.trim()) && Number.isFinite(gamma) && gamma >= 1 && gamma <= 2.2
     && Math.abs(gamma * 100 - Math.round(gamma * 100)) < 1e-8;
   const changed = form && (!configured || gamma !== saved?.gamma || form.maxResolution !== saved?.maxResolution);
+  const defaultGamma = saved?.gamma ?? 1.5;
+  const presets = [...new Set([1, 1.3, 1.5, 1.8, 2, 2.2, defaultGamma])].sort((a, b) => a - b);
   async function save(event) {
     event.preventDefault();
     if (!valid || busy || loadError) return;
@@ -154,10 +156,10 @@ export function Rx1OutputManager({ notify }) {
             disabled={busy || Boolean(loadError)} onChange={(event) => setForm({ ...form, gamma: event.target.value })} />
         </div>
         {!valid && <p className="field-error" role="alert">Nhập gamma từ 1.00 đến 2.20, tối đa 2 số thập phân.</p>}
-        <p>Tăng gamma làm vùng trung gian tối hơn. Mức 1.00 giữ tông nguồn, 1.50 là mặc định; 2.20 bù tối mạnh.</p>
-        <div className="rx1-presets">{[1, 1.3, 1.5, 1.8, 2, 2.2].map((value) => <button key={value} type="button"
+        <p>Tăng gamma làm vùng trung gian tối hơn. Mức 1.00 giữ tông nguồn; 2.20 bù tối mạnh. Mặc định hiện tại là {defaultGamma.toFixed(2)}.</p>
+        <div className="rx1-presets">{presets.map((value) => <button key={value} type="button"
           disabled={busy || Boolean(loadError)} aria-pressed={gamma === value}
-          onClick={() => setForm({ ...form, gamma: value.toFixed(2) })}>{value.toFixed(2)}{value === 1.5 ? " · Mặc định" : ""}</button>)}</div>
+          onClick={() => setForm({ ...form, gamma: value.toFixed(2) })}>{value.toFixed(2)}{value === defaultGamma ? " · Mặc định" : ""}</button>)}</div>
         <label className="rx1-dpi"><input type="checkbox" checked={form.maxResolution} disabled={busy || Boolean(loadError)}
           onChange={(event) => setForm({ ...form, maxResolution: event.target.checked })} /> Dùng DPI cao nhất driver hỗ trợ</label>
         <p>Cấu hình này bù tông khi in giấy. Ảnh gốc và album QR giữ màu nguồn.</p>

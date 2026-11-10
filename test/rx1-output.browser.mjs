@@ -78,14 +78,18 @@ test("gamma is previewed locally, saved centrally and shows the printer acknowle
   assert.ok(Math.abs(await pixel() - 91) <= 1);
   await page.getByRole("button", { name: "1.30", exact: true }).click();
   assert.ok(Math.abs(await pixel() - 104) <= 1);
+  assert.equal(await page.getByRole("button", { name: "1.50 · Mặc định", exact: true }).count(), 1);
   assert.equal(requests.filter((req) => req.method === "PUT").length, 0, "preview and presets never change saved settings");
   await page.getByRole("button", { name: "2.20", exact: true }).click();
   assert.ok(Math.abs(await pixel() - 56) <= 1);
   assert.equal(await page.getByLabel("Thanh chỉnh gamma").getAttribute("min"), "1.00");
   assert.equal(await page.getByLabel("Thanh chỉnh gamma").getAttribute("max"), "2.20");
+  await page.getByRole("button", { name: "1.80", exact: true }).click();
   await page.getByRole("button", { name: "Lưu cấu hình màu in", exact: true }).click();
   await page.getByText("Đang chờ nhận mức mới", { exact: true }).waitFor();
-  assert.deepEqual(settings, { gamma: 2.2, maxResolution: true });
+  assert.deepEqual(settings, { gamma: 1.8, maxResolution: true });
+  assert.equal(await page.getByRole("button", { name: "1.80 · Mặc định", exact: true }).count(), 1);
+  assert.equal(await page.getByRole("button", { name: "1.50", exact: true }).count(), 1);
   applied = { ...settings };
   await page.getByRole("button", { name: "Làm mới trạng thái" }).click();
   await page.getByText("Đã nhận cấu hình", { exact: true }).waitFor();
@@ -100,12 +104,16 @@ test("gamma is previewed locally, saved centrally and shows the printer acknowle
   await page.waitForFunction(() => document.querySelector('canvas[aria-label="Ảnh nguồn"]')?.height === 600);
   assert.equal(await previewHash(), defaultFrame,
     "reloading restores the original default image after a temporary upload");
-  assert.equal(await page.getByLabel("Độ tối bản in (gamma)").inputValue(), "2.20", "restoring the preview does not reset saved gamma");
+  assert.equal(await page.getByLabel("Độ tối bản in (gamma)").inputValue(), "1.80", "restoring the preview does not reset saved gamma");
+  assert.equal(await page.getByRole("button", { name: "1.80 · Mặc định", exact: true }).count(), 1);
   await page.screenshot({ path: join(captures, "desktop.png"), fullPage: true });
   assert.deepEqual(errors, []);
 });
 test("out-of-range gamma and failed saves never claim that a new configuration was saved", async () => {
   await mount({ width: 390 });
+  await page.getByLabel("Độ tối bản in (gamma)").fill("1.83");
+  await page.getByRole("button", { name: "Lưu cấu hình màu in" }).click();
+  await page.getByRole("button", { name: "1.83 · Mặc định", exact: true }).waitFor();
   await page.getByLabel("Độ tối bản in (gamma)").fill("0.99");
   assert.equal(await page.getByRole("button", { name: "Lưu cấu hình màu in" }).isDisabled(), true);
   await page.getByLabel("Độ tối bản in (gamma)").fill("2.21");
@@ -114,11 +122,16 @@ test("out-of-range gamma and failed saves never claim that a new configuration w
   failSave = true;
   await page.getByRole("button", { name: "Lưu cấu hình màu in" }).click();
   await page.getByText("Không lưu được cấu hình", { exact: true }).waitFor();
-  assert.equal(configured, false);
-  assert.equal(await page.getByText(/Đã lưu gamma/).count(), 0);
+  assert.equal(configured, true);
+  assert.equal(settings.gamma, 1.83);
+  assert.equal(await page.getByRole("button", { name: "1.83 · Mặc định", exact: true }).count(), 1);
+  assert.equal(await page.getByRole("button", { name: "1.40 · Mặc định", exact: true }).count(), 0);
   await page.screenshot({ path: join(captures, "mobile.png"), fullPage: true });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     JSON.stringify(await page.locator('*').evaluateAll((elements) => elements.filter((el) => el.getBoundingClientRect().right > innerWidth).slice(0, 8).map((el) => ({ tag: el.tagName, class: el.className, width: el.getBoundingClientRect().width })))));
+  await page.reload();
+  await page.getByRole("button", { name: "1.83 · Mặc định", exact: true }).waitFor();
+  assert.equal(await page.getByLabel("Độ tối bản in (gamma)").inputValue(), "1.83");
 });
 
 test("driver tools download self-contained Windows helpers without saving settings or sending a print", async () => {
