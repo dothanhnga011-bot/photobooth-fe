@@ -76,7 +76,7 @@ export function KioskDone({ done, pending, left, nextGuest }) {
           : framed
             ? (instax && INSTAX_TEXT[print]) || PRINT_TEXT[print] || PRINT_TEXT.sending
             : "Chưa có khung ảnh để in — nhờ nhân viên in giúp bạn."}
-        {" · "}Vé {done.code} · ảnh lưu 24 giờ
+        {" · "}Vé {done.code} · ảnh lưu 3 ngày
       </p>
       {PRINT_WARN.has(print) && done.print?.message && (
         <p className="done-print is-warn" role="alert">{done.print.message}</p>

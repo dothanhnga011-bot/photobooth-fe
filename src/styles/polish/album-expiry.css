@@ -1,4 +1,4 @@
-/* Hàng chờ in: giờ tự xóa của từng lệnh in (24 giờ sau khi gửi) */
+/* Hàng chờ in: giờ tự xóa của từng lệnh in (3 ngày sau khi gửi) */
 .expiry-chip {
   display: inline-flex;
   align-items: center;
@@ -27,7 +27,7 @@
   }
 }
 
-/* Album khách: ảnh sắp tự xóa (mỗi ảnh lưu 24 giờ kể từ lúc chụp) */
+/* Album khách: ảnh sắp tự xóa (mỗi ảnh lưu 3 ngày kể từ lúc chụp) */
 .photo-expiry {
   position: absolute;
   top: 8px;

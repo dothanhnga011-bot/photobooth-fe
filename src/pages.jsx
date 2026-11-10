@@ -111,7 +111,7 @@ function AlbumSession({ token }) {
                 <strong>#{booking.code}</strong>
               </span>
               <span className="studio-album-retention">
-                <PiClockBold aria-hidden="true" /> Lưu miễn phí 24 giờ
+                <PiClockBold aria-hidden="true" /> Lưu miễn phí 3 ngày
               </span>
               <Button
                 className="outline small studio-album-refresh"
@@ -127,7 +127,7 @@ function AlbumSession({ token }) {
                 {refreshing ? "Đang làm mới…" : "Làm mới ảnh"}
               </Button>
             </div>
-            <p>Mỗi ảnh lưu 24 giờ kể từ lúc chụp. Tải về máy để giữ lâu hơn.</p>
+            <p>Mỗi ảnh lưu 3 ngày kể từ lúc chụp, sau đó tự xoá. Tải về máy để giữ lâu hơn.</p>
             {expires && (
               <small>
                 Ảnh sắp xóa gần nhất: <strong>{expires}</strong>
@@ -167,7 +167,7 @@ function AlbumSession({ token }) {
             <div>
               <p>
                 {booking.mediaDeleted
-                  ? "Ảnh đã hết hạn lưu trữ (mỗi ảnh lưu 24 giờ kể từ lúc chụp)."
+                  ? "Ảnh đã hết hạn lưu trữ (mỗi ảnh lưu 3 ngày kể từ lúc chụp)."
                   : booking.status === "cancelled"
                     ? "Vé đã được hủy. Vui lòng liên hệ lễ tân nếu cần hỗ trợ."
                     : `Vào phòng chụp và nhập mã này trên máy. Ảnh sẽ hiện tại đây ngay khi bạn chụp xong. Vé gồm ${booking.prints ?? 1} tờ in 10 × 15 cm.`}
