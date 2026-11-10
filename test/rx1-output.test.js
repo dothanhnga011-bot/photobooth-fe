@@ -33,7 +33,11 @@ $previous = Get-Rx1OutputSettings $profilePath
 $intermediate = Get-Rx1OutputSettings $profilePath
 '{"gamma":1.50,"maxResolution":true}' | Set-Content -LiteralPath $profilePath -Encoding UTF8
 $selected = Get-Rx1OutputSettings $profilePath
-'{"gamma":1.51,"maxResolution":true}' | Set-Content -LiteralPath $profilePath -Encoding UTF8
+'{"gamma":2.20,"maxResolution":true}' | Set-Content -LiteralPath $profilePath -Encoding UTF8
+$highest = Get-Rx1OutputSettings $profilePath
+'{"gamma":0.99,"maxResolution":true}' | Set-Content -LiteralPath $profilePath -Encoding UTF8
+$belowRange = Get-Rx1OutputSettings $profilePath
+'{"gamma":2.21,"maxResolution":true}' | Set-Content -LiteralPath $profilePath -Encoding UTF8
 $outOfRange = Get-Rx1OutputSettings $profilePath
 '{"maxResolution":false}' | Set-Content -LiteralPath $profilePath -Encoding UTF8
 $partial = Get-Rx1OutputSettings $profilePath
@@ -55,7 +59,7 @@ function Render-Probe([double]$gamma) {
     return ,@(0..4 | ForEach-Object { $c = $image.GetPixel($_,0); ,@($c.R,$c.G,$c.B,$c.A) })
   } finally { $attributes.Dispose(); $graphics.Dispose(); $image.Dispose() }
 }
-$pixels = @{ neutral = (Render-Probe $neutral.gamma); previous = (Render-Probe $previous.gamma); compensated = (Render-Probe $defaults.gamma); intermediate = (Render-Probe $intermediate.gamma); selected = (Render-Probe $selected.gamma) }
+$pixels = @{ neutral = (Render-Probe $neutral.gamma); previous = (Render-Probe $previous.gamma); compensated = (Render-Probe $defaults.gamma); intermediate = (Render-Probe $intermediate.gamma); selected = (Render-Probe $selected.gamma); highest = (Render-Probe $highest.gamma) }
 $inputImage.Dispose()
 function Resolution([int]$x,[int]$y) { [pscustomobject]@{X=$x;Y=$y} }
 function Pick([object[]]$choices, $current) {
@@ -69,7 +73,7 @@ $dpi = @{
   missing = (Pick @((Resolution -4 -1)) (Resolution 300 300));
   keepHigher = (Pick @((Resolution 300 300)) (Resolution 600 600))
 }
-@{defaults=$defaults;neutral=$neutral;legacy=$legacy;previous=$previous;intermediate=$intermediate;selected=$selected;outOfRange=$outOfRange;partial=$partial;invalid=$invalid;pixels=$pixels;dpi=$dpi} | ConvertTo-Json -Depth 8 -Compress
+@{defaults=$defaults;neutral=$neutral;legacy=$legacy;previous=$previous;intermediate=$intermediate;selected=$selected;highest=$highest;belowRange=$belowRange;outOfRange=$outOfRange;partial=$partial;invalid=$invalid;pixels=$pixels;dpi=$dpi} | ConvertTo-Json -Depth 8 -Compress
 `;
 
 for (const [name, source] of scripts) test(`${name}: maximum supported DPI and stronger output darkening preserve white, black and neutral mode`, { skip }, async () => {
@@ -88,7 +92,12 @@ for (const [name, source] of scripts) test(`${name}: maximum supported DPI and s
     assert.equal(r.intermediate.gamma, 1.40); assert.equal(r.intermediate.warning, '');
     assert.equal(r.selected.gamma, 1.50); assert.equal(r.selected.warning, '', '1.50 is accepted as a local override');
     assert.deepEqual(r.pixels.selected, r.pixels.compensated);
-    assert.equal(r.outOfRange.gamma, 1.50); assert.match(r.outOfRange.warning, /between 0\.85 and 1\.50/);
+    assert.equal(r.highest.gamma, 2.2); assert.equal(r.highest.warning, '', '2.20 is accepted');
+    assert.equal(r.belowRange.gamma, 1.50); assert.match(r.belowRange.warning, /between 1\.00 and 2\.20/);
+    assert.equal(r.outOfRange.gamma, 1.50); assert.match(r.outOfRange.warning, /between 1\.00 and 2\.20/);
+    assert.deepEqual(r.pixels.highest[0], r.pixels.neutral[0]);
+    assert.deepEqual(r.pixels.highest[2], r.pixels.neutral[2]);
+    assert.ok(r.pixels.highest[1][0] >= 55 && r.pixels.highest[1][0] <= 57, '2.20 darkens midtones more strongly');
     assert.deepEqual(r.pixels.compensated[0], r.pixels.neutral[0]);
     assert.deepEqual(r.pixels.compensated[2], r.pixels.neutral[2]);
     assert.ok(r.pixels.compensated[1][0] >= 90 && r.pixels.compensated[1][0] <= 92, 'midtone reduction');

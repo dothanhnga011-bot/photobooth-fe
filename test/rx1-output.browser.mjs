@@ -74,10 +74,13 @@ test("gamma is previewed locally, saved centrally and shows the printer acknowle
   await page.getByRole("button", { name: "1.30", exact: true }).click();
   assert.ok(Math.abs(await pixel() - 104) <= 1);
   assert.equal(requests.filter((req) => req.method === "PUT").length, 0, "preview and presets never change saved settings");
-  await page.getByRole("button", { name: "1.50 · Mặc định", exact: true }).click();
+  await page.getByRole("button", { name: "2.20", exact: true }).click();
+  assert.ok(Math.abs(await pixel() - 56) <= 1);
+  assert.equal(await page.getByLabel("Thanh chỉnh gamma").getAttribute("min"), "1.00");
+  assert.equal(await page.getByLabel("Thanh chỉnh gamma").getAttribute("max"), "2.20");
   await page.getByRole("button", { name: "Lưu cấu hình màu in", exact: true }).click();
   await page.getByText("Đang chờ nhận mức mới", { exact: true }).waitFor();
-  assert.deepEqual(settings, { gamma: 1.5, maxResolution: true });
+  assert.deepEqual(settings, { gamma: 2.2, maxResolution: true });
   applied = { ...settings };
   await page.getByRole("button", { name: "Làm mới trạng thái" }).click();
   await page.getByText("Đã nhận cấu hình", { exact: true }).waitFor();
@@ -93,7 +96,9 @@ test("gamma is previewed locally, saved centrally and shows the printer acknowle
 });
 test("out-of-range gamma and failed saves never claim that a new configuration was saved", async () => {
   await mount({ width: 390 });
-  await page.getByLabel("Độ tối bản in (gamma)").fill("1.51");
+  await page.getByLabel("Độ tối bản in (gamma)").fill("0.99");
+  assert.equal(await page.getByRole("button", { name: "Lưu cấu hình màu in" }).isDisabled(), true);
+  await page.getByLabel("Độ tối bản in (gamma)").fill("2.21");
   assert.equal(await page.getByRole("button", { name: "Lưu cấu hình màu in" }).isDisabled(), true);
   await page.getByLabel("Độ tối bản in (gamma)").fill("1.40");
   failSave = true;

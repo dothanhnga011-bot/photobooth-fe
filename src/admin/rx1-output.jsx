@@ -88,7 +88,7 @@ export function Rx1OutputManager({ notify }) {
     setPrinters(rows.filter((row) => row.room)); setStatusError("");
   }, (cause) => setStatusError(cause.message), 10000);
   const gamma = Number(form?.gamma);
-  const valid = Boolean(form?.gamma.trim()) && Number.isFinite(gamma) && gamma >= 0.85 && gamma <= 1.5
+  const valid = Boolean(form?.gamma.trim()) && Number.isFinite(gamma) && gamma >= 1 && gamma <= 2.2
     && Math.abs(gamma * 100 - Math.round(gamma * 100)) < 1e-8;
   const changed = form && (!configured || gamma !== saved?.gamma || form.maxResolution !== saved?.maxResolution);
   async function save(event) {
@@ -113,14 +113,14 @@ export function Rx1OutputManager({ notify }) {
         <p>Áp dụng chung cho các máy DNP RX1 của tiệm, cho cả tờ lớn và tờ cắt đôi.</p>
         <label htmlFor="rx1-gamma">Độ tối bản in (gamma)</label>
         <div className="rx1-gamma-inputs">
-          <input aria-label="Thanh chỉnh gamma" type="range" min="0.85" max="1.50" step="0.01" value={valid ? gamma : 1.5}
+          <input aria-label="Thanh chỉnh gamma" type="range" min="1.00" max="2.20" step="0.01" value={valid ? gamma : 1.5}
             disabled={busy || Boolean(loadError)} onChange={(event) => setForm({ ...form, gamma: event.target.value })} />
-          <input id="rx1-gamma" type="number" min="0.85" max="1.50" step="0.01" value={form.gamma}
+          <input id="rx1-gamma" type="number" min="1.00" max="2.20" step="0.01" value={form.gamma}
             disabled={busy || Boolean(loadError)} onChange={(event) => setForm({ ...form, gamma: event.target.value })} />
         </div>
-        {!valid && <p className="field-error" role="alert">Nhập gamma từ 0.85 đến 1.50, tối đa 2 số thập phân.</p>}
-        <p>Tăng gamma làm vùng trung gian tối hơn. Mức 1.00 giữ tông nguồn.</p>
-        <div className="rx1-presets">{[1, 1.3, 1.5].map((value) => <button key={value} type="button"
+        {!valid && <p className="field-error" role="alert">Nhập gamma từ 1.00 đến 2.20, tối đa 2 số thập phân.</p>}
+        <p>Tăng gamma làm vùng trung gian tối hơn. Mức 1.00 giữ tông nguồn, 1.50 là mặc định; 2.20 bù tối mạnh.</p>
+        <div className="rx1-presets">{[1, 1.3, 1.5, 1.8, 2, 2.2].map((value) => <button key={value} type="button"
           disabled={busy || Boolean(loadError)} aria-pressed={gamma === value}
           onClick={() => setForm({ ...form, gamma: value.toFixed(2) })}>{value.toFixed(2)}{value === 1.5 ? " · Mặc định" : ""}</button>)}</div>
         <label className="rx1-dpi"><input type="checkbox" checked={form.maxResolution} disabled={busy || Boolean(loadError)}

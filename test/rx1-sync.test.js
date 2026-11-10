@@ -19,7 +19,7 @@ test("RX1 cloud sync is nonblocking, atomic, survives server errors and never al
     const number = requests.length;
     if (number === 1) await new Promise((resolve) => setTimeout(resolve, 1000));
     res.writeHead(number === 3 ? 503 : 200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ rx1Output: number === 1 ? { gamma: 1.4, maxResolution: false }
+    res.end(JSON.stringify({ rx1Output: number === 1 ? { gamma: 2.2, maxResolution: false }
       : number === 2 ? { gamma: 9, maxResolution: true } : null }));
   });
   try {
@@ -53,7 +53,7 @@ function Finish-Sync {
 }
 Finish-Sync
 $received = Get-Rx1OutputSettings
-$noRewrite = -not (Set-Rx1RemoteOutput ([pscustomobject]@{gamma=1.4;maxResolution=$false}))
+$noRewrite = -not (Set-Rx1RemoteOutput ([pscustomobject]@{gamma=2.2;maxResolution=$false}))
 $script:OutputSync.next = [datetime]::MinValue
 Receive-Rx1OutputSettings; Finish-Sync
 $afterInvalid = Get-Rx1OutputSettings
@@ -76,13 +76,13 @@ $script:OutputSync.client.Dispose()
     const result = JSON.parse(stdout);
     assert.ok(result.firstCallMs < 800, "a one-second cloud response does not block the local print loop");
     for (const key of ["received", "afterInvalid", "afterOffline", "afterNull"])
-      assert.deepEqual(result[key], { gamma: 1.4, maxResolution: false, warning: "" }, `${key}: ${JSON.stringify(result.messages)}`);
+      assert.deepEqual(result[key], { gamma: 2.2, maxResolution: false, warning: "" }, `${key}: ${JSON.stringify(result.messages)}`);
     assert.equal(result.credentialsUnchanged, true);
     assert.equal(result.noRewrite, true); assert.equal(result.temporaryFiles, 0);
     assert.equal(requests.length, 4);
     assert.ok(requests.every((req) => req.path === "/api/print-agent/output-settings/sync" && req.auth === "Bearer test-room-token"));
     assert.deepEqual(requests[0].body.applied, { gamma: 1.3, maxResolution: true });
-    assert.deepEqual(requests[1].body.applied, { gamma: 1.4, maxResolution: false });
+    assert.deepEqual(requests[1].body.applied, { gamma: 2.2, maxResolution: false });
   } finally {
     await new Promise((resolve) => server.close(resolve));
     assert.equal(path.resolve(path.dirname(folder)), path.resolve(os.tmpdir()));

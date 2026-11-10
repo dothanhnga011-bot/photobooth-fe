@@ -292,7 +292,7 @@ function Get-Rx1OutputSettings([string]$settingsPath = (Join-Path $env:LOCALAPPD
       if ($profile.gamma -is [bool]) { throw 'gamma must be a number' }
       $gammaValue = [double]$profile.gamma
     }
-    if ([double]::IsNaN($gammaValue) -or [double]::IsInfinity($gammaValue) -or $gammaValue -lt 0.85 -or $gammaValue -gt 1.50) { throw 'gamma must be between 0.85 and 1.50' }
+    if ([double]::IsNaN($gammaValue) -or [double]::IsInfinity($gammaValue) -or $gammaValue -lt 1.00 -or $gammaValue -gt 2.20) { throw 'gamma must be between 1.00 and 2.20' }
     if ($null -ne $profile.PSObject.Properties['maxResolution']) {
       if ($profile.maxResolution -isnot [bool]) { throw 'maxResolution must be true or false' }
       $maximum = $profile.maxResolution
@@ -322,8 +322,8 @@ function Set-Rx1RemoteOutput($profile, [string]$settingsPath = (Join-Path $env:L
   if ($null -eq $profile.PSObject.Properties['gamma'] -or $profile.gamma -is [bool] -or
       $profile.maxResolution -isnot [bool]) { throw 'Invalid RX1 output settings from web.' }
   $gamma = [double]$profile.gamma
-  if ([double]::IsNaN($gamma) -or [double]::IsInfinity($gamma) -or $gamma -lt 0.85 -or $gamma -gt 1.50) {
-    throw 'Web gamma must be between 0.85 and 1.50.'
+  if ([double]::IsNaN($gamma) -or [double]::IsInfinity($gamma) -or $gamma -lt 1.00 -or $gamma -gt 2.20) {
+    throw 'Web gamma must be between 1.00 and 2.20.'
   }
   $current = Get-Rx1OutputSettings $settingsPath
   if ((Test-Path -LiteralPath $settingsPath) -and -not $current.warning -and
