@@ -11,6 +11,7 @@ import {
   PiCaretRightBold,
   PiCaretUpBold,
   PiCheckBold,
+  PiFrameCornersBold,
   PiImagesBold,
   PiMagnifyingGlassMinusBold,
   PiMagnifyingGlassPlusBold,
@@ -24,7 +25,7 @@ import {
 } from "react-icons/pi";
 import { Button, useToast } from "../studio";
 import { PHOTO_ZOOM, clampZoom } from "../frame-utils.js";
-import { composePreview, previewBitmap } from "./compose.js";
+import { composeFrameTile, composePreview, previewBitmap } from "./compose.js";
 import { createPreviewLoader } from "./preview-loader.js";
 import {
   DECOR_COLORS,
@@ -293,23 +294,23 @@ function DecorStage({
   );
 }
 
-// Lưới ảnh đã chụp phủ kín ô "Chọn ảnh": đo chỗ trống (ResizeObserver) và chọn số cột cho ảnh to nhất
-// mà vẫn thấy hết (fit-grid.js). Chưa đo được thì để CSS tự chia cột như trước.
-function useFitGrid(count) {
-  // Ref dạng hàm: lưới mất đi khi khách sang mục khác và có lại khi quay về "Chọn ảnh".
+// Lưới ảnh đã chụp phủ kín ô "Chọn ảnh" (và lưới khung của mục "Khung"): đo chỗ trống (ResizeObserver)
+// và chọn số cột cho ô to nhất mà vẫn thấy hết (fit-grid.js). Chưa đo được thì để CSS tự chia cột.
+function useFitGrid(count, { aspect = 3 / 2, frame = 8, min = 120 } = {}) {
+  // Ref dạng hàm: lưới mất đi khi khách sang mục khác và có lại khi quay về mục đó.
   const [element, ref] = useState(null);
   const [layout, setLayout] = useState(null);
   useLayoutEffect(() => {
     if (!element || typeof ResizeObserver === "undefined") return;
     const measure = (width, height) => {
-      const next = fitGrid(width, height, count);
+      const next = fitGrid(width, height, count, { aspect, frame, min });
       setLayout((old) =>
         old && next && old.cols === next.cols && old.size === next.size && old.scroll === next.scroll ? old : next);
     };
     const observer = new ResizeObserver(([entry]) => measure(entry.contentRect.width, entry.contentRect.height));
     observer.observe(element);
     return () => observer.disconnect();
-  }, [element, count]);
+  }, [element, count, aspect, frame, min]);
   const style = layout ? { gridTemplateColumns: `repeat(${layout.cols}, ${layout.size}px)` } : undefined;
   return { ref, style, fitted: Boolean(layout && !layout.scroll) };
 }
@@ -329,6 +330,58 @@ function Pick({ shot, order, onToggle, disabled }) {
     </button>
   );
 }
+
+// Một khung trong mục "Khung": khung ghép sẵn ảnh khách đã chọn (ô chưa có ảnh hiện số thứ tự), chạm
+// để đổi khung xem lớn bên trái. need: số ảnh khung này cần (chỉ hiện khi các khung cần số ảnh khác nhau).
+// onAspect: báo tỉ lệ ảnh khung (ngang / dọc) để lưới chia ô theo đúng hình khung.
+function FrameTile({ frame, number, active, need, images, imageKey, filters, filterKey, transforms, transformKey, onPick, onAspect }) {
+  const button = useRef(null);
+  const canvas = useRef(null);
+  const [state, setState] = useState("loading");
+  useEffect(() => {
+    const controller = new AbortController();
+    composeFrameTile(frame, images, { filters, transforms, signal: controller.signal })
+      .then((out) => {
+        const c = canvas.current;
+        if (controller.signal.aborted || !c) return void (out.width = out.height = 0);
+        c.width = out.width;
+        c.height = out.height;
+        c.getContext("2d").drawImage(out, 0, 0);
+        out.width = out.height = 0;
+        onAspect?.(c.width / c.height);
+        setState("ready");
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setState("failed");
+      });
+    return () => controller.abort();
+  }, [frame, imageKey, filterKey, transformKey]);
+  // Đổi khung bằng nút ‹ › khi đang mở mục này: cuộn tới khung đang xem.
+  useEffect(() => {
+    if (active) button.current?.scrollIntoView?.({ block: "nearest" });
+  }, [active]);
+  const name = frame.themeName?.trim() || frame.name || "Khung";
+  return (
+    <button
+      ref={button}
+      type="button"
+      role="radio"
+      aria-checked={active}
+      aria-label={`${name} · khung ${number}${need ? ` · ${need} ảnh` : ""}`}
+      className={`frame-choice is-${state}`}
+      onClick={onPick}
+    >
+      <span className="frame-choice-art">
+        <canvas ref={canvas} aria-hidden="true" />
+        {state === "failed" && <em>{frame.name || name}</em>}
+      </span>
+      <b>{number}</b>
+      {need ? <small>{need} ảnh</small> : null}
+    </button>
+  );
+}
+// Ô của mục "Khung": viền 3 px + đệm 4 px mỗi bên; nhỏ hơn 140 px thì cho cuộn để khung vẫn đủ to.
+const FRAME_TILE = { frame: 14, min: 140 };
 
 // Ảnh nhỏ trong hàng "Áp dụng cho": số thứ tự trong khung và tên màu riêng (nếu có).
 function TargetChip({ shot, number, active, label, css, onPick }) {
@@ -365,6 +418,7 @@ function ColorChoices({ shot, filters, value, onChange }) {
 
 const TABS = {
   photos: ["Chọn ảnh", PiImagesBold],
+  frames: ["Khung", PiFrameCornersBold],
   adjust: ["Chỉnh ảnh", PiMagnifyingGlassPlusBold],
   color: ["Màu ảnh", PiPaletteBold],
   text: ["Thêm chữ", PiTextTBold],
@@ -404,13 +458,15 @@ function OnScreenKeyboard({ onKey, onBackspace, onSpace, caps, onToggleCaps }) {
   );
 }
 
-// Chụp xong: bên trái khung ghép xem trước (nút ‹ › đổi khung), bên phải 3 mục:
-// Chọn ảnh — chọn đủ số ảnh của gói (vd. gói 70k chọn 4 tấm); Màu ảnh — một filter cho tất cả ảnh
-// hoặc riêng từng ảnh; Nhãn dán — dán, kéo, phóng to / thu nhỏ trên khung. Bấm "In ảnh" (hoặc hết giờ) để ghép
+// Chụp xong: bên trái khung ghép xem trước (nút ‹ › đổi khung), bên phải các mục:
+// Chọn ảnh — chọn đủ số ảnh của gói (vd. gói 70k chọn 4 tấm); Khung — mọi khung của gói cùng lúc, mỗi
+// khung ghép sẵn ảnh khách vừa chọn, chạm để đổi; Màu ảnh — một filter cho tất cả ảnh hoặc riêng từng
+// ảnh; Nhãn dán — dán, kéo, phóng to / thu nhỏ trên khung. Bấm "In ảnh" (hoặc hết giờ) để ghép
 // bản in với đúng màu ảnh và nhãn dán đang thấy rồi gửi máy in.
+// needs: số ảnh mỗi khung cần (cùng thứ tự frames).
 export function KioskSelect({
   shots, bitmaps, count, selected, onToggle, secondsLeft,
-  frames, index, setIndex, onConfirm, busy, prints, qrUrl,
+  frames, needs = [], index, setIndex, onConfirm, busy, prints, qrUrl,
   filters = [], decor, onDecor, shopStickers = [],
 }) {
   const toast = useToast();
@@ -432,6 +488,7 @@ export function KioskSelect({
   // Thiết lập → Nhãn dán (không có bộ biểu tượng dựng sẵn): tiệm chưa tải nhãn dán nào thì ẩn mục.
   const tabs = [
     "photos",
+    ...(frames.length > 1 ? ["frames"] : []),
     ...(frame ? ["adjust"] : []),
     ...(frame && filters.length > 1 ? ["color"] : []),
     ...(frame ? ["text"] : []),
@@ -447,7 +504,18 @@ export function KioskSelect({
     setTab(next);
     if (next !== "stickers") setPicked(null);
   };
-  // Chọn đủ ảnh lần đầu: mở luôn mục kế tiếp để khách thấy bước màu ảnh / nhãn dán.
+  // Mục Khung: lọc theo chủ đề khi tiệm có nhiều chủ đề ("" = tất cả); số ảnh chỉ ghi trên từng khung
+  // khi các khung cần số ảnh khác nhau.
+  const [theme, setTheme] = useState("");
+  const themeOf = (f) => f.themeName?.trim() || "Khác";
+  const themes = [...new Set(frames.map(themeOf))];
+  const shownFrames = frames
+    .map((f, i) => ({ frame: f, i }))
+    .filter(({ frame: f }) => !theme || themes.length < 2 || themeOf(f) === theme);
+  const mixedNeeds = new Set(needs).size > 1;
+  const [tileAspect, setTileAspect] = useState(2 / 3);
+  const frameGrid = useFitGrid(shownFrames.length, { ...FRAME_TILE, aspect: tileAspect });
+  // Chọn đủ ảnh lần đầu: mở luôn mục kế tiếp (Khung, hoặc Chỉnh ảnh khi chỉ có một khung).
   const advanced = useRef(full);
   useEffect(() => {
     if (!full || advanced.current) return;
@@ -563,6 +631,7 @@ export function KioskSelect({
   const thumbShot = shots.find((s) => s.key === (target === "all" ? selected[0] : target)) || shots[0];
   const lead = {
     photos: `Chọn ${count} tấm để ghép khung · đã chọn ${selected.length}/${count}`,
+    frames: `Chạm một khung để xem lớn bên trái · ${frames.length} khung, đã ghép sẵn ảnh bạn chọn`,
     adjust: "Kéo ảnh trên khung để dời, chụm / mở hai ngón để thu nhỏ / phóng to (vẫn giữ nét)",
     color: "Chọn màu cho tất cả ảnh hoặc từng ảnh — khung và nhãn dán giữ nguyên màu",
     text: "Gõ chữ muốn thêm vào khung, chọn kiểu chữ & màu rồi bấm “Thêm chữ”",
@@ -676,6 +745,54 @@ export function KioskSelect({
                   />
                 ))}
               </div>
+            </div>
+          )}
+          {current === "frames" && (
+            <div className="select-tab-panel select-frames" {...panel("frames")}>
+              {themes.length > 1 && (
+                <div className="frame-themes" role="group" aria-label="Chủ đề khung">
+                  {["", ...themes].map((name) => (
+                    <button key={name || "*"} type="button" aria-pressed={theme === name} onClick={() => setTheme(name)}>
+                      {name || "Tất cả"}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div
+                className={`frame-choices${frameGrid.fitted ? " is-fitted" : ""}`}
+                role="radiogroup"
+                aria-label="Chọn khung"
+                ref={frameGrid.ref}
+                style={{ ...frameGrid.style, "--frame-aspect": tileAspect }}
+              >
+                {shownFrames.map(({ frame: f, i }) => (
+                  <FrameTile
+                    key={f._id}
+                    frame={f}
+                    number={i + 1}
+                    active={i === index}
+                    need={mixedNeeds ? needs[i] : 0}
+                    images={images}
+                    imageKey={ready.join()}
+                    filters={readyFilters.map((x) => x?.steps || null)}
+                    filterKey={readyFilters.map((x) => `${x?.id}|${x?.css}`).join()}
+                    transforms={readyTransforms}
+                    transformKey={transformKey}
+                    onPick={() => i !== index && setIndex(i)}
+                    onAspect={i === shownFrames[0].i
+                      ? (a) => setTileAspect((old) => (Math.abs(old - a) < 0.01 ? old : a))
+                      : null}
+                  />
+                ))}
+              </div>
+              {!full && (
+                <p className="frame-need">
+                  Khung này cần {count} ảnh — bạn mới chọn {selected.length}.{" "}
+                  <button type="button" className="text-link" onClick={() => open("photos")}>
+                    Chọn thêm {count - selected.length} tấm
+                  </button>
+                </p>
+              )}
             </div>
           )}
           {current === "adjust" && (

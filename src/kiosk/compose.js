@@ -11,6 +11,7 @@ import {
   instaxPrint,
   isSingleStrip,
   loadFrameImage,
+  loadImageOnce,
   packPrintSheets,
   photoLayout,
   slotRect,
@@ -113,11 +114,11 @@ export function frameNeed(frame, { count, printSize, shots }) {
 // 1800 × 1200) — ảnh xem trước nét như bản in kể cả khi khung hiện to trên màn 1920 × 1080 (trước đây
 // 700 px, khung ngang hiện rộng ~1000 px bị phóng to nên mờ).
 export async function composePreview(frame, images, width = 900, qrUrl = "",
-  { placeholders = false, filters = [], stickers = [], transforms = [], signal } = {}) {
+  { placeholders = false, filters = [], stickers = [], transforms = [], signal, background: frameImage = null } = {}) {
   signal?.throwIfAborted();
   const layout = photoLayout(frame);
   const [background, qr] = await Promise.all([
-    loadFrameImage(frame.image),
+    frameImage || loadFrameImage(frame.image),
     layout.marks.some((m) => m.kind === "qr") && qrUrl ? qrImage(qrUrl).catch(() => null) : null,
     loadStickers(stickers),
   ]);
@@ -154,6 +155,25 @@ export async function composePreview(frame, images, width = 900, qrUrl = "",
   drawMarks(ctx, layout, qr, canvas.width, canvas.height);
   drawStickers(ctx, stickers, stickerArea(layout), canvas.width, canvas.height);
   return canvas;
+}
+
+// Ô nhỏ của mục "Khung" trên màn chọn ảnh: ảnh khách (đã áp màu, phóng / dời) ghép vào ảnh khung xem
+// nhanh (WebP cạnh dài 720 px) thay vì ảnh khung gốc — 16 khung chỉ tốn vài MB và không đẩy ảnh gốc
+// của khung đang xem ra khỏi bộ nhớ đệm. Các ô ghép lần lượt từng ô (máy chụp yếu không bị khựng); ô
+// đã bị bỏ (khách rời mục, đổi ảnh) thì bỏ qua. Cạnh dài 360 px: đủ nét cho ô ~180 px trên màn hình.
+const TILE_EDGE = 360;
+let tileTurn = Promise.resolve();
+export function composeFrameTile(frame, images, { filters = [], transforms = [], signal } = {}) {
+  const run = tileTurn.then(async () => {
+    signal?.throwIfAborted();
+    const background = await loadImageOnce(frame.thumb || frame.image);
+    const width = background.naturalWidth >= background.naturalHeight
+      ? TILE_EDGE
+      : Math.max(1, Math.round((TILE_EDGE * background.naturalWidth) / background.naturalHeight));
+    return composePreview(frame, images, width, "", { placeholders: true, filters, transforms, signal, background });
+  });
+  tileTurn = run.catch(() => {}).then(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  return run;
 }
 
 // Vẽ ảnh vào ô in: thu nhỏ MỘT lần thẳng về đúng cỡ ô bằng bộ lọc chất lượng cao của trình duyệt

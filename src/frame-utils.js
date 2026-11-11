@@ -92,20 +92,21 @@ export function detectSlots({ data, width, height }) {
 }
 
 const cache = createCanvasCache({ maxPixels: 12_000_000, maxEntries: 12 });
+// Tải một ảnh khung, không giữ trong bộ nhớ đệm.
+export const loadImageOnce = (src) => new Promise((resolve, reject) => {
+  const im = new window.Image();
+  // Ảnh khung tải từ máy chủ API (khác tên miền): cần CORS để vẽ lên canvas rồi xuất JPEG.
+  if (!/^(data|blob):/.test(src)) im.crossOrigin = "anonymous";
+  im.onload = () => resolve(im);
+  im.onerror = () => {
+    reject(new Error("Không tải được ảnh khung."));
+  };
+  im.src = src;
+});
 export function loadFrameImage(src) {
   // Temporary album URLs must not retain decoded full-size photos globally.
   // Their caller already owns the per-album cache and revokes the object URL.
-  const load = () => new Promise((resolve, reject) => {
-    const im = new window.Image();
-    // Ảnh khung tải từ máy chủ API (khác tên miền): cần CORS để vẽ lên canvas rồi xuất JPEG.
-    if (!/^(data|blob):/.test(src)) im.crossOrigin = "anonymous";
-    im.onload = () => resolve(im);
-    im.onerror = () => {
-      reject(new Error("Không tải được ảnh khung."));
-    };
-    im.src = src;
-  });
-  return src.startsWith("blob:") ? load() : cache.remember(src, load);
+  return src.startsWith("blob:") ? loadImageOnce(src) : cache.remember(src, () => loadImageOnce(src));
 }
 
 export const DEFAULT_TRANSFORM = { zoom: 1, x: 0, y: 0, rotate: 0 };

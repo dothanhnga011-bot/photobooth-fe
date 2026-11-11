@@ -5,7 +5,7 @@ export const KIOSK_TEXT_GROUPS = [
   ["Chung", [
     ["start.tap", "Nút trên màn chờ", "Chạm để bắt đầu"],
     ["select.title", "Tiêu đề màn chọn ảnh ({s} = số giây còn lại)", "Bạn có {s}s để chọn ảnh & trang trí"],
-    ["select.frameHint", "Hướng dẫn đổi frame trên màn chọn ảnh", "Bấm mũi tên để xem các frame khác nhaa"],
+    ["select.frameHint", "Hướng dẫn đổi frame trên màn chọn ảnh", "Bấm mũi tên hoặc mục “Khung” để xem tất cả frame nhaa"],
     ["done.title", "Tiêu đề màn QR", "Quét QR để tải ảnh & video."],
   ]],
   ["Phòng photobooth", [

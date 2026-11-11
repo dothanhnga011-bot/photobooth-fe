@@ -1456,6 +1456,7 @@ export function Kiosk() {
         onToggle={toggleShot}
         secondsLeft={selectLeft}
         frames={frames}
+        needs={frames.map(needOf)}
         index={frameIndex}
         setIndex={changeFrame}
         onConfirm={confirmFrame}

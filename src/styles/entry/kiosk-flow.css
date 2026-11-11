@@ -1016,6 +1016,7 @@
   }
   .select-tabs {
     display: flex;
+    flex-wrap: wrap;
     gap: 6px;
     padding: 6px;
     border-radius: 18px;
@@ -1037,11 +1038,23 @@
     font-family: inherit;
     font-size: 17px;
     font-weight: 700;
+    white-space: nowrap;
     cursor: pointer;
   }
   .select-tabs button svg {
     flex: none;
     font-size: 22px;
+  }
+  /* Màn nhỏ hơn 1920 (vd. 1366 × 768): 6 mục vẫn nằm một hàng — bỏ biểu tượng, chữ nhỏ hơn một chút. */
+  @media (max-width: 1700px) {
+    .select-tabs button {
+      gap: 6px;
+      padding: 0 8px;
+      font-size: 16px;
+    }
+    .select-tabs button svg {
+      display: none;
+    }
   }
   .select-tabs button[aria-selected="true"] {
     background: var(--mellow-cocoa, #522e22);
@@ -1084,9 +1097,129 @@
     height: clamp(32px, 2.4vw, 44px);
     font-size: clamp(16px, 1.3vw, 22px);
   }
+  /* Mục "Khung": mọi khung của gói cùng lúc, mỗi khung ghép sẵn ảnh khách chọn. Số cột / cỡ ô do
+     KioskSelect (useFitGrid) chọn như lưới ảnh; ô nhỏ hơn 140 px thì lưới cuộn dọc. */
+  .frame-choices {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    flex: 1 1 0;
+    gap: 12px;
+    min-height: 0;
+    padding: 4px;
+    overflow-y: auto;
+    contain: size;
+    align-content: start;
+    justify-content: center;
+  }
+  .frame-choices.is-fitted {
+    align-content: center;
+    overflow: hidden;
+  }
+  .frame-choice {
+    position: relative;
+    padding: 4px;
+    border: 3px solid transparent;
+    border-radius: 12px;
+    background: #fffaf3;
+    cursor: pointer;
+    box-shadow: 0 3px 10px rgb(74 50 38 / 14%);
+  }
+  .frame-choice[aria-checked="true"] {
+    border-color: #4caf6e;
+    box-shadow: 0 0 0 3px rgb(76 175 110 / 28%);
+  }
+  .frame-choice-art {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    aspect-ratio: var(--frame-aspect, 2 / 3);
+    border-radius: 7px;
+    overflow: hidden;
+  }
+  .frame-choice.is-loading .frame-choice-art,
+  .frame-choice.is-failed .frame-choice-art {
+    background: #f3e8de;
+  }
+  .frame-choice canvas {
+    grid-area: 1 / 1;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .frame-choice:not(.is-ready) canvas {
+    visibility: hidden;
+  }
+  .frame-choice-art em {
+    grid-area: 1 / 1;
+    padding: 8px;
+    color: var(--mellow-muted, #7a5a48);
+    font-size: 14px;
+    font-style: normal;
+    font-weight: 600;
+    text-align: center;
+  }
+  .frame-choice b {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    display: grid;
+    place-items: center;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--mellow-cocoa, #522e22);
+    color: #fff;
+    font-size: 14px;
+  }
+  .frame-choice[aria-checked="true"] b {
+    background: #4caf6e;
+  }
+  .frame-choice small {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgb(255 250 243 / 92%);
+    color: var(--mellow-ink, #3f2c25);
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .frame-themes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .frame-themes button {
+    min-height: 44px;
+    padding: 0 16px;
+    border: 2px solid #d9c6b6;
+    border-radius: 999px;
+    background: #fffaf3;
+    color: var(--mellow-ink, #3f2c25);
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .frame-themes button[aria-pressed="true"] {
+    border-color: var(--mellow-cocoa, #522e22);
+    background: var(--mellow-cocoa, #522e22);
+    color: #fff;
+  }
+  .frame-need {
+    margin: 0;
+    color: #a36114;
+    font-size: 15px;
+    font-weight: 600;
+    text-align: center;
+  }
   /* Màn hẹp (một cột): khung xem trước ở trên, lưới ảnh bên dưới với chiều cao cố định. */
   @media (max-width: 900px) {
-    .select-tab-panel .select-grid {
+    .select-tab-panel .select-grid,
+    .frame-choices {
       flex: none;
       height: 56dvh;
     }
