@@ -1,0 +1,619 @@
+/*
+  Màn dọc cảm ứng của phòng chụp (vd. 1080 × 1920) — bố cục chính của luồng khách. Màn ngang giữ
+  nguyên như cũ (các quy tắc dưới đây chỉ áp khi màn dọc và rộng từ 700 px, không áp cho điện thoại).
+  Mỗi màn vừa đúng một màn hình, không cuộn; nội dung dàn hết chiều cao, chữ to và nút cao dễ chạm.
+  Nạp sau kiosk-flow.css nên ghi đè các quy tắc màn ngang cùng độ ưu tiên.
+*/
+@layer components {
+  @media (orientation: portrait) and (min-width: 700px) {
+    /* ── Chung: tiêu đề, dòng phụ, nút dưới cùng ── */
+    .kiosk-flow {
+      gap: 28px;
+      padding: clamp(36px, 3.4vh, 64px) clamp(28px, 4.4vw, 56px) clamp(32px, 2.6vh, 48px);
+    }
+    .kiosk-flow .flow-head {
+      gap: 10px;
+    }
+    .kiosk-flow .flow-head .brand-logo {
+      width: clamp(72px, 8vw, 96px);
+      height: clamp(72px, 8vw, 96px);
+    }
+    .kiosk-flow .flow-head h1 {
+      font-size: clamp(42px, 5.6vw, 64px);
+    }
+    .kiosk-flow .flow-head p {
+      max-width: 34em;
+      font-size: clamp(19px, 2.2vw, 26px);
+      line-height: 1.4;
+    }
+    .kiosk-flow .flow-foot {
+      gap: 20px;
+    }
+    .kiosk-flow .flow-foot .button {
+      min-height: clamp(72px, 4.6vh, 92px);
+      padding-inline: clamp(28px, 3.6vw, 44px);
+      border-radius: 18px;
+      font-size: clamp(20px, 2.4vw, 27px);
+    }
+    .kiosk-flow .flow-foot .button svg {
+      font-size: 1.1em;
+    }
+    /* Quay lại · (Đã có mã chụp) · Tiếp tục: một hàng, nút đi tiếp rộng nhất */
+    .kiosk-flow > .flow-foot.kiosk-step-nav {
+      flex-wrap: nowrap;
+      width: min(940px, 100%);
+    }
+    .kiosk-flow > .flow-foot.kiosk-step-nav .button {
+      flex: 1 1 auto;
+      padding-inline: 20px;
+    }
+    .kiosk-flow > .flow-foot.kiosk-step-nav .button:last-child {
+      flex-grow: 1.8;
+    }
+    .kiosk-flow .soft-note,
+    .kiosk-flow .error-box {
+      font-size: 20px;
+    }
+
+    /* ── Màn chờ: ảnh polaroid to ở trên, tiêu đề + nút "Chạm để bắt đầu" bên dưới, căn giữa ── */
+    .kiosk-tap {
+      flex-direction: column;
+      gap: clamp(40px, 4vh, 80px);
+      padding: 96px clamp(32px, 6vw, 72px);
+      text-align: center;
+    }
+    .kiosk-tap::before {
+      top: 4%;
+      width: 140px;
+    }
+    .kiosk-tap::after {
+      bottom: 5%;
+      width: 96px;
+    }
+    .kiosk-polaroid {
+      width: min(64vw, 700px);
+      padding: 20px 20px 84px;
+    }
+    .kiosk-polaroid::before {
+      top: -22px;
+      width: 180px;
+      height: 44px;
+    }
+    .kiosk-tap .kiosk-tap-copy {
+      justify-items: center;
+      gap: 24px;
+      max-width: 940px;
+      text-align: center;
+    }
+    .kiosk-tap-copy .brand-logo {
+      width: 96px;
+      height: 96px;
+    }
+    .kiosk-tap-copy .brand small {
+      font-size: 18px;
+    }
+    .kiosk-tap strong {
+      font-size: clamp(64px, 10vw, 116px);
+    }
+    .kiosk-tap strong.kiosk-tap-title-one-line {
+      font-size: clamp(48px, 7.4vw, 88px);
+    }
+    .kiosk-tap .kiosk-hand {
+      font-size: clamp(28px, 3.2vw, 38px);
+    }
+    .kiosk-tap .kiosk-sticker {
+      padding: 30px 72px;
+      font-size: clamp(28px, 3.4vw, 40px);
+    }
+
+    /* ── Chọn cách thanh toán: hai thẻ to xếp dọc ── */
+    .kiosk-method-grid {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 40px;
+      width: min(900px, 100%);
+    }
+    .kiosk-method {
+      gap: 18px;
+      min-height: clamp(300px, 24vh, 470px);
+      border-radius: 36px;
+    }
+    .kiosk-method svg {
+      font-size: clamp(96px, 12vw, 136px);
+    }
+    .kiosk-method strong {
+      font-size: clamp(48px, 6vw, 68px);
+    }
+    .kiosk-method small {
+      max-width: 620px;
+      font-size: clamp(21px, 2.4vw, 28px);
+    }
+
+    /* ── Nhập mã: ô mã và bàn phím số to, giữa màn ── */
+    .code-card {
+      gap: 18px;
+      width: min(820px, 100%);
+      padding: 40px 44px;
+      border-radius: 32px;
+    }
+    .code-screen .code-card label {
+      font-size: 26px;
+    }
+    .code-screen .code-card input {
+      height: clamp(96px, 6.6vh, 128px);
+      border-radius: 18px;
+      font-size: clamp(56px, 6.6vw, 76px);
+    }
+    .code-card .voucher-keypad {
+      gap: 16px;
+    }
+    .code-card .voucher-keypad button {
+      min-height: clamp(96px, 6.4vh, 124px);
+      border-radius: 18px;
+      font-size: clamp(38px, 4.6vw, 52px);
+    }
+    .code-card .button {
+      min-height: clamp(88px, 5.6vh, 108px);
+      margin-top: 8px;
+      border-radius: 20px;
+      font-size: clamp(26px, 3vw, 34px);
+    }
+
+    /* ── Chọn loại tờ: thẻ to hai cột (nhiều gói thì ba cột) ── */
+    .kiosk-size-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 64px 44px;
+      width: min(940px, 100%);
+      padding: 36px 12px 12px;
+    }
+    /* Số gói lẻ: thẻ cuối nằm giữa hàng */
+    .kiosk-size-grid > .kiosk-size:last-child:nth-child(odd) {
+      grid-column: 1 / -1;
+      justify-self: center;
+      width: calc(50% - 22px);
+    }
+    .kiosk-size-grid:has(> :nth-child(5)) {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 48px 28px;
+    }
+    .kiosk-size-grid:has(> :nth-child(5)) > .kiosk-size:last-child:nth-child(odd) {
+      grid-column: auto;
+      width: auto;
+    }
+    .kiosk-size {
+      gap: 14px;
+      padding: 44px 26px 40px;
+    }
+    .kiosk-size::before {
+      top: -20px;
+      width: 140px;
+      height: 40px;
+    }
+    .kiosk-size-art {
+      gap: 10px;
+      height: clamp(160px, 11vh, 230px);
+      padding: 12px;
+    }
+    .kiosk-size.full .kiosk-size-art i { width: 76px; }
+    .kiosk-size.strip .kiosk-size-art i { width: 40px; }
+    .kiosk-size.instax .kiosk-size-art { padding: 12px 22px; }
+    .kiosk-size.instax .kiosk-size-art i {
+      width: 104px;
+      border-width: 10px 10px 36px;
+    }
+    .kiosk-size strong {
+      font-size: clamp(34px, 4.2vw, 46px);
+    }
+    .kiosk-size small {
+      font-size: clamp(18px, 2vw, 23px);
+    }
+    .kiosk-size b {
+      font-size: clamp(30px, 3.4vw, 38px);
+    }
+    .kiosk-size-off {
+      font-size: 19px;
+    }
+
+    /* ── Số lượng: nút − / + và con số thật to, tổng tiền to ── */
+    .print-choice {
+      gap: 44px;
+    }
+    .kiosk-counter {
+      gap: clamp(40px, 6vw, 72px);
+    }
+    .kiosk-counter button {
+      width: clamp(132px, 15vw, 168px);
+      height: clamp(132px, 15vw, 168px);
+      border-width: 6px;
+      font-size: clamp(52px, 6vw, 68px);
+    }
+    .kiosk-counter output {
+      font-size: clamp(150px, 19vw, 210px);
+    }
+    .print-unit {
+      gap: 8px;
+      margin: 0;
+      font-size: clamp(24px, 2.8vw, 31px);
+    }
+    .print-unit small {
+      font-size: clamp(19px, 2.1vw, 23px);
+    }
+    .kiosk-price span {
+      font-size: 24px;
+    }
+    .kiosk-price strong {
+      font-size: clamp(68px, 8.4vw, 96px);
+    }
+    .kiosk-price small {
+      max-width: 780px;
+      font-size: clamp(19px, 2.1vw, 23px);
+    }
+
+    /* ── Đút tiền: bảng tiền to, mũi tên chỉ xuống máy nhận tiền dưới màn hình ── */
+    .pay-board {
+      gap: 20px;
+      width: min(984px, 100%);
+    }
+    .pay-board > div {
+      gap: 8px;
+      padding: 34px 18px;
+      border-radius: 24px;
+    }
+    .pay-board span {
+      font-size: clamp(19px, 2.2vw, 25px);
+    }
+    .pay-board strong {
+      font-size: clamp(40px, 5vw, 58px);
+    }
+    .pay-machine {
+      flex: 1;
+      align-content: center;
+      gap: 18px;
+    }
+    .pay-machine svg {
+      font-size: clamp(112px, 14vw, 160px);
+    }
+    .pay-machine p {
+      max-width: 22em;
+      font-size: clamp(26px, 3.2vw, 36px);
+      line-height: 1.35;
+    }
+    .pay-machine small {
+      font-size: 20px;
+    }
+    /* Mũi tên chỉ xuống chỗ đút tiền: chữ V vẽ bằng viền, nhún nhẹ */
+    .pay-machine::after {
+      content: "";
+      width: 64px;
+      height: 64px;
+      margin-top: 8px;
+      border-right: 12px solid var(--mellow-cocoa, #522e22);
+      border-bottom: 12px solid var(--mellow-cocoa, #522e22);
+      border-radius: 4px;
+      rotate: 45deg;
+      animation: kiosk-point-down 1.6s ease-in-out infinite;
+    }
+    @keyframes kiosk-point-down {
+      50% { translate: 0 18px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .pay-machine::after { animation: none; }
+    }
+
+    /* ── Phòng Polaroid · chọn layout: thẻ to xếp dọc, hình layout lớn ── */
+    .kiosk-layout-grid {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 36px;
+      width: min(900px, 100%);
+      margin: auto;
+    }
+    .kiosk-layout {
+      gap: 10px;
+      min-height: 0;
+      padding: 40px 48px 44px;
+      border-radius: 28px;
+    }
+    .kiosk-layout > .layout-art {
+      width: clamp(240px, 30vw, 330px);
+      margin-bottom: 20px;
+    }
+    .kiosk-layout strong {
+      font-size: clamp(38px, 4.6vw, 52px);
+    }
+    .kiosk-layout strong::after {
+      width: 120px;
+      height: 3px;
+    }
+    .kiosk-layout small {
+      font-size: clamp(16px, 1.9vw, 21px);
+    }
+    .kiosk-layout b {
+      font-size: clamp(38px, 4.4vw, 50px);
+    }
+    .kiosk-layout-go {
+      right: 32px;
+      bottom: 32px;
+      width: 84px;
+      height: 84px;
+      border-radius: 20px;
+      font-size: 40px;
+    }
+    .layout-confirm-card {
+      gap: 22px;
+      width: min(860px, 100%);
+      padding: 56px 48px 48px;
+      border-radius: 36px;
+    }
+    .layout-confirm-card .layout-art {
+      width: 300px;
+    }
+    .layout-confirm-card h2 {
+      font-size: clamp(40px, 5vw, 56px);
+    }
+    .layout-confirm-card p {
+      font-size: clamp(20px, 2.4vw, 27px);
+    }
+    .layout-confirm-actions {
+      gap: 20px;
+      width: 100%;
+    }
+    .layout-confirm-actions .button {
+      flex: 1;
+      min-height: 96px;
+      border-radius: 20px;
+      font-size: clamp(24px, 2.8vw, 31px);
+    }
+
+    /* ── Màn QR: lời nhắn to ở trên, mã QR lớn giữa màn, ảnh ghép + video bên dưới ── */
+    .done-screen > .flow-head { order: 0; }
+    .done-screen > .done-title { order: 1; }
+    .done-screen > .done-cards { order: 2; }
+    .done-screen > .done-print,
+    .done-screen > .done-sync { order: 3; }
+    .done-screen > .flow-foot { order: 4; }
+    .done-title {
+      font-size: clamp(36px, 4.6vw, 52px);
+      text-wrap: balance;
+    }
+    .done-cards,
+    .done-cards.no-video {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-areas: "qr qr" "photo video";
+      gap: 28px;
+      width: min(984px, 100%);
+    }
+    .done-cards.no-video {
+      grid-template-areas: "qr qr" "photo photo";
+    }
+    .done-cards > .done-card:first-child { grid-area: photo; }
+    .done-cards > .done-qr { grid-area: qr; }
+    .done-cards > .done-card:nth-child(3) { grid-area: video; }
+    .done-card {
+      padding: 24px;
+      border-radius: 28px;
+    }
+    .done-qr svg {
+      width: min(440px, 100%);
+      height: auto;
+      max-height: none;
+    }
+    .done-card img,
+    .done-card video {
+      max-height: 27dvh;
+    }
+    .done-card figcaption {
+      padding: 6px 20px;
+      font-size: 18px;
+    }
+    .done-empty {
+      font-size: 22px;
+    }
+    .done-empty svg {
+      font-size: 64px;
+    }
+    .done-print,
+    .done-sync {
+      font-size: clamp(19px, 2.2vw, 24px);
+    }
+
+    /* ── Màn chụp (đã chia đôi: hình trực tiếp trên, ảnh vừa chụp dưới): hàng dưới cùng to hơn —
+       đồng hồ đọc được từ chỗ khách đứng, dải ảnh và nút "Chụp xong" dễ chạm ── */
+    .shoot-screen.is-portrait .shoot-rail {
+      gap: 16px;
+      padding-bottom: 20px;
+    }
+    .shoot-screen.is-portrait .shoot-rail > :not(.shoot-latest) {
+      margin-inline: 20px;
+    }
+    .shoot-screen.is-portrait .shoot-timer {
+      min-width: 230px;
+      padding: 16px 14px;
+      border-radius: 18px;
+    }
+    .shoot-screen.is-portrait .shoot-timer span {
+      font-size: 15px;
+    }
+    .shoot-screen.is-portrait .shoot-timer strong {
+      font-size: clamp(48px, 5.6vw, 64px);
+    }
+    .shoot-screen.is-portrait .shoot-timer small {
+      font-size: 16px;
+    }
+    .shoot-screen.is-portrait .shoot-thumbs {
+      height: clamp(110px, 7.4vh, 150px);
+    }
+    .shoot-screen.is-portrait .shoot-end {
+      min-width: 230px;
+      min-height: 96px;
+      padding: 0 28px;
+      border-radius: 20px;
+      font-size: 27px;
+    }
+    .shoot-screen.is-portrait .shoot-end svg {
+      font-size: 32px;
+    }
+    .shoot-screen.is-portrait .shoot-latest-no {
+      top: 20px;
+      left: 20px;
+      padding: 8px 18px;
+      font-size: 24px;
+    }
+    .shoot-screen.is-portrait .shoot-latest-empty {
+      font-size: 28px;
+    }
+    .shoot-screen.is-portrait .shoot-latest-empty svg {
+      font-size: 80px;
+    }
+
+    /* ── Chọn ảnh & trang trí: khung xem trước to ở trên (nút ‹ › sát hai bên khung), bên dưới hàng mục
+       (biểu tượng trên chữ, nút cao dễ chạm) và lưới ảnh / lưới khung lấp hết phần còn lại tới nút
+       "In ảnh". Chiều cao cố định một màn: không cuộn cả trang. ── */
+    .select-screen {
+      gap: 18px;
+      height: 100dvh;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .select-screen .flow-head h1 {
+      font-size: clamp(36px, 4.4vw, 50px);
+    }
+    .select-screen .flow-head p {
+      font-size: clamp(18px, 2vw, 22px);
+    }
+    .select-layout {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr);
+      align-items: stretch;
+      gap: 18px;
+    }
+    .select-divider {
+      display: none;
+    }
+    .select-preview {
+      gap: 6px;
+    }
+    .select-frame-stage {
+      width: fit-content;
+      max-width: 100%;
+      gap: 22px;
+    }
+    .select-frame-stage .frame-preview,
+    .select-preview .frame-preview.is-loading {
+      max-height: 33dvh;
+    }
+    .select-preview .frame-preview.is-loading {
+      width: calc(33dvh * 2 / 3);
+    }
+    .select-frame-stage .frame-arrow {
+      width: 76px;
+      height: 76px;
+      font-size: 32px;
+    }
+    .select-frame-name {
+      font-size: 17px;
+    }
+    .select-hint,
+    .frame-need {
+      font-size: 19px;
+    }
+    .select-preview .select-frame-hint {
+      max-width: none;
+      font-size: clamp(18px, 2vw, 22px);
+    }
+    .select-tabs button {
+      position: relative;
+      flex-direction: column;
+      gap: 4px;
+      min-height: 84px;
+      padding: 8px 4px;
+      font-size: clamp(16px, 1.7vw, 19px);
+    }
+    .select-tabs button svg {
+      display: block;
+      font-size: 28px;
+    }
+    .select-tabs small {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+    }
+    .frame-themes button {
+      min-height: 56px;
+      padding: 0 24px;
+      font-size: 18px;
+    }
+    .select-order {
+      width: 44px;
+      height: 44px;
+      font-size: 22px;
+    }
+    .frame-choice b {
+      min-width: 34px;
+      height: 34px;
+      font-size: 17px;
+    }
+    /* Mục Chỉnh ảnh / Thêm chữ: ảnh để chọn, nút phóng / dời và bàn phím chữ to hơn cho ngón tay */
+    .adjust-photos {
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 14px;
+    }
+    .adjust-photo b {
+      width: 30px;
+      height: 30px;
+      font-size: 15px;
+    }
+    .adjust-zoom span {
+      font-size: 22px;
+    }
+    .adjust-zoom button,
+    .text-actions button,
+    .sticker-tools button {
+      min-height: 64px;
+      padding-inline: 22px;
+      font-size: 19px;
+    }
+    .adjust-pan {
+      gap: 10px;
+      grid-template-columns: repeat(3, 80px);
+      grid-template-rows: repeat(3, 80px);
+    }
+    .adjust-pan button,
+    .adjust-pan .pan-mid {
+      font-size: 30px;
+    }
+    .adjust-controls small {
+      font-size: 17px;
+    }
+    .text-preview {
+      min-height: 76px;
+      font-size: 30px;
+    }
+    .text-fonts button {
+      min-height: 56px;
+      padding-inline: 20px;
+      font-size: 19px;
+    }
+    .text-colors button {
+      width: 50px;
+      height: 50px;
+    }
+    .kb {
+      gap: 10px;
+    }
+    .kb-row {
+      gap: 8px;
+    }
+    .kb-key {
+      max-width: 88px;
+      min-height: 72px;
+      font-size: 27px;
+    }
+    .kb-key.kb-wide {
+      max-width: 128px;
+      font-size: 28px;
+    }
+    .kb-key.kb-space {
+      max-width: 520px;
+      font-size: 20px;
+    }
+  }
+}

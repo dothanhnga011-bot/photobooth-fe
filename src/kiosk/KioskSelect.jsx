@@ -631,7 +631,7 @@ export function KioskSelect({
   const thumbShot = shots.find((s) => s.key === (target === "all" ? selected[0] : target)) || shots[0];
   const lead = {
     photos: `Chọn ${count} tấm để ghép khung · đã chọn ${selected.length}/${count}`,
-    frames: `Chạm một khung để xem lớn bên trái · ${frames.length} khung, đã ghép sẵn ảnh bạn chọn`,
+    frames: `Chạm một khung để đổi · ${frames.length} khung, đã ghép sẵn ảnh bạn chọn`,
     adjust: "Kéo ảnh trên khung để dời, chụm / mở hai ngón để thu nhỏ / phóng to (vẫn giữ nét)",
     color: "Chọn màu cho tất cả ảnh hoặc từng ảnh — khung và nhãn dán giữ nguyên màu",
     text: "Gõ chữ muốn thêm vào khung, chọn kiểu chữ & màu rồi bấm “Thêm chữ”",

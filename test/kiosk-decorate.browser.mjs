@@ -413,6 +413,70 @@ test("16 frames in two themes fit the Khung panel on 1920 × 1080; a theme chip 
   } finally { await page.close(); }
 });
 
+test("portrait 1080 × 1920 touch screen: big preview on top, one row of tabs, 12 photos and 16 frames fit without scrolling", async () => {
+  const { page, errors } = await selectScreen({ query: "/?frames=16", shots: 12, viewport: { width: 1080, height: 1920 } });
+  try {
+    const grid = page.getByRole("group", { name: "Ảnh đã chụp" });
+    await grid.getByRole("button").nth(11).locator("img").waitFor();
+    await page.waitForFunction(() => document.querySelector(".select-grid")?.classList.contains("is-fitted"));
+    await page.waitForFunction(() => document.querySelector(".decor-canvas:not(.is-loading)"));
+    const measure = (cellSelector, gridSelector) => page.evaluate(([cellSelector, gridSelector]) => {
+      const box = (el) => el.getBoundingClientRect();
+      const preview = box(document.querySelector(".decor-canvas"));
+      const tabs = [...document.querySelectorAll(".select-tabs [role=tab]")].map(box);
+      const area = box(document.querySelector(gridSelector));
+      const cells = [...document.querySelectorAll(cellSelector)].map(box);
+      return {
+        previewHeight: Math.round(preview.height),
+        previewAboveTabs: preview.bottom <= tabs[0].top,
+        tabRows: new Set(tabs.map((t) => Math.round(t.top))).size,
+        tabHeight: Math.round(tabs[0].height),
+        cellWidth: Math.round(Math.min(...cells.map((c) => c.width))),
+        allVisible: cells.every((c) => c.top >= area.top - 1 && c.bottom <= area.bottom + 1),
+        pageScrolls: document.documentElement.scrollHeight > innerHeight + 1,
+      };
+    }, [cellSelector, gridSelector]);
+    const photos = await measure(".select-shot", ".select-grid");
+    await page.screenshot({ path: join(tmpdir(), "photobooth-fe-portrait-photos.png") });
+    assert.ok(photos.previewHeight >= 600, `khung xem trước cao ${photos.previewHeight} px`);
+    assert.ok(photos.cellWidth >= 220, `ảnh rộng ${photos.cellWidth} px`);
+    assert.ok(photos.tabHeight >= 72, `mục cao ${photos.tabHeight} px`);
+    assert.deepEqual({ ...photos, previewHeight: 0, cellWidth: 0, tabHeight: 0 },
+      { previewHeight: 0, previewAboveTabs: true, tabRows: 1, tabHeight: 0, cellWidth: 0, allVisible: true, pageScrolls: false });
+
+    await grid.getByRole("button").nth(0).click();
+    await grid.getByRole("button").nth(1).click();
+    await page.waitForFunction(() => document.querySelectorAll(".frame-choice.is-ready").length === 16);
+    const frames = await measure(".frame-choice", ".frame-choices");
+    await page.screenshot({ path: join(tmpdir(), "photobooth-fe-portrait-frames.png") });
+    assert.ok(frames.cellWidth >= 140, `khung rộng ${frames.cellWidth} px`);
+    assert.equal(frames.allVisible, true, "thấy cả 16 khung");
+    assert.equal(frames.pageScrolls, false);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("PROBE tabs", async () => {
+  const { page } = await selectScreen({ shots: 12, viewport: { width: 1080, height: 1920 } });
+  try {
+    const grid = page.getByRole("group", { name: "Ảnh đã chụp" });
+    await grid.getByRole("button").nth(0).click();
+    await grid.getByRole("button").nth(1).click();
+    for (const [name, file] of [["Chỉnh ảnh", "adjust"], ["Màu ảnh", "color"], ["Thêm chữ", "text"], ["Nhãn dán", "stickers"]]) {
+      await page.getByRole("tab", { name: new RegExp(name) }).click();
+      if (file === "adjust") await page.locator(".adjust-photo").first().click();
+      await page.waitForTimeout(300);
+      const clip = await page.evaluate(() => {
+        const panel = document.querySelector(".select-tab-panel").getBoundingClientRect();
+        const kids = [...document.querySelectorAll(".select-tab-panel *")].map((e) => e.getBoundingClientRect().bottom);
+        return { panelBottom: Math.round(panel.bottom), contentBottom: Math.round(Math.max(...kids)), foot: Math.round(document.querySelector(".flow-foot").getBoundingClientRect().top) };
+      });
+      console.log("PROBE", file, JSON.stringify(clip));
+      await page.screenshot({ path: join(tmpdir(), `photobooth-fe-portrait-${file}.png`) });
+    }
+  } finally { await page.close(); }
+});
+
 test("code entry uses larger touch text without overflowing short and full-HD kiosk screens", async () => {
   const { page, errors } = await selectScreen();
   try {
