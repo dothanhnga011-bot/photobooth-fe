@@ -211,12 +211,11 @@ test("in webcam test mode the Space key counts down, takes a photo from the webc
     const picks = b.page.getByRole("group", { name: "Ảnh đã chụp" }).getByRole("button");
     await picks.first().waitFor();
     assert.equal(await picks.count(), 1);
-    // Chụp xong: video tua nhanh ghép xong và gửi lên album — MP4 khi trình duyệt ghi được (iPhone chỉ
-    // lưu MP4 vào app Ảnh), không thì WebM.
+    // Chụp xong: video tua nhanh ghép xong và gửi lên album. Thử bằng webcam: ghép bằng VP8 (WebM) như
+    // lúc quay — bộ mã hóa H.264 phần cứng của laptop làm sập tab Chrome lúc ghép (STATUS_BREAKPOINT).
     for (let i = 0; i < 300 && !b.videos.length; i++) await b.page.waitForTimeout(100);
     assert.equal(b.videos.length, 1, "the timelapse video is uploaded");
-    const mp4 = await b.page.evaluate(() => MediaRecorder.isTypeSupported("video/mp4"));
-    const output = mp4 ? /^video\/mp4/ : /^video\/webm/;
+    const output = /^video\/webm/;
     assert.match(b.videos[0].type, output);
     assert.ok(b.videos[0].size > 1000);
     const build = (await b.page.evaluate(() => window.__recorders)).slice(recorders.length);

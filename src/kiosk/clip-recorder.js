@@ -19,8 +19,9 @@ const RECORD_TYPES = [
 // phần cứng — webcam laptop + quay H.264 liên tục đã làm sập tab Chrome (STATUS_BREAKPOINT).
 const LIGHT_TYPES = ["video/webm;codecs=vp8", "video/webm;codecs=vp9", "video/webm"];
 // Video ghép gửi album: MP4 (H.264) trước — iPhone chỉ lưu được MP4 / MOV vào app Ảnh, Android
-// cũng xem / lưu được. Trình duyệt không ghi được MP4 mới dùng WebM. Chế độ nhẹ cũng ghép ra MP4:
-// chỉ mã hóa một lần sau khi chụp xong, không quay liên tục cùng lúc với webcam.
+// cũng xem / lưu được. Trình duyệt không ghi được MP4 mới dùng WebM. Chế độ nhẹ (thử bằng webcam máy
+// tính) ghép bằng VP8 (LIGHT_TYPES) như lúc quay: bộ mã hóa H.264 phần cứng của laptop vẫn làm sập tab
+// Chrome (STATUS_BREAKPOINT) ngay sau "Chụp xong", lúc ghép video (11/11). Máy chụp thật vẫn ra MP4.
 const OUTPUT_TYPES = [
   "video/mp4;codecs=avc1.640028",
   "video/mp4;codecs=avc1.42E01E",
@@ -203,7 +204,7 @@ export async function buildTimelapse(clips, { zoom = 0, speed = 4, mirror = true
   ctx.imageSmoothingQuality = "high";
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, width, height);
-  const type = pickType(OUTPUT_TYPES);
+  const type = pickType(light ? LIGHT_TYPES : OUTPUT_TYPES);
   const output = canvas.captureStream(30);
   const recorder = new MediaRecorder(output, { ...(type && { mimeType: type }), videoBitsPerSecond: bitrate });
   const chunks = [];

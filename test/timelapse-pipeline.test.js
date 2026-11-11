@@ -113,3 +113,17 @@ test("a corrupt preloaded clip is skipped and every decoder is released", async 
   assert.equal(events.filter(([type]) => type === "revoke").length, 3);
   assert.equal(stoppedTracks, 1);
 });
+
+test("webcam test mode builds the timelapse with software VP8 (laptop H.264 crashed Chrome); the booth keeps MP4", async () => {
+  const supported = globalThis.MediaRecorder.isTypeSupported;
+  globalThis.MediaRecorder.isTypeSupported = (type) => /^video\/(mp4|webm)/.test(type);
+  try {
+    const webcam = await buildTimelapse(clips(), { light: true });
+    assert.equal(settings.options.mimeType, "video/webm;codecs=vp8");
+    assert.equal(webcam.size, 1500);
+    await buildTimelapse(clips());
+    assert.equal(settings.options.mimeType, "video/mp4;codecs=avc1.640028");
+  } finally {
+    globalThis.MediaRecorder.isTypeSupported = supported;
+  }
+});
