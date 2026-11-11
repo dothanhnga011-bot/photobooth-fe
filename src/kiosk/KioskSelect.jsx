@@ -372,6 +372,8 @@ function FrameTile({ frame, number, active, need, images, imageKey, filters, fil
       onClick={onPick}
     >
       <span className="frame-choice-art">
+        {/* Đang ghép: hiện ngay ảnh khung trơn (đã tải sẵn lúc khách chụp), ghép xong thay bằng bản có ảnh. */}
+        {state === "loading" && frame.thumb && <img src={frame.thumb} alt="" crossOrigin="anonymous" decoding="async" />}
         <canvas ref={canvas} aria-hidden="true" />
         {state === "failed" && <em>{frame.name || name}</em>}
       </span>

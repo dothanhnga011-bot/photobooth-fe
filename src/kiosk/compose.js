@@ -1,4 +1,5 @@
 import { api, getApiUrl } from "../api.js";
+import { createCanvasCache } from "../canvas-cache.js";
 import { hasPending, readSetting, updateSetting } from "../capture-store.js";
 import { compareFrameOrder } from "../frame-catalog-data.js";
 import {
@@ -162,11 +163,30 @@ export async function composePreview(frame, images, width = 900, qrUrl = "",
 // của khung đang xem ra khỏi bộ nhớ đệm. Các ô ghép lần lượt từng ô (máy chụp yếu không bị khựng); ô
 // đã bị bỏ (khách rời mục, đổi ảnh) thì bỏ qua. Cạnh dài 360 px: đủ nét cho ô ~180 px trên màn hình.
 const TILE_EDGE = 360;
+// Ảnh khung xem nhanh đã giải mã của các ô, giữ riêng (16 khung tờ nhỏ ~12 MP), không chung bộ nhớ đệm
+// ảnh khung gốc. Tải sẵn trong lúc khách đang chụp (preloadFrameTiles) để chụp xong các ô hiện ngay.
+const tileBackgrounds = createCanvasCache({ maxPixels: 16_000_000, maxEntries: 32 });
+const decoded = (image) => (image.decode ? image.decode().then(() => image, () => image) : image);
+function tileBackground(frame) {
+  const src = frame.thumb || frame.image;
+  return src.startsWith("blob:")
+    ? loadImageOnce(src)
+    : tileBackgrounds.remember(src, () => loadImageOnce(src).then(decoded));
+}
+// Tải sẵn (lần lượt, từng ảnh một) ảnh khung xem nhanh của mọi khung trong gói và ảnh khung gốc của
+// khung khách thấy đầu tiên. Lỗi mạng bỏ qua: lúc mở mục Khung sẽ tải lại như thường.
+export async function preloadFrameTiles(frames, { first = frames[0], signal } = {}) {
+  if (first?.image) await loadFrameImage(first.image).then(decoded).catch(() => {});
+  for (const frame of frames) {
+    if (signal?.aborted) return;
+    await tileBackground(frame).catch(() => {});
+  }
+}
 let tileTurn = Promise.resolve();
 export function composeFrameTile(frame, images, { filters = [], transforms = [], signal } = {}) {
   const run = tileTurn.then(async () => {
     signal?.throwIfAborted();
-    const background = await loadImageOnce(frame.thumb || frame.image);
+    const background = await tileBackground(frame);
     const width = background.naturalWidth >= background.naturalHeight
       ? TILE_EDGE
       : Math.max(1, Math.round((TILE_EDGE * background.naturalWidth) / background.naturalHeight));

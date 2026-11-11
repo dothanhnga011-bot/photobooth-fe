@@ -55,6 +55,7 @@ import {
   compositeJpeg,
   composePreview,
   frameCandidates,
+  preloadFrameTiles,
   frameNeed,
   printSheets,
   queueKioskComposite,
@@ -1081,6 +1082,18 @@ export function Kiosk() {
   const flowShots = ["select", "frame"].includes(phase) ? shots : [];
   const bitmaps = useShotBitmaps(flowShots, session?.accessToken);
   const frameIndex = Math.min(session?.frameIndex || 0, Math.max(0, frames.length - 1));
+  // Ảnh khung tải sẵn ngay khi vào chụp (không đợi chụp xong): khung xem trước đầu tiên và các ô của
+  // mục "Khung" hiện ngay ở màn chọn ảnh. Khoá theo danh sách khung, không theo từng tấm vừa chụp.
+  const preloadKey = ["ready", "shoot", "select", "frame"].includes(phase) ? frames.map((f) => f._id).join() : "";
+  useEffect(() => {
+    if (!preloadKey) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => preloadFrameTiles(frames, { first: frames[frameIndex], signal: controller.signal }), 1000);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [preloadKey]);
   // Số ảnh cần chọn theo khung đang xem (khổ lớn / nhỏ: số ô của khung; Instax: theo gói).
   const needOf = (frame) => frameNeed(frame, {
     count: selectCount, printSize: session?.booking.printSize, shots: shots.length,

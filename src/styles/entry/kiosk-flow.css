@@ -1140,6 +1140,7 @@
   .frame-choice.is-failed .frame-choice-art {
     background: #f3e8de;
   }
+  .frame-choice-art img,
   .frame-choice canvas {
     grid-area: 1 / 1;
     display: block;

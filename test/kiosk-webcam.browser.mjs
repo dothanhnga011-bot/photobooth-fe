@@ -29,9 +29,14 @@ const fixture = `
     // OPFS is already granted; it is only the fixture's source of camera JPEGs.
     Object.defineProperty(FileSystemHandle.prototype, 'queryPermission', { configurable: true, value: async () => 'granted' });
   }
+  // ?frames=1: hai khung có ảnh xem nhanh trên máy chủ (để kiểm tra khung được tải sẵn lúc đang chụp).
+  const frame = (id) => ({ _id: id, name: 'Khung ' + id, printSize: 'full', active: true,
+    image: '/api/frames/' + id + '/image?v=1', thumb: '/api/frames/' + id + '/image?v=1&size=thumb',
+    slots: [{ x: 0.05, y: 0.05, w: 0.9, h: 0.9, kind: 'photo', photo: 1 }] });
+  const frames = new URLSearchParams(location.search).has('frames') ? [frame('f1'), frame('f2')] : [];
   createRoot(document.getElementById('root')).render(React.createElement(React.StrictMode, null,
     React.createElement(MemoryRouter, { initialEntries: ['/kiosk?device=fixture-device'] },
-      React.createElement(StudioContext.Provider, { value: { settings: {}, packages: [], frames: [] } },
+      React.createElement(StudioContext.Provider, { value: { settings: {}, packages: [], frames } },
         React.createElement(ToastProvider, null, React.createElement(Kiosk))))));
 `;
 
@@ -92,14 +97,18 @@ async function liveReady(page) {
   assert.equal(await page.getByRole("button", { name: "Chạm để chụp" }).count(), 0, "no tap-to-shoot button");
 }
 
-async function booth(launched, { webcam, room = { _id: "room", flip: "device" }, extra = {}, lowPower = false, viewport = { width: 1366, height: 768 } }) {
+// Ảnh PNG 2 × 3 px làm ảnh khung mẫu.
+const FRAME_PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAADCAYAAAC56t6BAAAAEUlEQVR4nGP4ULHgPwgzYDAA9FMSKzMCTzsAAAAASUVORK5CYII=", "base64");
+
+async function booth(launched, { webcam, room = { _id: "room", flip: "device" }, extra = {}, lowPower = false, viewport = { width: 1366, height: 768 }, query = "" }) {
   const context = await launched.newContext({ viewport });
   if (launched === fakeCamera) await context.grantPermissions(["camera"]);
   const page = await context.newPage();
-  const errors = [], videos = [];
+  const errors = [], videos = [], frameImages = [];
   page.on("request", (r) => {
     if (r.url().endsWith("/api/kiosk/video") && r.method() === "POST")
       videos.push({ type: r.headers()["content-type"], size: r.postDataBuffer()?.length || 0 });
+    if (r.url().includes("/api/frames/")) frameImages.push(new URL(r.url()).pathname + new URL(r.url()).search);
   });
   page.on("pageerror", (e) => errors.push(e.message));
   const booking = {
@@ -110,6 +119,7 @@ async function booth(launched, { webcam, room = { _id: "room", flip: "device" },
   };
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path.startsWith("/api/frames/")) return route.fulfill({ body: FRAME_PNG, contentType: "image/png" });
     // /kiosk/finish trả về chính lượt chụp (không bọc trong { booking }) như máy chủ thật.
     await route.fulfill({ json: path.endsWith("/kiosk/ping") ? { room }
       : path.endsWith("/health") ? { ok: true }
@@ -134,8 +144,8 @@ async function booth(launched, { webcam, room = { _id: "room", flip: "device" },
       captureToken: "fixture-capture", accessToken: "fixture-album", booking, phase: "shoot", mode: "remote",
     }));
   }, { booking, webcam, lowPower });
-  await page.goto(base + (room.kind === 'polaroid' ? '?canon-folder=1' : ''));
-  return { page, errors, videos, close: () => context.close() };
+  await page.goto(base + (room.kind === 'polaroid' ? '?canon-folder=1' : query));
+  return { page, errors, videos, frameImages, close: () => context.close() };
 }
 
 test("without any camera the shoot screen explains it and offers the computer webcam for a test", async () => {
@@ -156,6 +166,23 @@ test("without any camera the shoot screen explains it and offers the computer we
     assert.equal(await b.page.getByRole("button", { name: "Chạm để chụp" }).count(), 0);
     await b.page.getByRole("button", { name: "Tắt", exact: true }).click();
     assert.equal(await b.page.evaluate(() => localStorage.getItem("kiosk-webcam-test")), "0");
+    assert.deepEqual(b.errors, []);
+  } finally { await b.close(); }
+});
+
+test("frame images load while the guest is still shooting, so the Khung tab is ready right after", async () => {
+  const b = await booth(fakeCamera, { webcam: true, query: "?frames=1" });
+  try {
+    await liveReady(b.page);
+    // Chưa chụp tấm nào, vẫn ở màn chụp: ảnh khung gốc của khung đầu tiên và ảnh xem nhanh của mọi khung đã tải.
+    for (let i = 0; i < 100 && b.frameImages.length < 3; i++) await b.page.waitForTimeout(100);
+    assert.deepEqual([...new Set(b.frameImages)].sort(), [
+      "/api/frames/f1/image?v=1",
+      "/api/frames/f1/image?v=1&size=thumb",
+      "/api/frames/f2/image?v=1&size=thumb",
+    ]);
+    assert.equal(await b.page.locator(".shoot-screen").count(), 1);
+    assert.equal(await b.page.locator(".shoot-thumbs .shoot-thumb-no").count(), 0, "no photo taken yet");
     assert.deepEqual(b.errors, []);
   } finally { await b.close(); }
 });
