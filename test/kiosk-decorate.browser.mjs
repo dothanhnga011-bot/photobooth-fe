@@ -123,7 +123,7 @@ before(async () => {
 
 after(async () => { await browser?.close(); await new Promise((resolve) => server?.close(resolve)); });
 
-async function selectScreen({ query = "", shots = 3, viewport = { width: 1366, height: 768 }, holdPrint = false } = {}) {
+async function selectScreen({ query = "", shots = 3, prints = 1, viewport = { width: 1366, height: 768 }, holdPrint = false } = {}) {
   const page = await browser.newPage({ viewport });
   const errors = [], uploads = { composite: null, print: null };
   let releasePrint;
@@ -139,7 +139,7 @@ async function selectScreen({ query = "", shots = 3, viewport = { width: 1366, h
   });
   const booking = {
     _id: "fixture-booking", code: "123456", packageName: "Gói thử", shots, selectCount: 2,
-    prints: 1, printSize: "full", status: "checked_in", captureDuration: 10,
+    prints, printSize: "full", status: "checked_in", captureDuration: 10,
     captureStartedAt: new Date(Date.now() - 600000).toISOString(),
     captureEndsAt: new Date(Date.now() - 1000).toISOString(),
     photos: Array.from({ length: shots }, (_, i) => ({ id: `p${i + 1}`, kind: "original" })),
@@ -191,6 +191,31 @@ async function samples(page, jpeg, points) {
     };
   }, { b64: jpeg.toString("base64"), points });
 }
+
+test("QR-only sessions render the 20 MP guest composite without allocating an unused RX1 sheet", async () => {
+  const { page, errors, uploads } = await selectScreen({ prints: 0 });
+  try {
+    await page.evaluate(() => {
+      window.renderTargets = [];
+      const native = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (kind, ...args) {
+        if (kind === "2d") window.renderTargets.push([this.width, this.height]);
+        return native.call(this, kind, ...args);
+      };
+    });
+    const photos = page.getByRole("group", { name: "Ảnh đã chụp" }).getByRole("button");
+    await photos.nth(0).click(); await photos.nth(1).click();
+    await page.getByRole("button", { name: "Nhận ảnh", exact: true }).click();
+    for (let i = 0; i < 100 && !uploads.composite; i++) await page.waitForTimeout(100);
+    assert.ok(uploads.composite);
+    assert.equal(uploads.print, null);
+    const targets = await page.evaluate(() => window.renderTargets);
+    assert.equal(targets.some(([w, h]) => w === 2400 && h === 3600), false);
+    const { width, height } = await samples(page, uploads.composite, []);
+    assert.ok(width * height > 19_980_000 && width * height <= 20_000_000);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
 
 test("the 20 MP album composite uploads while the local RX1 acknowledgement is still pending", async () => {
   const { page, errors, uploads, releasePrint } = await selectScreen({ holdPrint: true });

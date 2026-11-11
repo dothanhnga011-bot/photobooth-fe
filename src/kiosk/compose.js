@@ -1,5 +1,5 @@
 import { api, getApiUrl } from "../api.js";
-import { readPending, readSetting, saveSetting } from "../capture-store.js";
+import { hasPending, readSetting, updateSetting } from "../capture-store.js";
 import { compareFrameOrder } from "../frame-catalog-data.js";
 import {
   composeLayout,
@@ -266,23 +266,26 @@ export function watchKioskPrint(listener) {
 export const kioskPrintState = (token) => states.get(token);
 
 export async function directKioskPrint(job, { archiveAfter } = {}) {
+  // Observe a failed archive prerequisite immediately, even while RX1 is busy.
+  const archiveReady = Promise.resolve(archiveAfter).catch((error) => {
+    console.warn('Could not finish the guest composite before archiving its print.', error);
+  });
   const key = `kiosk-direct-request:${job.token}`;
-  const saved = await readSetting(key);
-  const requestKey = saved?.requestKey || crypto.randomUUID();
   // Keep the identity even if the browser reloads after a lost acknowledgement.
-  await saveSetting(key, { requestKey });
+  const saved = await updateSetting(key, (current) => current?.requestKey ? current : { requestKey: crypto.randomUUID() });
+  const requestKey = saved.requestKey;
   notify(job.token, { status: 'sending' });
   try {
     await sendDirectPrint({ ...job, requestKey });
-    notify(job.token, { status: 'printed' });
-    if (archiveAfter) await archiveAfter;
-    // Archive in the background only after the local acknowledgement. Upload retries never print.
-    await queueKioskPrint({ ...job, requestKey, archive: true }).catch((error) =>
-      console.warn('RX1 accepted the print; could not persist its archive upload.', error));
   } catch (error) {
     notify(job.token, { status: 'failed', message: error.message });
     throw error;
   }
+  notify(job.token, { status: 'printed' });
+  await archiveReady;
+  // A failed archive must never turn an acknowledged physical print into "failed".
+  await queueKioskPrint({ ...job, requestKey, archive: true }).catch((error) =>
+    console.warn('RX1 accepted the print; could not persist its archive upload.', error));
 }
 
 // Trạng thái máy in thật của lệnh in (print-agent ở quầy nhận lệnh → hàng in DNP của Windows / Mac).
@@ -312,10 +315,11 @@ async function watchSpool(token, requestKey) {
 // printSize: khổ của khung được in ("strip" → máy cắt đôi, "full" → nguyên tờ; Instax bỏ trống).
 export async function queueKioskPrint({ token, images, frameName, printSize, archive = false, requestKey = crypto.randomUUID() }) {
   if (!images.length) return;
-  const queue = (await readSetting(QUEUE_KEY).catch(() => null)) || [];
-  if (!queue.some((job) => job.token === token))
-    queue.push({ token, frameName, printSize, images, archive, requestKey, queuedAt: Date.now() });
-  await saveSetting(QUEUE_KEY, queue);
+  await updateSetting(QUEUE_KEY, (current) => {
+    const queue = current || [];
+    return queue.some((job) => job.token === token) ? queue
+      : [...queue, { token, frameName, printSize, images, archive, requestKey, queuedAt: Date.now() }];
+  });
   if (!archive) notify(token, { status: "sending" });
   runKioskPrints();
 }
@@ -333,7 +337,7 @@ export function runKioskPrints() {
               if (Date.now() - job.queuedAt > 24 * 60 * 60000) continue;
               // Guest photos and composites get the upload link before bulky duplicate print PNGs.
               await whenUplinkIdle();
-              if ((await readPending(job.token)).length) { left.push(job); continue; }
+              if (await hasPending(job.token)) { left.push(job); continue; }
             }
             const upload = () => api(`/albums/${job.token}/${job.archive ? "print-archive" : "print-pack"}`, printPackUpload({
               images: job.images, frameName: job.frameName, requestKey: job.requestKey, printSize: job.printSize,
@@ -356,9 +360,8 @@ export function runKioskPrints() {
         }
         // Lệnh in vừa thêm trong lúc gửi: giữ lại để gửi ở vòng sau.
         const processed = new Set(queue.map((job) => job.requestKey));
-        const latest = (await readSetting(QUEUE_KEY).catch(() => null)) || [];
-        const next = [...left, ...latest.filter((job) => !processed.has(job.requestKey))];
-        await saveSetting(QUEUE_KEY, next);
+        const next = await updateSetting(QUEUE_KEY, (current) =>
+          [...left, ...(current || []).filter((job) => !processed.has(job.requestKey))]);
         if (!next.length) return;
         if (left.length)
           await new Promise((resolve) => setTimeout(resolve, Math.min(30000, 4000 * 2 ** Math.min(round, 3))));
@@ -376,9 +379,8 @@ export function runKioskPrints() {
 const COMPOSITE_KEY = "kiosk-composite-queue";
 let sendingComposites = null;
 export async function queueKioskComposite({ token, captureToken, image, frameName }) {
-  const queue = (await readSetting(COMPOSITE_KEY).catch(() => null)) || [];
-  await saveSetting(COMPOSITE_KEY, [
-    ...queue.filter((job) => job.token !== token),
+  await updateSetting(COMPOSITE_KEY, (current) => [
+    ...(current || []).filter((job) => job.token !== token),
     { id: crypto.randomUUID(), token, captureToken, image, frameName, queuedAt: Date.now() },
   ]);
   runKioskComposites();
@@ -408,9 +410,8 @@ export function runKioskComposites() {
               finished.add(job.id);
           }
         }
-        const latest = (await readSetting(COMPOSITE_KEY).catch(() => null)) || [];
-        const left = latest.filter((job) => !finished.has(job.id));
-        await saveSetting(COMPOSITE_KEY, left);
+        const left = await updateSetting(COMPOSITE_KEY, (current) =>
+          (current || []).filter((job) => !finished.has(job.id)));
         if (!left.length) return;
         await new Promise((resolve) => setTimeout(resolve, Math.min(30000, 4000 * 2 ** Math.min(round, 3))));
       }

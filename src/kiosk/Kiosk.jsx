@@ -46,6 +46,7 @@ import {
   flushPendingPhotos,
   flushOriginalPhotos,
   kioskPhotoPath,
+  mergeKioskFinish,
   sameKioskSession,
 } from "./network-tasks.js";
 import { readCrop } from "./live-preview-layout.js";
@@ -936,7 +937,8 @@ export function Kiosk() {
       clearTimeout(finishRetry.current.timer);
       finishRetry.current = { at: 0, failures: 0, timer: null };
       netRecovered();
-      if (sameKioskSession(s, current.current)) update({ ...current.current, booking });
+      if (sameKioskSession(s, current.current))
+        update({ ...current.current, booking: mergeKioskFinish(current.current.booking, booking) });
       sync();
     } catch (e) {
       if (!sameKioskSession(s, current.current)) return;
@@ -1157,12 +1159,12 @@ export function Kiosk() {
           const albumQueued = new Promise((resolve) => { releaseArchive = resolve; });
           let printing = Promise.resolve();
           try {
-            // Local RX1 output uses the same 600 ppi PNG as the counter; no server capability gate.
-            const printScale = s.booking.printSize !== "instax" ? 2 : 1;
-            printFrame = await renderPrintFrame(frame, chosenShots, s.accessToken, albumLink, {
-              ...look, scale: printScale, strict: s.booking.printSize !== "instax",
-            });
             if (printsCount) {
+              // QR-only sessions need only the guest composite, with no spare RX1 render.
+              const printScale = s.booking.printSize !== "instax" ? 2 : 1;
+              printFrame = await renderPrintFrame(frame, chosenShots, s.accessToken, albumLink, {
+                ...look, scale: printScale, strict: s.booking.printSize !== "instax",
+              });
               const images = await printSheets(printFrame, frame, printsCount, s.booking.printSize, printScale);
               // Retain encoded bytes, not two large canvases. Printing/spooling can run while the
               // guest composite is rendered, so a slow RX1 never holds the album back.
@@ -1267,8 +1269,7 @@ export function Kiosk() {
       upload: (row) => row.preview instanceof Blob
         ? priority(() => savePreview(`/albums/${row.token}/photos`, row))
         : savePhoto(`/albums/${row.token}/photos`, row.image, { clientKey: row.id, mirrored: row.mirrored, preview: row.preview }),
-      removePending: async (id) => {
-        const row = (await readPending()).find((item) => item.id === id);
+      removePending: async (id, row) => {
         if (row?.preview instanceof Blob) await markOriginalPending(row);
         else await removePending(id);
       },

@@ -4,6 +4,11 @@ Không có thời gian cố định từ lúc chụp xong đến khi toàn bộ 
 
 ## Các thay đổi
 
+- Hàng gửi ảnh ghép và bản sao file in cập nhật trong một giao dịch IndexedDB: thêm việc và xác nhận việc đã xong không ghi đè nhau khi chạy đồng thời hoặc mở hai tab. Mã chống trùng in RX1 cũng được khởi tạo trong một giao dịch; lỗi lưu bản sao sau khi RX1 đã xác nhận không đổi trạng thái giấy thành thất bại.
+- Các lượt đọc ảnh chờ cùng lúc dùng chung một truy vấn trong khi truy vấn đang chạy. Ghi/xoá ảnh vô hiệu hoá lượt đọc này; không giữ cache lâu hoặc đổi schema IndexedDB. Sau khi gửi ảnh xem trước, dùng ngay dòng đã xác nhận thay vì đọc lại toàn bộ ảnh của mọi khách. Kiểm tra điều kiện gửi bản sao in dừng ở ảnh chờ đầu tiên thuộc album, không lấy cả mảng Blob.
+- Phản hồi chốt phiên đến muộn giữ các ảnh đã được xác nhận trong lúc chờ và giữ trạng thái ảnh gốc đã sẵn sàng. Hạn mức/trạng thái hoàn tất vẫn lấy từ máy chủ.
+- Gói chỉ nhận ảnh QR không còn giải mã ảnh gốc/vẽ thêm một bản RX1 không dùng đến; tạo thẳng ảnh ghép khoảng 20 MP cho album. Gói có in vẫn tạo riêng tờ RX1 ở kích thước cũ.
+- Backend gộp các yêu cầu cùng đọc một cấu hình/danh mục khi chưa có cache. Chỉnh cấu hình hoặc đổi quyền vẫn vô hiệu hoá cả cache lẫn lượt đang tải; kết quả cũ không được đưa trở lại cache. Kiểm tra sáu kiosk cùng mở danh mục mới chỉ phát sinh một bộ sáu truy vấn cơ sở dữ liệu.
 - Album xem ảnh ghép bằng JPEG 1600 px riêng; nút Lưu luôn lấy bản đầy đủ khoảng 20 MP. Bản 720 px dùng cho dải ảnh nhỏ. Các bản xem được tạo trước khi công bố ảnh ghép vào album. File đầy đủ giữ nguyên bytes nhận từ kiosk.
 - Kiosk giải phóng canvas bản in trước khi tạo canvas ảnh ghép 20 MP; bước gửi RX1 tiếp tục ở nền. Không phải chờ Windows nhận xong lệnh in mới chuẩn bị album.
 - Ảnh xem trước và ảnh ghép đi trước bản sao PNG lưu lịch sử in. Video lớn không khóa bước gửi ảnh gốc kế tiếp.

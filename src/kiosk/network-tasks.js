@@ -62,6 +62,22 @@ export function canApplyKioskPhoto(started, current, booking) {
     !(current.booking.status === "completed" && booking.status !== "completed");
 }
 
+// Finish may answer after another photo upload. Keep the server's completed
+// session/quota, but never drop later photos or revert an attached original.
+export function mergeKioskFinish(current, response) {
+  const photos = new Map(response.photos.map((photo) => [photo.id, photo]));
+  for (const photo of current.photos) {
+    const prior = photos.get(photo.id);
+    if (!prior) photos.set(photo.id, photo);
+    else if (prior.originalPending && !photo.originalPending) {
+      const attached = { ...prior, ...photo, number: prior.number || photo.number };
+      delete attached.originalPending;
+      photos.set(photo.id, attached);
+    }
+  }
+  return { ...response, photos: [...photos.values()].sort((a, b) => a.number - b.number) };
+}
+
 export function kioskPhotoPath(session, now = Date.now()) {
   if (session.booking.status === "completed")
     return `/albums/${session.accessToken}/photos`;
@@ -129,7 +145,7 @@ export async function flushPendingPhotos({
     if (!isIdle()) return;
     try {
       await upload(row);
-      await removePending(row.id);
+      await removePending(row.id, row);
       onSaved(row);
     } catch {
       // Retain this row and its original idempotency key for the next retry.

@@ -7,6 +7,7 @@ import {
   drainPendingPhotos,
   flushPendingPhotos,
   kioskPhotoPath,
+  mergeKioskFinish,
 } from "../src/kiosk/network-tasks.js";
 
 const deferred = () => {
@@ -18,6 +19,25 @@ const session = (token, photos = []) => ({
   accessToken: token,
   captureToken: `capture-${token}`,
   booking: { photos },
+});
+
+test("a delayed finish preserves later photo acknowledgements and attached originals while taking server quotas", () => {
+  const current = { status: "checked_in", prints: 1, photos: [
+    { id: "one", number: 1, sourcePreserved: true },
+    { id: "two", number: 2, originalPending: true },
+  ] };
+  const finished = { status: "completed", prints: 3, captureEndsAt: "finished-at", photos: [
+    { id: "one", number: 1, originalPending: true },
+  ] };
+  const merged = mergeKioskFinish(current, finished);
+  assert.equal(merged.status, "completed");
+  assert.equal(merged.prints, 3);
+  assert.equal(merged.captureEndsAt, "finished-at");
+  assert.deepEqual(merged.photos, current.photos);
+  const newer = mergeKioskFinish(current, { ...finished, photos: [
+    { id: "one", number: 1 }, { id: "two", number: 2, sourcePreserved: true },
+  ] });
+  assert.equal(newer.photos[1].originalPending, undefined, "a new finish response can attach an original too");
 });
 
 test("new captures start uploading while the previous camera photo is still saving", async () => {
