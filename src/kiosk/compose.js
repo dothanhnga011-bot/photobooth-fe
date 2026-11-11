@@ -30,10 +30,12 @@ const PRINT_EDGE = 3000;
 const urlOf = (token, id, size) => getApiUrl(`/api/albums/${token}/photos/${id}?size=${size}`);
 
 // Ảnh xem nhanh (1600 px, đã lật như màn hình) của một tấm: ảnh trên máy, hoặc ảnh trên máy chủ.
-export async function previewBitmap(shot, token) {
+export async function previewBitmap(shot, token, { signal } = {}) {
+  signal?.throwIfAborted();
   const source = shot.preview instanceof Blob
     ? shot.preview
-    : await fetchMediaBlob(shot.preview || urlOf(token, shot.serverId, "preview"));
+    : await fetchMediaBlob(shot.preview || urlOf(token, shot.serverId, "preview"), { signal });
+  signal?.throwIfAborted();
   return createImageBitmap(source, { imageOrientation: "from-image" });
 }
 
@@ -111,13 +113,17 @@ export function frameNeed(frame, { count, printSize, shots }) {
 // 1800 × 1200) — ảnh xem trước nét như bản in kể cả khi khung hiện to trên màn 1920 × 1080 (trước đây
 // 700 px, khung ngang hiện rộng ~1000 px bị phóng to nên mờ).
 export async function composePreview(frame, images, width = 900, qrUrl = "",
-  { placeholders = false, filters = [], stickers = [], transforms = [] } = {}) {
+  { placeholders = false, filters = [], stickers = [], transforms = [], signal } = {}) {
+  signal?.throwIfAborted();
   const layout = photoLayout(frame);
   const [background, qr] = await Promise.all([
     loadFrameImage(frame.image),
     layout.marks.some((m) => m.kind === "qr") && qrUrl ? qrImage(qrUrl).catch(() => null) : null,
     loadStickers(stickers),
   ]);
+  // A newer drag/filter/frame change can supersede this while assets load.
+  // Stop before allocating and filtering a full-size canvas for an obsolete view.
+  signal?.throwIfAborted();
   const canvas = document.createElement("canvas");
   canvas.width = width === "print" ? frameOutputSize(frame, background).width : width;
   canvas.height = Math.round((canvas.width * background.naturalHeight) / background.naturalWidth);

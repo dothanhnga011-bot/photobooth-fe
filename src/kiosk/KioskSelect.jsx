@@ -25,6 +25,7 @@ import {
 import { Button, useToast } from "../studio";
 import { PHOTO_ZOOM, clampZoom } from "../frame-utils.js";
 import { composePreview, previewBitmap } from "./compose.js";
+import { createPreviewLoader } from "./preview-loader.js";
 import {
   DECOR_COLORS,
   DECOR_FONTS,
@@ -46,40 +47,20 @@ import { useKioskText } from "./use-kiosk-text.js";
 
 // Ảnh xem nhanh của các tấm đã chụp, giải mã một lần cho cả bước chọn ảnh và chọn khung.
 export function useShotBitmaps(shots, token) {
-  const [bitmaps, setBitmaps] = useState(() => new Map());
-  // Ảnh đã đọc của lượt hiện tại. Kết quả đọc xong giữ lại kể cả khi danh sách tấm vừa đổi (ảnh gốc
-  // tải lên xong làm cập nhật lượt chụp) — bỏ đi thì tấm đó không bao giờ được đọc lại và khung
-  // ghép xem trước bị trống ô.
-  const store = useRef({ token, loading: new Set(), map: bitmaps });
+  const [loaded, setLoaded] = useState(() => ({ token, map: new Map() }));
+  const loader = useRef(null);
   useEffect(() => {
-    let s = store.current;
-    // Lượt khách mới, hoặc đã rời bước chọn ảnh / khung: giải phóng ảnh đã giải mã (~10 MB mỗi tấm;
-    // máy chụp mở cả ngày).
-    if (s.token !== token || !shots.length) {
-      if (s.map.size || s.loading.size) {
-        for (const bitmap of s.map.values()) bitmap.close?.();
-        s = store.current = { token, loading: new Set(), map: new Map() };
-        setBitmaps(s.map);
-      } else s.token = token;
-    }
-    for (const shot of shots) {
-      if (s.loading.has(shot.key)) continue;
-      s.loading.add(shot.key);
-      previewBitmap(shot, token).then(
-        (bitmap) => {
-          if (store.current !== s) return bitmap.close?.();
-          s.map = new Map(s.map).set(shot.key, bitmap);
-          setBitmaps(s.map);
-        },
-        () => s.loading.delete(shot.key),
-      );
-    }
-  }, [shots, token]);
-  useEffect(() => () => {
-    for (const bitmap of store.current.map.values()) bitmap.close?.();
-    store.current = { token: null, loading: new Set(), map: new Map() };
+    const next = createPreviewLoader({
+      load: (shot, owner, signal) => previewBitmap(shot, owner, { signal }),
+      onChange: (map, owner) => setLoaded({ token: owner, map }),
+    });
+    loader.current = next;
+    return () => { next.close(); if (loader.current === next) loader.current = null; };
   }, []);
-  return bitmaps;
+  useEffect(() => {
+    loader.current?.setShots(shots, token);
+  }, [shots, token]);
+  return loaded.token === token ? loaded.map : new Map();
 }
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
@@ -107,20 +88,23 @@ function DecorStage({
   const latestBase = useRef(null);
   // Nền (khung + ảnh đã áp màu) chỉ ghép lại khi đổi khung, ảnh hoặc màu ảnh; nhãn dán vẽ đè mỗi lần.
   useEffect(() => {
-    let alive = true;
-    composePreview(frame, images, "print", qrUrl, { placeholders: true, filters, transforms })
+    const controller = new AbortController();
+    const request = requestAnimationFrame(() => {
+      composePreview(frame, images, "print", qrUrl, { placeholders: true, filters, transforms, signal: controller.signal })
       .then((next) => {
-        if (!alive) return void (next.width = next.height = 0);
+        if (controller.signal.aborted) return void (next.width = next.height = 0);
         const old = latestBase.current;
         latestBase.current = next;
         setBase(next);
         if (old) old.width = old.height = 0;
       })
       .catch(() => {});
+    });
     return () => {
-      alive = false;
+      controller.abort();
+      cancelAnimationFrame(request);
     };
-  }, [frame._id, imageKey, filterKey, transformKey]);
+  }, [frame, imageKey, filterKey, transformKey, qrUrl]);
   useEffect(() => () => {
     if (latestBase.current) latestBase.current.width = latestBase.current.height = 0;
   }, []);

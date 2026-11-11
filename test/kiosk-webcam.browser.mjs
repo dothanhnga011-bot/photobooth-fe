@@ -194,6 +194,20 @@ test("in webcam test mode the Space key counts down, takes a photo from the webc
     assert.ok(b.videos[0].size > 1000);
     const build = (await b.page.evaluate(() => window.__recorders)).slice(recorders.length);
     assert.ok(build.some((r) => output.test(r.mimeType)), `timelapse build: ${build.map((r) => r.mimeType)}`);
+    // The generated video also plays on the QR screen, then releases its local
+    // Blob URL when the next customer starts. Upload bytes above stay unchanged.
+    await picks.first().click();
+    await b.page.getByRole("button", { name: "Nhận ảnh", exact: true }).click();
+    await b.page.waitForFunction(() => document.querySelector(".done-screen video")?.readyState >= 2);
+    const videoUrl = await b.page.locator(".done-screen video").getAttribute("src");
+    assert.match(videoUrl, /^blob:/);
+    await b.page.evaluate(() => {
+      window.releasedVideos = [];
+      const revoke = URL.revokeObjectURL;
+      URL.revokeObjectURL = url => { window.releasedVideos.push(url); revoke(url); };
+    });
+    await b.page.getByRole("button", { name: /Khách tiếp theo/ }).click();
+    await b.page.waitForFunction(url => window.releasedVideos.includes(url), videoUrl);
     assert.deepEqual(b.errors, []);
   } finally { await b.close(); }
 });

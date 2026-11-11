@@ -71,7 +71,7 @@ import { KioskDone } from "./KioskDone.jsx";
 import { checkDirectPrinter } from "./direct-print.js";
 import { KioskEntry } from "./KioskEntry.jsx";
 import { KioskSettings } from "./KioskSettings.jsx";
-import { KioskShoot } from "./KioskShoot.jsx";
+import { KioskShoot, useObjectUrl } from "./KioskShoot.jsx";
 import { KioskSelect, useShotBitmaps } from "./KioskSelect.jsx";
 import { NO_DECOR, filterChoices, filterStepsFor, photoFilterId } from "./decor.js";
 import { KioskCode, KioskPackages, KioskPayChoice, KioskPayment, KioskPrintCount } from "./KioskSale.jsx";
@@ -157,6 +157,7 @@ export function Kiosk() {
     [sale, setSaleState] = useState(readSale),
     [video, setVideo] = useState(null),
     [print, setPrint] = useState(null);
+  const videoUrl = useObjectUrl(video?.blob);
   const video$ = useRef(null),
     stream = useRef(null),
     alive = useRef(true),
@@ -970,8 +971,10 @@ export function Kiosk() {
       setVideo((v) => (v?.token === s.accessToken ? { token: s.accessToken } : v));
       return;
     }
-    const url = URL.createObjectURL(blob);
-    setVideo((v) => (v?.token === s.accessToken || !v ? { token: s.accessToken, url } : v));
+    // Only the current guest owns a local preview; the old guest's upload below
+    // still finishes even if a new session has already started.
+    if (alive.current && current.current?.accessToken === s.accessToken)
+      setVideo((v) => (v?.token === s.accessToken || !v ? { token: s.accessToken, blob } : v));
     const body = new Blob([blob], { type: blob.type.split(";")[0] || "video/webm" });
     for (let attempt = 0; attempt < 6; attempt++) {
       try {
@@ -1237,7 +1240,6 @@ export function Kiosk() {
     sessionStorage.removeItem(key);
     // Ảnh gốc của khách vừa xong vẫn nằm trong hàng gửi (IndexedDB) nếu chưa tải lên hết.
     localShots.current = new Map();
-    if (video?.url) setTimeout(() => URL.revokeObjectURL(video.url), 1000);
     transition(() => {
       setDone(null);
       setSession(null);
@@ -1426,8 +1428,8 @@ export function Kiosk() {
         done={{
           ...done,
           print,
-          video: video?.token === done.token ? video.url : "",
-          videoPending: video?.token === done.token && video.pending,
+          video: video?.token === done.token ? videoUrl : "",
+          videoPending: video?.token === done.token && (video.pending || Boolean(video.blob && !videoUrl)),
         }}
         pending={pending.length}
         left={left}

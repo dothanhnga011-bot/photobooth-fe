@@ -4,6 +4,9 @@ Không có thời gian cố định từ lúc chụp xong đến khi toàn bộ 
 
 ## Các thay đổi
 
+- Màn chọn ảnh giải mã tối đa ba ảnh xem trước cùng lúc, gom cập nhật vào một lần vẽ màn hình. Danh sách phiên được cập nhật vẫn dùng lại bitmap đã đọc; chuyển khách/rời bước chọn ảnh sẽ hủy lượt tải cũ và đóng bitmap đến muộn. Không đổi kích thước hoặc màu của ảnh xem trước.
+- Kéo/phóng ảnh, đổi màu hoặc đổi khung được ghép ở nhịp vẽ màn hình. Bản xem trước đã lỗi thời dừng trước bước cấp canvas/áp màu sau khi tài nguyên tải xong; khung/QR mới luôn kích hoạt ghép lại. Kiểm tra trình duyệt với tám lần đổi trong lúc khung đang tải chỉ cấp một canvas cho bản cuối, vẫn giữ kích thước xem trước cũ.
+- URL Blob của ảnh/video gắn với đúng nguồn đang hiển thị, được thu hồi khi thay nguồn, đổi khách hoặc đóng trang. Video ghép xong sau khi chuyển sang khách mới vẫn được tải lên album cũ, nhưng không tạo thêm URL xem trước không còn ai sử dụng.
 - Hàng gửi ảnh ghép và bản sao file in cập nhật trong một giao dịch IndexedDB: thêm việc và xác nhận việc đã xong không ghi đè nhau khi chạy đồng thời hoặc mở hai tab. Mã chống trùng in RX1 cũng được khởi tạo trong một giao dịch; lỗi lưu bản sao sau khi RX1 đã xác nhận không đổi trạng thái giấy thành thất bại.
 - Các lượt đọc ảnh chờ cùng lúc dùng chung một truy vấn trong khi truy vấn đang chạy. Ghi/xoá ảnh vô hiệu hoá lượt đọc này; không giữ cache lâu hoặc đổi schema IndexedDB. Sau khi gửi ảnh xem trước, dùng ngay dòng đã xác nhận thay vì đọc lại toàn bộ ảnh của mọi khách. Kiểm tra điều kiện gửi bản sao in dừng ở ảnh chờ đầu tiên thuộc album, không lấy cả mảng Blob.
 - Phản hồi chốt phiên đến muộn giữ các ảnh đã được xác nhận trong lúc chờ và giữ trạng thái ảnh gốc đã sẵn sàng. Hạn mức/trạng thái hoàn tất vẫn lấy từ máy chủ.

@@ -12,17 +12,18 @@ import { playCountdownBeep, playShutterSound } from "./kiosk-audio.js";
 
 // Ảnh trên máy (Blob) hoặc trên máy chủ (URL).
 export function useObjectUrl(source) {
-  const [url, setUrl] = useState(typeof source === "string" ? source : "");
+  const [object, setObject] = useState(null);
   useEffect(() => {
     if (!(source instanceof Blob)) {
-      setUrl(typeof source === "string" ? source : "");
+      setObject(null);
       return;
     }
     const next = URL.createObjectURL(source);
-    setUrl(next);
+    setObject({ source, url: next });
     return () => URL.revokeObjectURL(next);
   }, [source]);
-  return url;
+  // Never expose the previous guest's URL while the next effect is waiting.
+  return typeof source === "string" ? source : object && object.source === source ? object.url : "";
 }
 function Thumb({ shot }) {
   const src = useObjectUrl(shot.preview);
