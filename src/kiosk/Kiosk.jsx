@@ -61,6 +61,7 @@ import {
   queueKioskComposite,
   queueKioskPrint,
   directKioskPrint,
+  printPhotoRegions,
   renderPrintFrame,
   runKioskComposites,
   runKioskPrints,
@@ -1192,6 +1193,8 @@ export function Kiosk() {
                 ...look, scale: printScale, strict: s.booking.printSize !== "instax",
               });
               const images = await printSheets(printFrame, frame, printsCount, s.booking.printSize, printScale);
+              // Ô ảnh trên tờ (máy DNP): bộ in làm nét đủ phần ảnh, chữ / khung một nửa.
+              const photos = s.booking.printSize !== "instax" ? printPhotoRegions(frame, printFrame) : [];
               // Retain encoded bytes, not two large canvases. Printing/spooling can run while the
               // guest composite is rendered, so a slow RX1 never holds the album back.
               printFrame.width = printFrame.height = 0;
@@ -1203,6 +1206,7 @@ export function Kiosk() {
                 // Khung nhỏ → máy cắt đôi; khung lớn → nguyên tờ (kể cả khi gói ảnh nhỏ chưa có khung
                 // nhỏ nên dùng khung lớn). Instax: máy in riêng, theo gói.
                 printSize: s.booking.printSize === "instax" ? undefined : frame.printSize === "strip" ? "strip" : "full",
+                photos,
               }, { archiveAfter: albumQueued }).catch((e) => setPrint({ status: "failed", message: e.message }));
             }
           } catch (e) {

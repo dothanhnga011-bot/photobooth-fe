@@ -41,3 +41,17 @@ test('printer preflight checks permission/connectivity without submitting an ima
   assert.equal(health.directPrint, 2);
   assert.deepEqual(calls, ['http://127.0.0.1:8789/health']);
 });
+
+test('photo regions go only to an agent that announces support (an older agent blocks unknown headers)', async () => {
+  const photos = [[0.05, 0.05, 0.9, 0.42], [0.05, 0.53, 0.9, 0.42], [0.123456, 0, 1 / 3, 1]];
+  const sent = async (health) => {
+    const calls = [];
+    await sendDirectPrint({ ...job, photos }, { fetcher: async (url, options) => {
+      calls.push(options);
+      return Response.json(calls.length === 1 ? health : { sent: true });
+    } });
+    return calls[1].headers['X-Print-Photos'];
+  };
+  assert.equal(await sent({ directPrint: 2, photoRegions: true }), '0.05,0.05,0.9,0.42;0.05,0.53,0.9,0.42;0.12346,0,0.33333,1');
+  assert.equal(await sent({ directPrint: 2 }), undefined);
+});

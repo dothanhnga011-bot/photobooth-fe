@@ -23,7 +23,7 @@ $errors=$null
 $ast=[System.Management.Automation.Language.Parser]::ParseFile($Agent,[ref]$null,[ref]$errors)
 if($errors){throw ($errors | Out-String)}
 foreach($f in $ast.FindAll({param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst]},$true)) {
- if($f.Name -in @('Start-LocalPrinter','Receive-LocalPrint','Write-LocalResponse','Get-Rx1OutputSettings')) {Invoke-Expression ($f.Extent.Text.Replace('8789',[string]$Port))}
+ if($f.Name -in @('Start-LocalPrinter','Receive-LocalPrint','Write-LocalResponse','ConvertTo-Rx1Sharpen','Get-Rx1OutputSettings','ConvertFrom-Rx1PhotoRegions')) {Invoke-Expression ($f.Extent.Text.Replace('8789',[string]$Port))}
 }
 $script:Config=@{api='https://mellowptb.com';room='Test room';token='test-only'}
 $ConfigPath=Join-Path (Split-Path -Parent $Output) 'config.json'
@@ -37,6 +37,7 @@ function Invoke-RestMethod {throw 'Network access during local printing is forbi
 function Invoke-Job($job,$files) {
  if([Convert]::ToBase64String([IO.File]::ReadAllBytes($files[0])) -ne [Convert]::ToBase64String([IO.File]::ReadAllBytes($Output+'.png'))){throw 'Wrong local file bytes'}
  [IO.File]::AppendAllText($Output,'printed-once')
+ [IO.File]::WriteAllText($Output+'.photos', (@($job.photos | ForEach-Object { $_.ToString('R',[Globalization.CultureInfo]::InvariantCulture) }) -join ','))
  return 'Mock spool accepted'
 }
 Start-LocalPrinter
@@ -56,14 +57,17 @@ try {while($true){Receive-LocalPrint;Start-Sleep -Milliseconds 20}} finally {$sc
     });
     const base = `http://127.0.0.1:${port}`;
     const bytes = await readFile(output + '.png');
-    const headers = { Origin: 'https://mellowptb.com', 'Content-Type': 'application/octet-stream', 'X-Album-Token': 'album-token', 'X-Print-Key': randomUUID(), 'X-Print-Sheets': String(bytes.length), 'X-Print-Size': 'full' };
+    // X-Print-Photos: hai ô ảnh của khung (tỉ lệ 0–1 của tờ) để bộ in chỉ làm nét đủ phần ảnh.
+    const headers = { Origin: 'https://mellowptb.com', 'Content-Type': 'application/octet-stream', 'X-Album-Token': 'album-token', 'X-Print-Key': randomUUID(), 'X-Print-Sheets': String(bytes.length), 'X-Print-Size': 'full', 'X-Print-Photos': '0.05,0.05,0.9,0.42;0.05,0.53,0.9,0.42' };
     const wrong = await fetch(`${base}/print`, { method: 'POST', headers: { ...headers, Origin: 'https://untrusted.example' }, body: bytes });
     assert.equal(wrong.status, 403);
     const preflight = await fetch(`${base}/print`, { method: 'OPTIONS', headers: { Origin: headers.Origin } });
     assert.equal(preflight.headers.get('access-control-allow-private-network'), 'true');
+    assert.match(preflight.headers.get('access-control-allow-headers'), /X-Print-Photos/);
     const health = await fetch(`${base}/health`, { headers: { Origin: headers.Origin } });
     const printer = await health.json();
     assert.equal(printer.directPrint, 2);
+    assert.equal(printer.photoRegions, true, 'the kiosk may send photo regions to this agent');
     assert.equal(printer.outputSettingsVersion, 1);
     assert.deepEqual(printer.output, { gamma: 1.5, maxResolution: true, sharpen: 2 });
     const send = () => fetch(`${base}/print`, { method: 'POST', headers, body: bytes });
@@ -72,6 +76,10 @@ try {while($true){Receive-LocalPrint;Start-Sleep -Milliseconds 20}} finally {$sc
     assert.equal(first.status, 200, JSON.stringify(result));
     assert.equal(result.sent, true);
     assert.equal((await (await send()).json()).duplicate, true);
+    assert.equal(await readFile(output + '.photos', 'utf8'), '0.05,0.05,0.9,0.42,0.05,0.53,0.9,0.42');
+    for (const photos of ['0.05,0.05,0.9', '0.5,0,0.6,1', '-1,0,1,1', '0,0,0,1'])
+      assert.equal((await fetch(`${base}/print`, { method: 'POST', headers: { ...headers, 'X-Print-Key': randomUUID(), 'X-Print-Photos': photos }, body: bytes })).status,
+        503, `invalid photo regions are rejected without printing: ${photos}`);
     const journal = path.join(folder, 'direct-print-records', headers['X-Print-Key'] + '.json');
     const record = JSON.parse((await readFile(journal, 'utf8')).replace(/^\uFEFF/, ''));
     await writeFile(journal, JSON.stringify({ ...record, state: 'sending' }));

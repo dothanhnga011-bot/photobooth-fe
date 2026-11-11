@@ -54,11 +54,34 @@ function Hash([Drawing.Bitmap]$page) {
   } finally { $stream.Dispose() }
 }
 $plain = New-Rx1PageBitmap $sheet 413 615 300 300 1.0 0
+$resampler = $script:Rx1Resampler
+# Đối chứng: cùng tờ, cùng cách phủ trang, co bằng bicubic chất lượng cao của GDI+ (cách cũ).
+$fit = [Math]::Max(1239 / 2400, 1845 / 3600)
+$gdi = New-Object Drawing.Bitmap 1239, 1845
+$gg = [Drawing.Graphics]::FromImage($gdi)
+$gg.InterpolationMode = [Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+$gg.PixelOffsetMode = [Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+$wrap = New-Object Drawing.Imaging.ImageAttributes
+$wrap.SetWrapMode([Drawing.Drawing2D.WrapMode]::TileFlipXY)
+$gg.DrawImage($sheet, (New-Object Drawing.Rectangle([int][Math]::Round((1239 - 2400 * $fit) / 2), [int][Math]::Round((1845 - 3600 * $fit) / 2), [int][Math]::Ceiling(2400 * $fit), [int][Math]::Ceiling(3600 * $fit))), 0, 0, 2400, 3600, [Drawing.GraphicsUnit]::Pixel, $wrap)
+$wrap.Dispose(); $gg.Dispose()
+# Độ dốc lớn nhất giữa hai hàng liền nhau dọc một cột (mép sọc càng dốc càng sắc).
+function Steepness([Drawing.Bitmap]$page) {
+  $steps = @([int]($page.Height * 0.3)..[int]($page.Height * 0.7) | ForEach-Object { [Math]::Abs($page.GetPixel(600, $_ + 1).R - $page.GetPixel(600, $_).R) })
+  return ($steps | Measure-Object -Maximum).Maximum
+}
+# Nhỏ nhất / lớn nhất dọc cột 600 trong khoảng hàng [from, to] (tỉ lệ chiều cao).
+function Span([Drawing.Bitmap]$page, [double]$from, [double]$to) {
+  $values = @([int]($page.Height * $from)..[int]($page.Height * $to) | ForEach-Object { $page.GetPixel(600, $_).R })
+  return @{ min = ($values | Measure-Object -Minimum).Minimum; max = ($values | Measure-Object -Maximum).Maximum }
+}
 $timer = [Diagnostics.Stopwatch]::StartNew()
 $sharp = New-Rx1PageBitmap $sheet 413 615 300 300 1.0 4
 $timer.Stop()
 $hires = New-Rx1PageBitmap $sheet 413 615 300 600 1.0 2
 $sheetTest = New-Rx1PageBitmap $sheet 413 615 300 300 1.0 2 2
+# Chỉ nửa trên của tờ là ô ảnh: nửa trên nét đủ mức 4, nửa dưới (chữ / khung) một nửa.
+$masked = New-Rx1PageBitmap $sheet 413 615 300 300 1.0 4 -1 @(0, 0, 1, 0.5)
 # Giữa một sọc (xa mép): làm nét không đổi gì. Tờ phủ kín trang: co theo tỉ lệ lớn hơn, cắt đều hai đầu.
 $scale = [Math]::Max(1239 / 2400, 1845 / 3600); $offset = (1845 - 3600 * $scale) / 2
 $centers = @(10..20 | ForEach-Object { [int](($_ * 120 + 60) * $scale + $offset) })
@@ -71,9 +94,12 @@ $result = @{
   currentLabel = @($sheetTest.GetPixel([int](2 * $band + $band * 0.24), $labelY) | ForEach-Object { $_.R, $_.G, $_.B })
   otherLabel = @($sheetTest.GetPixel([int](0 * $band + $band * 0.24), $labelY) | ForEach-Object { $_.R, $_.G, $_.B })
   flatSame = $flatSame; hash = (Hash $sharp); testHash = (Hash $sheetTest); ms = $timer.ElapsedMilliseconds
+  resampler = $resampler; steepLanczos = (Steepness $plain); steepGdi = (Steepness $gdi)
+  maskedTop = (Span $masked 0.3 0.45); maskedBottom = (Span $masked 0.55 0.7)
+  sharpTop = (Span $sharp 0.3 0.45); sharpBottom = (Span $sharp 0.55 0.7); plainBottom = (Span $plain 0.55 0.7)
   sharpenError = $script:Rx1SharpenError
 }
-foreach ($page in @($plain, $sharp, $hires, $sheetTest, $sheet)) { $page.Dispose() }
+foreach ($page in @($plain, $sharp, $hires, $sheetTest, $masked, $gdi, $sheet)) { $page.Dispose() }
 $result | ConvertTo-Json -Depth 4 -Compress
 `;
 
@@ -109,7 +135,14 @@ test("RX1 sheets are drawn on the printer's pixel grid and sharpened; the test s
     }
     assert.deepEqual(agent.currentLabel, [45, 30, 24], "the level in use has a dark label");
     assert.deepEqual(agent.otherLabel, [255, 255, 255], "other levels have white labels");
-    assert.ok(agent.ms < 10000, `sharpening takes ${agent.ms} ms`);
+    assert.ok(agent.ms < 10000, `resampling + sharpening takes ${agent.ms} ms`);
+    // Lanczos3: mép sọc dốc hơn bicubic của GDI+ (cách co cũ) trên cùng một tờ.
+    assert.equal(agent.resampler, "lanczos3");
+    assert.ok(agent.steepLanczos > agent.steepGdi, `edge step: lanczos ${agent.steepLanczos}, gdi ${agent.steepGdi}`);
+    // Có vị trí ô ảnh: trong ô nét như làm nét cả tờ; ngoài ô (chữ / khung) chỉ một nửa nhưng vẫn hơn không làm nét.
+    assert.deepEqual(agent.maskedTop, agent.sharpTop);
+    assert.ok(agent.maskedBottom.min > agent.sharpBottom.min && agent.maskedBottom.max < agent.sharpBottom.max, JSON.stringify(agent));
+    assert.ok(agent.maskedBottom.min < agent.plainBottom.min && agent.maskedBottom.max > agent.plainBottom.max, JSON.stringify(agent));
     // Agent của phòng và script in của backend cho ra đúng cùng một ảnh.
     assert.equal(backend.hash, agent.hash);
     assert.equal(backend.testHash, agent.testHash);

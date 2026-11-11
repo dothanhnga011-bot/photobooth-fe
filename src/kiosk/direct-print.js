@@ -16,9 +16,15 @@ export async function checkDirectPrinter({ fetcher = fetch, base = LOCAL_PRINT_U
   return health;
 }
 
+// Ô ảnh trên tờ: "x,y,rộng,cao;…" (tỉ lệ 0–1, tối đa 5 chữ số thập phân) cho header X-Print-Photos.
+export const encodePhotoRegions = (photos) =>
+  photos.slice(0, 40).map((rect) => rect.map((value) => String(Math.round(value * 1e5) / 1e5)).join(",")).join(";");
+
 export async function sendDirectPrint(job, { fetcher = fetch, base = LOCAL_PRINT_URL } = {}) {
-  await checkDirectPrinter({ fetcher, base });
+  const health = await checkDirectPrinter({ fetcher, base });
   const upload = printPackUpload(job);
+  // Chỉ bộ in mới (báo photoRegions) nhận header này; bộ in cũ chặn header lạ (CORS) nên không gửi.
+  if (health.photoRegions && job.photos?.length) upload.headers["X-Print-Photos"] = encodePhotoRegions(job.photos);
   if (upload.body.size > 64 * 1024 * 1024) throw new Error('File in vượt 64 MB. Nhờ nhân viên kiểm tra số bản in.');
   let response;
   try {

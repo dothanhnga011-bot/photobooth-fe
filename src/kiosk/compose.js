@@ -293,6 +293,25 @@ export async function printSheets(frameCanvas, frame, prints, printSize = frame.
   return sheets.map(() => data);
 }
 
+// Vị trí các ô ảnh trên tờ in DNP ([x, y, rộng, cao] theo tỉ lệ 0–1 của tờ): bộ in làm nét đủ phần ảnh,
+// chữ / khung chỉ một nửa. Khung nguyên tờ: các ô của khung (cả ô bản sao); khung một dải: hai dải trên
+// một tờ (trái / phải), như printSheets xếp.
+export function printPhotoRegions(frame, frameCanvas) {
+  const layout = photoLayout(frame);
+  const slots = [...layout.slots, ...layout.copies.map((copy) => copy.slot)];
+  const halves = isSingleStrip(frame, frameCanvas.width, frameCanvas.height) ? [0, 0.5] : [null];
+  const round = (value) => Math.round(Math.min(1, Math.max(0, value)) * 1e5) / 1e5;
+  const rects = [];
+  for (const half of halves)
+    for (const s of slots) {
+      const [x, y, w, h] = half === null ? [s.x, s.y, s.w, s.h] : [half + s.x / 2, s.y, s.w / 2, s.h];
+      const left = round(x), top = round(y);
+      const width = round(Math.min(w, 1 - left)), height = round(Math.min(h, 1 - top));
+      if (width > 0 && height > 0) rects.push([left, top, width, height]);
+    }
+  return rects.slice(0, 40);
+}
+
 // ─── Hàng gửi in của máy chụp ─────────────────────────────────────────────
 // Lệnh in lưu trên máy (IndexedDB) rồi mới gửi: mất mạng / tải lại trang vẫn gửi tiếp bằng đúng
 // mã chống trùng. Album phải có ít nhất một ảnh gốc trên máy chủ mới nhận lệnh in, nên lệnh in

@@ -318,11 +318,12 @@ function Get-Rx1OutputSettings([string]$settingsPath = (Join-Path $env:LOCALAPPD
 }
 
 # ── Tờ in đúng lưới điểm của máy in + làm nét cho in nhiệt ──────────────────────────────────────────
-# Tờ in (vd. 2400 × 3600) được co MỘT lần bằng nội suy chất lượng cao về đúng số điểm thật của trang
-# máy in ở độ phân giải đang dùng (300 × 300 dpi: ~1240 × 1845; 300 × 600: ~1240 × 3690) rồi vẽ 1:1, để
-# driver DNP không phải co giãn nữa (co giãn của driver làm ảnh mềm / răng cưa). Sau đó làm nét trên độ
-# sáng (unsharp mask: không đổi màu, bỏ qua chênh lệch rất nhỏ để không làm nổi hạt) vì mực in nhiệt
-# loang nhẹ trên giấy. Mức 0 = không làm nét.
+# Tờ in (vd. 2400 × 3600) được co MỘT lần bằng Lanczos3 (bộ lọc giữ chi tiết sắc nhất; dự phòng: bicubic
+# của GDI+) về đúng số điểm thật của trang máy in ở độ phân giải đang dùng (300 × 300 dpi: ~1240 × 1845;
+# 300 × 600: ~1240 × 3690) rồi vẽ 1:1, để driver DNP không phải co giãn nữa (co giãn của driver làm ảnh mềm /
+# răng cưa). Sau đó làm nét trên độ sáng (unsharp mask: không đổi màu, bỏ qua chênh lệch rất nhỏ để không
+# làm nổi hạt) vì mực in nhiệt loang nhẹ trên giấy. Mức 0 = không làm nét. Khi máy chụp gửi kèm vị trí các ô
+# ảnh, phần ảnh được làm nét đủ mức, chữ / khung chỉ một nửa (không bị quầng sáng quanh nét chữ).
 function Get-Rx1SharpenAmount([int]$level) {
   return @(0.0, 0.35, 0.6, 0.9, 1.25)[[Math]::Max(0, [Math]::Min(4, $level))]
 }
@@ -338,8 +339,18 @@ using System.Runtime.InteropServices;
 public static class NxcRx1Sharpen {
   // amounts: một mức cho cả tờ, hoặc nhiều mức cho các dải dọc bằng nhau (tờ in thử độ nét).
   // sigmaX / sigmaY: bán kính làm mờ tính bằng điểm của máy in từng chiều (điểm có thể không vuông).
-  public static void Apply(Bitmap image, double[] amounts, double sigmaX, double sigmaY, int threshold) {
+  // photos: các ô ảnh (x0, y0, x1, y1 theo điểm của trang); có thì ngoài ô ảnh chỉ làm nét outside × mức.
+  public static void Apply(Bitmap image, double[] amounts, double sigmaX, double sigmaY, int threshold, int[] photos, double outside) {
     int w = image.Width, h = image.Height, bands = amounts.Length;
+    bool[] inPhoto = null;
+    if (photos != null && photos.Length >= 4) {
+      inPhoto = new bool[w * h];
+      for (int i = 0; i + 3 < photos.Length; i += 4) {
+        int x0 = Math.Max(0, photos[i]), y0 = Math.Max(0, photos[i + 1]);
+        int x1 = Math.Min(w, photos[i + 2]), y1 = Math.Min(h, photos[i + 3]);
+        for (int r = y0; r < y1; r++) for (int c = x0; c < x1; c++) inPhoto[r * w + c] = true;
+      }
+    }
     BitmapData data = image.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
     try {
       int stride = data.Stride;
@@ -355,6 +366,7 @@ public static class NxcRx1Sharpen {
         int o = r * stride;
         for (int c = 0; c < w; c++, o += 4) {
           double amount = amounts[bands == 1 ? 0 : Math.Min(bands - 1, (int)((long)c * bands / w))];
+          if (inPhoto != null && !inPhoto[r * w + c]) amount *= outside;
           if (amount <= 0) continue;
           float diff = luma[r * w + c] - blurred[r * w + c];
           if (Math.Abs(diff) <= threshold) continue;
@@ -368,6 +380,74 @@ public static class NxcRx1Sharpen {
     } finally { image.UnlockBits(data); }
   }
   static byte Clamp(float value) { return value <= 0 ? (byte)0 : value >= 255 ? (byte)255 : (byte)(value + 0.5f); }
+  // Co / giãn bằng Lanczos3 (tách hai chiều; khi thu nhỏ, bộ lọc nới theo tỉ lệ để không răng cưa) phần
+  // (srcX, srcY, srcW, srcH) của ảnh nguồn về đúng width × height điểm; bù gamma trên ảnh nguồn như GDI+.
+  public static Bitmap Resample(Bitmap source, int width, int height, double srcX, double srcY, double srcW, double srcH, double gamma) {
+    int sw = source.Width, sh = source.Height;
+    float[] lut = new float[256];
+    for (int v = 0; v < 256; v++) lut[v] = (float)(255.0 * Math.Pow(v / 255.0, gamma));
+    int[][] xi, yi; float[][] xw, yw;
+    Contributions(width, sw, srcX, srcW, out xi, out xw);
+    Contributions(height, sh, srcY, srcH, out yi, out yw);
+    int rowMin = sh - 1, rowMax = 0;
+    foreach (int[] list in yi) foreach (int r in list) { if (r < rowMin) rowMin = r; if (r > rowMax) rowMax = r; }
+    float[] across = new float[(rowMax - rowMin + 1) * width * 3];
+    BitmapData data = source.LockBits(new Rectangle(0, 0, sw, sh), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+    try {
+      byte[] line = new byte[data.Stride];
+      for (int r = rowMin; r <= rowMax; r++) {
+        Marshal.Copy(new IntPtr(data.Scan0.ToInt64() + (long)r * data.Stride), line, 0, line.Length);
+        int o = (r - rowMin) * width * 3;
+        for (int c = 0; c < width; c++) {
+          int[] idx = xi[c]; float[] wt = xw[c];
+          float b = 0, g = 0, red = 0;
+          for (int k = 0; k < idx.Length; k++) {
+            int p = idx[k] * 4;
+            b += wt[k] * lut[line[p]]; g += wt[k] * lut[line[p + 1]]; red += wt[k] * lut[line[p + 2]];
+          }
+          across[o + c * 3] = b; across[o + c * 3 + 1] = g; across[o + c * 3 + 2] = red;
+        }
+      }
+    } finally { source.UnlockBits(data); }
+    Bitmap result = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+    BitmapData output = result.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+    try {
+      byte[] row = new byte[output.Stride];
+      for (int r = 0; r < height; r++) {
+        int[] idx = yi[r]; float[] wt = yw[r];
+        for (int c = 0; c < width; c++) {
+          float b = 0, g = 0, red = 0;
+          for (int k = 0; k < idx.Length; k++) {
+            int o = ((idx[k] - rowMin) * width + c) * 3;
+            b += wt[k] * across[o]; g += wt[k] * across[o + 1]; red += wt[k] * across[o + 2];
+          }
+          int p = c * 4;
+          row[p] = Clamp(b); row[p + 1] = Clamp(g); row[p + 2] = Clamp(red); row[p + 3] = 255;
+        }
+        Marshal.Copy(row, 0, new IntPtr(output.Scan0.ToInt64() + (long)r * output.Stride), row.Length);
+      }
+    } finally { result.UnlockBits(output); }
+    return result;
+  }
+  static double Sinc(double x) { if (Math.Abs(x) < 1e-9) return 1; x *= Math.PI; return Math.Sin(x) / x; }
+  static double Lanczos3(double x) { return Math.Abs(x) < 3 ? Sinc(x) * Sinc(x / 3) : 0; }
+  // Trọng số của các điểm nguồn (lặp điểm ở mép ảnh) cho từng điểm đích; tổng trọng số = 1.
+  static void Contributions(int outSize, int inSize, double start, double span, out int[][] index, out float[][] weight) {
+    double scale = span / outSize, filter = Math.Max(1.0, scale), support = 3 * filter;
+    index = new int[outSize][]; weight = new float[outSize][];
+    for (int i = 0; i < outSize; i++) {
+      double center = start + (i + 0.5) * scale;
+      int lo = (int)Math.Floor(center - support), n = (int)Math.Ceiling(center + support) - lo + 1;
+      int[] idx = new int[n]; double[] w = new double[n]; double sum = 0;
+      for (int k = 0; k < n; k++) {
+        w[k] = Lanczos3((lo + k + 0.5 - center) / filter); sum += w[k];
+        idx[k] = Math.Min(inSize - 1, Math.Max(0, lo + k));
+      }
+      float[] wf = new float[n];
+      for (int k = 0; k < n; k++) wf[k] = (float)(w[k] / sum);
+      index[i] = idx; weight[i] = wf;
+    }
+  }
   static float[] Kernel(double sigma) {
     if (sigma < 0.05) return new float[] { 1f };
     int radius = Math.Max(1, (int)Math.Ceiling(sigma * 3));
@@ -433,49 +513,74 @@ function Add-Rx1TestLabels([Drawing.Bitmap]$bitmap, [int]$current) {
   } finally { $center.Dispose(); $small.Dispose(); $font.Dispose(); $ink.Dispose(); $white.Dispose(); $g.Dispose() }
 }
 # Một trang in đúng lưới điểm của máy in: tờ in phủ kín trang (giữ tỉ lệ, căn giữa; phần tràn lề máy xén
-# như cũ), bù gamma, rồi làm nét. $pageWidth / $pageHeight: PageBounds (1/100 inch); $dpiX / $dpiY: độ phân
-# giải máy in. $testCurrent ≥ 0: tờ in thử — 5 dải độ nét 0–4, dải mức đang dùng có nhãn đậm.
+# như cũ), co bằng Lanczos3, bù gamma, rồi làm nét. $pageWidth / $pageHeight: PageBounds (1/100 inch);
+# $dpiX / $dpiY: độ phân giải máy in. $testCurrent ≥ 0: tờ in thử — 5 dải độ nét 0–4, dải mức đang dùng có
+# nhãn đậm. $photos: các ô ảnh trên tờ in (x, y, rộng, cao theo tỉ lệ 0–1 của tờ, nối tiếp nhau).
 function New-Rx1PageBitmap([Drawing.Image]$photo, [double]$pageWidth, [double]$pageHeight, [double]$dpiX, [double]$dpiY,
-    [double]$gamma, [int]$sharpen, [int]$testCurrent = -1) {
+    [double]$gamma, [int]$sharpen, [int]$testCurrent = -1, [double[]]$photos = @()) {
   $width = [Math]::Max(1, [int][Math]::Round($pageWidth * $dpiX / 100))
   $height = [Math]::Max(1, [int][Math]::Round($pageHeight * $dpiY / 100))
-  $bitmap = New-Object Drawing.Bitmap($width, $height, [Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  # Phủ kín trang theo inch (điểm của máy in có thể không vuông), giữ tỉ lệ tờ in, căn giữa.
+  $inch = [Math]::Max(($pageWidth / 100) / $photo.Width, ($pageHeight / 100) / $photo.Height)
+  $w = $photo.Width * $inch * $dpiX; $h = $photo.Height * $inch * $dpiY
+  $left = ($width - $w) / 2; $top = ($height - $h) / 2
+  $bitmap = $null
   $done = $false
   try {
+    if (Initialize-Rx1Sharpen) {
+      # Vùng ảnh nguồn thấy được trên trang (phần tràn lề ngoài trang bị cắt).
+      $kx = $photo.Width / $w; $ky = $photo.Height / $h
+      $bitmap = [NxcRx1Sharpen]::Resample([Drawing.Bitmap]$photo, $width, $height, -$left * $kx, -$top * $ky, $width * $kx, $height * $ky, $gamma)
+      $script:Rx1Resampler = 'lanczos3'
+    } else {
+      $bitmap = New-Object Drawing.Bitmap($width, $height, [Drawing.Imaging.PixelFormat]::Format32bppArgb)
+      $g = [Drawing.Graphics]::FromImage($bitmap)
+      try {
+        $g.Clear([Drawing.Color]::White)
+        $g.InterpolationMode = [Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $g.PixelOffsetMode = [Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+        $g.CompositingQuality = [Drawing.Drawing2D.CompositingQuality]::HighQuality
+        $dest = New-Object Drawing.Rectangle([int][Math]::Round($left)), ([int][Math]::Round($top)), ([int][Math]::Ceiling($w)), ([int][Math]::Ceiling($h))
+        $attrs = New-Rx1ImageAttributes $gamma
+        try { $g.DrawImage($photo, $dest, 0, 0, $photo.Width, $photo.Height, [Drawing.GraphicsUnit]::Pixel, $attrs) }
+        finally { $attrs.Dispose() }
+      } finally { $g.Dispose() }
+      $script:Rx1Resampler = 'gdi-bicubic'
+    }
     $bitmap.SetResolution([single]$dpiX, [single]$dpiY)
-    $g = [Drawing.Graphics]::FromImage($bitmap)
-    try {
-      $g.Clear([Drawing.Color]::White)
-      $g.InterpolationMode = [Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-      $g.PixelOffsetMode = [Drawing.Drawing2D.PixelOffsetMode]::HighQuality
-      $g.CompositingQuality = [Drawing.Drawing2D.CompositingQuality]::HighQuality
-      # Phủ kín trang theo inch (điểm của máy in có thể không vuông), giữ tỉ lệ tờ in, căn giữa.
-      $inch = [Math]::Max(($pageWidth / 100) / $photo.Width, ($pageHeight / 100) / $photo.Height)
-      $w = $photo.Width * $inch * $dpiX; $h = $photo.Height * $inch * $dpiY
-      $dest = New-Object Drawing.Rectangle([int][Math]::Round(($width - $w) / 2)), ([int][Math]::Round(($height - $h) / 2)), ([int][Math]::Ceiling($w)), ([int][Math]::Ceiling($h))
-      $attrs = New-Rx1ImageAttributes $gamma
-      try { $g.DrawImage($photo, $dest, 0, 0, $photo.Width, $photo.Height, [Drawing.GraphicsUnit]::Pixel, $attrs) }
-      finally { $attrs.Dispose() }
-    } finally { $g.Dispose() }
     $amounts = if ($testCurrent -ge 0) { @(0..4 | ForEach-Object { Get-Rx1SharpenAmount $_ }) } else { @(Get-Rx1SharpenAmount $sharpen) }
     if (@($amounts | Where-Object { $_ -gt 0 }).Count) {
-      if (Initialize-Rx1Sharpen) { [NxcRx1Sharpen]::Apply($bitmap, [double[]]$amounts, 0.7 * $dpiX / 300, 0.7 * $dpiY / 300, 2) }
+      # Ô ảnh theo điểm của trang (làm tròn ra ngoài).
+      $rects = New-Object 'System.Collections.Generic.List[int]'
+      for ($i = 0; $i + 3 -lt $photos.Count; $i += 4) {
+        $rects.Add([int][Math]::Floor($left + $photos[$i] * $w)); $rects.Add([int][Math]::Floor($top + $photos[$i + 1] * $h))
+        $rects.Add([int][Math]::Ceiling($left + ($photos[$i] + $photos[$i + 2]) * $w)); $rects.Add([int][Math]::Ceiling($top + ($photos[$i + 1] + $photos[$i + 3]) * $h))
+      }
+      if (Initialize-Rx1Sharpen) { [NxcRx1Sharpen]::Apply($bitmap, [double[]]$amounts, 0.7 * $dpiX / 300, 0.7 * $dpiY / 300, 2, $rects.ToArray(), 0.5) }
       elseif ($testCurrent -ge 0) { throw "Máy này không làm nét được ảnh: $($script:Rx1SharpenError)" }
     }
     if ($testCurrent -ge 0) { Add-Rx1TestLabels $bitmap $testCurrent }
     $done = $true
     return $bitmap
-  } finally { if (-not $done) { $bitmap.Dispose() } }
+  } finally { if (-not $done -and $bitmap) { $bitmap.Dispose() } }
 }
 # Vẽ một tờ in lên trang của máy in: đúng lưới điểm, 1:1 (điểm ảnh = điểm máy in, driver không co giãn).
 # Trả về kích thước lưới "rộng x cao" để ghi nhật ký.
-function Write-Rx1Page($event, [Drawing.Image]$photo, [double]$gamma, [int]$sharpen, [int]$testCurrent = -1) {
-  # Tờ khác chiều với trang của máy in (vd. tờ ngang trên trang dọc): xoay 90 độ cho kín khổ.
+function Write-Rx1Page($event, [Drawing.Image]$photo, [double]$gamma, [int]$sharpen, [int]$testCurrent = -1, [double[]]$photos = @()) {
+  # Tờ khác chiều với trang của máy in (vd. tờ ngang trên trang dọc): xoay 90 độ (chiều kim đồng hồ) cho kín
+  # khổ, ô ảnh xoay theo: (x, y, rộng, cao) → (1 - y - cao, x, cao, rộng).
   $pageLandscape = $event.PageBounds.Width -gt $event.PageBounds.Height
-  if (($photo.Width -gt $photo.Height) -ne $pageLandscape) { $photo.RotateFlip([Drawing.RotateFlipType]::Rotate90FlipNone) }
+  if (($photo.Width -gt $photo.Height) -ne $pageLandscape) {
+    $photo.RotateFlip([Drawing.RotateFlipType]::Rotate90FlipNone)
+    $turned = New-Object 'System.Collections.Generic.List[double]'
+    for ($i = 0; $i + 3 -lt $photos.Count; $i += 4) {
+      $turned.Add(1 - $photos[$i + 1] - $photos[$i + 3]); $turned.Add($photos[$i]); $turned.Add($photos[$i + 3]); $turned.Add($photos[$i + 2])
+    }
+    $photos = $turned.ToArray()
+  }
   $g = $event.Graphics
   $dpiX = [double]$g.DpiX; $dpiY = [double]$g.DpiY
-  $page = New-Rx1PageBitmap $photo $event.PageBounds.Width $event.PageBounds.Height $dpiX $dpiY $gamma $sharpen $testCurrent
+  $page = New-Rx1PageBitmap $photo $event.PageBounds.Width $event.PageBounds.Height $dpiX $dpiY $gamma $sharpen $testCurrent $photos
   try {
     $g.ResetTransform()
     $g.PageUnit = [Drawing.GraphicsUnit]::Pixel
@@ -548,14 +653,36 @@ function Request-Rx1SharpnessTest([string]$id) {
   }
   $script:Rx1TestPending = $id
 }
-# Giữ bản sao tờ in khách gần nhất (một file, ghi đè) làm ảnh cho tờ in thử độ nét.
-function Save-Rx1LastSheet([string]$file) {
+# Vị trí các ô ảnh trên tờ in (máy chụp gửi kèm, header X-Print-Photos): "x,y,rộng,cao;…" theo tỉ lệ 0–1
+# của tờ, tối đa 40 ô. Phần ảnh được làm nét đủ mức, chữ / khung một nửa. Sai dạng thì báo lỗi.
+function ConvertFrom-Rx1PhotoRegions([string]$text) {
+  # Dấu phẩy: trả nguyên mảng double[] (PowerShell không bung mảng / không biến mảng rỗng thành $null).
+  if (-not $text) { return ,([double[]]@()) }
+  $number = '(?:0(?:\.\d{1,5})?|1(?:\.0{1,5})?)'
+  if ($text -notmatch "^$number(,$number){3}(;$number(,$number){3}){0,39}$") { throw 'Invalid photo regions.' }
+  $values = New-Object 'System.Collections.Generic.List[double]'
+  foreach ($rect in $text.Split(';')) {
+    $parts = @($rect.Split(',') | ForEach-Object { [double]::Parse($_, [Globalization.CultureInfo]::InvariantCulture) })
+    if ($parts[2] -le 0 -or $parts[3] -le 0 -or $parts[0] + $parts[2] -gt 1.00001 -or $parts[1] + $parts[3] -gt 1.00001) { throw 'Invalid photo regions.' }
+    foreach ($part in $parts) { $values.Add($part) }
+  }
+  return ,$values.ToArray()
+}
+function ConvertTo-Rx1PhotoRegions([double[]]$photos) {
+  $rects = for ($i = 0; $i + 3 -lt $photos.Count; $i += 4) {
+    (@($photos[$i..($i + 3)] | ForEach-Object { $_.ToString('0.#####', [Globalization.CultureInfo]::InvariantCulture) }) -join ',')
+  }
+  return (@($rects) -join ';')
+}
+# Giữ bản sao tờ in khách gần nhất (một file, ghi đè) và vị trí các ô ảnh của nó làm ảnh cho tờ in thử độ nét.
+function Save-Rx1LastSheet([string]$file, [double[]]$photos = @()) {
   if ($DryRunDir -or -not $file -or -not (Test-Path -LiteralPath $file)) { return }
   try {
     $directory = Join-Path $env:LOCALAPPDATA 'NXC-Printer'
     New-Item -ItemType Directory -Force -Path $directory | Out-Null
-    Get-ChildItem -LiteralPath $directory -Filter 'last-sheet.*' | Remove-Item -Force
+    Get-ChildItem -LiteralPath $directory -Filter 'last-sheet*' | Remove-Item -Force
     Copy-Item -LiteralPath $file -Destination (Join-Path $directory ('last-sheet' + [IO.Path]::GetExtension($file))) -Force
+    if ($photos.Count) { Set-Content -LiteralPath (Join-Path $directory 'last-sheet-photos.txt') -Value (ConvertTo-Rx1PhotoRegions $photos) -Encoding ASCII }
   } catch { Write-Log "Không lưu được tờ in gần nhất (dùng cho in thử độ nét): $($_.Exception.Message)" }
 }
 function Invoke-Rx1SharpnessTest {
@@ -578,8 +705,14 @@ function Invoke-Rx1SharpnessTest {
     }
     $offline = Get-OfflineQueue
     if ($offline) { throw "hàng in '$offline' đang bật 'Use printer offline' trong Windows." }
+    # Vị trí ô ảnh của tờ in gần nhất (ảnh mẫu: không có — làm nét cả tờ).
+    $photos = [double[]]@()
+    $regions = Join-Path (Split-Path -Parent $record) 'last-sheet-photos.txt'
+    if (-not $sample -and (Test-Path -LiteralPath $regions)) {
+      try { $photos = ConvertFrom-Rx1PhotoRegions ((Get-Content -LiteralPath $regions -Raw).Trim()) } catch { $photos = [double[]]@() }
+    }
     [void](Set-PrinterCutter 'off')
-    $paper = Send-Sheets $script:Config.printer @($source.FullName) 'NXC-thu-do-net' 'off' (Get-Rx1OutputSettings).sharpen
+    $paper = Send-Sheets $script:Config.printer @($source.FullName) 'NXC-thu-do-net' 'off' (Get-Rx1OutputSettings).sharpen $photos
     $message = "Đã in tờ thử độ nét từ $from ($paper)."
     $sent = $true
   } catch { $message = "Chưa in được tờ thử độ nét: $($_.Exception.Message)" }
@@ -662,7 +795,8 @@ function Find-Paper($settings) {
 
 # $cut: 'on' = máy cắt đôi tờ (2 dải 5 × 15), 'off' = in nguyên tờ 10 × 15, '' = giữ cài đặt của hàng in.
 # $test ≥ 0: tờ in thử độ nét (5 dải 0–4, dải $test = mức đang dùng có nhãn đậm).
-function Send-Sheets([string]$printerName, [string[]]$files, [string]$docName, [string]$cut = '', [int]$test = -1) {
+# $photos: vị trí các ô ảnh trên tờ (ConvertFrom-Rx1PhotoRegions); không có thì làm nét cả tờ.
+function Send-Sheets([string]$printerName, [string[]]$files, [string]$docName, [string]$cut = '', [int]$test = -1, [double[]]$photos = @()) {
   if ($DryRunDir) {
     New-Item -ItemType Directory -Force -Path $DryRunDir | Out-Null
     $safe = $printerName -replace '[^\w.-]+', '_'
@@ -697,6 +831,7 @@ function Send-Sheets([string]$printerName, [string[]]$files, [string]$docName, [
   $script:printGamma = $outputSettings.gamma
   $script:printSharpen = $outputSettings.sharpen
   $script:printTest = $test
+  $script:printPhotos = $photos
   # Resolution is selected per job; queue defaults, ICC and cutter settings remain separate.
   $quality = $document.DefaultPageSettings.PrinterResolution
   $script:printPages = $files
@@ -707,14 +842,15 @@ function Send-Sheets([string]$printerName, [string[]]$files, [string]$docName, [
     $photo = [System.Drawing.Image]::FromFile($script:printPages[$script:printIndex], $true)
     # Trang phủ kín, giữ tỉ lệ (trang DNP 6,15 × 4,13 inch có phần tràn lề), đúng lưới điểm của máy in, vẽ
     # 1:1 — driver không co giãn nữa; bù gamma rồi làm nét (New-Rx1PageBitmap).
-    try { $script:printGrid = Write-Rx1Page $event $photo $script:printGamma $script:printSharpen $script:printTest }
+    try { $script:printGrid = Write-Rx1Page $event $photo $script:printGamma $script:printSharpen $script:printTest $script:printPhotos }
     finally { $photo.Dispose() }
     $script:printIndex++
     $event.HasMorePages = $script:printIndex -lt $script:printPages.Count
   })
   try { $document.Print() } finally { $document.Dispose() }
   $sharpness = if ($test -ge 0) { 'tờ thử 0–4' } elseif ($script:Rx1SharpenError -and $script:printSharpen) { "không làm nét được: $($script:Rx1SharpenError)" } else { $script:printSharpen }
-  Write-Log "RX1 output: $($quality.X)x$($quality.Y) dpi, $($script:printGrid) điểm (vẽ 1:1); gamma $script:printGamma; độ nét $sharpness; Windows/driver ICM."
+  $areas = if ($photos.Count) { "$([int]($photos.Count / 4)) ô ảnh nét đủ, chữ/khung một nửa" } else { 'cả tờ' }
+  Write-Log "RX1 output: $($quality.X)x$($quality.Y) dpi, $($script:printGrid) điểm (vẽ 1:1, co $($script:Rx1Resampler)); gamma $script:printGamma; độ nét $sharpness ($areas); Windows/driver ICM."
   return '{0} {1}x{2}, {3} điểm, độ nét {4}' -f $paper.PaperName, $paper.Width, $paper.Height, $script:printGrid, $(if ($test -ge 0) { '0–4' } else { $script:printSharpen })
 }
 
@@ -857,8 +993,11 @@ function Invoke-Job($job, [string[]]$localFiles = @()) {
       }
     }
     $cutter = Set-PrinterCutter $cut
-    $paper = Send-Sheets $queue $files ("NXC-$($job.code)") $cut
-    Save-Rx1LastSheet $files[0]
+    # Vị trí ô ảnh (in trực tiếp từ máy chụp): làm nét đủ phần ảnh, một nửa phần chữ / khung.
+    $photos = [double[]]@()
+    if ($job.photos) { $photos = [double[]]@($job.photos) }
+    $paper = Send-Sheets $queue $files ("NXC-$($job.code)") $cut -1 $photos
+    Save-Rx1LastSheet $files[0] $photos
     if ($job.printSize -eq 'strip') {
       if ($cutter) { $note = ', tờ nhỏ: máy cắt đôi 2 inch (dao cắt 120)' }
       elseif ($script:cutApplied -or $queue -ne $config.printer) { $note = ', tờ nhỏ cắt đôi 2 inch' }
@@ -906,12 +1045,13 @@ function Receive-LocalPrint {
   $response.Headers['Access-Control-Allow-Origin'] = $origin
   $response.Headers['Vary'] = 'Origin'
   $response.Headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-  $response.Headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Album-Token, X-Print-Key, X-Print-Frame, X-Print-Sheets, X-Print-Size'
+  $response.Headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Album-Token, X-Print-Key, X-Print-Frame, X-Print-Sheets, X-Print-Size, X-Print-Photos'
   $response.Headers['Access-Control-Allow-Private-Network'] = 'true'
   if ($request.HttpMethod -eq 'OPTIONS') { Write-LocalResponse $response 200 @{ ok = $true }; return }
   if ($request.HttpMethod -eq 'GET' -and $request.Url.AbsolutePath -eq '/health') {
     $output = Get-Rx1OutputSettings
-    Write-LocalResponse $response 200 @{ directPrint = 2; room = [string]$script:Config.room; outputSettingsVersion = 1;
+    # photoRegions: bộ in này nhận vị trí ô ảnh (X-Print-Photos) — máy chụp chỉ gửi khi thấy cờ này.
+    Write-LocalResponse $response 200 @{ directPrint = 2; photoRegions = $true; room = [string]$script:Config.room; outputSettingsVersion = 1;
       output = @{ gamma = $output.gamma; maxResolution = $output.maxResolution; sharpen = $output.sharpen } }; return
   }
   if ($request.HttpMethod -ne 'POST' -or $request.Url.AbsolutePath -ne '/print') {
@@ -953,7 +1093,8 @@ function Receive-LocalPrint {
       if ($previous.state -eq 'sent') { Write-LocalResponse $response 200 @{ sent = $true; duplicate = $true }; return }
       throw 'This request was already received. Check the printer before reprinting.'
     }
-    $job = @{ code = $requestKey.Substring(0,8); printSize = $printSize; copies = 1 }
+    $job = @{ code = $requestKey.Substring(0,8); printSize = $printSize; copies = 1;
+      photos = (ConvertFrom-Rx1PhotoRegions ([string]$request.Headers['X-Print-Photos'])) }
     $directory = Join-Path $env:TEMP ('nxc-direct-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $directory | Out-Null
     $offset = 0; $files = @()
