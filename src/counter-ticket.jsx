@@ -20,11 +20,14 @@ const printsText = (pack) => {
 
 export function CounterTicket({ onClose, onCreated, initialDraft = null, assignedBranch = "" }) {
   const { packages = [], rooms = [], settings = {} } = useStudio();
-  const branches = [...new Set(rooms.map((r) => r.branch).filter(Boolean))]
+  const counterPackages = packages.filter((p) => p.active !== false && p.printSize !== "instax");
+  const branches = [...new Set(rooms
+    .filter((r) => r.active !== false && (r.kind || "photobooth") === "photobooth")
+    .map((r) => r.branch).filter(Boolean))]
     .filter((name) => !assignedBranch || name === assignedBranch);
   const [form, setForm] = useState({
-    package: packages[0]?._id || "",
-    branch: initialDraft?.branch || assignedBranch || branches[0] || "",
+    package: counterPackages[0]?._id || "",
+    branch: initialDraft?.branch || branches[0] || "",
     // Khách mua mã ở quầy thường chuyển khoản (trả tiền mặt thì đút vào máy ở phòng đút tiền):
     // tiệm đã nhập tài khoản / QR ngân hàng thì mặc định chuyển khoản, QR hiện ngay.
     paymentMethod: settings.bankAccount || settings.bankQrImage ? "transfer" : "cash",
@@ -72,6 +75,8 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
     e.preventDefault();
     if (lock.current) return;
     if (!v.check(form, RULES)) return;
+    if (!branches.includes(form.branch))
+      return toast.warning("Chi nhánh đã chọn chưa có phòng photobooth đang hoạt động. Vui lòng kiểm tra lại.");
     if (quote?.key !== quoteKey || quote.error)
       return toast.warning(
         quote?.error || "Đang tính tiền, vui lòng đợi một chút.",
@@ -153,11 +158,14 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
               <Check size={14} /> Đã nhận {money(ticket.total)}
             </span>
             <p>
+              Chi nhánh dùng mã: <strong>{ticket.branch}</strong>.
+            </p>
+            <p>
               Mời khách vào{" "}
               {ticket.roomName ? (
                 <strong>{ticket.roomName}</strong>
               ) : (
-                "phòng chụp đang trống"
+                "phòng photobooth đang trống trong chi nhánh này"
               )}{" "}
               và nhập mã này trên màn hình máy chụp.
             </p>
@@ -173,7 +181,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
               bấm <b>“Nhập mã”</b> → nhập 6 số → bắt đầu chụp.
             </p>
             <p className="soft-note">
-              Mã dùng một lần trong 2 giờ từ lúc xác nhận đã thu, ở phòng nào cũng được. Chụp xong, máy chụp
+              Mã dùng một lần trong 2 giờ từ lúc xác nhận đã thu, tại các phòng photobooth cùng chi nhánh. Chụp xong, máy chụp
               hiện mã QR để khách quét nhận ảnh trên điện thoại.
             </p>
             <Button
@@ -200,6 +208,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
         ) : ticket ? (
           <div className="counter-receipt">
             <p>Đã ghi nhận gói <strong>{ticket.packageName}</strong>. Chưa cấp mã cho khách.</p>
+            <p>Chi nhánh dùng mã: <strong>{ticket.branch}</strong>.</p>
             <div className="summary-total"><span>Tiền cần thu</span><strong>{money(ticket.total)}</strong></div>
             <label>
               Thanh toán
@@ -225,6 +234,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
               <p>
                 Chọn gói và tạo phiếu trước. Mã 6 số chỉ xuất hiện sau khi xác nhận đã thu tiền.
               </p>
+              {!branches.length && <ErrorBox error="Chưa có phòng photobooth đang hoạt động trong chi nhánh của bạn. Phòng Polaroid chọn layout tại máy và thanh toán ở quầy, không dùng mã chụp." />}
               <label>
                 Gói chụp
                 <select
@@ -235,7 +245,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
                   onChange={(e) => change("package", e.target.value)}
                 >
                   <option value="">Chọn gói</option>
-                  {packages.filter((p) => p.printSize !== "instax").map((p) => (
+                  {counterPackages.map((p) => (
                     <option key={p._id} value={p._id}>
                       {p.name} — {money(p.price)}
                     </option>
@@ -304,7 +314,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
                 </strong>
               </div>
               {quote?.key === quoteKey && <ErrorBox error={quote.error} />}
-              <Button className="full" disabled={busy}>
+              <Button className="full" disabled={busy || !branches.length || !counterPackages.length}>
                 {busy ? "Đang tạo phiếu…" : "Tạo phiếu chụp"}
               </Button>
             </div>

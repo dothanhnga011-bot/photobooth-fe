@@ -2,6 +2,16 @@
 
 Mở **Đơn hàng → In ảnh** để đọc lại dữ liệu của đúng đơn, thay vì dùng bản chụp dữ liệu lúc tải danh sách. Hộp tự kiểm tra mỗi 10 giây khi đang mở; có thể bấm **Làm mới**. Lỗi tải được hiển thị riêng, không được coi là đơn chưa có file.
 
+## Mã chụp trước khi in
+
+Mã cấp ở quầy chỉ dùng một lần tại phòng photobooth **cùng chi nhánh**, trong hai giờ từ lúc xác nhận đã thu tiền. Chọn đúng chi nhánh trước khi tạo phiếu; màn xác nhận và mã đã cấp đều hiển thị chi nhánh dùng mã.
+
+Danh sách cấp mã chỉ có chi nhánh còn phòng photobooth hoạt động. Chi nhánh chỉ có Polaroid không bán mã DNP; khách Polaroid chọn layout trên máy rồi trả tiền tại quầy. Máy chủ cũng kiểm tra điều này khi tạo phiếu, cấp mã trực tiếp và kích hoạt phiếu.
+
+Nếu kiosk báo mã thuộc chi nhánh khác, kiểm tra chi nhánh của phiếu và phòng đang gán cho kiosk trong Quản lý máy. Giữ giới hạn chi nhánh khi sửa cấu hình. Mã đã thu tiền nhưng chưa chụp cần đối chiếu đơn cũ trước khi xử lý, tránh tạo thêm đơn đã thu lần hai.
+
+Để áp dụng bản sửa cấp mã, cập nhật backend và frontend; tải lại trang quầy/kiosk sau khi phát hành. Việc sửa code không tự chuyển chi nhánh, sửa doanh thu hoặc gia hạn các mã cũ.
+
 ## File in đã lưu
 
 - Chọn trong 20 lượt in gần nhất còn hạn, xem từng tờ hoặc mở file đầy đủ. Khổ giấy lấy từ file in thực tế, vì khung khách chọn có thể khác khổ gói.
