@@ -61,10 +61,11 @@ export function createClipRecorder() {
     try {
       chunks = [];
       const type = pickType(light ? LIGHT_TYPES : RECORD_TYPES);
-      // Bản quay gốc bitrate cao (1080p: 16 Mbps): video tua nhanh ghép từ đây nên càng nét càng tốt.
+      // Bản tạm chỉ giữ trên PC: thêm dư địa cho lần mã hóa đầu, trước khi ghép lại.
+      // Không tăng bitrate file gửi album; webcam vẫn giữ chế độ nhẹ để tránh lỗi GPU.
       recorder = new MediaRecorder(stream, {
         ...(type && { mimeType: type }),
-        videoBitsPerSecond: light ? 5_000_000 : 16_000_000,
+        videoBitsPerSecond: light ? 5_000_000 : 20_000_000,
       });
       const own = chunks;
       recorder.ondataavailable = (event) => event.data.size && own.push(event.data);
@@ -119,6 +120,25 @@ export function timelapseSize(sourceWidth, sourceHeight, region, maxHeight = 108
   const sw = sourceWidth * region.w, sh = sourceHeight * region.h;
   const height = even(sw > 0 && sh > 0 ? Math.min(maxHeight, sh, (sw * 9) / 16) : maxHeight);
   return [even((height * 16) / 9), height];
+}
+
+// Crop on actual source pixels. Fractional HDMI margins (e.g. y = 86.4) and
+// a tiny resize after rounding H.264 dimensions used to soften native-size frames.
+// Only genuinely larger sources (4K, or the webcam cap) need resampling.
+export function timelapseCrop(sourceWidth, sourceHeight, region, width, height) {
+  const sw = sourceWidth * region.w, sh = sourceHeight * region.h;
+  if (!(sw > 0 && sh > 0 && width > 0 && height > 0)) return null;
+  const [nativeWidth, nativeHeight] = timelapseSize(sourceWidth, sourceHeight, region, Infinity);
+  const native = width === nativeWidth && height === nativeHeight;
+  const cropWidth = Math.min(sourceWidth, native ? width : Math.round(Math.min(sw, sh * width / height)));
+  const cropHeight = Math.min(sourceHeight, native ? height : Math.round(Math.min(sh, sw * height / width)));
+  return {
+    x: Math.max(0, Math.min(sourceWidth - cropWidth, Math.round(sourceWidth * region.x + (sw - cropWidth) / 2))),
+    y: Math.max(0, Math.min(sourceHeight - cropHeight, Math.round(sourceHeight * region.y + (sh - cropHeight) / 2))),
+    width: cropWidth,
+    height: cropHeight,
+    resize: cropWidth !== width || cropHeight !== height,
+  };
 }
 
 // Bitrate video ghép: theo số điểm ảnh (0,35 bit / điểm ảnh / khung, 30 khung/giây — đủ cho H.264 phần
@@ -179,7 +199,7 @@ export async function buildTimelapse(clips, { zoom = 0, speed = 4, mirror = true
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", { alpha: false });
   ctx.imageSmoothingQuality = "high";
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, width, height);
@@ -192,18 +212,15 @@ export async function buildTimelapse(clips, { zoom = 0, speed = 4, mirror = true
   recorder.start(1000);
   recorder.pause();
   const draw = (video) => {
-    const sw = video.videoWidth * region.w, sh = video.videoHeight * region.h;
-    if (!sw || !sh) return;
-    // Phủ kín khung ra (cắt bớt hai bên nếu cần), lật ngang như gương.
-    const scale = Math.max(width / sw, height / sh);
-    const dw = sw * scale, dh = sh * scale;
+    const crop = timelapseCrop(video.videoWidth, video.videoHeight, region, width, height);
+    if (!crop) return;
+    ctx.imageSmoothingEnabled = crop.resize;
     ctx.save();
     if (mirror) {
       ctx.translate(width, 0);
       ctx.scale(-1, 1);
     }
-    ctx.drawImage(video, video.videoWidth * region.x, video.videoHeight * region.y, sw, sh,
-      (width - dw) / 2, (height - dh) / 2, dw, dh);
+    ctx.drawImage(video, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
     ctx.restore();
   };
   for (let index = 0; index < segments.length; index++) {

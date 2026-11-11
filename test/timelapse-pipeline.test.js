@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
-import { buildTimelapse, timelapseBitrate } from "../src/kiosk/clip-recorder.js";
+import { buildTimelapse, createClipRecorder, timelapseBitrate } from "../src/kiosk/clip-recorder.js";
 
 const originals = Object.fromEntries(["document", "MediaRecorder"].map((key) => [key, globalThis[key]]));
 const createObjectURL = URL.createObjectURL, revokeObjectURL = URL.revokeObjectURL;
 let videos, events, canvas, settings, stoppedTracks, failedClip;
 
 beforeEach(() => {
-  videos = []; events = []; stoppedTracks = 0; failedClip = -1;
+  videos = []; events = []; settings = {}; stoppedTracks = 0; failedClip = -1;
   URL.createObjectURL = () => `blob:clip-${videos.length}`;
   URL.revokeObjectURL = (url) => events.push(["revoke", url]);
   globalThis.document = {
@@ -16,7 +16,7 @@ beforeEach(() => {
         canvas = {
           getContext: () => ({
             fillRect() {}, save() {}, restore() {}, translate() {}, scale() {},
-            drawImage: (video) => events.push(["draw", video.index]),
+            drawImage: (video, ...args) => events.push(["draw", video.index, ...args]),
           }),
           captureStream: (fps) => {
             settings = { width: canvas.width, height: canvas.height, fps };
@@ -87,10 +87,20 @@ test("timelapse loads each clip once and overlaps decoding without reducing outp
   assert.ok(events.filter(([type]) => type === "decoders").every(([, count]) => count <= 2));
   assert.deepEqual([settings.width, settings.height, settings.fps], [1536, 864, 30]);
   assert.equal(settings.options.videoBitsPerSecond, timelapseBitrate(1536, 864, 5));
+  assert.deepEqual(events.find(([type]) => type === "draw").slice(2), [192, 86, 1536, 864, 0, 0, 1536, 864]);
   assert.ok(videos.every((video) => video.playbackRate === 4 && video.disposed));
   assert.equal(events.filter(([type]) => type === "revoke").length, 3);
   assert.equal(events.filter(([type]) => type === "cancel").length, 3);
   assert.equal(stoppedTracks, 1);
+});
+
+test("HDMI records a cleaner local intermediate while the webcam keeps its low-load encoder", async () => {
+  for (const light of [false, true]) {
+    const recording = createClipRecorder();
+    recording.start({ active: true }, { light });
+    assert.equal(settings.options.videoBitsPerSecond, light ? 5_000_000 : 20_000_000);
+    await recording.stop();
+  }
 });
 
 test("a corrupt preloaded clip is skipped and every decoder is released", async () => {

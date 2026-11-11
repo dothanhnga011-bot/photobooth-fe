@@ -18,6 +18,25 @@ Không có thời gian cố định từ lúc chụp xong đến khi toàn bộ 
 
 Ảnh camera dùng để ghép và in giữ nguồn cũ. Các thay đổi tốc độ không giảm độ phân giải hoặc chất lượng của file khách lưu về máy. Ảnh nguồn nhỏ hơn 20 MP không bị phóng lên để tạo độ nét giả.
 
+## Video rõ hơn, giữ ngân sách tải lên
+
+Kiosk ưu tiên định dạng HDMI gốc của thẻ ghi hình (tối đa mục tiêu 1920×1080/30 fps); webcam vẫn dùng chế độ nhẹ. Bản quay tạm HDMI trên PC tăng từ 16 lên 20 Mbps để giảm mất chi tiết trước lần ghép, còn webcam giữ 5 Mbps. Bản tạm này không tải lên; đổi lại nó tốn thêm RAM trong lúc chụp.
+
+Khi ghép, cắt theo điểm ảnh nguyên và giữ tỉ lệ 1:1 nếu kích thước nguồn đã đủ. Ví dụ HDMI 1920×1080, cắt mép mặc định, vẫn xuất 1536×864 nhưng không còn lấy từ tọa độ y=86.4 và nội suy lại. Nguồn lớn cần thu nhỏ vẫn dùng nội suy chất lượng cao. Không phóng ảnh nhỏ lên Full HD để tạo nét giả.
+
+File album giữ codec ưu tiên MP4/H.264, độ phân giải theo vùng HDMI thực có, 30 fps, bitrate theo điểm ảnh (trần 16 Mbps, webcam 8 Mbps) và ngân sách 48 MB như trước. Giữ cách giải mã trước một clip và tải thẳng R2. Dung lượng thực tế vẫn phụ thuộc cảnh và bộ mã hóa, vì bitrate của MediaRecorder là [mục tiêu gợi ý](https://www.w3.org/TR/mediastream-recording/), không phải kích thước file cố định. Bản sửa không khôi phục chi tiết đã mất do nguồn HDMI mờ hoặc máy ảnh lấy nét sai.
+
+Đo ngày 11/11/2026 trên Chromium 153 / Windows / Core Ultra 7 155H: dùng cùng bốn clip nguồn tổng hợp, mỗi clip khoảng hai giây, tua ×4, cắt mép mặc định; một lần làm nóng rồi hai cặp chạy đảo thứ tự. So với commit `4ec30fe`, trung vị riêng bước ghép:
+
+| Nguồn | Thời gian cũ → mới | Dung lượng cũ → mới |
+| --- | --- | --- |
+| HDMI 1920×1080 | 2,071 → 2,020 giây | 715.763 → 726.368 byte (+1,5%) |
+| Webcam 1280×720 | 1,975 → 1,985 giây | 467.079 → 488.443 byte (+4,6%) |
+
+Đây là thử nghiệm bước ghép từ cùng file nguồn, chưa tính quay tạm 20 Mbps, mạng/R2 hoặc máy tại tiệm. Bộ ghi thời gian thực dao động cả thời lượng và số khung hình (Full HD khoảng 59–60 khung); không dùng chênh lệch thời gian nhỏ làm cam kết nhanh hơn. Kiểm tra Canvas bằng vạch sáng/tối một điểm ảnh xác nhận bản ghép 1:1 giữ nguyên pixel trước nén; đây không phải thang đo chất lượng video khách. Chạy bằng `node scripts/bench-timelapse.mjs --runs 2 --scenario all --output .cache/bench-timelapse-clarity.json` khi HEAD là bản gốc và working tree có bản sửa.
+
+Thay đổi này nằm ở frontend. Sau khi phát hành, kết thúc lượt đang chụp rồi tải lại kiosk; video của lượt mới dùng bộ ghép mới. Video cũ trên album giữ nguyên.
+
 ## Giới hạn thực tế
 
 Thời gian truyền tối thiểu xấp xỉ `dung lượng MB × 8 / tốc độ Mbps`. Ví dụ, còn 12 ảnh × 15 MB = 180 MB, upload thực tế 20 Mbps thì riêng truyền dữ liệu đã cần khoảng 72 giây, chưa tính tải khác và xác nhận lưu. Ảnh được gửi dần trong lúc chụp/chọn khung nên thời gian khách còn chờ sau khi quét QR có thể ngắn hơn.

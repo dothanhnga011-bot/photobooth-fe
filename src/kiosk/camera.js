@@ -45,6 +45,9 @@ export const videoConstraints = (deviceId, light = false) => ({
     width: { ideal: light ? 1280 : 1920 },
     height: { ideal: light ? 720 : 1080 },
     frameRate: { ideal: 30 },
+    // Prefer a native capture-card format over an extra browser crop/resize.
+    // This is a preference, so older cards can still negotiate a working mode.
+    ...(!light && { resizeMode: { ideal: "none" } }),
   },
   audio: false,
 });
