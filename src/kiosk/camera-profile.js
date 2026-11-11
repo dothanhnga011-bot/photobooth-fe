@@ -18,7 +18,8 @@ export function cameraProfile(kind) {
     manualUrl: "https://cam.start.canon/en/C015/manual/html/index.html",
     steps: [
       "Cài EOS Utility hỗ trợ EOS R100. Tắt máy ảnh, cắm dây bấm RS-60E3 vào cổng remote, cáp USB-C dữ liệu vào PC và micro-HDMI vào thẻ ghi hình; bật máy ảnh.",
-      "Chọn chế độ chụp ảnh, JPEG Large/Fine (L), không chỉ RAW/CR3. Chọn Single shooting, tắt self-timer và Auto power off; đặt Color space = sRGB.",
+      "Chọn chế độ chụp ảnh, JPEG Large/Fine (L), không chỉ RAW/CR3. Vào MENU → Drive mode → Single shooting (chụp từng ảnh), không chọn Self-timer 2s/10s; tắt Auto power off và đặt Color space = sRGB.",
+      "Dây RS-60E3 điều khiển chụp trực tiếp trên R100: nhấn nửa nút để lấy nét, nhấn hết để chụp rồi thả nút. Không bật hẹn giờ/interval trên dây có bộ hẹn giờ. Web chờ JPEG từ EOS Utility, không tự bấm máy ảnh.",
       `Mở EOS Utility → Preferences → Destination Folder, chọn ${folder}. Tắt tạo thư mục con tự động để kiosk đọc ảnh ngay tại thư mục này.`,
       "EOS Utility → Preferences → Basic Settings → Startup Action: Show Remote shooting screen. Trong Remote shooting, đặt lưu ảnh trên Computer hoặc Computer and camera. Giữ cửa sổ này kết nối khi khách bấm dây.",
       "Trong Preferences, tắt Automatically display Quick Preview window và phần mềm mở ảnh sau khi chụp để cửa sổ khác không che kiosk. Đóng EOS Webcam Utility và chương trình khác đang giữ USB máy ảnh.",
@@ -29,7 +30,7 @@ export function cameraProfile(kind) {
       "EOS Utility đã kết nối và đang ở Remote shooting, lưu vào Computer hoặc Computer and camera.",
       `Destination Folder của EOS Utility trùng thư mục đã chọn ở kiosk (${folder}).`,
     ],
-    note: "Phòng Polaroid dùng Canon R100 và dây bấm RS-60E3. USB chuyển JPEG, thẻ ghi hình HDMI cung cấp hình trực tiếp. Thử cả dây bấm, flash và ảnh vào album trước khi đón khách.",
+    note: "Phòng Polaroid dùng Canon R100 và dây bấm RS-60E3, không đếm ngược từng tấm. USB chuyển JPEG, thẻ ghi hình HDMI cung cấp hình trực tiếp. Đồng hồ trên kiosk chỉ giới hạn thời gian của lượt chụp; hết giờ không tự chụp. Thử cả dây bấm, flash và ảnh vào album trước khi đón khách.",
   } : {
     id: "fujifilm", label: "Fujifilm X-T3 / X-S10 / X-S20", app: "FUJIFILM X Acquire",
     folder, folderKey: FOLDER_KEY,

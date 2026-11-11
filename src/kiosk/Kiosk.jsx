@@ -180,6 +180,9 @@ export function Kiosk() {
     opening = useRef(false);
   current.current = session;
   const phase = phaseOf(session);
+  // Booking metadata also identifies Canon sessions before the room ping returns.
+  const manualCapture = roomInfo?.kind === "polaroid" ||
+    session?.booking.source === "polaroid" || session?.booking.printSize === "instax";
   const key = "photo-capture-" + device.slice(-24);
   const shown = useRef({});
   const mirrorRef = useRef(mirror);
@@ -560,7 +563,9 @@ export function Kiosk() {
         active: alive.current && !doneRef.current,
         finishing: finishing.current,
       })) return;
-      update({ ...s, booking: result.booking });
+      update({ ...s, booking: result.booking,
+        ...(manualCapture && { phase: "shoot", readyEndsAt: undefined }),
+      });
       delete shown.current.start;
       netRecovered();
       return true;
@@ -602,7 +607,8 @@ export function Kiosk() {
       ...opened,
       mode: "remote",
       phase: "ready",
-      readyEndsAt: Date.now() + READY_SECONDS * 1000,
+      readyEndsAt: roomInfo?.kind === "polaroid" || opened.booking.source === "polaroid" || opened.booking.printSize === "instax"
+        ? undefined : Date.now() + READY_SECONDS * 1000,
     }), "zoom");
     shown.current = {};
   }
@@ -794,11 +800,14 @@ export function Kiosk() {
   }, [session?.captureToken, liveCamera]);
   // Máy chủ bắt đầu tính giờ trước khi chụp; luồng đếm giờ chỉ đếm khi đã mở phiên thành công.
   useEffect(() => {
-    if (!session?.captureToken || phase !== "shoot") return;
+    if (!session?.captureToken || (phase !== "shoot" && !(manualCapture && phase === "ready"))) return;
     let stopped = false, running = false, timer, failures = 0;
     const resume = async () => {
       if (stopped || running || doneRef.current || !sameKioskSession(session, current.current)) return;
-      if (current.current.booking.captureStartedAt) return;
+      if (current.current.booking.captureStartedAt) {
+        if (manualCapture && phase === "ready") patch({ phase: "shoot", readyEndsAt: undefined });
+        return;
+      }
       running = true;
       clearTimeout(timer);
       try {
@@ -816,7 +825,7 @@ export function Kiosk() {
       clearTimeout(timer);
       unsubscribe();
     };
-  }, [session?.captureToken, phase]);
+  }, [session?.captureToken, phase, manualCapture]);
   // Quay video tua nhanh trong lúc chụp (hình trực tiếp HDMI, hoặc webcam khi thử máy). Webcam máy
   // tính quay ở chế độ nhẹ (VP8 phần mềm, 720p): H.264 phần cứng với webcam laptop đã làm sập tab
   // Chrome (STATUS_BREAKPOINT). Phòng Polaroid (khổ Instax) không quay: khách nhận ảnh gốc qua QR.
@@ -827,17 +836,17 @@ export function Kiosk() {
   // Đồng hồ các bước chuẩn bị / chọn ảnh / chọn khung: kiểm tra 4 lần mỗi giây nhưng chỉ vẽ lại khi
   // số giây hiển thị đổi (vẽ lại cả màn hình liên tục tranh CPU với việc ghép video tua nhanh).
   useEffect(() => {
-    if (!["ready", "select", "frame"].includes(phase)) return;
+    if (!["ready", "select", "frame"].includes(phase) || (manualCapture && phase === "ready")) return;
     const timer = setInterval(() => {
       const s = current.current;
       setTick(`${secondsUntil(s?.readyEndsAt)}:${secondsUntil(s?.selectEndsAt || s?.frameEndsAt)}`);
     }, 250);
     return () => clearInterval(timer);
-  }, [phase]);
-  const preCount = secondsUntil(session?.readyEndsAt);
+  }, [phase, manualCapture]);
+  const preCount = manualCapture ? 0 : secondsUntil(session?.readyEndsAt);
   useEffect(() => {
-    if (phase === "ready" && !preCount) patch({ phase: "shoot" });
-  }, [phase, preCount]);
+    if (phase === "ready" && !manualCapture && !preCount) patch({ phase: "shoot" });
+  }, [phase, preCount, manualCapture]);
 
   // Ảnh gốc 15 MB của máy ảnh: gửi sau ảnh xem trước, tối đa hai tệp nền (chung với video), khi không có việc
   // khách đang chờ (ảnh xem trước, tờ in Instax, ảnh ghép — uplink.js). Lỗi mạng: thử lại sau 20 giây.
@@ -1467,6 +1476,7 @@ export function Kiosk() {
           ready={ready}
           phase={phase}
           preCount={preCount}
+          showCountdown={!manualCapture}
           sessionLeft={session.booking.captureEndsAt ? remaining : (Number(session.booking.captureDuration) || 0) * 60}
           taken={taken}
           quota={shotQuota}

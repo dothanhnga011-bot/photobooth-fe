@@ -75,6 +75,7 @@ export function KioskShoot({
   ready,
   phase,
   preCount,
+  showCountdown = true,
   sessionLeft,
   taken,
   quota,
@@ -93,11 +94,11 @@ export function KioskShoot({
   const full = Boolean(quota) && taken >= quota;
   const testing = Boolean(webcam?.on && ready);
   const centerCount =
-    phase === "ready"
+    showCountdown && phase === "ready"
       ? preCount
       : webcam?.count
         ? webcam.count
-        : shooting && sessionLeft > 0 && sessionLeft <= 3
+        : showCountdown && shooting && sessionLeft > 0 && sessionLeft <= 3
           ? sessionLeft : null;
   // Thử máy bằng webcam (không có dây bấm): bấm phím Space / Enter để chụp — không có nút trên màn.
   useEffect(() => {
@@ -178,8 +179,8 @@ export function KioskShoot({
         {flashing > 0 && (
           <div className="camera-flash" key={flashing} aria-hidden="true" onAnimationEnd={() => setFlashing(0)} />
         )}
-        {ending && (
-          <div className="shoot-ending" role="status">
+        {(ending || (!showCountdown && phase === "ready")) && (
+          <div className="shoot-ending" role="status" aria-label={ending ? "Đang nhận ảnh" : "Đang mở lượt chụp"}>
             <span className="spinner big" aria-hidden="true" />
           </div>
         )}

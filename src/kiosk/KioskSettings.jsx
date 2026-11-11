@@ -190,12 +190,16 @@ export function KioskSettings({
               setAudioEnabled(e.target.checked);
               toast.success(
                 e.target.checked
-                  ? "Đã bật âm thanh: tiếng bíp đếm ngược 3-2-1 và tiếng màn trập khi chụp."
+                  ? roomInfo?.kind === "polaroid"
+                    ? "Đã bật tiếng màn trập khi nhận ảnh từ dây bấm."
+                    : "Đã bật âm thanh: tiếng bíp đếm ngược 3-2-1 và tiếng màn trập khi chụp."
                   : "Đã tắt âm thanh hiệu ứng chụp.",
               );
             }}
           />
-          Âm thanh máy chụp: phát tiếng bíp đếm ngược 3, 2, 1 và tiếng màn trập "tách" khi chụp ảnh.
+          {roomInfo?.kind === "polaroid"
+            ? "Âm thanh máy chụp: phát tiếng màn trập khi nhận ảnh từ dây bấm. Polaroid không đếm ngược từng tấm."
+            : 'Âm thanh máy chụp: phát tiếng bíp đếm ngược 3, 2, 1 và tiếng màn trập "tách" khi chụp ảnh.'}
         </label>
         <KioskDevices zoom={zoom} setZoom={setZoom} roomInfo={roomInfo} toast={toast} />
         <Button
