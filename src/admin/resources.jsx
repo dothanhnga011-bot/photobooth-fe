@@ -35,8 +35,8 @@ import { CatalogToolbar } from "./catalog-toolbar";
 import { PackageCatalog } from "./package-catalog";
 import { ResourceEditor } from "./resource-editor";
 import { ServiceTabs, serviceOf, useServiceTab } from "./service-tabs";
-import { LAYOUT_COUNTS } from "../polaroid-layouts.js";
-import { createSampleLayouts, SAMPLE_PRICE, SAMPLE_SHOTS } from "./polaroid-presets";
+import { LAYOUT_COUNTS, polaroidPackage } from "../polaroid-layouts.js";
+import { createSampleLayouts, SAMPLE_PRICE } from "./polaroid-presets";
 
 const searchable = (value) =>
   String(value || "")
@@ -205,11 +205,11 @@ export function ResourceManager({ resource, notify, me }) {
     if (!canManage) return;
     setError("");
     form.setErrors({});
-    setEdit(item);
+    setEdit(resource === "packages" ? polaroidPackage(item) : item);
   };
   const fields = definitions[resource];
   // Gói mới theo khổ ảnh: khổ nhỏ kèm 1 tờ (cắt đôi = 2 tờ nhỏ), khổ to kèm 2 tờ; layout Polaroid
-  // (khổ Instax) mặc định 1 ảnh, 100.000 đ, 8 lần bấm dây, in 1 tấm.
+  // (khổ Instax) mặc định 1 ảnh / 3 phút, 100.000 đ, chụp không giới hạn, in 1 tấm.
   function newItem(printSize = "full") {
     openEditor(
       Object.fromEntries([
@@ -217,9 +217,9 @@ export function ResourceManager({ resource, notify, me }) {
           key,
           type === "number"
             ? key === "duration"
-              ? printSize === "instax" ? 5 : 15
+              ? printSize === "instax" ? 3 : 15
               : key === "shots"
-                ? printSize === "instax" ? SAMPLE_SHOTS : 12
+                ? printSize === "instax" ? 0 : 12
                 : key === "selectCount"
                   ? printSize === "instax" ? 1 : 4
                   : key === "price" && printSize === "instax"
@@ -260,7 +260,7 @@ export function ResourceManager({ resource, notify, me }) {
     if (!form.check(edit, RESOURCE_RULES[resource] || {})) return;
     setBusy(true);
     try {
-      const body = { ...edit };
+      const body = { ...(resource === "packages" ? polaroidPackage(edit) : edit) };
       if (!body.password) delete body.password;
       if (resource === "users" && body.role !== "staff") delete body.permissions;
       await api(`/admin/${resource}${edit._id ? `/${edit._id}` : ""}`, {
@@ -281,12 +281,12 @@ export function ResourceManager({ resource, notify, me }) {
       setBusy(false);
     }
   }
-  // Tab Polaroid: tạo 2 layout mẫu (1 ảnh to, 2 ảnh dọc chia đôi) kèm khung trắng Instax Wide; layout /
+  // Tab Polaroid: tạo 2 gói 1 ảnh / 3 phút và 2 ảnh / 5 phút kèm khung trắng Instax Wide; layout /
   // khung đã có cùng số ảnh thì giữ nguyên.
   async function createSamples() {
     if (!canManage || busy) return;
-    if (!confirm(`Tạo layout mẫu ${LAYOUT_COUNTS.join(" và ")} ảnh (${SAMPLE_PRICE.toLocaleString("vi-VN")} đ, ${SAMPLE_SHOTS} lần bấm dây, in 1 tấm) kèm khung trắng Instax Wide?
-Layout hoặc khung đã có cùng số ảnh được giữ nguyên. Sửa giá, số tấm sau ở từng layout.`)) return;
+    if (!confirm(`Tạo layout mẫu ${LAYOUT_COUNTS.join(" và ")} ảnh (${SAMPLE_PRICE.toLocaleString("vi-VN")} đ, chụp không giới hạn, in 1 tấm) kèm khung trắng Instax Wide?
+Ảnh nhỏ: chọn 1 ảnh / 3 phút. Ảnh to: chọn 2 ảnh / 5 phút. Layout hoặc khung đã có cùng số ảnh được giữ nguyên. Sửa giá ở từng layout.`)) return;
     setBusy(true);
     try {
       const made = await createSampleLayouts(items);

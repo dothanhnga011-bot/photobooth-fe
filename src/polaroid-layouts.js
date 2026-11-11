@@ -7,8 +7,18 @@ const MARGIN_Y = 70;
 const GAP = 22;
 // Layout mẫu: 1, 2, 3 ảnh xếp ngang; 4 ảnh 2 × 2; 5 ảnh = 2 ảnh to bên trái + 3 ảnh bé bên phải;
 // 6 ảnh 3 × 2.
-// Phòng Polaroid bán 2 layout: 1 ảnh to, hoặc 2 ảnh dọc chia đôi thẻ (hàm vẫn vẽ được số ảnh khác).
+// Hai gói Polaroid: ảnh nhỏ chọn 1 ảnh trong 3 phút; ảnh to chọn 2 ảnh trong 5 phút.
 export const LAYOUT_COUNTS = [1, 2];
+const POLAROID_LAYOUTS = {
+  1: { label: "Ảnh nhỏ", selectCount: 1, duration: 3 },
+  2: { label: "Ảnh to", selectCount: 2, duration: 5 },
+};
+export const polaroidLayout = (count) => POLAROID_LAYOUTS[Number(count)] || null;
+// Apply the current offer to legacy packages without rewriting paid bookings or prices.
+export function polaroidPackage(pack) {
+  const layout = pack?.printSize === "instax" && polaroidLayout(pack.selectCount);
+  return layout ? { ...pack, duration: layout.duration, shots: 0, prints: 1 } : pack;
+}
 
 function grid(cols, rows, box) {
   const w = (box.w - GAP * (cols - 1)) / cols;

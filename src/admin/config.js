@@ -53,8 +53,11 @@ export const RESOURCE_RULES = {
     description: ["Mô tả", maxLength(1000)],
     price: ["Giá", required, intRange(0, 100000000), priceVND],
     duration: ["Thời gian chụp", required, intRange(1, 30)],
-    shots: ["Số lần chụp", required, intRange(1, 40)],
-    selectCount: ["Số ảnh khách chọn để ghép", required, intRange(1, 12)],
+    shots: ["Số lần chụp", ...exceptLayouts([required, intRange(1, 40)])],
+    selectCount: ["Số ảnh khách chọn để ghép", required, intRange(1, 12), custom(
+      (v, all) => all.printSize !== "instax" || [1, 2].includes(Number(v)),
+      "Polaroid chỉ chọn 1 ảnh (3 phút) hoặc 2 ảnh (5 phút).",
+    )],
     prints: [
       "Số tờ in",
       ...exceptLayouts([
@@ -162,7 +165,7 @@ export const NAV_DESCRIPTIONS = {
 // kết / QR. Đầu ca nhân viên mở máy chụp từng phòng.
 export const ROOM_KINDS = [
   ["photobooth", "Photobooth", "Khách chọn Nhập mã (đã chuyển khoản ở quầy) hoặc Tiền mặt (chọn loại tờ, số lượng rồi đút tiền). Chụp xong chọn ảnh, khung rồi in ở máy DNP."],
-  ["polaroid", "Polaroid", "Khách chọn layout (số ảnh, giá) → “vào chụp nha” → bấm dây chụp, tối đa số lần chụp của layout → chọn ảnh & khung. Trả tiền ở quầy, in ở máy Instax Link WIDE (ảnh ngang)."],
+  ["polaroid", "Polaroid", "Ảnh nhỏ: chọn 1 ảnh / 3 phút. Ảnh to: chọn 2 ảnh / 5 phút. Khách bấm dây Canon R100 không giới hạn trong lượt chụp → chọn ảnh & khung. Trả tiền ở quầy, in ở máy Instax Link WIDE (ảnh ngang)."],
 ];
 export const ROOM_KIND_NAMES = { photobooth: "Phòng Photobooth", polaroid: "Phòng Polaroid" };
 

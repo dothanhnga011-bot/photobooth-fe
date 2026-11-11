@@ -76,7 +76,7 @@ import { KioskSelect, useShotBitmaps } from "./KioskSelect.jsx";
 import { NO_DECOR, filterChoices, filterStepsFor, photoFilterId } from "./decor.js";
 import { KioskCode, KioskPackages, KioskPayChoice, KioskPayment, KioskPrintCount } from "./KioskSale.jsx";
 import { KioskLayouts } from "./KioskPolaroid.jsx";
-import { LAYOUT_COUNTS } from "../polaroid-layouts.js";
+import { LAYOUT_COUNTS, polaroidPackage } from "../polaroid-layouts.js";
 import { extraPriceFor, isInstax, minSheets, saleTotal } from "./print-count.js";
 
 // Các chỗ báo lỗi mạng ở màn chụp: mỗi lần mất kết nối chỉ báo một lần, có mạng lại thì xoá.
@@ -760,6 +760,7 @@ export function Kiosk() {
   const layouts = useMemo(
     () => roomPackages
       .filter((p) => isInstax(p) && LAYOUT_COUNTS.includes(Number(p.selectCount) || 1))
+      .map(polaroidPackage)
       .sort((a, b) => (a.selectCount || 0) - (b.selectCount || 0) || a.price - b.price),
     [roomPackages],
   );
@@ -1021,7 +1022,7 @@ export function Kiosk() {
   };
   const shots = useMemo(() => shotsOf(session), [session, pending]);
   const taken = shots.length;
-  const shotQuota = Number(session?.booking.shots) || 0;
+  const shotQuota = manualCapture ? 0 : Number(session?.booking.shots) || 0;
   // Hết chụp (đủ số tấm, hết giờ hoặc khách bấm xong): sang bước chọn ảnh ngay.
   async function endCapture(expired = false) {
     const s = current.current;
@@ -1370,7 +1371,7 @@ export function Kiosk() {
     const id = await cameraPhotoId(file, path);
     if (localShots.current.has(id) || (s.captureOrder || []).includes(id) ||
       s.booking.photos.some((p) => p.clientKey === id)) return true;
-    const quota = Number(s.booking.shots) || Infinity;
+    const quota = s.booking.source === "polaroid" || isInstax(s.booking) ? Infinity : Number(s.booking.shots) || Infinity;
     if (shotsOf(s).length + readingRef.current >= quota) return true;
     trackReading(1);
     try {

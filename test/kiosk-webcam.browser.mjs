@@ -212,12 +212,12 @@ test("in webcam test mode the Space key counts down, takes a photo from the webc
   } finally { await b.close(); }
 });
 
-test("Polaroid waits for Canon shutter JPEGs, never captures HDMI automatically, then opens photo selection", async () => {
+for (const count of [1, 2]) test(`Polaroid accepts 12 Canon JPEGs beyond its legacy quota and only selects ${count} photos`, async () => {
   const b = await booth(fakeCamera, {
     webcam: false,
     room: { _id: "room", flip: "device", kind: "polaroid" },
     // Even a legacy booking with a countdown must use the physical shutter JPEGs.
-    extra: { shots: 2, selectCount: 1, countdownSeconds: 3, printSize: "instax" },
+    extra: { shots: 2, selectCount: count, countdownSeconds: 3, printSize: "instax" },
   });
   try {
     await b.page.locator('.shoot-screen:not(.no-live)').waitFor();
@@ -225,14 +225,22 @@ test("Polaroid waits for Canon shutter JPEGs, never captures HDMI automatically,
     assert.equal(await b.page.locator('.shoot-thumbs .shoot-thumb-no').count(), 0, 'HDMI is preview only');
     assert.equal(await b.page.getByRole("button", { name: "Chạm để chụp" }).count(), 0);
     assert.equal(await b.page.getByText("Nhấn nút trên dây bấm để chụp").count(), 0);
-    await b.page.evaluate(() => window.deliverCanonPhoto(1));
-    await b.page.locator(".shoot-thumbs .shoot-thumb-no", { hasText: "1" }).waitFor({ timeout: 15000 });
-    await b.page.evaluate(() => window.deliverCanonPhoto(2));
-    // Đủ 2 tấm: tự sang chọn ảnh.
+    await b.page.evaluate(async () => {
+      for (let i = 1; i <= 12; i++) await window.deliverCanonPhoto(i);
+    });
+    await b.page.waitForFunction(() => document.querySelectorAll('.shoot-thumbs .shoot-thumb-no').length === 12, null, { timeout: 30000 });
+    assert.equal(await b.page.locator('.shoot-screen.phase-shoot').count(), 1, 'does not auto-finish at the legacy quota');
+    await b.page.getByRole("button", { name: "Chụp xong, chọn ảnh" }).click();
     await b.page.getByRole("heading", { name: /để chọn ảnh/ }).waitFor({ timeout: 30000 });
     const picks = b.page.getByRole("group", { name: "Ảnh đã chụp" }).getByRole("button");
-    await picks.nth(1).waitFor();
-    assert.equal(await picks.count(), 2);
+    await picks.nth(11).waitFor();
+    assert.equal(await picks.count(), 12);
+    for (let i = 0; i < count; i++) await picks.nth(i).click();
+    const photoTab = b.page.getByRole('tab', { name: /^Chọn ảnh/ });
+    if (await photoTab.count()) await photoTab.click();
+    assert.equal(await picks.nth(count).isDisabled(), true, 'cannot pick more than the package allows');
+    const saved = await b.page.evaluate(() => JSON.parse(sessionStorage.getItem('photo-capture-fixture-device')));
+    assert.equal(saved.selected.length, count);
     // Phòng Polaroid không quay video tua nhanh: khách nhận ảnh gốc qua QR.
     assert.deepEqual(await b.page.evaluate(() => window.__recorders), [], "no timelapse recorder");
     await b.page.waitForTimeout(2000);

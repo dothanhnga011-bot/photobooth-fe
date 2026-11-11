@@ -10,6 +10,7 @@ import {
 import { money } from "../api";
 import { LayoutArt } from "../kiosk/KioskPolaroid.jsx";
 import { includedSheets, INSTAX_SHEETS, isInstax, isStrip, piecesLabel, printSizeOf } from "../kiosk/print-count.js";
+import { polaroidPackage } from "../polaroid-layouts.js";
 
 // Khổ ảnh khách thấy ở màn “Chọn khổ ảnh” (phòng Photobooth) / “Chọn layout” (phòng Polaroid) của
 // máy chụp; mỗi gói đang bật là một thẻ.
@@ -17,7 +18,7 @@ import { includedSheets, INSTAX_SHEETS, isInstax, isStrip, piecesLabel, printSiz
 const SIZE_GROUPS = [
   ["strip", "Khổ nhỏ", "gói khổ nhỏ", "1 tờ 10 × 15 cm cắt đôi thành 2 tờ nhỏ (5 × 15 cm) · khách in tối thiểu 2 tờ nhỏ"],
   ["full", "Khổ to", "gói khổ to", "Ảnh 10 × 15 cm nguyên tờ · khách in tối thiểu 2 tờ"],
-  ["instax", "Layout Polaroid", "layout", "Phòng Polaroid: layout 1 ảnh to hoặc 2 ảnh dọc chia đôi trên thẻ Instax Wide (in ở máy Instax Link WIDE). Khách chọn layout, bấm dây chụp Canon R100, trả tiền ở quầy"],
+  ["instax", "Layout Polaroid", "layout", "Ảnh nhỏ: chọn 1 ảnh / 3 phút. Ảnh to: chọn 2 ảnh / 5 phút. Bấm dây Canon R100 không giới hạn, in Instax Link WIDE, trả tiền ở quầy."],
 ];
 const ART = { strip: 2, full: 2, instax: 1 };
 
@@ -91,7 +92,7 @@ export function PackageCatalog({
 function PackageCards({ items, onEdit, onDeactivate }) {
   return (
     <ul className="package-catalog-grid" aria-label="Danh sách gói chụp">
-      {items.map((item) => (
+      {items.map(polaroidPackage).map((item) => (
         <li key={item._id} className="package-catalog-item">
           <article
             className={`package-card${item.active ? "" : " is-inactive"}`}
@@ -150,7 +151,7 @@ function PackageCards({ items, onEdit, onDeactivate }) {
             <p className="package-card-included">
               <Images size={17} aria-hidden="true" />
               {isInstax(item)
-                ? `Layout ${item.selectCount || 1} ảnh · ${item.shots || 8} lần bấm dây · Instax Wide`
+                ? `Chọn ${item.selectCount || 1} ảnh · bấm dây không giới hạn · Instax Wide`
                 : `${item.shots || 12} lần chụp · chọn ${item.selectCount || 4} ảnh · ${isStrip(item) ? "khổ nhỏ (cắt đôi)" : "khổ to 10 × 15"}`}
             </p>
             <p className="package-card-branches">

@@ -4,6 +4,15 @@ Phòng Polaroid dùng **Canon EOS R100 + EOS Utility + dây bấm RS-60E3**. Hì
 
 Khách chọn layout → vào chụp → **bấm dây cho từng ảnh**, không hẹn giờ hay tự chụp. Kiosk bỏ đếm ngược chuẩn bị và số 3–2–1 giữa màn hình cho phòng Polaroid, kể cả khi tải lại lượt cũ. Khi mở lượt, kiosk chỉ chờ máy chủ xác nhận phiên. Đồng hồ bên cạnh vẫn giới hạn thời gian của gói; hết giờ chuyển sang chọn ảnh, không kích hoạt máy ảnh.
 
+| Gói Polaroid | Thời gian chụp | Số ảnh chụp | Số ảnh chọn để in |
+| --- | --- | --- | --- |
+| Ảnh nhỏ | 3 phút | Không giới hạn | 1 ảnh |
+| Ảnh to | 5 phút | Không giới hạn | 2 ảnh |
+
+Thời gian trên là thời gian **chụp**, tính khi máy chủ mở phiên thành công. Bước chọn ảnh và trang trí vẫn có đồng hồ riêng. Giá do quản trị đặt; mỗi lượt vẫn in 1 tấm Instax Wide theo khung 1 hoặc 2 ô hiện có, QR nhận toàn bộ ảnh đã chụp.
+
+Gói cũ có số lần bấm dây hoặc thời lượng khác được áp dụng quy tắc trên cho lượt mới, không cần tạo lại gói. Thời gian của lượt đã mở giữ theo snapshot của lượt đó. Cập nhật cả backend và frontend, rồi tải lại kiosk khi hết lượt khách; frontend cũ vẫn có thể hiển thị giới hạn cũ.
+
 ## Chuẩn bị và cắm dây
 
 - Cài [EOS Utility chính hãng, có hỗ trợ R100](https://app.ssw.imaging-saas.canon/app/app.html?app=eu).

@@ -531,7 +531,7 @@ test("packages are grouped by photo size; a small-size package starts with one s
   assertClean();
 });
 
-test("the Polaroid tab lists only layouts and creates the 2 sample layouts (1 big photo, 2 photos side by side)", async () => {
+test("Polaroid sample packages offer 1 pick in 3 minutes or 2 picks in 5 minutes without a shot limit", async () => {
   await mount("packages");
   await page.getByRole("tab", { name: /Polaroid/ }).click();
   const layouts = page.getByRole("region", { name: "Layout Polaroid" });
@@ -563,10 +563,9 @@ test("the Polaroid tab lists only layouts and creates the 2 sample layouts (1 bi
   }), frames[1].image);
   assert.deepEqual(size, [1800, 1200]);
   const packs = made.slice(2).map((m) => m.body);
-  // Layout mẫu: 100.000 đ, 8 lần bấm dây, in 1 tấm.
-  assert.deepEqual(packs.map((p) => [p.printSize, p.selectCount, p.price, p.prints, p.shots, p.countdownSeconds]),
-    [["instax", 1, 100000, 1, 8, undefined], ["instax", 2, 100000, 1, 8, undefined]]);
-  assert.match(await layouts.locator(".package-card").nth(1).innerText(), /8 lần bấm dây/);
+  assert.deepEqual(packs.map((p) => [p.printSize, p.selectCount, p.duration, p.price, p.prints, p.shots]),
+    [["instax", 1, 3, 100000, 1, 0], ["instax", 2, 5, 100000, 1, 0]]);
+  assert.match(await layouts.locator(".package-card").nth(1).innerText(), /bấm dây không giới hạn/);
   assert.deepEqual(await notifications(), ["Đã tạo 2 layout và 2 khung trắng mẫu."]);
   await mkdir(screenshotDirectory, { recursive: true });
   await page.screenshot({ path: join(screenshotDirectory, "packages-polaroid.png"), fullPage: true });
@@ -576,26 +575,29 @@ test("the Polaroid tab lists only layouts and creates the 2 sample layouts (1 bi
   await page.getByRole("button", { name: "Tạo 2 layout mẫu" }).click();
   await page.waitForFunction(() => window.notifications.length === 2);
   assert.deepEqual(mutations(), []);
-  // Layout mới: chỉ 1 ảnh to / 2 ảnh, không có ô khổ / số tấm in; có số tấm tự chụp và giây mỗi tấm.
+  // Layout mới: chỉ hai gói, không có ô giới hạn ảnh hay thời lượng tùy ý.
   await page.getByRole("button", { name: "Thêm layout" }).first().click();
   const dialog = page.getByRole("dialog");
   assert.equal(await dialog.locator('select[name="printSize"]').count(), 0);
   assert.equal(await dialog.locator('input[name="prints"]').count(), 0);
-  assert.equal(await dialog.locator('input[name="shots"]').inputValue(), "8");
+  assert.equal(await dialog.locator('input[name="shots"]').count(), 0);
+  assert.equal(await dialog.locator('input[name="duration"]').count(), 0);
+  assert.match(await dialog.locator('.resource-field-duration').innerText(), /3 phút/);
   assert.equal(await dialog.locator('input[name="countdownSeconds"]').count(), 0);
   assert.equal(await dialog.locator('input[name="price"]').inputValue(), "100000");
   assert.deepEqual(await dialog.getByRole("radio").evaluateAll((radios) => radios
     .filter((r) => r.name === "selectCount").map((r) => r.value)), ["1", "2"]);
-  await dialog.getByRole("radio", { name: "2 ảnh" }).check({ force: true });
+  await dialog.getByRole("radio", { name: /Ảnh to · chọn 2 ảnh · 5 phút/ }).check({ force: true });
+  assert.match(await dialog.locator('.resource-field-duration').innerText(), /5 phút/);
   assert.equal(await dialog.locator(".kiosk-layout-preview .layout-art i").count(), 2);
-  assert.match(await dialog.locator(".kiosk-layout-preview").innerText(), /8 lần bấm dây/i);
+  assert.match(await dialog.locator(".kiosk-layout-preview").innerText(), /Bấm dây không giới hạn/i);
   await page.screenshot({ path: join(screenshotDirectory, "packages-polaroid-editor.png") });
   await dialog.locator('input[name="name"]').fill("Layout thử");
   await dialog.getByRole("button", { name: "Lưu thay đổi", exact: true }).click();
   await dialog.waitFor({ state: "hidden" });
   assert.deepEqual(
-    mutations().map((m) => [m.method, m.body.printSize, m.body.selectCount, m.body.prints, m.body.shots, m.body.countdownSeconds]),
-    [["POST", "instax", 2, 1, 8, undefined]],
+    mutations().map((m) => [m.method, m.body.printSize, m.body.selectCount, m.body.duration, m.body.prints, m.body.shots]),
+    [["POST", "instax", 2, 5, 1, 0]],
   );
   // Tab Photobooth vẫn chỉ có gói 10 × 15.
   await page.getByRole("tab", { name: /Photobooth/ }).click();

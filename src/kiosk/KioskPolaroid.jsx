@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { PiArrowLeftBold, PiArrowRightBold, PiCameraBold } from "react-icons/pi";
 import { money } from "../api";
-import { layoutSlots } from "../polaroid-layouts.js";
+import { layoutSlots, polaroidLayout } from "../polaroid-layouts.js";
 import { Brand, Button, ErrorBox } from "../studio";
 import { useKioskText } from "./use-kiosk-text.js";
 
@@ -21,12 +21,14 @@ export function LayoutArt({ count }) {
 export function LayoutCard({ pack, onPick, as: Tag = "button" }) {
   const t = useKioskText();
   const photos = t("layout.photos", { n: pack.selectCount || 1 });
+  const layout = polaroidLayout(pack.selectCount || 1);
   return (
     <Tag {...(Tag === "button" ? { type: "button", onClick: onPick } : {})} className="kiosk-layout"
       aria-label={Tag === "button" ? `${photos} · ${pack.name} · ${money(pack.price)}` : undefined}>
       <LayoutArt count={pack.selectCount} />
-      <strong>{photos}</strong>
-      <small>{[pack.name, `${pack.shots || 8} lần bấm dây`].filter(Boolean).join(" · ")}</small>
+      <strong>{layout?.label || photos}</strong>
+      <small>Chọn {pack.selectCount || 1} ảnh · {layout?.duration ?? pack.duration} phút chụp</small>
+      <small>Bấm dây không giới hạn{pack.name && pack.name !== layout?.label ? ` · ${pack.name}` : ""}</small>
       <b>{money(pack.price)}</b>
       <span className="kiosk-layout-go" aria-hidden="true"><PiArrowRightBold /></span>
     </Tag>
@@ -71,6 +73,7 @@ export function KioskLayouts({ layouts, instax, busy, error, onStart, onBack }) 
             <p>
               {t("layout.photos", { n: chosen.selectCount || 1 })} · {chosen.name} · <b>{money(chosen.price)}</b>
             </p>
+            <p>{polaroidLayout(chosen.selectCount)?.duration ?? chosen.duration} phút chụp · bấm dây không giới hạn · chọn {chosen.selectCount || 1} ảnh</p>
             <div className="layout-confirm-actions">
               <Button className="outline" disabled={busy} onClick={() => setChosen(null)}>
                 {t("layout.back")}
