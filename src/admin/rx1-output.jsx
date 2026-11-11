@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Download, ImagePlus, RefreshCw, Save } from "lucide-react";
+import { Download, ImagePlus, Printer, RefreshCw, Save } from "lucide-react";
 import { api, formatDateTime } from "../api.js";
 import { Button, ErrorBox } from "../studio.jsx";
 import { useLiveData } from "../use-live-data.js";
@@ -9,6 +9,16 @@ import rx1Color from "./installers/configure-rx1-color.ps1?raw";
 import { printerColorInstaller, printerDriverLauncher } from "./printer-installer.js";
 import { download } from "./kiosk-autostart.js";
 import "./rx1-output.css";
+
+// Độ nét bản in 0–4 (máy chủ mặc định 2). Cấu hình cũ chưa có độ nét: dùng mức mặc định.
+const DEFAULT_SHARPEN = 2;
+const SHARPEN_LEVELS = ["Không", "Nhẹ", "Vừa", "Rõ", "Mạnh"];
+const TEST_STATUS = { queued: "đang chờ máy in nhận", sent: "đã in", failed: "chưa in được" };
+const formOf = (settings) => ({
+  gamma: settings.gamma.toFixed(2),
+  maxResolution: settings.maxResolution,
+  sharpen: settings.sharpen ?? DEFAULT_SHARPEN,
+});
 
 function DriverTools() {
   const [message, setMessage] = useState("");
@@ -29,7 +39,7 @@ function DriverTools() {
       }}><Download size={16} /> Tải công cụ đồng bộ ICM</Button>
     </div>
     <ul>
-      <li><strong>Driver:</strong> chỉnh Sharpness, Color Adjustment và các tuỳ chọn DNP trong Printing Preferences của từng hàng in.</li>
+      <li><strong>Driver:</strong> Color Adjustment và các tuỳ chọn DNP trong Printing Preferences của từng hàng in. Để Sharpness = 0: độ nét đã chỉnh ở “Độ nét bản in” phía trên.</li>
       <li><strong>ICC:</strong> trong Printer Properties, mở Color Management → Devices, chọn đúng hàng RX1 và profile của giấy đang dùng.</li>
       <li><strong>Đồng bộ ICM:</strong> đặt cùng chế độ quản lý màu cho tờ lớn và cắt đôi, có sao lưu để khôi phục. ICC vẫn kiểm tra trong Windows.</li>
     </ul>
@@ -108,13 +118,15 @@ export function Rx1OutputManager({ notify }) {
   const [revision, setRevision] = useState(0);
   const [printers, setPrinters] = useState([]);
   const [statusError, setStatusError] = useState("");
+  const [testing, setTesting] = useState("");
+  const [testMessage, setTestMessage] = useState("");
   useEffect(() => {
     const controller = new AbortController();
     setLoadError("");
     api("/admin/settings/rx1-output", { signal: controller.signal }).then((result) => {
       if (controller.signal.aborted) return;
       setSaved(result.settings); setConfigured(result.configured);
-      setForm({ gamma: result.settings.gamma.toFixed(2), maxResolution: result.settings.maxResolution });
+      setForm(formOf(result.settings));
     }, (cause) => { if (!controller.signal.aborted) setLoadError(cause.status === 404
       ? "Cần cập nhật máy chủ để dùng chức năng màu in RX1, rồi tải lại trang." : cause.message); });
     return () => controller.abort();
@@ -125,17 +137,29 @@ export function Rx1OutputManager({ notify }) {
   const gamma = Number(form?.gamma);
   const valid = Boolean(form?.gamma.trim()) && Number.isFinite(gamma) && gamma >= 1 && gamma <= 2.2
     && Math.abs(gamma * 100 - Math.round(gamma * 100)) < 1e-8;
-  const changed = form && (!configured || gamma !== saved?.gamma || form.maxResolution !== saved?.maxResolution);
+  const changed = form && (!configured || gamma !== saved?.gamma || form.maxResolution !== saved?.maxResolution
+    || form.sharpen !== (saved?.sharpen ?? DEFAULT_SHARPEN));
   const defaultGamma = saved?.gamma ?? 1.5;
   const presets = [...new Set([1, 1.3, 1.5, 1.8, 2, 2.2, defaultGamma])].sort((a, b) => a - b);
+  // Tờ in thử: máy in của phòng nhận ở lần đồng bộ kế tiếp (vài giây) và in 5 dải độ nét 0–4.
+  async function sharpnessTest(printer) {
+    setTesting(printer.room); setTestMessage("");
+    try {
+      await api(`/admin/settings/rx1-output/sharpness-test/${printer.room}`, { method: "POST" });
+      setTestMessage(`Đã gửi lệnh in thử tới máy in ${printer.roomName || "của phòng"}. Tờ thử ra sau khoảng 10–30 giây: 5 dải độ nét 0 → 4, ô đậm là mức đang dùng. Chọn dải đẹp nhất ở mục Độ nét bản in rồi bấm Lưu.`);
+      refreshPrinters();
+    } catch (cause) { setTestMessage(cause.message); }
+    finally { setTesting(""); }
+  }
   async function save(event) {
     event.preventDefault();
     if (!valid || busy || loadError) return;
     setBusy(true); setError("");
     try {
-      const result = await api("/admin/settings/rx1-output", { method: "PUT", body: { gamma, maxResolution: form.maxResolution } });
+      const result = await api("/admin/settings/rx1-output", { method: "PUT",
+        body: { gamma, maxResolution: form.maxResolution, sharpen: form.sharpen } });
       setSaved(result.settings); setConfigured(true);
-      setForm({ gamma: result.settings.gamma.toFixed(2), maxResolution: result.settings.maxResolution });
+      setForm(formOf(result.settings));
       notify?.("Đã lưu màu in RX1. Các bộ in đã cập nhật sẽ tự nhận khi có kết nối.");
       refreshPrinters();
     } catch (cause) { setError(cause.message); }
@@ -162,10 +186,19 @@ export function Rx1OutputManager({ notify }) {
           onClick={() => setForm({ ...form, gamma: value.toFixed(2) })}>{value.toFixed(2)}{value === defaultGamma ? " · Mặc định" : ""}</button>)}</div>
         <label className="rx1-dpi"><input type="checkbox" checked={form.maxResolution} disabled={busy || Boolean(loadError)}
           onChange={(event) => setForm({ ...form, maxResolution: event.target.checked })} /> Dùng DPI cao nhất driver hỗ trợ</label>
+        <span className="rx1-label" id="rx1-sharpen">Độ nét bản in</span>
+        <div className="rx1-presets rx1-sharpen" role="radiogroup" aria-labelledby="rx1-sharpen">
+          {SHARPEN_LEVELS.map((label, level) => <button key={level} type="button" role="radio"
+            disabled={busy || Boolean(loadError)} aria-checked={form.sharpen === level}
+            onClick={() => setForm({ ...form, sharpen: level })}>{level} · {label}{level === DEFAULT_SHARPEN ? " · Mặc định" : ""}</button>)}
+        </div>
+        <p>Bộ in co tờ in đúng lưới điểm của máy RX1 (không để driver co giãn) rồi làm nét nhẹ phần ảnh, vì mực in
+          nhiệt loang nhẹ trên giấy. Bấm “In thử độ nét” ở danh sách máy in bên dưới để in một tờ chia 5 dải 0–4 rồi
+          chọn dải đẹp nhất. Khi dùng mục này, để Sharpness trong driver DNP = 0 để không làm nét hai lần.</p>
         <p>Cấu hình này bù tông khi in giấy. Ảnh gốc và album QR giữ màu nguồn.</p>
         <Button type="submit" disabled={busy || !valid || !changed || Boolean(loadError)}><Save size={16} /> {busy ? "Đang lưu…" : "Lưu cấu hình màu in"}</Button>
         <p className="rx1-save-note" role="status">{configured
-          ? `Đã lưu gamma ${saved.gamma.toFixed(2)}. Bộ in đang chạy sẽ tự đồng bộ; tờ đã gửi giữ mức cũ.`
+          ? `Đã lưu gamma ${saved.gamma.toFixed(2)}, độ nét ${saved.sharpen ?? DEFAULT_SHARPEN}. Bộ in đang chạy sẽ tự đồng bộ; tờ đã gửi giữ mức cũ.`
           : "Bấm Lưu để các máy dùng chung cấu hình trên web. Hiện các máy vẫn dùng cài đặt riêng đã có."}</p>
       </form>
       <TonePreview gamma={valid ? gamma : 1.5} />
@@ -175,15 +208,24 @@ export function Rx1OutputManager({ notify }) {
       <div className="rx1-sync-heading"><h3>Máy in đã nhận cấu hình</h3><Button className="outline small" onClick={() => refreshPrinters()}><RefreshCw size={15} /> Làm mới trạng thái</Button></div>
       {statusError && <p role="status">Chưa đọc được trạng thái: {statusError}</p>}
       {!printers.length && <p>Chưa có bộ in báo về. Sau khi phát hành web mới, cập nhật và mở lại chương trình in trên PC RX1 một lần để nhận cấu hình từ web.</p>}
+      {testMessage && <p className="rx1-driver-message" role="status">{testMessage}</p>}
       {printers.map((printer) => {
         const applied = printer.rx1Output;
         const running = printer.agent?.running;
         const fresh = applied && Date.now() - Date.parse(applied.at) < 120000;
-        const matched = configured && applied && Math.abs(applied.gamma - saved.gamma) < 0.000001 && applied.maxResolution === saved.maxResolution;
+        const matched = configured && applied && Math.abs(applied.gamma - saved.gamma) < 0.000001 && applied.maxResolution === saved.maxResolution
+          && (applied.sharpen ?? DEFAULT_SHARPEN) === (saved.sharpen ?? DEFAULT_SHARPEN);
+        // Bộ in bản cũ (chưa báo độ nét) chưa in thử được: cần mở lại chương trình in để tự cập nhật.
+        const canTest = running && fresh && applied.sharpen !== undefined;
+        const test = printer.sharpnessTest;
         return <div className="rx1-sync-row" key={printer.room}>
           <strong>{printer.roomName || printer.branch || "Máy RX1"}</strong>
           <span>{!running ? "Chưa kết nối" : !applied ? "Cần cập nhật chương trình in" : !fresh ? "Đang chờ bộ in đồng bộ" : matched ? "Đã nhận cấu hình" : configured ? "Đang chờ nhận mức mới" : "Đang dùng cấu hình riêng"}</span>
-          {applied && <small>Gamma {applied.gamma.toFixed(2)} · {formatDateTime(applied.at)}</small>}
+          {applied && <small>Gamma {applied.gamma.toFixed(2)}{applied.sharpen !== undefined ? ` · độ nét ${applied.sharpen}` : " · chưa hỗ trợ độ nét (mở lại chương trình in để cập nhật)"} · {formatDateTime(applied.at)}</small>}
+          {test && <small className={`rx1-test is-${test.status}`}>In thử: {TEST_STATUS[test.status] || test.status}{test.message ? ` — ${test.message}` : ""}</small>}
+          <Button className="outline small" disabled={!canTest || testing === printer.room} onClick={() => sharpnessTest(printer)}>
+            <Printer size={15} /> {testing === printer.room ? "Đang gửi…" : "In thử độ nét"}
+          </Button>
         </div>;
       })}
     </section>

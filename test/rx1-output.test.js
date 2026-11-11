@@ -19,7 +19,7 @@ $syntaxErrors = $null
 $ast = [Management.Automation.Language.Parser]::ParseFile($Source, [ref]$null, [ref]$syntaxErrors)
 if ($syntaxErrors.Count) { throw ($syntaxErrors | Out-String) }
 foreach ($function in $ast.FindAll({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
-  if ($function.Name -in @('Get-Rx1OutputSettings','Set-Rx1MaximumResolution','New-Rx1ImageAttributes')) { Invoke-Expression $function.Extent.Text }
+  if ($function.Name -in @('ConvertTo-Rx1Sharpen','Get-Rx1OutputSettings','Set-Rx1MaximumResolution','New-Rx1ImageAttributes')) { Invoke-Expression $function.Extent.Text }
 }
 $profilePath = Join-Path $Work 'rx1-output.json'
 $defaults = Get-Rx1OutputSettings $profilePath
@@ -43,6 +43,14 @@ $outOfRange = Get-Rx1OutputSettings $profilePath
 $partial = Get-Rx1OutputSettings $profilePath
 '{"gamma":20,"maxResolution":"yes"}' | Set-Content -LiteralPath $profilePath -Encoding UTF8
 $invalid = Get-Rx1OutputSettings $profilePath
+'{"gamma":1.30,"maxResolution":true,"sharpen":4}' | Set-Content -LiteralPath $profilePath -Encoding UTF8
+$sharpest = Get-Rx1OutputSettings $profilePath
+'{"gamma":1.30,"maxResolution":true,"sharpen":0}' | Set-Content -LiteralPath $profilePath -Encoding UTF8
+$unsharpened = Get-Rx1OutputSettings $profilePath
+'{"gamma":1.30,"maxResolution":true,"sharpen":7}' | Set-Content -LiteralPath $profilePath -Encoding UTF8
+$sharpenOutOfRange = Get-Rx1OutputSettings $profilePath
+'{"gamma":1.30,"maxResolution":true,"sharpen":"2"}' | Set-Content -LiteralPath $profilePath -Encoding UTF8
+$sharpenText = Get-Rx1OutputSettings $profilePath
 
 $inputImage = New-Object Drawing.Bitmap 5,1
 $inputImage.SetPixel(0,0,[Drawing.Color]::Black)
@@ -73,7 +81,7 @@ $dpi = @{
   missing = (Pick @((Resolution -4 -1)) (Resolution 300 300));
   keepHigher = (Pick @((Resolution 300 300)) (Resolution 600 600))
 }
-@{defaults=$defaults;neutral=$neutral;legacy=$legacy;previous=$previous;intermediate=$intermediate;selected=$selected;highest=$highest;belowRange=$belowRange;outOfRange=$outOfRange;partial=$partial;invalid=$invalid;pixels=$pixels;dpi=$dpi} | ConvertTo-Json -Depth 8 -Compress
+@{sharpest=$sharpest;unsharpened=$unsharpened;sharpenOutOfRange=$sharpenOutOfRange;sharpenText=$sharpenText;defaults=$defaults;neutral=$neutral;legacy=$legacy;previous=$previous;intermediate=$intermediate;selected=$selected;highest=$highest;belowRange=$belowRange;outOfRange=$outOfRange;partial=$partial;invalid=$invalid;pixels=$pixels;dpi=$dpi} | ConvertTo-Json -Depth 8 -Compress
 `;
 
 for (const [name, source] of scripts) test(`${name}: maximum supported DPI and stronger output darkening preserve white, black and neutral mode`, { skip }, async () => {
@@ -86,6 +94,13 @@ for (const [name, source] of scripts) test(`${name}: maximum supported DPI and s
     ], { windowsHide: true, timeout: 30000 });
     const r = JSON.parse(stdout);
     assert.equal(r.defaults.gamma, 1.50); assert.equal(r.defaults.maxResolution, true);
+    // Độ nét: mặc định 2 (cả cấu hình cũ chưa có độ nét), 0–4 hợp lệ, ngoài khoảng / chữ → mặc định kèm cảnh báo.
+    assert.equal(r.defaults.sharpen, 2); assert.equal(r.legacy.sharpen, 2);
+    assert.equal(r.sharpest.sharpen, 4); assert.equal(r.sharpest.gamma, 1.3);
+    assert.equal(r.unsharpened.sharpen, 0); assert.equal(r.unsharpened.warning, '');
+    for (const bad of [r.sharpenOutOfRange, r.sharpenText]) {
+      assert.equal(bad.sharpen, 2); assert.match(bad.warning, /sharpen must be a whole number from 0 to 4/);
+    }
     assert.deepEqual(r.pixels.neutral, [[0,0,0,255],[128,128,128,255],[255,255,255,255],[200,150,100,255],[240,240,240,255]]);
     assert.equal(r.legacy.gamma, 1.18, 'existing local choices remain in effect');
     assert.equal(r.previous.gamma, 1.30);

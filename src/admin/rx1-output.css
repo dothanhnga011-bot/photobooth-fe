@@ -10,7 +10,12 @@
   .admin-shell .rx1-gamma-inputs input[type="number"] { width: 96px; }
   .admin-shell .rx1-presets { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 14px 24px; }
   .admin-shell .rx1-presets button { padding: 8px 13px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--ink); cursor: pointer; }
-  .admin-shell .rx1-presets button[aria-pressed="true"] { border-color: var(--mellow-cocoa, #522e22); background: #f7eee7; }
+  .admin-shell .rx1-presets button:is([aria-pressed="true"], [aria-checked="true"]) { border-color: var(--mellow-cocoa, #522e22); background: #f7eee7; }
+  .admin-shell .rx1-label { display: block; margin-top: 18px; font-size: 14px; font-weight: 700; }
+  .admin-shell .rx1-sharpen { margin-block: 10px 8px; }
+  .admin-shell .rx1-sync-row .rx1-test { flex-basis: 100%; margin-left: 0; }
+  .admin-shell .rx1-sync-row .rx1-test.is-sent { color: #2d7a4d; }
+  .admin-shell .rx1-sync-row .rx1-test.is-failed { color: #a33a2c; }
   .admin-shell .rx1-color-controls label.rx1-dpi { display: flex; align-items: center; gap: 10px; font-size: 14px; }
   .admin-shell .rx1-dpi input { flex: 0 0 auto; width: 18px; height: 18px; accent-color: var(--mellow-cocoa, #522e22); }
   .admin-shell .rx1-color-controls .button { margin-top: 12px; }

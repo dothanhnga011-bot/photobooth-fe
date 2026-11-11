@@ -65,7 +65,7 @@ try {while($true){Receive-LocalPrint;Start-Sleep -Milliseconds 20}} finally {$sc
     const printer = await health.json();
     assert.equal(printer.directPrint, 2);
     assert.equal(printer.outputSettingsVersion, 1);
-    assert.deepEqual(printer.output, { gamma: 1.5, maxResolution: true });
+    assert.deepEqual(printer.output, { gamma: 1.5, maxResolution: true, sharpen: 2 });
     const send = () => fetch(`${base}/print`, { method: 'POST', headers, body: bytes });
     const first = await send();
     const result = await first.json();

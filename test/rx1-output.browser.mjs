@@ -10,7 +10,7 @@ import { build } from "vite";
 import tailwindcss from "@tailwindcss/vite";
 import { chromium } from "../../photobooth-be/node_modules/playwright/index.mjs";
 const sharp = createRequire(new URL("../../photobooth-be/package.json", import.meta.url))("sharp");
-let server, browser, page, assets, js, css, settings, configured, applied, requests, failSave, failLoad;
+let server, browser, page, assets, js, css, settings, configured, applied, requests, failSave, failLoad, sharpnessTest;
 const captures = join(tmpdir(), "photobooth-rx1-settings-review");
 const fixture = `import React from 'react';import {createRoot} from 'react-dom/client';
 import {ToastProvider} from '/src/studio.jsx';import {Rx1OutputManager} from '/src/admin/rx1-output.jsx';import '/src/tailwind.css';
@@ -43,7 +43,11 @@ before(async () => {
         return json({ configured, settings });
       }
       if (url.pathname === "/api/admin/print-jobs/printers") return json([{ room: "room", roomName: "PTB · RX1", branch: "Tiệm",
-        agent: { running: true }, rx1Output: { ...applied, at: applied.at || new Date().toISOString() } }]);
+        agent: { running: true }, rx1Output: { ...applied, at: applied.at || new Date().toISOString() }, sharpnessTest }]);
+      if (url.pathname === "/api/admin/settings/rx1-output/sharpness-test/room" && req.method === "POST") {
+        sharpnessTest = { id: "test-1", status: "queued", message: "Đang chờ máy in của phòng nhận lệnh in thử." };
+        return json(sharpnessTest, 201);
+      }
       return json({ message: "Unexpected API" }, 404);
     }
     if (assets.has(url.pathname)) { res.writeHead(200, { "Content-Type": url.pathname.endsWith(".css") ? "text/css" : /\.jpe?g$/.test(url.pathname) ? "image/jpeg" : "text/javascript" }); return res.end(assets.get(url.pathname)); }
@@ -58,7 +62,7 @@ after(async () => { await browser?.close(); await new Promise((resolve) => serve
 async function mount({ width = 1440, loadError = false } = {}) {
   await page?.close();
   settings = { gamma: 1.5, maxResolution: true }; applied = { gamma: 1.3, maxResolution: true };
-  configured = false; failSave = false; failLoad = loadError; requests = [];
+  configured = false; failSave = false; failLoad = loadError; requests = []; sharpnessTest = null;
   page = await browser.newPage({ viewport: { width, height: 1000 }, reducedMotion: "reduce" });
   page.setDefaultTimeout(10000);
   await page.goto(`http://127.0.0.1:${server.address().port}`);
@@ -87,7 +91,7 @@ test("gamma is previewed locally, saved centrally and shows the printer acknowle
   await page.getByRole("button", { name: "1.80", exact: true }).click();
   await page.getByRole("button", { name: "Lưu cấu hình màu in", exact: true }).click();
   await page.getByText("Đang chờ nhận mức mới", { exact: true }).waitFor();
-  assert.deepEqual(settings, { gamma: 1.8, maxResolution: true });
+  assert.deepEqual(settings, { gamma: 1.8, maxResolution: true, sharpen: 2 }, "an old saved profile keeps the default sharpness");
   assert.equal(await page.getByRole("button", { name: "1.80 · Mặc định", exact: true }).count(), 1);
   assert.equal(await page.getByRole("button", { name: "1.50", exact: true }).count(), 1);
   applied = { ...settings };
@@ -107,6 +111,34 @@ test("gamma is previewed locally, saved centrally and shows the printer acknowle
   assert.equal(await page.getByLabel("Độ tối bản in (gamma)").inputValue(), "1.80", "restoring the preview does not reset saved gamma");
   assert.equal(await page.getByRole("button", { name: "1.80 · Mặc định", exact: true }).count(), 1);
   await page.screenshot({ path: join(captures, "desktop.png"), fullPage: true });
+  assert.deepEqual(errors, []);
+});
+test("print sharpness is saved with gamma; a sharpness test print goes to that room's printer and shows its result", async () => {
+  await mount();
+  const errors = []; page.on("pageerror", (error) => errors.push(error.message));
+  const levels = page.getByRole("radiogroup", { name: "Độ nét bản in" }).getByRole("radio");
+  assert.deepEqual(await levels.allInnerTexts(), ["0 · Không", "1 · Nhẹ", "2 · Vừa · Mặc định", "3 · Rõ", "4 · Mạnh"]);
+  assert.equal(await page.getByRole("radio", { name: "2 · Vừa · Mặc định" }).getAttribute("aria-checked"), "true");
+  // Bộ in bản cũ chưa báo độ nét: chưa in thử được, nhắc mở lại chương trình in để tự cập nhật.
+  await page.getByText(/chưa hỗ trợ độ nét/).waitFor();
+  assert.equal(await page.getByRole("button", { name: "In thử độ nét" }).isDisabled(), true);
+  await page.getByRole("radio", { name: "4 · Mạnh" }).click();
+  await page.getByRole("button", { name: "Lưu cấu hình màu in", exact: true }).click();
+  await page.getByText(/Đã lưu gamma 1\.50, độ nét 4\./).waitFor();
+  assert.deepEqual(settings, { gamma: 1.5, maxResolution: true, sharpen: 4 });
+  applied = { ...settings };
+  await page.getByRole("button", { name: "Làm mới trạng thái" }).click();
+  await page.getByText("Đã nhận cấu hình", { exact: true }).waitFor();
+  await page.getByText(/Gamma 1\.50 · độ nét 4/).waitFor();
+  await page.getByRole("button", { name: "In thử độ nét" }).click();
+  await page.getByRole("status").filter({ hasText: "Đã gửi lệnh in thử tới máy in PTB · RX1" }).waitFor();
+  await page.getByText("In thử: đang chờ máy in nhận — Đang chờ máy in của phòng nhận lệnh in thử.").waitFor();
+  sharpnessTest = { id: "test-1", status: "sent", message: "Đã in tờ thử độ nét từ tờ in gần nhất (PC 4x6 413x615, 1239x1845 điểm, độ nét 0–4)." };
+  await page.getByRole("button", { name: "Làm mới trạng thái" }).click();
+  await page.getByText(/In thử: đã in — Đã in tờ thử độ nét từ tờ in gần nhất/).waitFor();
+  assert.deepEqual(requests.filter((req) => req.method === "POST").map((req) => req.path), ["/api/admin/settings/rx1-output/sharpness-test/room"]);
+  assert.equal(requests.filter((req) => req.method === "PUT").length, 1, "a test print never saves settings");
+  await page.screenshot({ path: join(captures, "sharpness.png"), fullPage: true });
   assert.deepEqual(errors, []);
 });
 test("out-of-range gamma and failed saves never claim that a new configuration was saved", async () => {
