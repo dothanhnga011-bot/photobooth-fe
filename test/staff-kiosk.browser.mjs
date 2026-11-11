@@ -754,7 +754,7 @@ test("a stopped room can be switched back on or deleted for good", async () => {
   assertClean();
 });
 
-test("orders open on the whole current month; Hôm nay and the picker still narrow it", async () => {
+test("orders open on the last 72 hours and explain where older revenue is retained", async () => {
   await mount();
   const before = requests.length;
   await page
@@ -762,17 +762,17 @@ test("orders open on the whole current month; Hôm nay and the picker still narr
     .getByRole("button", { name: "Đơn hàng", exact: true })
     .click();
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
-  const [year, month] = today.split("-").map(Number);
-  const last = String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0");
+  const firstDay = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date(Date.now() - 72 * 3600_000));
   // Chỉ xét yêu cầu của trang Đơn hàng (trang Tổng hợp cũng đọc đơn, theo ?date=).
   const orders = () => requests.slice(before)
     .filter((entry) => entry.path === "/api/admin/bookings" && entry.search.has("from"));
-  await page.getByRole("button", { name: /Chọn tháng hoặc ngày: Tháng \d+\/\d{4}/ }).waitFor();
+  await page.getByRole("button", { name: /Chọn tháng hoặc ngày:/ }).waitFor();
   for (let i = 0; i < 40 && !orders().length; i++) await page.waitForTimeout(50);
   const first = orders()[0].search;
-  assert.equal(first.get("from"), `${today.slice(0, 7)}-01`);
-  assert.equal(first.get("to"), `${today.slice(0, 7)}-${last}`);
-  assert.equal(await page.getByRole("button", { name: "Tháng này", exact: true }).getAttribute("aria-pressed"), "true");
+  assert.equal(first.get("from"), firstDay);
+  assert.equal(first.get("to"), today);
+  assert.equal(await page.getByRole("button", { name: "3 ngày gần nhất", exact: true }).getAttribute("aria-pressed"), "true");
+  await page.getByText(/Tổng thu chi của các ngày cũ vẫn có trong/).waitFor();
   assert.equal(await page.getByRole("button", { name: "Xóa bộ lọc" }).count(), 0);
   await page.getByRole("button", { name: "Hôm nay", exact: true }).click();
   await page.getByRole("button", { name: /Chọn tháng hoặc ngày: Hôm nay/ }).waitFor();
@@ -781,7 +781,9 @@ test("orders open on the whole current month; Hôm nay and the picker still narr
   assert.equal(latest().get("from"), today);
   assert.equal(latest().get("to"), today);
   await page.getByRole("button", { name: "Xóa bộ lọc" }).click();
-  await page.getByRole("button", { name: /Chọn tháng hoặc ngày: Tháng/ }).waitFor();
+  await page.getByRole("button", { name: "3 ngày gần nhất", exact: true }).waitFor();
+  for (let i = 0; i < 40 && latest().get("from") !== firstDay; i++) await page.waitForTimeout(50);
+  assert.equal(latest().get("from"), firstDay);
   assertClean();
 });
 

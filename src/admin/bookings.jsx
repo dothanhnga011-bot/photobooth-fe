@@ -8,7 +8,7 @@ import { useLiveData } from "../use-live-data";
 import { Button, ErrorBox, useToast } from "../studio";
 import { CounterTicket } from "../counter-ticket";
 import { ExtraPrints } from "../extra-prints";
-import { PeriodPicker, monthRange } from "./period-picker";
+import { PeriodPicker } from "./period-picker";
 import { PrintOrderDialog } from "./print-order-dialog.jsx";
 
 // Khổ in của đơn: DNP 10 × 15 (to / nhỏ cắt đôi) hoặc Instax Wide.
@@ -118,14 +118,14 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
   const toast = useToast();
   const lastError = useRef("");
   const today = localDate();
-  // Mặc định xem cả tháng này (đơn hiện ngay, không cần mở lịch); vẫn chọn được tháng / ngày khác.
-  const [monthStart, monthEnd] = monthRange(today.slice(0, 7));
+  // Include the boundary day of a rolling 72-hour window; the API applies exact expiry.
+  const historyStart = localDate(new Date(Date.now() - 72 * 3600_000));
   const [creating, setCreating] = useState(false);
   const [collecting, setCollecting] = useState(null);
   const [items, setItems] = useState([]);
   const [query, setQuery] = useState("");
-  const [from, setFrom] = useState(monthStart);
-  const [to, setTo] = useState(monthEnd);
+  const [from, setFrom] = useState(historyStart);
+  const [to, setTo] = useState(today);
   const [payment, setPayment] = useState("");
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState("");
@@ -151,13 +151,13 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
     revenue: filtered.reduce((sum, booking) => sum + (booking.total || 0), 0),
     received: filtered.reduce((sum, booking) => sum + (booking.paid ? booking.total || 0 : 0), 0),
   }), [filtered]);
-  const isThisMonth = from === monthStart && to === monthEnd;
+  const isRecent = from === historyStart && to === today;
   const isToday = from === today && to === today;
-  const hasFilters = query.trim() || !isThisMonth || payment;
+  const hasFilters = query.trim() || !isRecent || payment;
   const resetFilters = () => {
     setQuery("");
-    setFrom(monthStart);
-    setTo(monthEnd);
+    setFrom(historyStart);
+    setTo(today);
     setPayment("");
   };
 
@@ -195,8 +195,8 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
     <ErrorBox error={error} />
     <div className="order-toolbar">
       <div className="order-quick">
-        <Button className={`outline small ${isThisMonth ? "is-current" : ""}`} aria-pressed={isThisMonth}
-          onClick={() => { setFrom(monthStart); setTo(monthEnd); }}>Tháng này</Button>
+        <Button className={`outline small ${isRecent ? "is-current" : ""}`} aria-pressed={isRecent}
+          onClick={() => { setFrom(historyStart); setTo(today); }}>3 ngày gần nhất</Button>
         <Button className={`outline small ${isToday ? "is-current" : ""}`} aria-pressed={isToday}
           onClick={() => { setFrom(today); setTo(today); }}>Hôm nay</Button>
       </div>
@@ -212,11 +212,12 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
       {hasFilters && <Button className="outline small" onClick={resetFilters}><X size={15} /> Xóa bộ lọc</Button>}
       <Button onClick={() => setCreating(true)}><Plus size={15} /> Tạo đơn</Button>
     </div>
+    <p className="order-limit-note">Lịch sử đơn và ảnh chỉ lưu 3 ngày. Tổng thu chi của các ngày cũ vẫn có trong Thống kê doanh thu và Đối soát.</p>
     <div className="order-summary" aria-live="polite">
       <span><small>Đơn phù hợp</small><strong>{filtered.length}</strong></span>
       {canSeeMoney && <>
-        <span><small>Tổng doanh thu</small><strong>{money(totals.revenue)}</strong></span>
-        <span><small>Đã thực nhận</small><strong>{money(totals.received)}</strong></span>
+        <span><small>Tổng tiền đơn đang hiện</small><strong>{money(totals.revenue)}</strong></span>
+        <span><small>Đã thu của đơn đang hiện</small><strong>{money(totals.received)}</strong></span>
       </>}
     </div>
     {items.length >= RANGE_LIMIT && (

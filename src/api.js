@@ -134,9 +134,9 @@ export const money = (value) =>
   new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(
     value || 0,
   );
-export const localDate = () =>
+export const localDate = (at = new Date()) =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(
-    new Date(),
+    at,
   );
 export const labels = {
   pending: "Chờ thanh toán",
