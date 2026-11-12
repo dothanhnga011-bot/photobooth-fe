@@ -50,7 +50,7 @@ export function ManualAlbum({ booking, onClose, onPrinted }) {
       let canvas;
       try {
         canvas = await renderPrintFrame(frame, selected.slice(0, slots.length), booking.accessToken,
-          `${window.location.origin}/album/${booking.accessToken}`, { transforms, scale: booking.printSize === "instax" ? 1 : 2, strict: true });
+          `${window.location.origin}/album/${booking.accessToken}`, { transforms, scale: booking.printSize === "instax" ? 1 : 2, strict: true, sharp: booking.printSize !== "instax" });
         const result = await printSheets(canvas, frame, 1, booking.printSize || "full", booking.printSize === "instax" ? 1 : 2);
         if (active) { setSheet(result[0]); setError(""); }
       } catch (e) { if (active) setError(e.message); }

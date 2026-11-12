@@ -1,4 +1,5 @@
 import { prepareCameraImage } from "./kiosk/camera-image.js";
+import { resampleImage } from "./kiosk/lanczos.js";
 
 let worker;
 let unavailable = false;
@@ -79,4 +80,13 @@ function run(task, makeInput, fallback) {
 export function prepareCameraImageAsync(file, mirror) {
   return run("camera", () => ({ input: { file, mirror } }),
     () => prepareCameraImage(file, mirror));
+}
+
+// Lanczos3 vùng src của ảnh (ảnh gốc / ảnh khung) về out = { width, height } điểm, trong worker để màn
+// hình máy chụp không khựng (ảnh 26 MP ~1 giây). Không có worker: làm ngay trên trang.
+export function resampleImageAsync(image, out, src) {
+  return run("resample", async () => {
+    const bitmap = await createImageBitmap(image);
+    return { input: { bitmap, out, src }, transfer: [bitmap] };
+  }, () => resampleImage(image, out, src, (w, h) => Object.assign(document.createElement("canvas"), { width: w, height: h })));
 }

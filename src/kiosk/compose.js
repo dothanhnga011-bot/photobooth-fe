@@ -24,6 +24,8 @@ import { printPackUpload } from "../album/print-upload.js";
 import { drawStickers, filterPhotos, loadStickers, stickerArea } from "./decor.js";
 import { priority, whenUplinkIdle } from "./uplink.js";
 import { sendDirectPrint } from "./direct-print.js";
+import { slotMapping } from "./lanczos.js";
+import { resampleImageAsync } from "../image-processing.js";
 
 // Ghép khung và in ngay tại máy chụp (khách chọn ảnh → chọn khung → lấy ảnh ở khay in).
 // Một "tấm" (shot): { key, preview: Blob | URL, image?: Blob gốc chưa lật, mirrored, serverId? }.
@@ -218,12 +220,37 @@ async function drawSharpSlot(ctx, source, rect, t) {
   }
 }
 
+// Tờ in DNP (sharp): ô không xoay → Lanczos3 MỘT lần từ ảnh gốc, ghi thẳng điểm ảnh vào đúng ô (toạ độ
+// nguyên). Cùng vị trí / phóng / dời như drawSlot. cache: kết quả theo hình học ô (ô bản sao cùng cỡ dùng lại).
+async function drawLanczosSlot(ctx, source, rect, t, cache) {
+  const scale = slotScale(source, rect, t);
+  const { width, height } = source;
+  const limitX = Math.abs(width * scale - rect.w) / 2;
+  const limitY = Math.abs(height * scale - rect.h) / 2;
+  const dx = Math.max(-limitX, Math.min(limitX, (t?.x || 0) * rect.w));
+  const dy = Math.max(-limitY, Math.min(limitY, (t?.y || 0) * rect.h));
+  const left = rect.x + rect.w / 2 + dx - (width * scale) / 2;
+  const top = rect.y + rect.h / 2 + dy - (height * scale) / 2;
+  const map = slotMapping({ width, height }, rect, scale, left, top, ctx.canvas);
+  if (!map) return;
+  const key = [map.dest.x - rect.x, map.dest.y - rect.y, map.dest.w, map.dest.h, map.src.x, map.src.y, map.src.w, map.src.h].join();
+  let pixels = cache.get(key);
+  if (!pixels) {
+    pixels = await resampleImageAsync(source, { width: map.dest.w, height: map.dest.h }, map.src);
+    cache.set(key, pixels);
+  }
+  ctx.putImageData(new ImageData(pixels.data, pixels.width, pixels.height), map.dest.x, map.dest.y);
+}
+const rotated = (t) => Boolean(((t?.rotate || 0) % 360 + 360) % 360);
+
 // Ghép bản in: đúng kích thước in của khung, mỗi ô vẽ từ ảnh chất lượng cao, lần lượt từng ảnh
 // (ảnh 26 MP giải mã ~100 MB nên không giữ nhiều ảnh cùng lúc). filters (màu từng ảnh, cùng thứ tự
 // shots) / stickers: màu ảnh và nhãn dán khách chọn, vẽ giống hệt ảnh xem trước.
 // scale: 1 = 1200 × 1800, 2 = 2400 × 3600 for RX1. pixels overrides scale for
 // guest composites (~20 MP), rendered from the full camera source with strict=true.
-export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filters = [], stickers = [], transforms = [], scale = 1, pixels = 0, strict = false } = {}) {
+// sharp (tờ in DNP): khung và ảnh co / giãn bằng Lanczos3 một lần, ảnh đặt ở toạ độ nguyên (lanczos.js) —
+// chi tiết mảnh của ảnh giữ 83 % thay vì 64 %, chữ / nét khung 65 % thay vì 46 % (ở 0,4 chu kỳ / điểm in).
+export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filters = [], stickers = [], transforms = [], scale = 1, pixels = 0, strict = false, sharp = false } = {}) {
   const layout = photoLayout(frame);
   const background = await loadFrameImage(frame.image);
   const canvas = document.createElement("canvas");
@@ -236,8 +263,15 @@ export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filter
   ctx.imageSmoothingQuality = "high";
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
+  if (sharp && (background.naturalWidth !== canvas.width || background.naturalHeight !== canvas.height)) {
+    const art = await resampleImageAsync(background, { width: canvas.width, height: canvas.height },
+      { x: 0, y: 0, w: background.naturalWidth, h: background.naturalHeight });
+    ctx.putImageData(new ImageData(art.data, art.width, art.height), 0, 0);
+  } else ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
   const sources = new Map();
+  const fitted = new Map();
+  const draw = (source, rect, t) =>
+    sharp && !rotated(t) ? drawLanczosSlot(ctx, source, rect, t, fitted) : drawSharpSlot(ctx, source, rect, t);
   try {
     for (const [index, slot] of layout.slots.entries()) {
       const shot = shots.length ? shots[index % shots.length] : null;
@@ -245,14 +279,15 @@ export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filter
       if (!sources.has(shot.key)) {
         for (const image of sources.values()) release(image);
         sources.clear();
+        fitted.clear();
         sources.set(shot.key, await printSource(shot, token, { strict }));
       }
       const source = sources.get(shot.key);
       const t = transforms[index];
-      await drawSharpSlot(ctx, source, slotRect(slot, canvas.width, canvas.height), t);
+      await draw(source, slotRect(slot, canvas.width, canvas.height), t);
       // Ô bản sao cùng số ảnh (vd. dải thứ hai của khung nhỏ).
       for (const copy of layout.copies)
-        if (copy.of === index) await drawSharpSlot(ctx, source, slotRect(copy.slot, canvas.width, canvas.height), t);
+        if (copy.of === index) await draw(source, slotRect(copy.slot, canvas.width, canvas.height), t);
     }
     filterPhotos(ctx, layout, filters, canvas.width, canvas.height);
     if (layout.marks.length) {

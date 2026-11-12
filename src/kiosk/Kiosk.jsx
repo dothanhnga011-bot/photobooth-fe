@@ -1169,6 +1169,8 @@ export function Kiosk() {
               const printScale = s.booking.printSize !== "instax" ? 2 : 1;
               printFrame = await renderPrintFrame(frame, chosenShots, s.accessToken, albumLink, {
                 ...look, scale: printScale, strict: s.booking.printSize !== "instax",
+                // Tờ DNP: Lanczos3 một lần từ ảnh gốc vào ô (nét hơn rõ ở tóc, mi mắt, chữ trên khung).
+                sharp: s.booking.printSize !== "instax",
               });
               const images = await printSheets(printFrame, frame, printsCount, s.booking.printSize, printScale);
               // Ô ảnh trên tờ (máy DNP): bộ in làm nét đủ phần ảnh, chữ / khung một nửa.
