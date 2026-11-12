@@ -120,7 +120,7 @@ export function KioskShoot({
   // Ảnh mới nhất ở đầu cột: có ảnh mới thì cuộn lên đầu để khách thấy ngay.
   const rail = useRef(null);
   useEffect(() => {
-    rail.current?.scrollTo({ top: 0, behavior: "smooth" });
+    rail.current?.scrollTo({ top: 0, left: 0, behavior: "smooth" });
   }, [shots.length, receiving]);
   const progress = quota ? Math.min(100, (Math.min(taken, quota) / quota) * 100) : 0;
   // Phát âm thanh đếm ngược "3, 2, 1"
@@ -201,7 +201,8 @@ export function KioskShoot({
             <strong>{phase === "ready" ? "—" : clock(sessionLeft)}</strong>
             <div className="shoot-progress">
               <small>
-                Đã chụp <b>{Math.min(taken, quota || taken)}</b>/{quota || "∞"} tấm
+                {classic && !quota ? <>Đã chụp <b>{taken}</b> ảnh</>
+                  : <>Đã chụp <b>{Math.min(taken, quota || taken)}</b>/{quota || "∞"} tấm</>}
               </small>
               {quota > 0 && (
                 <i aria-hidden="true">
@@ -210,7 +211,8 @@ export function KioskShoot({
               )}
             </div>
           </div>
-          <ol className="shoot-thumbs" ref={rail} aria-label="Ảnh vừa chụp, mới nhất ở trên">
+          <ol className="shoot-thumbs" ref={rail}
+            aria-label={classic && !portrait ? "Ảnh vừa chụp, mới nhất bên trái" : "Ảnh vừa chụp, mới nhất ở trên"}>
             {receiving && (
               <li className="shoot-thumb-pending" role="status">
                 <span className="spinner" aria-hidden="true" />

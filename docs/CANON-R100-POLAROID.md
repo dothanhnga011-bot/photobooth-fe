@@ -2,7 +2,11 @@
 
 Phòng Polaroid dùng **Canon EOS R100 + EOS Utility + dây bấm RS-60E3**. Hình trực tiếp đi qua thẻ ghi hình HDMI; JPEG chụp thật đi qua USB vào thư mục rồi được kiosk nhận. Máy in vẫn là Instax Link WIDE của phòng.
 
-Khách chọn layout → vào chụp → **bấm dây cho từng ảnh**, không hẹn giờ hay tự chụp. Kiosk bỏ đếm ngược chuẩn bị và số 3–2–1 giữa màn hình cho phòng Polaroid, kể cả khi tải lại lượt cũ. Khi mở lượt, kiosk chỉ chờ máy chủ xác nhận phiên. Đồng hồ bên cạnh vẫn giới hạn thời gian của gói; hết giờ chuyển sang chọn ảnh, không kích hoạt máy ảnh.
+Phòng Polaroid hoạt động theo mô hình **Selfbooth**: nhân viên chọn gói ở quầy, xác nhận thanh toán và đưa mã 6 số → khách nhập mã trên kiosk → **bấm dây cho từng ảnh**, không hẹn giờ hay tự chụp. Layout và thời gian đã nằm trong mã, kiosk không còn màn chọn layout. Mã phải còn hạn 2 giờ, đã thanh toán, đúng chi nhánh và đúng loại phòng; nhập nhầm phòng không làm mất mã.
+
+Màn nhập mã dùng nâu óc chó, be giấy và hoa văn lá cuộn vàng cổ kiểu Pháp. Khi chụp trên màn ngang, **live view chiếm 2/3, cột ảnh chiếm 1/3**. Cột bên phải có thời gian còn lại, ảnh mới nhất cỡ lớn, dải ảnh đã chụp và nút **Chụp xong**. Trên màn đứng, live view ở trên, ảnh ở dưới. Giao diện đã kiểm tra ở 1024 × 600, 1366 × 768 và 1920 × 1080.
+
+Kiosk bỏ đếm ngược chuẩn bị và số 3–2–1 giữa màn hình cho phòng Polaroid, kể cả khi tải lại lượt cũ. Khi mở lượt, kiosk chỉ chờ máy chủ xác nhận phiên. Đồng hồ bên cạnh vẫn giới hạn thời gian của gói; hết giờ chuyển sang chọn ảnh, không kích hoạt máy ảnh. Tải lại phiên đang chụp vẫn nhận diện Canon từ thông tin phiên khi yêu cầu kiểm tra phòng tạm mất mạng.
 
 | Gói Polaroid | Thời gian chụp | Số ảnh chụp | Số ảnh chọn để in |
 | --- | --- | --- | --- |
@@ -55,7 +59,7 @@ R100 không cấp nguồn/sạc qua USB: kiểm tra pin hoặc dùng bộ nguồ
    Tắt **Thử máy bằng webcam máy tính** trước khi dùng R100; chế độ thử bằng phím Space lấy ảnh webcam và có đếm ngược riêng.
 4. Bấm **Thử nhận ảnh từ máy ảnh**, nhấn dây chụp; xác nhận ảnh thử hiện trong kiosk.
 5. Chọn thiết bị HDMI, thường có tên USB Video/Cam Link. Nếu tín hiệu có chữ hoặc ô lấy nét, chỉnh hiển thị HDMI trên máy ảnh và thử lại trong chế độ chụp ảnh đang dùng.
-6. Chụp một phiên thử đầy đủ: chọn layout → bấm dây → chọn ảnh → nhận bản in → quét QR và lưu ảnh.
+6. Trong quầy **Tạo mã chụp**, chọn gói Polaroid và phòng, xác nhận đã thu tiền rồi lấy mã 6 số. Thử đầy đủ: nhập mã → bấm dây → chọn ảnh → nhận bản in → quét QR và lưu ảnh.
 
 Quyền thư mục Canon được lưu riêng với Fujifilm. Khi chuyển phòng từ cấu hình Fuji cũ sang Canon, cần chọn thư mục Canon một lần.
 

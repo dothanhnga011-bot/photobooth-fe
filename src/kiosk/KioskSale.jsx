@@ -73,6 +73,7 @@ export function KioskCode({ code, setCode, onSubmit, onBack, busy, error, device
     <section className={`kiosk-flow code-screen${polaroid ? " is-polaroid" : ""}`}>
       <header className="flow-head">
         <Brand />
+        {polaroid && <span className="classic-entry-label">Mellow · Selfbooth</span>}
         <h1>{t(polaroid ? "polaroid.codeTitle" : "code.title")}</h1>
         {polaroid && <Fleuron />}
         <p>{t(polaroid ? "polaroid.codeSubtitle" : "code.subtitle")}</p>

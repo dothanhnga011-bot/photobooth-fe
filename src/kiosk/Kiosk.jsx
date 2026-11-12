@@ -331,9 +331,9 @@ export function Kiosk() {
     toast[type](message, duration);
   };
   // Thư mục ảnh của máy ảnh đã chọn trước đó (trình duyệt có thể hỏi lại quyền đọc).
-  const cameraSetup = cameraProfile(roomInfo?.kind);
+  const cameraSetup = cameraProfile(roomInfo?.kind || (manualCapture ? "polaroid" : undefined));
   useEffect(() => {
-    if (!roomInfo) return;
+    if (!roomInfo && !manualCapture) return;
     let active = true;
     setFolder(null);
     setFolderAccess("none");
@@ -348,7 +348,7 @@ export function Kiosk() {
       () => {},
     );
     return () => { active = false; };
-  }, [Boolean(roomInfo), cameraSetup.folderKey]);
+  }, [Boolean(roomInfo) || manualCapture, cameraSetup.folderKey]);
   async function pickFolder() {
     try {
       const handle = await window.showDirectoryPicker({
@@ -749,7 +749,7 @@ export function Kiosk() {
   }
   // Loại phòng (Quản lý máy → Cài máy chụp): photobooth (khách chọn Nhập mã / Tiền mặt, in DNP) hoặc
   // Polaroid (như Selfbooth: khách trả tiền ở quầy, nhập mã có sẵn layout rồi chụp luôn, in Instax).
-  const polaroid = roomInfo?.kind === "polaroid";
+  const polaroid = manualCapture;
   // Lượt mua dở (đã chọn gói / số tờ) chỉ có ở phòng photobooth. Phòng đã đổi sang Polaroid: bỏ lượt
   // mua dở chưa nhận tiền, về màn chờ. Đã nhận tiền thật thì giữ lại để nhân viên xử lý.
   const roomKind = roomInfo?.kind;

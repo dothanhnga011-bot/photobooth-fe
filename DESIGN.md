@@ -141,7 +141,7 @@ Hệ được ghi từ giao diện React/CSS đã dựng: đối chiếu `src/st
 
 - Ảnh lớn, chữ Việt dễ đọc, trạng thái chọn rõ.
 - Cùng ngôn ngữ điều khiển cho quản trị, album và kiosk.
-  Raster giao diện duy nhất là `public/logo-m.jpg`: logo chữ “M.” nâu trên nền kem do người dùng gửi (22/10/2026), chỉ cắt vuông quanh chữ và thu về 1024×1024 để rõ ở cỡ nhỏ, không vẽ lại. Không có raster do AI sinh.
+  Logo gốc là `public/logo-m.jpg`: chữ “M.” nâu trên nền kem do người dùng gửi (22/10/2026), chỉ cắt vuông quanh chữ và thu về 1024×1024 để rõ ở cỡ nhỏ, không vẽ lại. Riêng phòng Polaroid có hoa văn lá cuộn vàng cổ do ImageGen tạo; nguồn và prompt ở `src/kiosk/assets/README.md`.
 
 ## Colors
 
@@ -178,6 +178,16 @@ Dialog quản trị, trình chỉnh ảnh và bản in có bóng riêng được
 Ngôi sao trang trí dùng SVG tĩnh 5 cánh, nhỏ khoảng 5–12px, màu hồng phấn và nâu nhạt. Sao gom thành cụm quanh logo quản trị, vùng giới thiệu đăng nhập và đầu trang kiosk; thanh logo album dùng nét mảnh kết hợp sao hai bên. Nền thư viện ảnh và vùng nghiệp vụ để trống, không lặp sao dọc lề. Trang trí không đặt lên ảnh, QR, bảng dữ liệu hay vùng camera, không nhận thao tác và không nhấp nháy.
 
 ## Components
+
+### Polaroid · Selfbooth — phương án A đã chọn
+
+Phòng Polaroid dùng `src/styles/entry/kiosk-classic.css`, chỉ bật dưới `data-kiosk-theme="classic"`. Phương án A giữ giấy be, chữ nâu óc chó và góc lá cuộn Pháp cổ. Nền họa tiết thưa, ít tương phản; trang trí đứng sau thao tác, không bắt sự kiện chạm. Một WebP dùng chung cho bốn góc, không tải ảnh trang trí riêng cho từng vị trí.
+
+Playfair Display dùng cho tiêu đề và nhãn thẻ nhập mã; Be Vietnam Pro dùng cho nội dung, phím số, đồng hồ và nút. Phím tối thiểu 46px trên màn ngang thấp; focus có viền rõ. Hai cột nhập mã nằm trong vùng tối đa 1120px, phần giới thiệu bên trái và bàn phím bên phải. Màn nhỏ được cuộn thay vì cắt nút xác nhận.
+
+Màn chụp ngang chia live view 2/3 và cột ảnh 1/3. Cột be có đồng hồ, ảnh mới nhất theo tỷ lệ 3:2, dải ảnh ngang và nút Chụp xong. Nhãn số ảnh nằm dưới ảnh lớn, không che hình; đếm ảnh không hiển thị ký hiệu vô cực. Ảnh xem giữ đủ khung, không đổi tệp gốc hay màu ảnh. Màn đứng giữ cách chia live view trên, ảnh dưới.
+
+### Thành phần dùng chung
 
 Giá gói chụp đặt trực tiếp trên nền thẻ, không bọc bằng khung riêng.
 Hàng thứ tự và thao tác của thẻ khung ảnh dùng cùng nền trắng với thân thẻ, không thêm mảng nền riêng.

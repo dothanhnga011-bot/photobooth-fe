@@ -1,0 +1,9 @@
+# Polaroid classic ornament
+
+`rococo-corner-gold.webp` is an original decorative asset generated with the built-in ImageGen tool (`transparent_background: true`, new image, no reference images). It follows the antique French acanthus direction in the user's references without copying a Pinterest asset.
+
+The generated 1280 × 1280 PNG was exported through Sharp as a 512 × 512 transparent WebP (quality 85, alpha quality 100), 60,456 bytes. All four corners share this single file and use CSS reflections. It is decorative, has empty alt text, and does not intercept touches.
+
+Generation prompt:
+
+> Create a production web UI decorative image asset: ONE single antique French Rococo / baroque acanthus leaf corner ornament, for the TOP LEFT corner of a photo booth frame. Isolated on a truly transparent background. Square composition, two tapering arms following the top edge to the right and the left edge downward, forming a clean open L shape. The lower right 65 percent of the square must be completely empty transparent space for UI content. Finely carved curling acanthus leaves and scrolls, warm aged champagne gold with walnut brown patina, softly dimensional embossed metal, restrained elegant highlights, highly readable silhouette at 120 pixels, crisp clean alpha edges. Flat frontal orthographic product view, soft upper-left light, tiny self-shadow within carving only. No cast shadow outside the ornament. No mirror frame, no rectangle, no full border, no background, no text, no letters, no logo, no people, no gem stones. Original ornament inspired by historic French decorative craft, not a copy of a specific design. Asset use: upper-left corner on warm parchment beige; other corners will be CSS reflections. Make the carving occupy a broad continuous band near the top and left edges, not a thin line illustration.

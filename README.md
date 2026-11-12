@@ -166,14 +166,16 @@ Một web, hai **loại phòng**. Đầu ca, nhân viên mở máy chụp từng
     được cộng ngay trên màn hình; đủ tiền là vào màn chụp. Chưa lắp máy đọc tiền thì bật “Chế độ
     thử tiền mặt” trong hộp Cài máy chụp để thử bằng nút giả lập.
 - **Polaroid** (máy ảnh **Canon EOS R100 + EOS Utility + dây bấm RS-60E3**, hình trực tiếp qua HDMI, in ở máy **Instax Link WIDE** qua print
-  agent — xem README của `photobooth-be`): Chạm để bắt đầu → **Chọn layout** (**Ảnh nhỏ: chọn 1 ảnh / 3 phút**;
-  **Ảnh to: chọn 2 ảnh / 5 phút**; bấm dây không giới hạn trong thời gian chụp) → thông báo “Chọn layout này, vào chụp nha!” →
+  agent — xem README của `photobooth-be`): Nhân viên chọn gói và xác nhận thanh toán ở quầy → đưa mã 6 số →
+  Chạm để bắt đầu → **Nhập mã** → chụp (**Ảnh nhỏ: chọn 1 ảnh / 3 phút**;
+  **Ảnh to: chọn 2 ảnh / 5 phút**; bấm dây không giới hạn trong thời gian chụp) →
   **khách bấm dây chụp**: EOS Utility lưu JPEG vào thư mục Canon, kiosk đọc ảnh chụp thật
   → chọn ảnh & khung → in 1 tấm Instax → màn QR tải toàn bộ ảnh
-  gốc (không quay video). Khách **trả tiền ở quầy**: đơn ghi “Polaroid · chưa thu tiền”, nhân viên bấm “Đã thu
-  tiền mặt / chuyển khoản” ở Đơn hàng. Layout là các gói khổ Instax ở Khổ ảnh & bảng giá → tab **Polaroid** (layout
-  chọn bằng hình 1 / 2 ảnh, giá; thời gian tự theo gói, không giới hạn số lần bấm dây, luôn in 1 tấm); nút **Tạo 2 layout mẫu** tạo 2 layout
-  100.000 đ (8 tấm, 10 giây/tấm) kèm khung trắng. Khung Instax là thẻ Instax Wide ngang 1800 × 1200, mỗi tấm in
+  gốc (không quay video). Kiosk không chọn layout hay thu tiền: mã đã chứa gói, còn hạn 2 giờ và chỉ dùng ở
+  đúng chi nhánh, đúng loại phòng. Giao diện nâu be với hoa văn vàng cổ kiểu Pháp; màn ngang dành 2/3 cho live view,
+  1/3 cho đồng hồ, ảnh vừa chụp, dải ảnh và nút Chụp xong. Layout là các gói khổ Instax ở Khổ ảnh & bảng giá → tab
+  **Polaroid**; luôn in 1 tấm. Nút **Tạo 2 layout mẫu** tạo 2 gói 100.000 đ kèm khung trắng.
+  Khung Instax là thẻ Instax Wide ngang 1800 × 1200, mỗi tấm in
   1260 × 840.
 
 **Khung Polaroid không thuộc chủ đề:** ở Khung ảnh → Thêm mới frame → Size Instax, chọn layout (1 ảnh to / 2 ảnh

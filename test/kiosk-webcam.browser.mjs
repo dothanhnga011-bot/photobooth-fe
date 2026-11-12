@@ -1,9 +1,9 @@
 // Webcam test mode of the kiosk (no Fujifilm camera): isolated API, Chromium's fake camera.
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { after, before, test } from "node:test";
 import { build } from "vite";
 import tailwindcss from "@tailwindcss/vite";
@@ -67,10 +67,16 @@ before(async () => {
   const assets = new Map(bundle.output.map((a) => ["/" + a.fileName, a.code || a.source]));
   const entry = bundle.output.find((a) => a.isEntry).fileName;
   const css = bundle.output.filter((a) => a.fileName.endsWith(".css"));
-  server = createServer((req, res) => {
-    if (assets.has(req.url)) {
-      res.setHeader("Content-Type", req.url.endsWith(".css") ? "text/css" : "application/javascript");
-      res.end(assets.get(req.url));
+  server = createServer(async (req, res) => {
+    const path = new URL(req.url, 'http://localhost').pathname;
+    const type = path.endsWith('.css') ? 'text/css' : path.endsWith('.webp') ? 'image/webp'
+      : path.endsWith('.jpg') ? 'image/jpeg' : path.endsWith('.woff2') ? 'font/woff2' : 'application/javascript';
+    if (assets.has(path)) {
+      res.setHeader("Content-Type", type);
+      res.end(assets.get(path));
+    } else if (/^\/fonts\/[\w-]+\.woff2$/.test(path) || path === '/logo-m-384.jpg') {
+      res.setHeader('Content-Type', type);
+      res.end(await readFile(new URL('../public' + path, import.meta.url)));
     } else {
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.end(`<div id="root"></div>${css.map((a) => `<link rel="stylesheet" href="/${a.fileName}">`).join("")}<script type="module" src="/${entry}"></script>`);
@@ -115,9 +121,9 @@ async function booth(launched, { webcam, room = { _id: "room", flip: "device" },
   page.on("pageerror", (e) => errors.push(e.message));
   const booking = {
     _id: "fixture-booking", packageName: "Gói thử", shots: 3, selectCount: 1, photos: [], ...extra,
-    captureDuration: 10, status: "checked_in",
+    captureDuration: extra.captureDuration ?? 10, status: "checked_in",
     captureStartedAt: new Date().toISOString(),
-    captureEndsAt: new Date(Date.now() + 600000).toISOString(),
+    captureEndsAt: new Date(Date.now() + (extra.captureDuration ?? 10) * 60000).toISOString(),
   };
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -125,6 +131,7 @@ async function booth(launched, { webcam, room = { _id: "room", flip: "device" },
     // /kiosk/finish trả về chính lượt chụp (không bọc trong { booking }) như máy chủ thật.
     await route.fulfill({ json: path.endsWith("/kiosk/ping") ? { room }
       : path.endsWith("/health") ? { ok: true }
+      : path.endsWith("/kiosk/photo") ? booking
       : path.endsWith("/kiosk/finish") ? { ...booking, status: "completed" } : { booking } });
   });
   await page.addInitScript(({ booking, webcam, lowPower }) => {
@@ -247,7 +254,7 @@ for (const count of [1, 2]) test(`Polaroid accepts 12 Canon JPEGs beyond its leg
     webcam: false,
     room: { _id: "room", flip: "device", kind: "polaroid" },
     // Even a legacy booking with a countdown must use the physical shutter JPEGs.
-    extra: { shots: 2, selectCount: count, countdownSeconds: 3, printSize: "instax" },
+    extra: { shots: 2, selectCount: count, countdownSeconds: 3, printSize: "instax", captureDuration: count === 1 ? 3 : 5 },
   });
   try {
     await b.page.locator('.shoot-screen:not(.no-live)').waitFor();
@@ -260,6 +267,31 @@ for (const count of [1, 2]) test(`Polaroid accepts 12 Canon JPEGs beyond its leg
     });
     await b.page.waitForFunction(() => document.querySelectorAll('.shoot-thumbs .shoot-thumb-no').length === 12, null, { timeout: 30000 });
     assert.equal(await b.page.locator('.shoot-screen.phase-shoot').count(), 1, 'does not auto-finish at the legacy quota');
+    await b.page.waitForFunction(() => document.querySelector('.shoot-latest img')?.naturalWidth > 0);
+    if (count === 1) {
+      await b.page.emulateMedia({ reducedMotion: 'reduce' });
+      const captures = resolve('.cache/polaroid-selfbooth');
+      await mkdir(captures, { recursive: true });
+      for (const viewport of [{ width: 1920, height: 1080 }, { width: 1366, height: 768 }, { width: 1024, height: 600 }]) {
+        await b.page.setViewportSize(viewport);
+        const layout = await b.page.locator('.shoot-screen').evaluate(screen => {
+          const rail = screen.querySelector('.shoot-rail').getBoundingClientRect();
+          const stage = screen.querySelector('.shoot-stage').getBoundingClientRect();
+          const latest = screen.querySelector('.shoot-latest').getBoundingClientRect();
+          const end = screen.querySelector('.shoot-end').getBoundingClientRect();
+          return { ratio: rail.width / innerWidth, stageRight: stage.right, railLeft: rail.left,
+            latest: { left: latest.left, right: latest.right, height: latest.height },
+            endBottom: end.bottom, height: innerHeight, width: innerWidth };
+        });
+        assert.ok(Math.abs(layout.ratio - 1 / 3) < .005, JSON.stringify(layout));
+        assert.ok(Math.abs(layout.stageRight - layout.railLeft) < 2);
+        assert.ok(layout.latest.left >= layout.railLeft && layout.latest.right <= layout.width && layout.latest.height >= 100, JSON.stringify(layout));
+        assert.ok(layout.endBottom <= layout.height, JSON.stringify(layout));
+        await b.page.getByRole('button', { name: 'Đóng thông báo' }).evaluateAll(buttons => buttons.forEach(button => button.click()));
+        await b.page.locator('.toast').waitFor({ state: 'detached' });
+        await b.page.screenshot({ path: resolve(captures, `shoot-${viewport.width}.png`) });
+      }
+    }
     await b.page.getByRole("button", { name: "Chụp xong, chọn ảnh" }).click();
     await b.page.getByRole("heading", { name: /để chọn ảnh/ }).waitFor({ timeout: 30000 });
     const picks = b.page.getByRole("group", { name: "Ảnh đã chụp" }).getByRole("button");
@@ -275,6 +307,24 @@ for (const count of [1, 2]) test(`Polaroid accepts 12 Canon JPEGs beyond its leg
     assert.deepEqual(await b.page.evaluate(() => window.__recorders), [], "no timelapse recorder");
     await b.page.waitForTimeout(2000);
     assert.deepEqual(b.videos, [], "no video is uploaded");
+    assert.deepEqual(b.errors, []);
+  } finally { await b.close(); }
+});
+
+test("a resumed Canon session keeps its theme and receives shutter JPEGs while the room ping is offline", async () => {
+  const b = await booth(fakeCamera, { webcam: false,
+    room: { _id: 'room', flip: 'device', kind: 'polaroid' },
+    extra: { printSize: 'instax', selectCount: 1, prints: 1 },
+  });
+  try {
+    await b.page.locator('.shoot-screen.is-classic').waitFor();
+    await b.page.route('**/api/kiosk/ping', route => route.abort('failed'));
+    await b.page.reload();
+    await b.page.locator('.shoot-screen.is-classic').waitFor();
+    assert.equal(await b.page.evaluate(() => document.documentElement.dataset.kioskTheme), 'classic');
+    await b.page.evaluate(() => window.deliverCanonPhoto(1));
+    await b.page.waitForFunction(() => document.querySelector('.shoot-latest img')?.naturalWidth > 0, null, { timeout: 15000 });
+    assert.equal(await b.page.locator('.shoot-thumbs .shoot-thumb-no').count(), 1);
     assert.deepEqual(b.errors, []);
   } finally { await b.close(); }
 });

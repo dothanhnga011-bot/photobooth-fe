@@ -1,16 +1,21 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { mkdir, readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { after, before, test } from "node:test";
 import { build } from "vite";
+import tailwindcss from "@tailwindcss/vite";
 import { chromium } from "../../photobooth-be/node_modules/playwright/index.mjs";
 
 let server, browser, base;
+const captures = resolve('.cache/polaroid-selfbooth');
 const fixture = `
   import React from 'react';
   import { createRoot } from 'react-dom/client';
   import { MemoryRouter } from 'react-router-dom';
   import { StudioContext, ToastProvider } from '/src/studio.jsx';
   import { Kiosk } from '/src/kiosk/Kiosk.jsx';
+  import '/src/tailwind.css';
   const packs = [
     { _id: 'pack-strip', name: 'Khung nhỏ', printSize: 'strip', price: 70000, prints: 1, shots: 4 },
     { _id: 'pack-full', name: 'Khung to', printSize: 'full', price: 100000, prints: 2, shots: 4 },
@@ -32,7 +37,7 @@ before(async () => {
     configFile: false, logLevel: "error", esbuild: { jsx: "automatic" },
     define: { "process.env.NODE_ENV": '"development"', "import.meta.env.VITE_API_URL": '""' },
     build: { write: false, minify: false, rollupOptions: { input: "virtual:voucher.jsx" } },
-    plugins: [{
+    plugins: [tailwindcss(), {
       name: "voucher-fixture", enforce: "pre",
       resolveId: (id) => id.startsWith("virtual:") ? "\0" + id : null,
       load: (id) => id === "\0virtual:voucher.jsx" ? fixture : null,
@@ -40,18 +45,26 @@ before(async () => {
   });
   const assets = new Map(bundle.output.map((a) => ["/" + a.fileName, a.code || a.source]));
   const entry = bundle.output.find((a) => a.isEntry).fileName;
-  server = createServer((req, res) => {
-    if (assets.has(req.url)) {
-      res.setHeader("Content-Type", "application/javascript");
-      res.end(assets.get(req.url));
+  const styles = bundle.output.filter(a => a.fileName.endsWith('.css'));
+  server = createServer(async (req, res) => {
+    const path = new URL(req.url, 'http://localhost').pathname;
+    const type = path.endsWith('.css') ? 'text/css' : path.endsWith('.webp') ? 'image/webp'
+      : path.endsWith('.jpg') ? 'image/jpeg' : path.endsWith('.woff2') ? 'font/woff2' : 'application/javascript';
+    if (assets.has(path)) {
+      res.setHeader("Content-Type", type);
+      res.end(assets.get(path));
+    } else if (/^\/fonts\/[\w-]+\.woff2$/.test(path) || path === '/logo-m-384.jpg') {
+      res.setHeader('Content-Type', type);
+      res.end(await readFile(new URL('../public' + path, import.meta.url)));
     } else {
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.end(`<div id="root"></div><script type="module" src="/${entry}"></script>`);
+      res.end(`${styles.map(a => `<link rel="stylesheet" href="/${a.fileName}">`).join('')}<div id="root"></div><script type="module" src="/${entry}"></script>`);
     }
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   base = `http://127.0.0.1:${server.address().port}`;
   browser = await chromium.launch({ headless: true });
+  await mkdir(captures, { recursive: true });
 });
 
 after(async () => { await browser?.close(); await new Promise((resolve) => server?.close(resolve)); });
@@ -61,7 +74,8 @@ const booking = { _id: "booking-1", code: "123456", status: "checked_in", packag
 
 // Máy chụp có thư mục ảnh (OPFS giả lập) và API giả: ping trả phòng, claim / sale mở lượt chụp.
 async function openKiosk(room, handlers = {}, { sale = null } = {}) {
-  const page = await browser.newPage();
+  const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.addInitScript((sale) => {
@@ -85,6 +99,9 @@ async function openKiosk(room, handlers = {}, { sale = null } = {}) {
   await pinged;
   await page.getByText("Cài đặt máy chụp (nhân viên)").click();
   await page.getByRole("button", { name: "Chọn thư mục ảnh" }).click();
+  await page.getByRole('button', { name: 'Đóng thông báo' }).first().waitFor();
+  await page.getByRole('button', { name: 'Đóng thông báo' }).evaluateAll(buttons => buttons.forEach(button => button.click()));
+  await page.locator('.toast').waitFor({ state: 'detached' });
   await page.getByRole("button", { name: "Chạm để bắt đầu" }).click();
   return { page, errors };
 }
@@ -192,6 +209,9 @@ test("polaroid room (Selfbooth model): touch → enter the code bought at the co
       return route.fulfill({ json: { booking: polaroidBooking, captureToken: "fixture-capture", accessToken: "fixture-album" } });
     },
     "/kiosk/polaroid": () => assert.fail("the kiosk no longer sells Polaroid layouts itself"),
+    "/kiosk/start": route => route.fulfill({ json: { booking: { ...polaroidBooking,
+      captureStartedAt: new Date().toISOString(), captureEndsAt: new Date(Date.now() + 5 * 60000).toISOString(),
+    } } }),
   });
   try {
     // Không chọn layout, không chọn cách thanh toán: vào thẳng màn nhập mã (chữ tiệm đã sửa).
@@ -202,6 +222,19 @@ test("polaroid room (Selfbooth model): touch → enter the code bought at the co
     // Giao diện cổ điển: thuộc tính trên <html>, hoa văn quanh thẻ nhập mã.
     assert.equal(await page.evaluate(() => document.documentElement.dataset.kioskTheme), "classic");
     assert.equal(await page.locator(".code-card .ornament-corner").count(), 4);
+    await page.getByRole('button', { name: 'Đóng thông báo' }).evaluateAll(buttons => buttons.forEach(button => button.click()));
+    await page.locator('.toast').waitFor({ state: 'detached' });
+    for (const viewport of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }, { width: 1024, height: 600 }]) {
+      await page.setViewportSize(viewport);
+      const layout = await page.locator('.code-card').evaluate(card => {
+        const box = card.getBoundingClientRect(), submit = card.querySelector('button[type=submit]').getBoundingClientRect();
+        return { left: box.left, right: box.right, top: box.top, bottom: submit.bottom, width: innerWidth, height: innerHeight };
+      });
+      assert.ok(layout.left >= 0 && layout.right <= layout.width && layout.top >= 0 && layout.bottom <= layout.height, JSON.stringify(layout));
+      await page.mouse.move(0, 0);
+      await page.screenshot({ path: resolve(captures, `code-${viewport.width}.png`), fullPage: true });
+    }
+    await page.setViewportSize({ width: 1366, height: 768 });
     // Quay lại: về màn chờ (phòng Polaroid không có màn chọn cách thanh toán).
     await page.getByRole("button", { name: "Quay lại" }).click();
     await page.getByRole("button", { name: "Chạm để bắt đầu" }).click();
@@ -209,10 +242,14 @@ test("polaroid room (Selfbooth model): touch → enter the code bought at the co
     await page.getByRole("textbox", { name: "Mã chụp" }).fill("123456");
     await page.getByRole("button", { name: "Bắt đầu chụp" }).click();
     await page.getByText("Mã này dành cho phòng Photobooth").first().waitFor();
+    await page.setViewportSize({ width: 1024, height: 600 });
+    const submitBottom = await page.locator('.code-card button[type=submit]').evaluate(button => button.getBoundingClientRect().bottom);
+    assert.ok(submitBottom <= 600, 'an invalid code must not push the submit button below the kiosk screen');
+    await page.setViewportSize({ width: 1366, height: 768 });
     await page.getByRole("textbox", { name: "Mã chụp" }).fill("654321");
     await page.getByRole("button", { name: "Bắt đầu chụp" }).click();
     // Màn chụp như Selfbooth: hình trực tiếp, cột bên có đồng hồ và ô ảnh vừa chụp.
-    await page.locator(".shoot-screen.is-classic").waitFor();
+    await page.locator(".shoot-screen.is-classic.phase-shoot").waitFor();
     assert.equal(await page.locator(".shoot-rail .shoot-latest").count(), 1);
     assert.match(await page.locator(".shoot-timer").innerText(), /THỜI GIAN CÒN LẠI\s*\d\d:\d\d/);
     assert.deepEqual(claims.map((c) => c.code), ["123456", "654321"]);
