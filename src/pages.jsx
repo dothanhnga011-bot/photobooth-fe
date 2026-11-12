@@ -6,7 +6,7 @@ import {
   PiTicketBold,
 } from "react-icons/pi";
 import { QRCodeSVG } from "qrcode.react";
-import { Button, ErrorBox, useToast } from "./studio";
+import { Button, ErrorBox, useStudio, useToast } from "./studio";
 import { labels, formatDate, formatDateTime } from "./api";
 import { useLiveData } from "./use-live-data";
 import { isConnectivityError } from "./network.js";
@@ -29,6 +29,25 @@ const albumSignature = (b) => [
 export function AlbumPage() {
   const { token } = useParams();
   return <AlbumSession key={token} token={token} />;
+}
+
+// Album không mở được (mã sai, đã hết hạn lưu): chỉ khách cách liên hệ tiệm thay vì chỉ báo lỗi.
+function StudioContact() {
+  const { settings = {} } = useStudio();
+  const phone = String(settings.phone || "").trim();
+  const address = String(settings.address || "").trim();
+  return (
+    <p className="soft-note album-contact">
+      Nếu bạn vừa chụp xong, hãy quét lại mã QR trên màn hình máy chụp.
+      {(phone || address) && (
+        <>
+          {" "}Cần hỗ trợ, liên hệ {settings.name || "tiệm"}
+          {phone && <>: <a href={`tel:${phone.replace(/[^\d+]/g, "")}`}>{phone}</a></>}
+          {address && <> · {address}</>}
+        </>
+      )}
+    </p>
+  );
 }
 
 function AlbumSession({ token }) {
@@ -91,6 +110,7 @@ function AlbumSession({ token }) {
   return (
     <section className={`page ${ready ? "studio-page" : "narrow"}`}>
       <ErrorBox error={error} />
+      {!booking && error && <StudioContact />}
       {!booking && !error && (
         <div className="center" role="status">
           <p>Đang mở album…</p>

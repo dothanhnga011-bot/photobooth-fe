@@ -1,4 +1,11 @@
 @layer components {
+  /* Album không mở được: số điện thoại của tiệm là liên kết gọi ngay, nhìn rõ là bấm được. */
+  .album-contact a {
+    color: var(--mellow-cocoa, #522e22);
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
   .studio-page {
     max-width: 1160px;
     padding: 24px 28px 136px;

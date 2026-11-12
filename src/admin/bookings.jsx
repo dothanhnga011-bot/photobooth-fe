@@ -18,6 +18,9 @@ const paymentLabel = (method) => method === "cash" ? "Tiền mặt" : method ===
 // Lượt chụp phòng Polaroid: khách trả tiền ở quầy sau khi chọn layout — nhân viên bấm "Đã thu".
 const awaitingPayment = (booking) =>
   booking.source === "polaroid" && !booking.paid && ["checked_in", "completed"].includes(booking.status);
+// Đơn không có tên khách: ghi theo nơi khách trả tiền (quầy tạo mã / đút tiền ở máy chụp).
+const customerLabel = (booking) => booking.name
+  || (booking.source === "kiosk" ? "Khách trả tiền mặt tại máy" : booking.source === "polaroid" ? "Khách Polaroid" : "Khách tại quầy");
 const albumUrl = (booking) => booking.accessToken ? `${window.location.origin}/album/${booking.accessToken}` : "";
 
 // Ảnh đại diện của đơn: ảnh đã ghép khung (máy chụp ghép, rồi tới lệnh in gần nhất), chưa có thì
@@ -232,7 +235,7 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
         return <article className="order-card" key={booking._id} title={`Mã hệ thống: ${booking._id}`}>
           <div className="order-identity">
             <OrderThumb booking={booking} />
-            <div className="order-main"><div className="order-when"><time>{formatDateTime(booking.createdAt)}</time>{booking.status !== "completed" && <span className={`badge ${booking.status}`}>{labels[booking.status]}</span>}{awaitingPayment(booking) && <span className="badge unpaid">Polaroid · chưa thu tiền</span>}</div><strong>#{booking.code} · {booking.name || "Khách tại quầy"}</strong><small>{booking.roomName || "Chưa chọn máy"} · {booking.packageName || "Gói chụp"}</small>
+            <div className="order-main"><div className="order-when"><time>{formatDateTime(booking.createdAt)}</time>{booking.status !== "completed" && <span className={`badge ${booking.status}`}>{labels[booking.status]}</span>}{awaitingPayment(booking) && <span className="badge unpaid">Polaroid · chưa thu tiền</span>}</div><strong>#{booking.code} · {customerLabel(booking)}</strong><small>{booking.roomName || "Chưa chọn máy"} · {booking.packageName || "Gói chụp"}</small>
               <div className="order-card-actions">{booking.accessToken && <>
                 <a className="order-album-link" href={albumUrl(booking)} target="_blank" rel="noreferrer">Link ảnh <ExternalLink size={14} /></a>
                 {canPrint && <button onClick={() => setPrinting(booking)}>In ảnh <Printer size={14} /></button>}
