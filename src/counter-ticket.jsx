@@ -8,7 +8,7 @@ import { FieldError, chosen, useValidation } from "./validate";
 
 const RULES = {
   package: ["Gói chụp", chosen],
-  branch: ["Chi nhánh", chosen],
+  room: ["Máy / phòng chụp", chosen],
 };
 
 // Số tờ khách nhận: "2 tờ nhỏ (1 tờ 10 × 15 cắt đôi)" / "2 tờ 10 × 15 cm" / "2 tấm Instax".
@@ -27,17 +27,17 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
   const { packages = [], rooms = [], settings = {} } = useStudio();
   // Gói photobooth và layout Polaroid đang bán (layout Polaroid chỉ 1 ảnh / 3 phút hoặc 2 ảnh / 5 phút).
   const counterPackages = packages.filter((p) => p.active !== false && (!isPolaroid(p) || polaroidLayout(p.selectCount)));
-  // Chi nhánh có phòng đúng loại của gói (đang hoạt động) để khách nhập mã.
-  const branchesFor = (pack) => [...new Set(rooms
-    .filter((r) => r.active !== false && roomKind(r) === (isPolaroid(pack) ? "polaroid" : "photobooth"))
-    .map((r) => r.branch).filter(Boolean))]
-    .filter((name) => !assignedBranch || name === assignedBranch);
+  // Mã lấy chi nhánh từ phòng trên máy chủ; nhân viên chỉ chọn máy phù hợp với gói.
+  const roomsFor = (pack) => rooms.filter((r) => r.active !== false &&
+    roomKind(r) === (isPolaroid(pack) ? "polaroid" : "photobooth") &&
+    (!assignedBranch || r.branch === assignedBranch) &&
+    (!pack?.branches?.length || pack.branches.includes(r.branch)));
   // Mặc định gói photobooth (bán nhiều nhất); chi nhánh chỉ có phòng Polaroid thì mặc định layout Polaroid.
-  const firstPackage = counterPackages.find((p) => !isPolaroid(p) && branchesFor(p).length)
-    || counterPackages.find((p) => branchesFor(p).length) || counterPackages[0];
+  const firstPackage = counterPackages.find((p) => !isPolaroid(p) && roomsFor(p).length)
+    || counterPackages.find((p) => roomsFor(p).length) || counterPackages[0];
   const [form, setForm] = useState({
     package: firstPackage?._id || "",
-    branch: initialDraft?.branch || branchesFor(firstPackage)[0] || "",
+    room: roomsFor(firstPackage)[0]?._id || "",
     // Khách mua mã ở quầy thường chuyển khoản (trả tiền mặt thì đút vào máy ở phòng đút tiền):
     // tiệm đã nhập tài khoản / QR ngân hàng thì mặc định chuyển khoản, QR hiện ngay.
     paymentMethod: settings.bankAccount || settings.bankQrImage ? "transfer" : "cash",
@@ -77,15 +77,16 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
   const request = useRef(null);
   const lock = useRef(false);
   const pack = packages.find((p) => p._id === form.package);
-  const branches = branchesFor(pack);
+  const eligibleRooms = roomsFor(pack);
+  const selectedRoom = eligibleRooms.find((room) => room._id === form.room) || eligibleRooms[0];
   const layout = isPolaroid(pack) ? polaroidLayout(pack.selectCount) : null;
   const change = (key, value) => {
     setForm((f) => {
       const next = { ...f, [key]: value };
-      // Đổi gói sang loại phòng khác: chọn chi nhánh có phòng đúng loại.
+      // Đổi loại gói: chuyển sang máy phù hợp, không giữ nhầm phòng của gói trước.
       if (key === "package") {
-        const allowed = branchesFor(packages.find((p) => p._id === value));
-        if (!allowed.includes(next.branch)) next.branch = allowed[0] || "";
+        const allowed = roomsFor(packages.find((p) => p._id === value));
+        if (!allowed.some((room) => room._id === next.room)) next.room = allowed[0]?._id || "";
       }
       return next;
     });
@@ -94,9 +95,8 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
   async function create(e) {
     e.preventDefault();
     if (lock.current) return;
-    if (!v.check(form, RULES)) return;
-    if (!branches.includes(form.branch))
-      return toast.warning(`Chi nhánh đã chọn chưa có phòng ${layout ? "Polaroid" : "photobooth"} đang hoạt động. Vui lòng kiểm tra lại.`);
+    const selection = { ...form, room: selectedRoom?._id || "" };
+    if (!v.check(selection, RULES)) return;
     if (quote?.key !== quoteKey || quote.error)
       return toast.warning(
         quote?.error || "Đang tính tiền, vui lòng đợi một chút.",
@@ -105,13 +105,13 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
     setBusy(true);
     setError("");
     try {
-      const fingerprint = JSON.stringify(form);
+      const fingerprint = JSON.stringify(selection);
       if (request.current?.fingerprint !== fingerprint)
         request.current = { fingerprint, key: crypto.randomUUID() };
       const result = await api("/admin/tickets/draft", {
         method: "POST",
         body: {
-          branch: form.branch,
+          room: selectedRoom._id,
           package: form.package,
           expectedTotal: quote.total,
           requestKey: request.current.key,
@@ -178,14 +178,11 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
               <Check size={14} /> Đã nhận {money(ticket.total)}
             </span>
             <p>
-              Chi nhánh dùng mã: <strong>{ticket.branch}</strong>.
-            </p>
-            <p>
               Mời khách vào{" "}
               {ticket.roomName ? (
                 <strong>{ticket.roomName}</strong>
               ) : (
-                "phòng photobooth đang trống trong chi nhánh này"
+                ticket.printSize === "instax" ? "phòng Polaroid đang trống" : "phòng Photobooth đang trống"
               )}{" "}
               và nhập mã này trên màn hình máy chụp.
             </p>
@@ -201,7 +198,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
               bấm <b>“Nhập mã”</b> → nhập 6 số → bắt đầu chụp.
             </p>
             <p className="soft-note">
-              Mã dùng một lần trong 2 giờ từ lúc xác nhận đã thu, tại các phòng photobooth cùng chi nhánh. Chụp xong, máy chụp
+              Mã dùng một lần trong 2 giờ từ lúc xác nhận đã thu. Chụp xong, máy chụp
               hiện mã QR để khách quét nhận ảnh trên điện thoại.
             </p>
             <Button
@@ -228,7 +225,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
         ) : ticket ? (
           <div className="counter-receipt">
             <p>Đã ghi nhận gói <strong>{ticket.packageName}</strong>. Chưa cấp mã cho khách.</p>
-            <p>Chi nhánh dùng mã: <strong>{ticket.branch}</strong>.</p>
+            {ticket.roomName && <p>Máy / phòng chụp: <strong>{ticket.roomName}</strong>.</p>}
             <div className="summary-total"><span>Tiền cần thu</span><strong>{money(ticket.total)}</strong></div>
             <label>
               Thanh toán
@@ -254,7 +251,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
               <p>
                 Chọn gói và tạo phiếu trước. Mã 6 số chỉ xuất hiện sau khi xác nhận đã thu tiền.
               </p>
-              {!branches.length && <ErrorBox error={`Chưa có phòng ${layout ? "Polaroid" : "photobooth"} đang hoạt động trong chi nhánh của bạn cho gói này.`} />}
+              {!eligibleRooms.length && <ErrorBox error={`Chưa có phòng ${layout ? "Polaroid" : "photobooth"} đang hoạt động phù hợp với gói này.`} />}
               <label>
                 Gói chụp
                 <select
@@ -287,19 +284,18 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
                     : `${pack.shots || "—"} lần chụp · ${printsText(pack)}`}
                 </p>
               )}
-              <label>
-                Chi nhánh
-                <select
-                  name="branch"
-                  aria-invalid={Boolean(v.errors.branch)}
-                  value={form.branch}
-                  onChange={(e) => change("branch", e.target.value)}
-                >
-                  <option value="">Chọn chi nhánh</option>
-                  {branches.map((name) => <option key={name} value={name}>{name}</option>)}
-                </select>
-                <FieldError error={v.errors.branch} />
-              </label>
+              {eligibleRooms.length > 1 ? (
+                <label>
+                  Máy / phòng chụp
+                  <select name="room" aria-invalid={Boolean(v.errors.room)} value={selectedRoom?._id || ""}
+                    onChange={(e) => change("room", e.target.value)}>
+                    {eligibleRooms.map((room) => <option key={room._id} value={room._id}>
+                      {room.name}{room.machineCode ? ` · ${room.machineCode}` : ""}
+                    </option>)}
+                  </select>
+                  <FieldError error={v.errors.room} />
+                </label>
+              ) : selectedRoom && <p className="muted">Máy / phòng chụp: <strong>{selectedRoom.name}</strong></p>}
               <label>
                 Thanh toán
                 <select
@@ -343,7 +339,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
                 </strong>
               </div>
               {quote?.key === quoteKey && <ErrorBox error={quote.error} />}
-              <Button className="full" disabled={busy || !branches.length || !counterPackages.length}>
+              <Button className="full" disabled={busy || !selectedRoom || !counterPackages.length}>
                 {busy ? "Đang tạo phiếu…" : "Tạo phiếu chụp"}
               </Button>
             </div>

@@ -4,9 +4,11 @@ Mở **Đơn hàng → In ảnh** để đọc lại dữ liệu của đúng đ
 
 ## Mã chụp trước khi in
 
-Mã cấp ở quầy chỉ dùng một lần tại phòng photobooth **cùng chi nhánh**, trong hai giờ từ lúc xác nhận đã thu tiền. Chọn đúng chi nhánh trước khi tạo phiếu; màn xác nhận và mã đã cấp đều hiển thị chi nhánh dùng mã.
+Mã cấp ở quầy chỉ dùng một lần trong hai giờ từ lúc xác nhận đã thu tiền. **Tạo mã** không còn ô Chi nhánh: chọn gói thì hệ thống tự chọn máy/phòng phù hợp; nếu có nhiều máy phù hợp, chọn theo tên máy. Máy chủ lấy chi nhánh từ phòng đó, không nhận giá trị chi nhánh do form tạo mã gửi lên. Màn xác nhận hiển thị tên phòng.
 
-Danh sách cấp mã chỉ có chi nhánh còn phòng photobooth hoạt động. Chi nhánh chỉ có Polaroid không bán mã DNP; khách Polaroid chọn layout trên máy rồi trả tiền tại quầy. Máy chủ cũng kiểm tra điều này khi tạo phiếu, cấp mã trực tiếp và kích hoạt phiếu.
+Chỉ chọn được máy đang hoạt động, đúng loại gói, thuộc phạm vi tài khoản và áp dụng bảng giá của gói. Gói DNP dùng ở Photobooth; layout Instax dùng ở Polaroid. Cả hai loại đều thanh toán tại quầy, nhận mã rồi nhập trên kiosk. Máy chủ tiếp tục kiểm tra loại phòng và phạm vi sử dụng khi tạo, kích hoạt và nhập mã.
+
+**Quản lý máy → Thêm mới / Chỉnh sửa** cũng không còn ô Chi nhánh / địa chỉ. Sửa máy giữ thông tin nội bộ đang có; thêm máy lấy chi nhánh của tài khoản nếu có, nếu không thì lấy từ máy hiện có (ưu tiên máy đang hoạt động). Tiệm chưa có máy nào dùng giá trị nội bộ “Mặc định”. Các bản in và mã cũ giữ thông tin đã lưu.
 
 Nếu kiosk báo mã thuộc chi nhánh khác, kiểm tra chi nhánh của phiếu và phòng đang gán cho kiosk trong Quản lý máy. Giữ giới hạn chi nhánh khi sửa cấu hình. Mã đã thu tiền nhưng chưa chụp cần đối chiếu đơn cũ trước khi xử lý, tránh tạo thêm đơn đã thu lần hai.
 

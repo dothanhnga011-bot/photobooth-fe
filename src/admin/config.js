@@ -44,7 +44,6 @@ const exceptLayouts = (rules) =>
 export const RESOURCE_RULES = {
   rooms: {
     name: ["Tên phòng", required, maxLength(100)],
-    branch: ["Chi nhánh / địa chỉ", required, maxLength(200)],
     description: ["Mô tả", maxLength(1000)],
   },
   packages: {
@@ -167,7 +166,6 @@ export const ROOM_KIND_NAMES = { photobooth: "Phòng Photobooth", polaroid: "Ph�
 export const definitions = {
   rooms: [
     ["name", "Tên máy / phòng"],
-    ["branch", "Chi nhánh / địa chỉ"],
     // Chỉ chọn khi thêm phòng mới; muốn đổi loại thì ngừng, xoá hẳn rồi thêm lại phòng.
     ["kind", "Loại phòng", "roomKind"],
     ["flip", "Chế độ lật ảnh", "flip"],

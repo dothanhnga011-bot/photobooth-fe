@@ -659,7 +659,7 @@ test("admin keeps inactive rooms, create/edit/deactivate controls, and room edit
   // Hộp sửa phòng không còn loại phòng và thông tin máy (mã, dòng máy, ngày nhập, ngày hết hạn).
   for (const name of [/Photobooth/, /Polaroid/])
     assert.equal(await dialog.getByRole("radio", { name }).count(), 0);
-  for (const label of ["Mã máy", "Dòng máy", "Ngày nhập máy", "Ngày hết hạn"])
+  for (const label of ["Mã máy", "Dòng máy", "Ngày nhập máy", "Ngày hết hạn", "Chi nhánh / địa chỉ"])
     assert.equal(await dialog.getByLabel(label, { exact: true }).count(), 0);
   await dialog
     .getByRole("button", { name: "Lưu thay đổi", exact: true })
@@ -668,7 +668,7 @@ test("admin keeps inactive rooms, create/edit/deactivate controls, and room edit
   await roomRow("Phòng 01 cập nhật").waitFor();
   const mutation = requests.find((entry) => entry.method === "PUT");
   assert.equal(mutation.path, "/api/admin/rooms/room-1");
-  assert.equal(mutation.body.branch, "Chi nhánh Nguyễn Trãi");
+  assert.equal('branch' in mutation.body, false, 'editing a machine leaves its branch on the server');
   assert.equal(mutation.body.name, "Phòng 01 cập nhật");
 
   // "Cài máy chụp" mở thẳng liên kết + QR: loại phòng đã chọn lúc thêm phòng, không chọn lại ở đây.
@@ -711,7 +711,7 @@ test("a new room picks its kind (photobooth / polaroid) right in the add form", 
   await page.getByRole("button", { name: "Thêm mới", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Tên máy / phòng", { exact: true }).fill("Phòng Polaroid");
-  await dialog.getByLabel("Chi nhánh / địa chỉ", { exact: true }).fill("Chi nhánh Nguyễn Trãi");
+  assert.equal(await dialog.getByLabel("Chi nhánh / địa chỉ", { exact: true }).count(), 0);
   const kinds = dialog.getByRole("radiogroup", { name: "Loại phòng" });
   assert.equal(await kinds.getByRole("radio", { name: /Photobooth/ }).isChecked(), true);
   await kinds.getByRole("radio", { name: /Polaroid/ }).check();
@@ -719,6 +719,7 @@ test("a new room picks its kind (photobooth / polaroid) right in the add form", 
   await dialog.waitFor({ state: "hidden" });
   const created = requests.find((entry) => entry.method === "POST" && entry.path === "/api/admin/rooms");
   assert.equal(created.body.kind, "polaroid");
+  assert.equal('branch' in created.body, false, 'new machines get the shop default on the server');
   await roomRow("Phòng Polaroid").getByText(/Phòng Polaroid ·/).waitFor();
   // Hộp sửa phòng đã có không hiện loại phòng (chỉ chọn lúc thêm).
   await page.getByRole("button", { name: "Chỉnh sửa Phòng Polaroid", exact: true }).click();

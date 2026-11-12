@@ -11,6 +11,7 @@ const rooms = [
   {_id:'polaroid',name:'Polaroid',branch:'Bắc Ninh',kind:'polaroid',active:true},
   {_id:'booth',name:'PTB',branch:'HN',kind:'photobooth',active:true},
   {_id:'off',name:'Old booth',branch:'Closed',kind:'photobooth',active:false}];
+if(new URLSearchParams(location.search).has('multi'))rooms.push({_id:'booth-2',name:'PTB 2',branch:'HCM',kind:'photobooth',active:true});
 // Layout Polaroid đang bán (ảnh to: chọn 2 ảnh, 5 phút) đứng trước; gói Instax cũ không có layout thì ẩn.
 const packages = [
   {_id:'polaroid-big',name:'Polaroid đôi',printSize:'instax',price:100000,selectCount:2},
@@ -41,22 +42,30 @@ before(async () => {
 });
 after(async () => { await browser?.close(); await new Promise(resolve => server?.close(resolve)); });
 
-async function mount(branch = "") {
+async function mount(branch = "", multi = false) {
   const page = await browser.newPage();
   page.setDefaultTimeout(8000);
   const requests = [];
+  let draft;
   await page.route("**/api/**", async route => {
     const path = new URL(route.request().url()).pathname, body = route.request().postDataJSON();
     requests.push({path,body});
     if (path.endsWith("/quote")) return route.fulfill({ json:{total:70000} });
-    if (path.endsWith("/draft")) return route.fulfill({ status:201, json:{_id:"draft",branch:body.branch,
-      status:"pending",paid:false,total:70000,packageName:"Gói photobooth",printSize:"strip",prints:1} });
-    if (path.endsWith("/activate")) return route.fulfill({ json:{_id:"draft",code:"123456",branch:"HN",
-      status:"confirmed",paid:true,total:70000,packageName:"Gói photobooth",printSize:"strip",prints:1} });
+    if (path.endsWith("/draft")) {
+      const polaroid = body.room === 'polaroid';
+      draft = {_id:'draft',room:body.room,roomName:polaroid?'Polaroid':body.room==='booth-2'?'PTB 2':'PTB',
+        branch:polaroid?'Bắc Ninh':body.room==='booth-2'?'HCM':'HN',status:'pending',paid:false,total:70000,
+        packageName:polaroid?'Polaroid đôi':'Gói photobooth',printSize:polaroid?'instax':'strip',prints:1};
+      return route.fulfill({status:201,json:draft});
+    }
+    if (path.endsWith("/activate")) return route.fulfill({json:{...draft,code:'123456',status:'confirmed',paid:true}});
     throw new Error(`Unexpected API ${path}`);
   });
   const quoted = page.waitForResponse(response=>response.url().endsWith("/quote"));
-  await page.goto(base + (branch ? `?branch=${encodeURIComponent(branch)}` : ""));
+  const query = new URLSearchParams();
+  if(branch)query.set('branch',branch);
+  if(multi)query.set('multi','1');
+  await page.goto(base + '?' + query);
   await quoted;
   await page.getByRole("heading",{name:"Tạo mã chụp cho khách"}).waitFor();
   return {page,requests};
@@ -65,18 +74,20 @@ async function mount(branch = "") {
 test("the counter defaults to HN photobooth even when a Polaroid-only branch and Instax package come first", async () => {
   const {page,requests} = await mount();
   try {
-    assert.equal(await page.getByRole("combobox",{name:/^Chi nhánh/}).inputValue(),"HN");
-    assert.deepEqual(await page.getByRole("combobox",{name:/^Chi nhánh/}).locator("option").allTextContents(),["Chọn chi nhánh","HN"]);
+    assert.equal(await page.getByRole("combobox",{name:/^Chi nhánh/}).count(),0);
+    await page.getByText('Máy / phòng chụp: PTB',{exact:true}).waitFor();
     assert.equal(await page.getByRole("combobox",{name:/^Gói chụp/}).inputValue(),"strip");
     await page.getByRole("button",{name:"Tạo phiếu chụp",exact:true}).click();
     await page.getByRole("heading",{name:"Chờ xác nhận đã thu"}).waitFor();
-    assert.equal(requests.find(r=>r.path.endsWith("/draft")).body.branch,"HN");
-    await page.getByText("Chi nhánh dùng mã:",{exact:false}).waitFor();
+    const sent = requests.find(r=>r.path.endsWith('/draft')).body;
+    assert.equal(sent.room,'booth');
+    assert.equal('branch' in sent,false,'the server derives the branch from the room');
+    assert.equal(await page.getByText('Chi nhánh dùng mã:',{exact:false}).count(),0);
     await page.getByRole("checkbox").check();
     await page.getByRole("button",{name:"Xác nhận đã thu & hiện mã 6 số"}).click();
     await page.getByRole("heading",{name:"Mã chụp đã sẵn sàng"}).waitFor();
     assert.equal(await page.evaluate(()=>window.issued.branch),"HN");
-    assert.ok((await page.getByText("Chi nhánh dùng mã:",{exact:false}).innerText()).includes("HN"));
+    await page.getByText('PTB',{exact:true}).waitFor();
   } finally { await page.close(); }
 });
 
@@ -85,11 +96,11 @@ test("staff assigned only to a Polaroid branch cannot issue a photobooth code un
   try {
     // Chi nhánh chỉ có phòng Polaroid: mặc định layout Polaroid; đổi sang gói photobooth thì bị chặn.
     assert.equal(await page.getByRole("combobox",{name:/^Gói chụp/}).inputValue(),"polaroid-big");
-    assert.equal(await page.getByRole("combobox",{name:/^Chi nhánh/}).inputValue(),"Bắc Ninh");
+    await page.getByText('Máy / phòng chụp: Polaroid',{exact:true}).waitFor();
     await page.getByRole("combobox",{name:/^Gói chụp/}).selectOption("strip");
-    await page.getByText(/Chưa có phòng photobooth đang hoạt động trong chi nhánh của bạn/).waitFor();
+    await page.getByText(/Chưa có phòng photobooth đang hoạt động phù hợp với gói này/).waitFor();
     assert.equal(await page.getByRole("button",{name:"Tạo phiếu chụp",exact:true}).isDisabled(),true);
-    assert.equal(await page.getByRole("combobox",{name:/^Chi nhánh/}).inputValue(),"");
+    assert.equal(await page.getByRole("combobox",{name:/^Chi nhánh/}).count(),0);
     assert.equal(requests.some(r=>r.path.endsWith("/draft")||r.path.endsWith("/activate")),false);
   } finally { await page.close(); }
 });
@@ -107,13 +118,29 @@ test("the counter sells a Polaroid layout as a code for the Polaroid room (Selfb
     const requoted = page.waitForResponse(response=>response.url().endsWith("/quote"));
     await pack.selectOption("polaroid-big");
     await requoted;
-    // Chi nhánh tự chuyển sang nơi có phòng Polaroid; dòng mô tả nói rõ cách chụp.
-    assert.equal(await page.getByRole("combobox",{name:/^Chi nhánh/}).inputValue(),"Bắc Ninh");
+    // Đổi gói tự chọn phòng Polaroid, không cần chọn chi nhánh.
+    await page.getByText('Máy / phòng chụp: Polaroid',{exact:true}).waitFor();
     await page.getByText("Phòng Polaroid · chọn 2 ảnh · 5 phút chụp, bấm dây không giới hạn · in 1 tấm Instax").waitFor();
     await page.getByRole("button",{name:"Tạo phiếu chụp",exact:true}).click();
     await page.getByRole("heading",{name:"Chờ xác nhận đã thu"}).waitFor();
     const draft = requests.find(r=>r.path.endsWith("/draft")).body;
     assert.equal(draft.package,"polaroid-big");
-    assert.equal(draft.branch,"Bắc Ninh");
+    assert.equal(draft.room,'polaroid');
+    assert.equal('branch' in draft,false);
   } finally { await page.close(); }
+});
+
+test('multiple matching machines are chosen by name; inactive machines and branch inputs stay out of the form',async()=>{
+  const {page,requests}=await mount('',true);
+  try{
+    const room=page.getByRole('combobox',{name:'Máy / phòng chụp'});
+    assert.deepEqual(await room.locator('option').allTextContents(),['PTB','PTB 2']);
+    await room.selectOption('booth-2');
+    await page.getByRole('button',{name:'Tạo phiếu chụp',exact:true}).click();
+    await page.getByRole('heading',{name:'Chờ xác nhận đã thu'}).waitFor();
+    const sent=requests.find(r=>r.path.endsWith('/draft')).body;
+    assert.equal(sent.room,'booth-2');
+    assert.equal('branch' in sent,false);
+    await page.getByText('Máy / phòng chụp: PTB 2.',{exact:true}).waitFor();
+  }finally{await page.close();}
 });

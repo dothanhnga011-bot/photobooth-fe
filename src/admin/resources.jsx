@@ -261,6 +261,7 @@ export function ResourceManager({ resource, notify, me }) {
     setBusy(true);
     try {
       const body = { ...(resource === "packages" ? polaroidPackage(edit) : edit) };
+      if (resource === "rooms") delete body.branch;
       if (!body.password) delete body.password;
       if (resource === "users" && body.role !== "staff") delete body.permissions;
       await api(`/admin/${resource}${edit._id ? `/${edit._id}` : ""}`, {
@@ -321,7 +322,7 @@ export function ResourceManager({ resource, notify, me }) {
       await api(`/admin/rooms/${item._id}`, {
         method: "PUT",
         body: {
-          name: item.name, branch: item.branch, description: item.description || "",
+          name: item.name, description: item.description || "",
           flip: item.flip || "device", kind: item.kind || "photobooth", active: true,
         },
       });
