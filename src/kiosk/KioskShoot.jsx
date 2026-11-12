@@ -72,6 +72,8 @@ const clock = (s) =>
 // count (đếm ngược), onSnap, onToggle }.
 // classic: phòng Polaroid (như Selfbooth) — màn ngang chia 2/3 hình trực tiếp (thấy đủ khung hình),
 // 1/3 cột giấy be viền hoa văn: đồng hồ, ảnh vừa chụp phóng to, dải ảnh đã chụp, nút Chụp xong.
+// minShots: số ảnh layout cần — chưa đủ thì chưa bấm "Chụp xong" được (lỡ tay bấm sớm thì layout 2 ảnh
+// thành 1 ảnh, khung 4 ô phải lặp ảnh). Hết giờ vẫn chuyển sang chọn ảnh với số ảnh đã có.
 export function KioskShoot({
   videoRef,
   zoom,
@@ -92,8 +94,10 @@ export function KioskShoot({
   canvasPreview = false,
   mirror = false,
   classic = false,
+  minShots = 1,
 }) {
   const portrait = usePortrait();
+  const enough = taken >= Math.max(1, minShots);
   const showLatest = portrait || classic;
   const shooting = phase === "shoot" && !ending;
   const full = Boolean(quota) && taken >= quota;
@@ -234,11 +238,11 @@ export function KioskShoot({
           </ol>
           {phase === "shoot" && !ending && (
             <div className="shoot-end-wrap">
-              <button type="button" className="shoot-end" onClick={onEnd} disabled={!taken} aria-label="Chụp xong, chọn ảnh">
+              <button type="button" className="shoot-end" onClick={onEnd} disabled={!enough} aria-label="Chụp xong, chọn ảnh">
                 <PiCheckBold aria-hidden="true" />
                 <span>Chụp xong</span>
               </button>
-              {!taken && <small>Chụp ít nhất 1 tấm</small>}
+              {!enough && <small>Chụp ít nhất {Math.max(1, minShots)} tấm</small>}
             </div>
           )}
       </aside>

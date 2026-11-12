@@ -434,7 +434,8 @@
   }
   .shoot-screen.is-classic .shoot-end {
     width: 100%;
-    min-height: 58px;
+    /* Nút chính trên màn cảm ứng: tối thiểu 64 px như mọi nút máy chụp (mellow-theme.css). */
+    min-height: 64px;
     border: 1px solid var(--classic-gold);
     border-radius: 8px;
     background: var(--mellow-cocoa);

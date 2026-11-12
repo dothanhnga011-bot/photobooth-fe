@@ -262,8 +262,15 @@ for (const count of [1, 2]) test(`Polaroid accepts 12 Canon JPEGs beyond its leg
     assert.equal(await b.page.locator('.shoot-thumbs .shoot-thumb-no').count(), 0, 'HDMI is preview only');
     assert.equal(await b.page.getByRole("button", { name: "Chạm để chụp" }).count(), 0);
     assert.equal(await b.page.getByText("Nhấn nút trên dây bấm để chụp").count(), 0);
+    // "Chụp xong" chỉ bấm được khi đã đủ số ảnh của layout (layout 2 ảnh: 1 tấm chưa đủ).
+    const end = b.page.getByRole("button", { name: "Chụp xong, chọn ảnh" });
+    assert.equal(await end.isDisabled(), true);
+    await b.page.getByText(`Chụp ít nhất ${count} tấm`).waitFor();
+    await b.page.evaluate(() => window.deliverCanonPhoto(1));
+    await b.page.waitForFunction(() => document.querySelectorAll('.shoot-thumbs .shoot-thumb-no').length === 1, null, { timeout: 15000 });
+    assert.equal(await end.isDisabled(), count > 1);
     await b.page.evaluate(async () => {
-      for (let i = 1; i <= 12; i++) await window.deliverCanonPhoto(i);
+      for (let i = 2; i <= 12; i++) await window.deliverCanonPhoto(i);
     });
     await b.page.waitForFunction(() => document.querySelectorAll('.shoot-thumbs .shoot-thumb-no').length === 12, null, { timeout: 30000 });
     assert.equal(await b.page.locator('.shoot-screen.phase-shoot').count(), 1, 'does not auto-finish at the legacy quota');

@@ -106,7 +106,7 @@ async function openKiosk(room, handlers = {}, { sale = null } = {}) {
   return { page, errors };
 }
 
-test("photobooth room: touch → pay by code → enter the code from the counter → straight to the shoot screen", async () => {
+test("photobooth room: touch → pay by code → the 6th digit checks the code by itself → straight to the shoot screen", async () => {
   const claims = [];
   const { page, errors } = await openKiosk({ _id: "room-1", flip: "device", kind: "photobooth" }, {
     "/kiosk/claim": (route, body) => {
@@ -119,13 +119,13 @@ test("photobooth room: touch → pay by code → enter the code from the counter
     await page.getByRole("heading", { name: "Chọn cách thanh toán" }).waitFor();
     await page.getByRole("button", { name: /Nhập mã/ }).click();
     await page.getByRole("heading", { name: "Nhập mã chụp" }).waitFor();
+    // Gõ đủ 6 số là máy tự kiểm tra mã (không cần bấm "Bắt đầu chụp"); mã sai thì xoá để nhập lại.
     await page.getByRole("textbox", { name: "Mã chụp" }).fill("000000");
-    await page.getByRole("button", { name: "Bắt đầu chụp" }).click();
     await page.getByText("Mã chụp không đúng.").first().waitFor();
     assert.equal(await page.getByRole("textbox", { name: "Mã chụp" }).inputValue(), "");
-    await page.getByRole("textbox", { name: "Mã chụp" }).fill("123456");
-    await page.getByRole("button", { name: "Bắt đầu chụp" }).click();
+    for (const digit of "123456") await page.getByRole("button", { name: digit, exact: true }).click();
     await page.locator(".shoot-screen").waitFor();
+    // Mỗi mã chỉ gửi một lần.
     assert.deepEqual(claims.map((c) => c.code), ["000000", "123456"]);
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
@@ -240,14 +240,12 @@ test("polaroid room (Selfbooth model): touch → enter the code bought at the co
     await page.getByRole("button", { name: "Chạm để bắt đầu" }).click();
     await page.getByRole("heading", { name: "Nhập mã Polaroid" }).waitFor();
     await page.getByRole("textbox", { name: "Mã chụp" }).fill("123456");
-    await page.getByRole("button", { name: "Bắt đầu chụp" }).click();
     await page.getByText("Mã này dành cho phòng Photobooth").first().waitFor();
     await page.setViewportSize({ width: 1024, height: 600 });
     const submitBottom = await page.locator('.code-card button[type=submit]').evaluate(button => button.getBoundingClientRect().bottom);
     assert.ok(submitBottom <= 600, 'an invalid code must not push the submit button below the kiosk screen');
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.getByRole("textbox", { name: "Mã chụp" }).fill("654321");
-    await page.getByRole("button", { name: "Bắt đầu chụp" }).click();
     // Màn chụp như Selfbooth: hình trực tiếp, cột bên có đồng hồ và ô ảnh vừa chụp.
     await page.locator(".shoot-screen.is-classic.phase-shoot").waitFor();
     assert.equal(await page.locator(".shoot-rail .shoot-latest").count(), 1);

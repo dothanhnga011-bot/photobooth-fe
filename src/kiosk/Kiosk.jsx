@@ -1487,6 +1487,7 @@ export function Kiosk() {
           canvasPreview={lowPower}
           mirror={mirror}
           classic={polaroid}
+          minShots={shotQuota ? Math.min(selectCount, shotQuota) : selectCount}
         />
         {error && !(error === CAMERA_ERROR && !ready) && (
           <div className="shoot-error">

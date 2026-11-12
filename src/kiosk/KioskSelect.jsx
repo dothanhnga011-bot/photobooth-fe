@@ -657,7 +657,7 @@ export function KioskSelect({
         <div className="select-preview">
           {frame ? (
             <div className="select-frame-stage">
-              <button type="button" className="frame-arrow" aria-label="Khung trước" onClick={() => move(-1)} disabled={frames.length < 2}>
+              <button type="button" className={`frame-arrow${frames.length < 2 ? " is-single" : ""}`} aria-label="Khung trước" onClick={() => move(-1)} disabled={frames.length < 2}>
                 <PiArrowLeftBold />
               </button>
               <DecorStage
@@ -689,7 +689,7 @@ export function KioskSelect({
                 onDraft={setDraft}
                 onCommit={saveStickers}
               />
-              <button type="button" className="frame-arrow" aria-label="Khung sau" onClick={() => move(1)} disabled={frames.length < 2}>
+              <button type="button" className={`frame-arrow${frames.length < 2 ? " is-single" : ""}`} aria-label="Khung sau" onClick={() => move(1)} disabled={frames.length < 2}>
                 <PiArrowRightBold />
               </button>
             </div>

@@ -317,6 +317,17 @@ test("the frame hint uses admin text and arrow navigation still switches frames"
   } finally { await page.close(); }
 });
 
+test("with a single frame (a Polaroid layout) the frame arrows are hidden: there is nothing to switch", async () => {
+  const { page, errors } = await selectScreen({ query: "?frames=1" });
+  try {
+    await page.locator(".select-frame-stage").waitFor();
+    const arrows = page.locator(".frame-arrow");
+    assert.equal(await arrows.count(), 2);
+    assert.deepEqual(await arrows.evaluateAll((list) => list.map((b) => getComputedStyle(b).visibility)), ["hidden", "hidden"]);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
 test("the Khung tab shows every frame with the guest's photos; tapping one switches the big preview", async () => {
   const { page, errors } = await selectScreen({ viewport: { width: 1920, height: 1080 } });
   try {

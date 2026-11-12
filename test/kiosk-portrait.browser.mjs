@@ -87,6 +87,9 @@ const fixture = `
       case 'polaroid-code': return <KioskCode code={code} setCode={setCode} onSubmit={(e) => e.preventDefault()} onBack={none}
         busy={false} error="" device="fixture-device" cameraReady={true} polaroid />;
       case 'polaroid-shoot': return <Shoot />;
+      case 'polaroid-done': return <KioskDone left={90} pending={0} nextGuest={none} done={{
+        composite: picture(1800, 1200, ['#c98f7a', '#8fb3c9']), url: 'https://mellowptb.com/album/fixture',
+        code: '123456', prints: 1, print: { status: 'printing' }, printSize: 'instax', framed: true }} />;
       case 'done': return <KioskDone left={90} pending={0} nextGuest={none} done={{
         composite: picture(1200, 1800, ['#f07aa0', '#dc1e1e', '#f07aa0', '#dc1e1e']), url: 'https://mellowptb.com/album/fixture',
         code: '123456', prints: 2, print: { status: 'printing' }, printSize: 'strip', framed: true, video: null, videoPending: true }} />;
@@ -239,7 +242,9 @@ test("polaroid room: the code screen replaces the layout picker (classic card, b
   assert.ok(m.box.minHeight >= 96, `ô mã cao ${m.box.minHeight} px`);
   assert.equal(m.corner.count, 4);
   assert.equal(m.fleuron.count, 1);
-  footOk(m, 1);
+  // "Quay lại" của phòng Polaroid là nút phụ dạng chữ (giao diện cổ điển), vẫn đủ lớn để chạm.
+  assert.equal(m.foot.count, 1);
+  assert.ok(m.foot.minHeight >= 44, `nút Quay lại cao ${m.foot.minHeight} px`);
   const wide = await portrait("polaroid-code", { key: ".voucher-keypad button", corner: ".code-card .ornament-corner" }, { width: 1920, height: 1080 });
   assert.equal(wide.pageScrolls, false);
   assert.equal(wide.corner.count, 4);
@@ -258,7 +263,7 @@ test("polaroid shoot, landscape: live view 2/3, a classic side panel 1/3 with th
   assert.equal(m.latest.count, 1);
   assert.ok(m.latest.minWidth >= 480 && m.latest.minHeight >= 300, JSON.stringify(m.latest));
   assert.deepEqual([m.thumbs.count, m.thumbs.rows], [3, 1]);
-  assert.ok(m.end.minHeight >= 60, `nút Chụp xong cao ${m.end.minHeight} px`);
+  assert.ok(m.end.minHeight >= 64, `nút Chụp xong cao ${m.end.minHeight} px`);
   assert.equal(m.corner.count, 8, "bốn góc quanh hình trực tiếp, bốn góc quanh cột ảnh");
 });
 
@@ -268,6 +273,15 @@ test("polaroid shoot, portrait: live view on top, the latest photo below", async
   assert.ok(m.live.minWidth >= 1070, JSON.stringify(m.live));
   assert.ok(m.latest.minHeight >= 600, JSON.stringify(m.latest));
   assert.ok(m.end.minHeight >= 56, `nút Chụp xong cao ${m.end.minHeight} px`);
+});
+
+test("polaroid QR screen, landscape: no video, so the composite and the QR code fill the screen", async () => {
+  const m = await portrait("polaroid-done", { qr: ".done-qr svg", photo: ".done-card img", cards: ".done-card", foot: FOOT },
+    { width: 1920, height: 1080 });
+  assert.equal(m.pageScrolls, false);
+  assert.deepEqual([m.cards.count, m.cards.rows], [2, 1]);
+  assert.ok(m.qr.minWidth >= 440, `mã QR rộng ${m.qr.minWidth} px`);
+  assert.ok(m.photo.minWidth >= 560, `ảnh ghép rộng ${m.photo.minWidth} px`);
 });
 
 test("QR screen: the message on top, a big QR code, then the composite and the video", async () => {
