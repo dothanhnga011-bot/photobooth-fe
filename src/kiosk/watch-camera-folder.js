@@ -6,6 +6,7 @@ import {
   listCameraFiles,
   RAW_ONLY_MESSAGE,
 } from "./folder.js";
+import { toLocalTime } from "./server-clock.js";
 
 const CROWDED = 300;
 
@@ -22,11 +23,13 @@ export function watchCameraFolder({
   let stopped = false,
     timer,
     first = true;
-  // Chỉ lấy ảnh chụp trong phiên này (bỏ ảnh cũ trong thư mục, ảnh chụp sau khi hết giờ).
+  // Chỉ lấy ảnh chụp trong phiên này (bỏ ảnh cũ trong thư mục, ảnh chụp sau khi hết giờ). Giờ phiên là
+  // giờ máy chủ; giờ sửa tệp ảnh là giờ máy này — đổi về cùng một đồng hồ (mini PC chạy nhanh vài phút thì
+  // trước đây ảnh những phút cuối bị bỏ).
   const since =
-    Math.min(Date.now(), new Date(booking.captureStartedAt).getTime()) -
+    Math.min(Date.now(), toLocalTime(booking.captureStartedAt)) -
     2000;
-  const until = new Date(booking.captureEndsAt).getTime() + 5000;
+  const until = toLocalTime(booking.captureEndsAt) + 5000;
   const known = new Map();
   // Tệp RAW mới chưa có JPEG cùng tên: máy ảnh có thể đang để chỉ chụp RAW.
   const raws = new Map();

@@ -74,6 +74,7 @@ import { checkDirectPrinter } from "./direct-print.js";
 import { KioskEntry } from "./KioskEntry.jsx";
 import { KioskSettings } from "./KioskSettings.jsx";
 import { KioskShoot, useObjectUrl } from "./KioskShoot.jsx";
+import { noteServerTime, serverNow } from "./server-clock.js";
 import { KioskSelect, useShotBitmaps } from "./KioskSelect.jsx";
 import { NO_DECOR, filterChoices, filterStepsFor, photoFilterId } from "./decor.js";
 import { KioskCode, KioskPackages, KioskPayChoice, KioskPayment, KioskPrintCount } from "./KioskSale.jsx";
@@ -559,11 +560,13 @@ export function Kiosk() {
   }
   async function start(s) {
     try {
+      const sentAt = Date.now();
       const result = await api("/kiosk/start", {
         method: "POST",
         retry: 1,
         body: { captureToken: s.captureToken },
       });
+      noteServerTime(result.serverTime, sentAt, Date.now());
       if (!canApplyKioskState(s, current.current, {
         active: alive.current && !doneRef.current,
         finishing: finishing.current,
@@ -1300,10 +1303,12 @@ export function Kiosk() {
   useEffect(() => {
     if (!session?.booking.captureEndsAt || phase !== "shoot" || done) return;
     let stopped = false;
+    // Giờ kết thúc theo giờ máy chủ, so với giờ máy chủ (đã bù đồng hồ lệch của máy này): gói 10 phút
+    // luôn bắt đầu từ 10:00 dù mini PC chạy nhanh / chậm.
     const clock = () => {
       const secondsLeft = Math.max(
         0,
-        Math.ceil((new Date(current.current.booking.captureEndsAt) - Date.now()) / 1000),
+        Math.ceil((new Date(current.current.booking.captureEndsAt) - serverNow()) / 1000),
       );
       setRemaining(secondsLeft);
       if (!secondsLeft) endCapture(true);
@@ -1318,11 +1323,13 @@ export function Kiosk() {
       });
       if (!s || !isCurrent()) return;
       try {
+        const sentAt = Date.now();
         const result = await api("/kiosk/state", {
           method: "POST",
           timeout: 10000,
           body: { captureToken: s.captureToken, diag: kioskDiag() },
         });
+        noteServerTime(result.serverTime, sentAt, Date.now());
         if (isCurrent()) update({ ...s, booking: result.booking });
         if (!stopped && alive.current && sameKioskSession(s, current.current)) sync();
       } catch (e) {

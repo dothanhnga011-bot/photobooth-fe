@@ -1,4 +1,5 @@
 import { isConnectivityError } from "../network.js";
+import { serverNow } from "./server-clock.js";
 
 // Keep a slow request in flight instead of starting it again on each timer tick.
 // Callers share the running promise; missed ticks do not queue stale callbacks.
@@ -78,7 +79,8 @@ export function mergeKioskFinish(current, response) {
   return { ...response, photos: [...photos.values()].sort((a, b) => a.number - b.number) };
 }
 
-export function kioskPhotoPath(session, now = Date.now()) {
+// now: giờ máy chủ (đã bù đồng hồ lệch của máy chụp — server-clock.js).
+export function kioskPhotoPath(session, now = serverNow()) {
   if (session.booking.status === "completed")
     return `/albums/${session.accessToken}/photos`;
   // Let finish confirm the completed state before retrying the remaining rows.

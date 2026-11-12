@@ -254,3 +254,27 @@ test("polaroid room (Selfbooth model): touch → enter the code bought at the co
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });
+
+test("the shoot timer shows the package's time even when the booth PC clock is 3 minutes slow", async () => {
+  // Máy chủ chạy trước máy chụp 3 phút. Gói 5 phút: đồng hồ phải bắt đầu từ 05:00 (trước đây hiện 08:00).
+  const skew = 3 * 60000;
+  const polaroidBooking = { ...booking, packageName: "Polaroid đôi", printSize: "instax", selectCount: 2, prints: 1, captureDuration: 5 };
+  let started = null;
+  const startedBooking = () => (started ??= { ...polaroidBooking,
+    captureStartedAt: new Date(Date.now() + skew).toISOString(),
+    captureEndsAt: new Date(Date.now() + skew + 5 * 60000).toISOString() });
+  const { page, errors } = await openKiosk({ _id: "room-1", flip: "device", kind: "polaroid" }, {
+    "/kiosk/claim": (route) => route.fulfill({ json: { booking: polaroidBooking, captureToken: "fixture-capture", accessToken: "fixture-album" } }),
+    "/kiosk/start": (route) => route.fulfill({ json: { booking: startedBooking(), serverTime: Date.now() + skew } }),
+    "/kiosk/state": (route) => route.fulfill({ json: { booking: startedBooking(), serverTime: Date.now() + skew } }),
+  });
+  try {
+    await page.getByRole("heading", { name: "Nhập mã Polaroid" }).waitFor();
+    await page.getByRole("textbox", { name: "Mã chụp" }).fill("654321");
+    await page.locator(".shoot-screen.phase-shoot").waitFor();
+    await page.waitForTimeout(1200);
+    const shown = await page.locator(".shoot-timer strong").innerText();
+    assert.ok(["05:00", "04:59", "04:58", "04:57"].includes(shown), `timer ${shown}`);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
