@@ -16,7 +16,8 @@ const plain = (value) =>
 // Phân quyền truy cập chức năng của nhân viên (như trang Tài khoản của Snapbox).
 function PermissionsField({ value, onChange }) {
   const [query, setQuery] = useState("");
-  const selected = value ?? DEFAULT_STAFF_PERMISSIONS;
+  // Bỏ quyền đã ngừng dùng (vd. ca trực) mà tài khoản cũ còn lưu: không đếm, không gửi lại.
+  const selected = (value ?? DEFAULT_STAFF_PERMISSIONS).filter((key) => ALL_PERMISSIONS.includes(key));
   const toggle = (key) =>
     onChange(selected.includes(key) ? selected.filter((k) => k !== key) : [...selected, key]);
   const groups = PERMISSION_GROUPS.map(([group, items]) => [

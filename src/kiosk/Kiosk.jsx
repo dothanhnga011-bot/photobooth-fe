@@ -86,8 +86,13 @@ const NET_SLOTS = ["poll", "sync", "start", "finish"];
 const PING_MS = 60_000;
 // Thời gian chuẩn bị trước khi khách bấm dây, chọn ảnh & khung.
 const READY_SECONDS = 3;
-// Chọn ảnh, màu ảnh và nhãn dán trên cùng một màn.
+// Chọn ảnh, màu ảnh và nhãn dán trên cùng một màn: quản trị đặt thời gian ở Thiết lập → Chữ trên máy
+// chụp (settings.selectSeconds, 30–900 giây); chưa đặt thì 150 giây.
 const SELECT_SECONDS = 150;
+const selectSecondsOf = (settings) => {
+  const value = Number(settings?.selectSeconds);
+  return Number.isInteger(value) && value >= 30 && value <= 900 ? value : SELECT_SECONDS;
+};
 const SALE_KEY = "kiosk-sale";
 // Phòng của máy chụp đọc ngay từ liên kết cài máy (phần giữa của mã), trước khi máy chủ trả lời.
 function deviceRoom(token) {
@@ -1050,7 +1055,7 @@ export function Kiosk() {
         ...live,
         phase: "select",
         selected: [],
-        selectEndsAt: Date.now() + SELECT_SECONDS * 1000,
+        selectEndsAt: Date.now() + selectSecondsOf(settings) * 1000,
       }), "zoom");
       if (expired) toast.info("Đã hết thời gian chụp — mời bạn chọn ảnh.");
     } finally {

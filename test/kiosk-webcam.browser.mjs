@@ -36,7 +36,9 @@ const fixture = `
   const frames = new URLSearchParams(location.search).has('frames') ? [frame('f1'), frame('f2')] : [];
   createRoot(document.getElementById('root')).render(React.createElement(React.StrictMode, null,
     React.createElement(MemoryRouter, { initialEntries: ['/kiosk?device=fixture-device'] },
-      React.createElement(StudioContext.Provider, { value: { settings: {}, packages: [], frames } },
+      // ?select=45: quản trị đặt thời gian chọn ảnh 45 giây (Thiết lập → Chữ trên máy chụp).
+      React.createElement(StudioContext.Provider, { value: { settings: new URLSearchParams(location.search).has('select')
+        ? { selectSeconds: Number(new URLSearchParams(location.search).get('select')) } : {}, packages: [], frames } },
         React.createElement(ToastProvider, null, React.createElement(Kiosk))))));
 `;
 
@@ -188,7 +190,7 @@ test("frame images load while the guest is still shooting, so the Khung tab is r
 });
 
 test("in webcam test mode the Space key counts down, takes a photo from the webcam and it can be chosen", async () => {
-  const b = await booth(fakeCamera, { webcam: true });
+  const b = await booth(fakeCamera, { webcam: true, query: "?select=45" });
   try {
     await liveReady(b.page);
     await b.page.keyboard.press("Space");
@@ -208,6 +210,8 @@ test("in webcam test mode the Space key counts down, takes a photo from the webc
     }
     await b.page.getByRole("button", { name: "Chụp xong, chọn ảnh" }).click();
     await b.page.getByRole("heading", { name: /để chọn ảnh/ }).waitFor({ timeout: 20000 });
+    // Thời gian chọn ảnh theo cài đặt của quản trị (45 giây), không phải 150 giây mặc định.
+    assert.match(await b.page.getByRole("heading", { name: /để chọn ảnh/ }).innerText(), /Bạn có 4[2-5]s để chọn ảnh/);
     const picks = b.page.getByRole("group", { name: "Ảnh đã chụp" }).getByRole("button");
     await picks.first().waitFor();
     assert.equal(await picks.count(), 1);

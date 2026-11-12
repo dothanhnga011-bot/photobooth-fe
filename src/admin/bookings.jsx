@@ -212,7 +212,7 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
       {hasFilters && <Button className="outline small" onClick={resetFilters}><X size={15} /> Xóa bộ lọc</Button>}
       <Button onClick={() => setCreating(true)}><Plus size={15} /> Tạo đơn</Button>
     </div>
-    <p className="order-limit-note">Lịch sử đơn và ảnh chỉ lưu 3 ngày. Tổng thu chi của các ngày cũ vẫn có trong Thống kê doanh thu và Đối soát.</p>
+    <p className="order-limit-note">Lịch sử đơn và ảnh chỉ lưu 3 ngày. Tổng thu chi của các ngày cũ vẫn có trong Thống kê doanh thu.</p>
     <div className="order-summary" aria-live="polite">
       <span><small>Đơn phù hợp</small><strong>{filtered.length}</strong></span>
       {canSeeMoney && <>

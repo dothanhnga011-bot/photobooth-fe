@@ -518,7 +518,8 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
                           {item.role === "admin"
                             ? "Tài khoản chủ cửa hàng · toàn quyền"
                             : `Nhân viên${item.branch ? ` · ${item.branch}` : ""} · ${
-                                (item.permissions ?? DEFAULT_STAFF_PERMISSIONS).length
+                                // Chỉ đếm quyền còn tồn tại (tài khoản cũ có thể còn lưu quyền đã bỏ).
+                                (item.permissions ?? DEFAULT_STAFF_PERMISSIONS).filter((p) => PERMISSION_LABELS[p]).length
                               } quyền`}
                         </small>
                         {item.role === "staff" && (

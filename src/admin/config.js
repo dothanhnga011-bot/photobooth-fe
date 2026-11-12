@@ -5,7 +5,6 @@ import {
   Package,
   Image,
   Settings2,
-  Scale,
   ChartColumn,
   Monitor,
   Layers,
@@ -107,7 +106,6 @@ export const NAV_TREE = [
     ["kiosk-texts", "Chữ trên máy chụp", Type],
   ]],
   ["users", "Tài khoản", Users],
-  ["reconciliation", "Đối soát", Scale],
   // Trợ lí Minh: dung lượng kho ảnh, ảnh từng khách, dọn ảnh hết hạn.
   ["storage", "Dung lượng ảnh", AssistantAvatar],
 ];
@@ -120,16 +118,15 @@ export const HIDDEN_PAGES = [];
 
 // Quyền cấp cho nhân viên (Tài khoản → Phân quyền), nhóm theo mục lục. Máy chủ kiểm tra lại.
 export const PERMISSION_GROUPS = [
-  ["1. Tổng quan", [["revenue:view", "Xem doanh thu, thống kê doanh thu & đối soát tháng"]]],
+  ["1. Tổng quan", [["revenue:view", "Xem doanh thu và thống kê doanh thu"]]],
   ["2. Đơn hàng", [
     ["orders:export", "Xuất danh sách đơn hàng ra file Excel/CSV"],
     ["orders:cancel", "Hủy đơn đã thu tiền"],
     ["print:operate", "In lại ảnh, bán thêm tờ in, đánh dấu đã in"],
   ]],
   ["3. Quản lý máy", [["rooms:setup", "Cài máy chụp cho phòng (liên kết / QR)"]]],
-  ["6. Đối soát", [["shift:operate", "Mở ca, đóng ca và đếm tiền"]]],
 ];
-export const DEFAULT_STAFF_PERMISSIONS = ["orders:export", "print:operate", "shift:operate", "rooms:setup"];
+export const DEFAULT_STAFF_PERMISSIONS = ["orders:export", "print:operate", "rooms:setup"];
 // Quản trị viên có mọi quyền; nhân viên theo quyền máy chủ trả về khi đăng nhập.
 export const can = (user, permission) =>
   user?.role === "admin" || Boolean(user?.permissions?.includes(permission));
@@ -140,7 +137,6 @@ export const STAFF_PAGES = (user) => [
   "bookings",
   "storage",
   "rooms",
-  "reconciliation",
 ];
 
 export const NAV_DESCRIPTIONS = {
@@ -156,9 +152,8 @@ export const NAV_DESCRIPTIONS = {
   stickers: "Nhãn dán khách dán lên khung ở màn chọn ảnh của máy chụp.",
   filters: "Màu ảnh khách chọn ở màn chọn ảnh của máy chụp: bộ lọc có sẵn và filter riêng của tiệm.",
   "rx1-output": "Chỉnh độ tối và độ nét bản in RX1; lưu trên web để các máy in tự nhận.",
-  "kiosk-texts": "Sửa chữ trên màn hình máy chụp: phòng photobooth, phòng Polaroid và các màn chung.",
+  "kiosk-texts": "Thời gian khách chọn ảnh và chữ trên màn hình máy chụp: phòng photobooth, phòng Polaroid và các màn chung.",
   users: "Tài khoản nhân viên, chi nhánh phụ trách và phân quyền truy cập.",
-  reconciliation: "Mở, đóng ca và đối soát tiền theo ca, theo tháng và từng chi nhánh.",
 };
 
 // Loại hình chụp của phòng: chọn ở bước đầu của "Cài máy chụp" (Quản lý máy), trước khi lấy liên

@@ -48,7 +48,7 @@ const roomFixtures = [
   },
 ];
 const deviceToken = "fixture-device.token_01-keep";
-const defaultStaffPermissions = ["orders:export", "print:operate", "shift:operate", "rooms:setup"];
+const defaultStaffPermissions = ["orders:export", "print:operate", "rooms:setup"];
 let staffPermissions = defaultStaffPermissions;
 let server;
 let browser;
@@ -174,11 +174,7 @@ before(async () => {
         send({ now: Date.now(), rooms: [] });
         return;
       }
-      // Trang mở đầu (Tổng hợp) cũng đọc ca trực và số liệu tổng hợp.
-      if (path === "/api/admin/shifts") {
-        send({ current: null, recent: [] });
-        return;
-      }
+      // Trang mở đầu (Tổng hợp) cũng đọc số liệu tổng hợp.
       if (path === "/api/admin/stats/summary") {
         send({
           revenue: 0, previousRevenue: 0, revenueGrowth: null,
@@ -343,7 +339,6 @@ test("staff can access active rooms and branches without room administration con
     "Tổng hợp",
     "Đơn hàng",
     "Quản lý máy",
-    "Đối soát",
     "Dung lượng ảnh",
   ]);
   assert.equal(await nav.getByRole("group").count(), 1);
@@ -392,7 +387,6 @@ test("a receptionist's menu and room buttons follow the permissions the server g
     "Thống kê doanh thu",
     "Đơn hàng",
     "Quản lý máy",
-    "Đối soát",
     "Dung lượng ảnh",
   ]);
   await openRooms();

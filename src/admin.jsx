@@ -15,7 +15,6 @@ import { StickersManager } from "./admin/stickers";
 import { FiltersManager } from "./admin/filters";
 import { KioskTextsManager } from "./admin/kiosk-texts";
 import { Rx1OutputManager } from "./admin/rx1-output.jsx";
-import { Reconciliation } from "./admin/reconciliation";
 import { useAdminSession } from "./admin/use-admin-session";
 import { LoginPage, PasswordDialog } from "./admin/auth";
 import { StorageMonitorProvider } from "./admin/storage-monitor";
@@ -157,7 +156,6 @@ export function Admin() {
               <Overview
                 notify={notify}
                 canSeeMoney={canSeeMoney}
-                canOperateShift={can(user, "shift:operate")}
                 assignedBranch={user.branch}
               />
             ) : currentTab === "statistics" ? (
@@ -193,13 +191,6 @@ export function Admin() {
               <KioskTextsManager notify={notify} />
             ) : currentTab === "rx1-output" ? (
               <Rx1OutputManager notify={notify} />
-            ) : currentTab === "reconciliation" ? (
-              <Reconciliation
-                assignedBranch={user.branch}
-                notify={notify}
-                canSeeMoney={canSeeMoney}
-                canOperate={can(user, "shift:operate")}
-              />
             ) : definitions[currentTab] ? (
               <ResourceManager
                 key={currentTab}

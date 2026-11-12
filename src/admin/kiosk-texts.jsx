@@ -4,8 +4,74 @@ import { api } from "../api";
 import { Button, ErrorBox, useStudio, useToast } from "../studio";
 import { KIOSK_TEXT_GROUPS } from "../kiosk/kiosk-texts.js";
 
-// Thiết lập → Chữ trên máy chụp: mọi dòng chữ chính trên màn hình máy chụp (photobooth và Polaroid).
-// Ô để trống = dùng chữ mặc định (hiện mờ trong ô). {n}, {s}: chỗ máy chụp điền số.
+// Thời gian khách chọn ảnh & trang trí sau khi chụp xong (giây). Máy chụp đọc settings.selectSeconds.
+const SELECT_DEFAULT = 150;
+const SELECT_PRESETS = [90, 120, 150, 180, 240, 300];
+const duration = (seconds) => {
+  const minutes = Math.floor(seconds / 60), rest = seconds % 60;
+  return [minutes && `${minutes} phút`, rest && `${rest} giây`].filter(Boolean).join(" ");
+};
+function SelectTime({ notify }) {
+  const toast = useToast();
+  const { reload } = useStudio();
+  const [saved, setSaved] = useState(null);
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    api("/admin/settings").then((settings) => {
+      const seconds = Number(settings.selectSeconds) || SELECT_DEFAULT;
+      setSaved(seconds);
+      setValue(String(seconds));
+    }, () => { setSaved(SELECT_DEFAULT); setValue(String(SELECT_DEFAULT)); });
+  }, []);
+  const seconds = Number(value);
+  const valid = Number.isInteger(seconds) && seconds >= 30 && seconds <= 900;
+  async function save() {
+    setBusy(true);
+    try {
+      const result = await api("/admin/settings/select-time", { method: "PUT", body: { selectSeconds: seconds } });
+      setSaved(result.selectSeconds);
+      setValue(String(result.selectSeconds));
+      reload?.();
+      notify(`Đã lưu thời gian chọn ảnh: ${duration(result.selectSeconds)}. Áp dụng từ lượt chụp xong tiếp theo (máy chụp nhận trong tối đa 1 phút).`);
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section className="panel kiosk-content-section select-time" aria-label="Thời gian chọn ảnh">
+      <h3>Thời gian chọn ảnh</h3>
+      <p className="muted">Chụp xong, khách có bấy nhiêu thời gian để chọn ảnh, khung và trang trí. Hết giờ, máy chụp tự chốt các ảnh đang chọn.</p>
+      {saved === null ? <p className="muted">Đang tải…</p> : (
+        <>
+          <div className="select-time-row">
+            <label className="kiosk-text-field">
+              <span>Số giây (30–900)</span>
+              <input type="number" name="selectSeconds" min={30} max={900} step={5} inputMode="numeric"
+                value={value} onChange={(e) => setValue(e.target.value)} />
+            </label>
+            <div className="select-time-presets" role="group" aria-label="Chọn nhanh thời gian">
+              {SELECT_PRESETS.map((preset) => (
+                <button key={preset} type="button" aria-pressed={seconds === preset} onClick={() => setValue(String(preset))}>
+                  {duration(preset)}
+                </button>
+              ))}
+            </div>
+            <Button disabled={busy || !valid || seconds === saved} onClick={save}>{busy ? "Đang lưu…" : "Lưu thời gian"}</Button>
+          </div>
+          <small className={valid ? "muted" : "field-error"} role="status">
+            {valid ? `= ${duration(seconds)} · đang dùng: ${duration(saved)}` : "Nhập số giây từ 30 đến 900."}
+          </small>
+        </>
+      )}
+    </section>
+  );
+}
+
+// Thiết lập → Chữ trên máy chụp: thời gian chọn ảnh và mọi dòng chữ chính trên màn hình máy chụp
+// (photobooth và Polaroid). Ô để trống = dùng chữ mặc định (hiện mờ trong ô). {n}, {s}: chỗ máy chụp điền số.
 export function KioskTextsManager({ notify }) {
   const toast = useToast();
   const { reload } = useStudio();
@@ -40,6 +106,7 @@ export function KioskTextsManager({ notify }) {
   }
   return (
     <div className="kiosk-content kiosk-texts">
+      <SelectTime notify={notify} />
       <ErrorBox error={error} />
       {!texts ? (
         <p className="muted">Đang tải…</p>

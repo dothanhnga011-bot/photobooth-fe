@@ -6,7 +6,6 @@ import { useLiveData } from "../use-live-data";
 import { Button, ErrorBox, useToast } from "../studio";
 import { CounterTicket } from "../counter-ticket";
 import { SummaryPanel } from "./summary";
-import { ShiftPanel } from "./shift-panel";
 
 const clockOf = (ms) => {
   const s = Math.max(0, Math.ceil(ms / 1000));
@@ -61,7 +60,7 @@ function RoomTile({ room, offset }) {
   );
 }
 
-export function Overview({ notify, canSeeMoney, canOperateShift = true, assignedBranch }) {
+export function Overview({ notify, canSeeMoney, assignedBranch }) {
   const toast = useToast();
   const [stats, setStats] = useState(null);
   const [today, setToday] = useState([]);
@@ -122,7 +121,6 @@ export function Overview({ notify, canSeeMoney, canOperateShift = true, assigned
           }).format(new Date())}
         </time>
       </div>
-      <ShiftPanel assignedBranch={assignedBranch} notify={notify} refreshKey={sales} canOperate={canOperateShift} />
       <section className="panel room-board">
         <div className="room-board-head">
           <div>

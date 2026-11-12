@@ -120,14 +120,6 @@ function adminPage(path) {
       return { unit: "day", points: [] };
     case "/api/admin/rooms/live":
       return { now: Date.now(), rooms: [] };
-    case "/api/admin/shifts":
-      return { current: null, recent: [] };
-    case "/api/admin/shifts/report":
-      return {
-        branches: [],
-        totals: { tickets: 0, extraSheets: 0, cash: 0, transfer: 0, total: 0 },
-        shifts: [],
-      };
     case "/api/admin/settings":
       return { enabledFilters: [], customFilters: [] };
     case "/api/admin/settings/rx1-output":
@@ -285,6 +277,10 @@ before(async () => {
           expired: { photos: 0, printJobs: 0, files: 0, bytes: 0 },
         };
         response.end(JSON.stringify({ freedBytes, summary: currentSummary }));
+        return;
+      }
+      if (path === "/api/admin/settings/select-time" && entry.method === "PUT") {
+        response.end(JSON.stringify({ selectSeconds: entry.body.selectSeconds }));
         return;
       }
       if (path === "/api/admin/print-jobs/stream") {
@@ -900,9 +896,29 @@ const ADMIN_PAGES = [
   "Quản lý filter",
   "Màu in RX1",
   "Tài khoản",
-  "Đối soát",
   "Tổng hợp",
 ];
+
+test("the admin sets how long guests have to pick photos, and Ca trực / Đối soát are gone", async () => {
+  await mountAdmin();
+  assert.equal(await navButton("Đối soát").count(), 0);
+  assert.equal(await page.getByText("Ca trực", { exact: true }).count(), 0, "no shift panel on the overview");
+  await navButton("Chữ trên máy chụp").click();
+  const time = page.getByRole("region", { name: "Thời gian chọn ảnh" });
+  await time.getByText("= 2 phút 30 giây · đang dùng: 2 phút 30 giây").waitFor();
+  const save = time.getByRole("button", { name: "Lưu thời gian" });
+  assert.equal(await save.isDisabled(), true, "nothing to save yet");
+  await time.getByLabel("Số giây (30–900)").fill("20");
+  await time.getByText("Nhập số giây từ 30 đến 900.").waitFor();
+  assert.equal(await save.isDisabled(), true);
+  await time.getByRole("button", { name: "4 phút", exact: true }).click();
+  assert.equal(await time.getByLabel("Số giây (30–900)").inputValue(), "240");
+  await save.click();
+  await time.getByText("= 4 phút · đang dùng: 4 phút").waitFor();
+  assert.deepEqual(requests.filter((r) => r.method === "PUT").map((r) => [r.path, r.body]),
+    [["/api/admin/settings/select-time", { selectSeconds: 240 }]]);
+  assertClean();
+});
 
 test("RX1 color controls are admin-only even when staff have every delegated permission", async () => {
   await mountAdmin();
@@ -911,7 +927,7 @@ test("RX1 color controls are admin-only even when staff have every delegated per
   assert.equal(await page.getByRole("button", { name: "Lưu cấu hình màu in", exact: true }).count(), 1);
   assert.equal(await page.getByRole("button", { name: "Tải công cụ mở driver", exact: true }).count(), 1);
   assertClean();
-  await mountAdmin({ role: "staff", permissions: ["revenue:view", "orders:export", "orders:cancel", "print:operate", "shift:operate", "rooms:setup"] });
+  await mountAdmin({ role: "staff", permissions: ["revenue:view", "orders:export", "orders:cancel", "print:operate", "rooms:setup"] });
   assert.equal(await navButton("Màu in RX1").count(), 0);
   assert.equal(await page.getByLabel("Độ tối bản in (gamma)").count(), 0);
   assert.equal(await page.getByRole("button", { name: "Tải công cụ mở driver", exact: true }).count(), 0);

@@ -1,112 +1,5 @@
-/* Quản trị: ca trực của lễ tân, màn hình chờ máy chụp và thư viện sticker. */
+/* Quản trị: màn hình chờ máy chụp và thư viện sticker. */
 @layer components {
-  .shift-panel {
-    display: grid;
-    gap: 14px;
-    margin-bottom: 18px;
-  }
-  .shift-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-  }
-  .shift-head h3 {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0;
-  }
-  .shift-head select {
-    width: auto;
-    min-width: 220px;
-    min-height: 40px;
-  }
-  .shift-status {
-    margin: 0;
-    color: var(--muted, #807068);
-  }
-  .shift-status.open {
-    padding: 10px 12px;
-    border-radius: 10px;
-    background: #eef5ea;
-    color: #2f5a2a;
-  }
-  .shift-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 10px;
-  }
-  .shift-stats div {
-    display: grid;
-    gap: 4px;
-    padding: 12px;
-    border: 1px solid var(--line, #e5d9cf);
-    border-radius: 12px;
-    background: #fbf6f1;
-  }
-  .shift-stats span {
-    color: var(--muted, #807068);
-    font-size: 13px;
-  }
-  .shift-stats strong {
-    font-size: 19px;
-  }
-  .shift-form {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    align-items: end;
-    gap: 12px;
-  }
-  .shift-form > p {
-    grid-column: 1 / -1;
-  }
-  .shift-form label,
-  .idle-fields label,
-  .sticker-add > label:not(.button) {
-    display: grid;
-    gap: 6px;
-    font-weight: 600;
-  }
-  .shift-form input,
-  .idle-fields input,
-  .sticker-add input {
-    min-height: 44px;
-  }
-  .shift-diff {
-    margin: 0;
-    font-weight: 600;
-  }
-  .shift-diff.ok,
-  .shift-history .ok {
-    color: #2f6b2a;
-  }
-  .shift-diff.off,
-  .shift-history .off {
-    color: #a33a2c;
-  }
-  .shift-history summary {
-    cursor: pointer;
-    font-weight: 600;
-  }
-  .shift-history ul {
-    display: grid;
-    gap: 6px;
-    margin: 10px 0 0;
-    padding: 0;
-    list-style: none;
-  }
-  .shift-history li {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 6px 12px;
-    padding: 8px 10px;
-    border-radius: 8px;
-    background: #fbf6f1;
-    font-size: 14px;
-  }
-
   .kiosk-content {
     display: grid;
     gap: 18px;
@@ -244,17 +137,17 @@
 /* Căn hàng ô nhập và nút: .panel label có sẵn margin 20px phía dưới làm nút tụt thấp hơn ô nhập.
    Bỏ margin trong các hàng form này; ô nhập và nút cùng cao 48px. */
 @layer components {
-  .panel :is(.shift-form, .sticker-add, .idle-fields, .idle-image-actions) label {
+  .panel :is(.sticker-add, .idle-fields, .idle-image-actions) label {
     margin: 0;
   }
-  .panel :is(.shift-form, .sticker-add) {
+  .panel .sticker-add {
     align-items: end;
   }
-  .panel :is(.shift-form, .sticker-add) input:not([type="file"]) {
+  .panel .sticker-add input:not([type="file"]) {
     height: 48px;
     min-height: 48px;
   }
-  .panel :is(.shift-form, .sticker-add, .idle-image-actions) .button {
+  .panel :is(.sticker-add, .idle-image-actions) .button {
     flex-direction: row;
     gap: 8px;
     height: 48px;
@@ -264,8 +157,5 @@
   }
   .panel .sticker-add > label:not(.button) {
     flex: 1 1 240px;
-  }
-  .panel .shift-form > p {
-    margin: 0;
   }
 }
