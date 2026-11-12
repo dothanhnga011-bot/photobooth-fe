@@ -861,15 +861,8 @@
     }
   }
 
-  /* ── Phòng Polaroid: chọn layout (số ảnh + giá) và thông báo "vào chụp nha" ──
-     Thẻ ngang 3 cột: hình layout trên cùng, "N ảnh" có gạch dưới, dòng nhỏ, giá, nút mũi tên ở góc. */
-  .kiosk-layout-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
-    gap: clamp(14px, 1.8vw, 22px);
-    width: min(1240px, 100%);
-    margin: 0 auto;
-  }
+  /* ── Thẻ layout Polaroid (xem trước ở quản trị: Bảng giá, Khung): hình layout trên cùng, "N ảnh"
+     có gạch dưới, dòng nhỏ, giá, nút mũi tên ở góc. Máy chụp phòng Polaroid giờ nhập mã, không chọn layout. */
   .kiosk-layout {
     position: relative;
     display: grid;
@@ -956,56 +949,6 @@
     border-radius: 1px;
     background: #f1e6da;
   }
-  .layout-printer-note {
-    text-align: center;
-  }
-  .layout-confirm {
-    position: fixed;
-    inset: 0;
-    z-index: 40;
-    display: grid;
-    place-items: center;
-    padding: 24px;
-    background: rgb(33 23 19 / 55%);
-    animation: layout-confirm-in 0.18s ease-out both;
-  }
-  @keyframes layout-confirm-in {
-    from { opacity: 0; }
-  }
-  .layout-confirm-card {
-    display: grid;
-    justify-items: center;
-    gap: 14px;
-    width: min(560px, 100%);
-    padding: 34px 32px 28px;
-    border-radius: 28px;
-    background: #fffaf3;
-    text-align: center;
-    box-shadow: 0 24px 60px rgb(0 0 0 / 35%);
-  }
-  .layout-confirm-card .layout-art {
-    width: 190px;
-  }
-  .layout-confirm-card h2 {
-    margin: 4px 0 0;
-    font: 700 clamp(26px, 3vw, 34px) / 1.2 var(--mellow-display, Georgia, serif);
-  }
-  .layout-confirm-card p {
-    margin: 0;
-    color: var(--mellow-muted, #7a5a48);
-    font-size: 17px;
-  }
-  .layout-confirm-actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 12px;
-    margin-top: 6px;
-  }
-  .layout-confirm-actions .button {
-    min-width: 160px;
-  }
-
   /* ── Màn chọn ảnh: 3 mục Chọn ảnh / Màu ảnh / Nhãn dán bên phải khung xem trước ── */
   .select-panel {
     display: flex;

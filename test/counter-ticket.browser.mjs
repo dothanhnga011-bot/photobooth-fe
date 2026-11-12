@@ -11,7 +11,9 @@ const rooms = [
   {_id:'polaroid',name:'Polaroid',branch:'Bắc Ninh',kind:'polaroid',active:true},
   {_id:'booth',name:'PTB',branch:'HN',kind:'photobooth',active:true},
   {_id:'off',name:'Old booth',branch:'Closed',kind:'photobooth',active:false}];
+// Layout Polaroid đang bán (ảnh to: chọn 2 ảnh, 5 phút) đứng trước; gói Instax cũ không có layout thì ẩn.
 const packages = [
+  {_id:'polaroid-big',name:'Polaroid đôi',printSize:'instax',price:100000,selectCount:2},
   {_id:'instax',name:'Polaroid',printSize:'instax',price:100000},
   {_id:'strip',name:'Gói photobooth',printSize:'strip',price:70000,prints:1,shots:4}];
 createRoot(document.getElementById('root')).render(React.createElement(StudioContext.Provider,
@@ -81,9 +83,37 @@ test("the counter defaults to HN photobooth even when a Polaroid-only branch and
 test("staff assigned only to a Polaroid branch cannot issue a photobooth code under another branch", async () => {
   const {page,requests} = await mount("Bắc Ninh");
   try {
+    // Chi nhánh chỉ có phòng Polaroid: mặc định layout Polaroid; đổi sang gói photobooth thì bị chặn.
+    assert.equal(await page.getByRole("combobox",{name:/^Gói chụp/}).inputValue(),"polaroid-big");
+    assert.equal(await page.getByRole("combobox",{name:/^Chi nhánh/}).inputValue(),"Bắc Ninh");
+    await page.getByRole("combobox",{name:/^Gói chụp/}).selectOption("strip");
     await page.getByText(/Chưa có phòng photobooth đang hoạt động trong chi nhánh của bạn/).waitFor();
     assert.equal(await page.getByRole("button",{name:"Tạo phiếu chụp",exact:true}).isDisabled(),true);
     assert.equal(await page.getByRole("combobox",{name:/^Chi nhánh/}).inputValue(),"");
     assert.equal(requests.some(r=>r.path.endsWith("/draft")||r.path.endsWith("/activate")),false);
+  } finally { await page.close(); }
+});
+
+test("the counter sells a Polaroid layout as a code for the Polaroid room (Selfbooth model)", async () => {
+  const {page,requests} = await mount();
+  try {
+    const pack = page.getByRole("combobox",{name:/^Gói chụp/});
+    // Hai nhóm gói; gói Instax cũ (không phải layout 1 ảnh / 2 ảnh) không bán.
+    assert.deepEqual(await pack.locator("optgroup").evaluateAll(groups => groups.map(g => g.label)),
+      ["Photobooth","Polaroid (nhập mã ở phòng Polaroid)"]);
+    const layouts = await pack.locator("optgroup").nth(1).locator("option").allTextContents();
+    assert.equal(layouts.length, 1);
+    assert.match(layouts[0], /^Ảnh to · Polaroid đôi — 100\.000/);
+    const requoted = page.waitForResponse(response=>response.url().endsWith("/quote"));
+    await pack.selectOption("polaroid-big");
+    await requoted;
+    // Chi nhánh tự chuyển sang nơi có phòng Polaroid; dòng mô tả nói rõ cách chụp.
+    assert.equal(await page.getByRole("combobox",{name:/^Chi nhánh/}).inputValue(),"Bắc Ninh");
+    await page.getByText("Phòng Polaroid · chọn 2 ảnh · 5 phút chụp, bấm dây không giới hạn · in 1 tấm Instax").waitFor();
+    await page.getByRole("button",{name:"Tạo phiếu chụp",exact:true}).click();
+    await page.getByRole("heading",{name:"Chờ xác nhận đã thu"}).waitFor();
+    const draft = requests.find(r=>r.path.endsWith("/draft")).body;
+    assert.equal(draft.package,"polaroid-big");
+    assert.equal(draft.branch,"Bắc Ninh");
   } finally { await page.close(); }
 });

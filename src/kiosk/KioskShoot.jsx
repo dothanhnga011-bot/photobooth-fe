@@ -8,6 +8,7 @@ import {
 } from "react-icons/pi";
 import { Button } from "../studio";
 import { CameraPreview } from "./CameraPreview.jsx";
+import { ClassicCorners } from "./classic-ornaments.jsx";
 import { playCountdownBeep, playShutterSound } from "./kiosk-audio.js";
 
 // Ảnh trên máy (Blob) hoặc trên máy chủ (URL).
@@ -69,6 +70,8 @@ const clock = (s) =>
 // chữ trên hình. Bên phải: thời gian còn lại, số tấm đã chụp, các ảnh vừa chụp xếp dọc và nút
 // "Chụp xong". webcam: chế độ thử máy bằng webcam máy tính (khi không có máy ảnh) — { on, label,
 // count (đếm ngược), onSnap, onToggle }.
+// classic: phòng Polaroid (như Selfbooth) — màn ngang chia 2/3 hình trực tiếp (thấy đủ khung hình),
+// 1/3 cột giấy be viền hoa văn: đồng hồ, ảnh vừa chụp phóng to, dải ảnh đã chụp, nút Chụp xong.
 export function KioskShoot({
   videoRef,
   zoom,
@@ -88,8 +91,10 @@ export function KioskShoot({
   webcam = null,
   canvasPreview = false,
   mirror = false,
+  classic = false,
 }) {
   const portrait = usePortrait();
+  const showLatest = portrait || classic;
   const shooting = phase === "shoot" && !ending;
   const full = Boolean(quota) && taken >= quota;
   const testing = Boolean(webcam?.on && ready);
@@ -142,9 +147,10 @@ export function KioskShoot({
     return () => clearTimeout(timer);
   }, [flash]);
   return (
-    <section className={`shoot-screen phase-${phase}${ready ? "" : " no-live"}${portrait ? " is-portrait" : ""}`}>
+    <section className={`shoot-screen phase-${phase}${ready ? "" : " no-live"}${portrait ? " is-portrait" : ""}${classic ? " is-classic" : ""}`}>
       <div className="shoot-stage">
-        <CameraPreview videoRef={videoRef} zoom={zoom} canvas={canvasPreview} fit={portrait ? "contain" : "cover"} mirror={mirror} />
+        <CameraPreview videoRef={videoRef} zoom={zoom} canvas={canvasPreview} fit={showLatest ? "contain" : "cover"} mirror={mirror} />
+        {classic && <ClassicCorners className="is-stage" />}
         {!ready && (
           <div className="shoot-no-camera" role="status">
             <span className="shoot-no-camera-icon" aria-hidden="true">
@@ -187,7 +193,8 @@ export function KioskShoot({
       </div>
 
       <aside className="shoot-rail" aria-label="Thời gian và ảnh đã chụp">
-          {portrait && <Latest shot={shots[shots.length - 1]} number={shots.length} receiving={receiving} />}
+          {classic && <ClassicCorners className="is-rail" />}
+          {showLatest && <Latest shot={shots[shots.length - 1]} number={shots.length} receiving={receiving} />}
           {/* Còn dưới 1 phút: đồng hồ đỏ, nhấp nháy (như Selfbooth). */}
           <div className={`shoot-timer${phase === "shoot" && sessionLeft < 60 ? " is-urgent" : ""}`} role="timer">
             <span>THỜI GIAN CÒN LẠI</span>

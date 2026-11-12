@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Copy, X } from "lucide-react";
 import { api, money } from "./api";
 import { includedSheets, isStrip, piecesLabel } from "./kiosk/print-count.js";
+import { polaroidLayout } from "./polaroid-layouts.js";
 import { Button, ErrorBox, useStudio, useToast } from "./studio";
 import { FieldError, chosen, useValidation } from "./validate";
 
@@ -18,16 +19,25 @@ const printsText = (pack) => {
   return pack.printSize === "instax" ? pieces : `${pieces} 10 × 15 cm`;
 };
 
+// Layout Polaroid (khổ Instax): mã nhập ở phòng Polaroid; gói khác: mã nhập ở phòng photobooth.
+const isPolaroid = (pack) => pack?.printSize === "instax";
+const roomKind = (room) => (room.kind === "polaroid" ? "polaroid" : "photobooth");
+
 export function CounterTicket({ onClose, onCreated, initialDraft = null, assignedBranch = "" }) {
   const { packages = [], rooms = [], settings = {} } = useStudio();
-  const counterPackages = packages.filter((p) => p.active !== false && p.printSize !== "instax");
-  const branches = [...new Set(rooms
-    .filter((r) => r.active !== false && (r.kind || "photobooth") === "photobooth")
+  // Gói photobooth và layout Polaroid đang bán (layout Polaroid chỉ 1 ảnh / 3 phút hoặc 2 ảnh / 5 phút).
+  const counterPackages = packages.filter((p) => p.active !== false && (!isPolaroid(p) || polaroidLayout(p.selectCount)));
+  // Chi nhánh có phòng đúng loại của gói (đang hoạt động) để khách nhập mã.
+  const branchesFor = (pack) => [...new Set(rooms
+    .filter((r) => r.active !== false && roomKind(r) === (isPolaroid(pack) ? "polaroid" : "photobooth"))
     .map((r) => r.branch).filter(Boolean))]
     .filter((name) => !assignedBranch || name === assignedBranch);
+  // Mặc định gói photobooth (bán nhiều nhất); chi nhánh chỉ có phòng Polaroid thì mặc định layout Polaroid.
+  const firstPackage = counterPackages.find((p) => !isPolaroid(p) && branchesFor(p).length)
+    || counterPackages.find((p) => branchesFor(p).length) || counterPackages[0];
   const [form, setForm] = useState({
-    package: counterPackages[0]?._id || "",
-    branch: initialDraft?.branch || branches[0] || "",
+    package: firstPackage?._id || "",
+    branch: initialDraft?.branch || branchesFor(firstPackage)[0] || "",
     // Khách mua mã ở quầy thường chuyển khoản (trả tiền mặt thì đút vào máy ở phòng đút tiền):
     // tiệm đã nhập tài khoản / QR ngân hàng thì mặc định chuyển khoản, QR hiện ngay.
     paymentMethod: settings.bankAccount || settings.bankQrImage ? "transfer" : "cash",
@@ -67,8 +77,18 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
   const request = useRef(null);
   const lock = useRef(false);
   const pack = packages.find((p) => p._id === form.package);
+  const branches = branchesFor(pack);
+  const layout = isPolaroid(pack) ? polaroidLayout(pack.selectCount) : null;
   const change = (key, value) => {
-    setForm((f) => ({ ...f, [key]: value }));
+    setForm((f) => {
+      const next = { ...f, [key]: value };
+      // Đổi gói sang loại phòng khác: chọn chi nhánh có phòng đúng loại.
+      if (key === "package") {
+        const allowed = branchesFor(packages.find((p) => p._id === value));
+        if (!allowed.includes(next.branch)) next.branch = allowed[0] || "";
+      }
+      return next;
+    });
     v.clear(key);
   };
   async function create(e) {
@@ -76,7 +96,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
     if (lock.current) return;
     if (!v.check(form, RULES)) return;
     if (!branches.includes(form.branch))
-      return toast.warning("Chi nhánh đã chọn chưa có phòng photobooth đang hoạt động. Vui lòng kiểm tra lại.");
+      return toast.warning(`Chi nhánh đã chọn chưa có phòng ${layout ? "Polaroid" : "photobooth"} đang hoạt động. Vui lòng kiểm tra lại.`);
     if (quote?.key !== quoteKey || quote.error)
       return toast.warning(
         quote?.error || "Đang tính tiền, vui lòng đợi một chút.",
@@ -234,7 +254,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
               <p>
                 Chọn gói và tạo phiếu trước. Mã 6 số chỉ xuất hiện sau khi xác nhận đã thu tiền.
               </p>
-              {!branches.length && <ErrorBox error="Chưa có phòng photobooth đang hoạt động trong chi nhánh của bạn. Phòng Polaroid chọn layout tại máy và thanh toán ở quầy, không dùng mã chụp." />}
+              {!branches.length && <ErrorBox error={`Chưa có phòng ${layout ? "Polaroid" : "photobooth"} đang hoạt động trong chi nhánh của bạn cho gói này.`} />}
               <label>
                 Gói chụp
                 <select
@@ -245,17 +265,26 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
                   onChange={(e) => change("package", e.target.value)}
                 >
                   <option value="">Chọn gói</option>
-                  {counterPackages.map((p) => (
-                    <option key={p._id} value={p._id}>
-                      {p.name} — {money(p.price)}
-                    </option>
-                  ))}
+                  {[["Photobooth", counterPackages.filter((p) => !isPolaroid(p))],
+                    ["Polaroid (nhập mã ở phòng Polaroid)", counterPackages.filter(isPolaroid)]]
+                    .filter(([, list]) => list.length)
+                    .map(([group, list]) => (
+                      <optgroup key={group} label={group}>
+                        {list.map((p) => (
+                          <option key={p._id} value={p._id}>
+                            {isPolaroid(p) ? `${polaroidLayout(p.selectCount).label} · ${p.name}` : p.name} — {money(p.price)}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
                 </select>
                 <FieldError error={v.errors.package} />
               </label>
               {pack && (
                 <p className="muted">
-                  {pack.shots || "—"} lần chụp · {printsText(pack)}
+                  {layout
+                    ? `Phòng Polaroid · chọn ${layout.selectCount} ảnh · ${layout.duration} phút chụp, bấm dây không giới hạn · in 1 tấm Instax`
+                    : `${pack.shots || "—"} lần chụp · ${printsText(pack)}`}
                 </p>
               )}
               <label>

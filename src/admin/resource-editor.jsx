@@ -304,10 +304,10 @@ export function ResourceEditor({
                 className="catalog-editor-preview"
                 aria-label="Xem trước gói chụp"
               >
-                <span className="catalog-preview-label">THẺ TRÊN MÁY CHỤP</span>
+                <span className="catalog-preview-label">{isInstax(edit) ? "THẺ LAYOUT POLAROID" : "THẺ TRÊN MÁY CHỤP"}</span>
                 {/* Cùng kiểu thẻ ở màn “Chọn khổ ảnh” của máy chụp (KioskPackages). */}
                 {isInstax(edit) ? (
-                  // Cùng thẻ ở màn “Chọn layout” của phòng Polaroid (KioskLayouts).
+                  // Thẻ layout Polaroid (khách mua ở quầy, nhân viên tạo mã chụp).
                   <div className="kiosk-layout-preview">
                     <LayoutCard as="div" pack={{ ...edit, name: edit.name || "Tên layout", price: Number(edit.price) || 0 }} />
                   </div>

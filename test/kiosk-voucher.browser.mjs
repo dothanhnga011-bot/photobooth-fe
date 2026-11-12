@@ -14,14 +14,12 @@ const fixture = `
   const packs = [
     { _id: 'pack-strip', name: 'Khung nhỏ', printSize: 'strip', price: 70000, prints: 1, shots: 4 },
     { _id: 'pack-full', name: 'Khung to', printSize: 'full', price: 100000, prints: 2, shots: 4 },
-    // Layout của phòng Polaroid (gói khổ Instax): số ảnh trong layout, giá.
+    // Layout của phòng Polaroid (gói khổ Instax): bán ở quầy thành mã chụp, không bán ở máy.
     { _id: 'pack-polaroid-2', name: 'Polaroid đôi', printSize: 'instax', price: 100000, prints: 1, shots: 8, countdownSeconds: 10, selectCount: 2 },
     { _id: 'pack-polaroid-1', name: '1 ảnh to', printSize: 'instax', price: 100000, prints: 1, shots: 8, countdownSeconds: 10, selectCount: 1 },
-    // Layout 6 ảnh cũ (trước khi phòng Polaroid chỉ bán 1 ảnh / 2 ảnh): máy chụp không hiện.
-    { _id: 'pack-polaroid-6', name: 'Polaroid sáu ô', printSize: 'instax', price: 120000, prints: 1, shots: 8, selectCount: 6 },
   ];
   // Chữ trên máy chụp tiệm đã sửa (Thiết lập → Chữ trên máy chụp).
-  const kioskTexts = { 'layout.confirm': 'Chốt layout này, vào chụp nha!' };
+  const kioskTexts = { 'polaroid.codeTitle': 'Nhập mã Polaroid' };
   createRoot(document.getElementById('root')).render(React.createElement(MemoryRouter,
     { initialEntries: ['/kiosk?device=fixture-device'] },
     React.createElement(StudioContext.Provider,
@@ -161,10 +159,10 @@ const staleSale = (bills = []) => ({
   prints: 4, extraPrintPrice: 20000, stage: "pay", requestKey: "stale-key", bills,
 });
 
-test("a polaroid room drops a cash sale left from the photobooth flow and opens the layouts", async () => {
+test("a polaroid room drops a cash sale left from the photobooth flow and opens the code screen", async () => {
   const { page, errors } = await openKiosk({ _id: "room-1", flip: "device", kind: "polaroid" }, {}, { sale: staleSale() });
   try {
-    await page.getByRole("heading", { name: "Chọn layout" }).waitFor();
+    await page.getByRole("heading", { name: "Nhập mã Polaroid" }).waitFor();
     assert.equal(await page.getByRole("heading", { name: "Đút tiền để bắt đầu chụp" }).count(), 0);
     assert.equal(await page.evaluate(() => localStorage.getItem("kiosk-sale")), null, "the stale sale is gone");
     assert.deepEqual(errors, []);
@@ -182,37 +180,42 @@ test("money already inserted is never dropped: the bill screen comes back even i
   } finally { await page.close(); }
 });
 
-test("polaroid room: touch → layout cards (photos, price) → “vào chụp nha” notice → shoot; payment at the counter", async () => {
-  const opened = [];
-  const polaroidBooking = { ...booking, packageName: "Polaroid đôi", printSize: "instax", selectCount: 2, shots: 10 };
+test("polaroid room (Selfbooth model): touch → enter the code bought at the counter → classic shoot screen", async () => {
+  const claims = [];
+  const polaroidBooking = { ...booking, packageName: "Polaroid đôi", printSize: "instax", selectCount: 2, prints: 1, captureDuration: 5 };
   const { page, errors } = await openKiosk({ _id: "room-1", flip: "device", kind: "polaroid" }, {
-    "/kiosk/polaroid": (route, body) => {
-      opened.push(body);
-      return route.fulfill({ status: 201, json: { booking: polaroidBooking, captureToken: "fixture-capture", accessToken: "fixture-album" } });
+    "/kiosk/claim": (route, body) => {
+      claims.push(body);
+      // Mã của gói photobooth không mở ở phòng Polaroid (máy chủ báo lỗi, mã vẫn còn).
+      if (body.code !== "654321")
+        return route.fulfill({ status: 400, json: { message: "Mã này dành cho phòng Photobooth, không dùng ở phòng Polaroid." } });
+      return route.fulfill({ json: { booking: polaroidBooking, captureToken: "fixture-capture", accessToken: "fixture-album" } });
     },
+    "/kiosk/polaroid": () => assert.fail("the kiosk no longer sells Polaroid layouts itself"),
   });
   try {
-    await page.getByRole("heading", { name: "Chọn layout" }).waitFor();
-    assert.equal(await page.getByRole("heading", { name: "Chọn cách thanh toán" }).count(), 0, "a polaroid room takes no payment");
-    const cards = page.getByRole("group", { name: "Chọn layout" }).getByRole("button");
-    // Two Instax layouts with photo count, cable presses and price. Old layouts stay hidden.
-    const texts = await cards.allInnerTexts();
-    assert.equal(texts.length, 2);
-    assert.match(texts[0], /1 ảnh[\s\S]*1 ảnh to[\s\S]*8 lần bấm dây[\s\S]*100\.000/i);
-    assert.match(texts[1], /2 ảnh[\s\S]*Polaroid đôi[\s\S]*100\.000/i);
-    assert.equal(await cards.nth(0).locator(".layout-art i").count(), 1);
-    assert.equal(await cards.nth(1).locator(".layout-art i").count(), 2);
-    await cards.nth(1).click();
-    const notice = page.getByRole("dialog", { name: "Chốt layout này, vào chụp nha!" });
-    await notice.waitFor();
-    await notice.getByRole("button", { name: "Chọn lại" }).click();
-    assert.equal(await notice.count(), 0);
-    await cards.nth(1).click();
-    await notice.getByRole("button", { name: /Vào chụp/ }).click();
-    await page.locator(".shoot-screen").waitFor();
-    assert.equal(opened.length, 1);
-    assert.equal(opened[0].package, "pack-polaroid-2");
-    assert.match(opened[0].requestKey, /^[0-9a-f-]{36}$/);
+    // Không chọn layout, không chọn cách thanh toán: vào thẳng màn nhập mã (chữ tiệm đã sửa).
+    await page.getByRole("heading", { name: "Nhập mã Polaroid" }).waitFor();
+    assert.equal(await page.getByRole("heading", { name: "Chọn cách thanh toán" }).count(), 0);
+    assert.equal(await page.getByRole("heading", { name: "Chọn layout" }).count(), 0);
+    assert.match(await page.locator(".flow-head p").innerText(), /thanh toán ở quầy/);
+    // Giao diện cổ điển: thuộc tính trên <html>, hoa văn quanh thẻ nhập mã.
+    assert.equal(await page.evaluate(() => document.documentElement.dataset.kioskTheme), "classic");
+    assert.equal(await page.locator(".code-card .ornament-corner").count(), 4);
+    // Quay lại: về màn chờ (phòng Polaroid không có màn chọn cách thanh toán).
+    await page.getByRole("button", { name: "Quay lại" }).click();
+    await page.getByRole("button", { name: "Chạm để bắt đầu" }).click();
+    await page.getByRole("heading", { name: "Nhập mã Polaroid" }).waitFor();
+    await page.getByRole("textbox", { name: "Mã chụp" }).fill("123456");
+    await page.getByRole("button", { name: "Bắt đầu chụp" }).click();
+    await page.getByText("Mã này dành cho phòng Photobooth").first().waitFor();
+    await page.getByRole("textbox", { name: "Mã chụp" }).fill("654321");
+    await page.getByRole("button", { name: "Bắt đầu chụp" }).click();
+    // Màn chụp như Selfbooth: hình trực tiếp, cột bên có đồng hồ và ô ảnh vừa chụp.
+    await page.locator(".shoot-screen.is-classic").waitFor();
+    assert.equal(await page.locator(".shoot-rail .shoot-latest").count(), 1);
+    assert.match(await page.locator(".shoot-timer").innerText(), /THỜI GIAN CÒN LẠI\s*\d\d:\d\d/);
+    assert.deepEqual(claims.map((c) => c.code), ["123456", "654321"]);
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });

@@ -13,6 +13,7 @@ import {
 import { money } from "../api";
 import { Brand, Button, ErrorBox } from "../studio";
 import { billAcceptor } from "./bill-acceptor.js";
+import { ClassicCorners, Fleuron } from "./classic-ornaments.jsx";
 import { useKioskText } from "./use-kiosk-text.js";
 import {
   extraSheets,
@@ -65,14 +66,16 @@ export function KioskPayChoice({ onCode, onCash, onBack }) {
 }
 
 // Mã chụp nhân viên tạo ở quầy sau khi khách chuyển khoản: mã đã gồm gói, khổ ảnh và số bản in.
-export function KioskCode({ code, setCode, onSubmit, onBack, busy, error, device, cameraReady }) {
+// polaroid: phòng Polaroid (như Selfbooth) — mã đã gồm layout và thời gian chụp, chữ riêng của phòng.
+export function KioskCode({ code, setCode, onSubmit, onBack, busy, error, device, cameraReady, polaroid = false }) {
   const t = useKioskText();
   return (
-    <section className="kiosk-flow code-screen">
+    <section className={`kiosk-flow code-screen${polaroid ? " is-polaroid" : ""}`}>
       <header className="flow-head">
         <Brand />
-        <h1>{t("code.title")}</h1>
-        <p>{t("code.subtitle")}</p>
+        <h1>{t(polaroid ? "polaroid.codeTitle" : "code.title")}</h1>
+        {polaroid && <Fleuron />}
+        <p>{t(polaroid ? "polaroid.codeSubtitle" : "code.subtitle")}</p>
       </header>
       <ErrorBox error={error} />
       {!device && (
@@ -80,6 +83,7 @@ export function KioskCode({ code, setCode, onSubmit, onBack, busy, error, device
       )}
       {!cameraReady && <p className="soft-note">{FOLDER_NOTE}</p>}
       <form className="payment-voucher code-card" onSubmit={onSubmit}>
+        {polaroid && <ClassicCorners className="is-card" />}
         <label htmlFor="kiosk-code">Mã chụp</label>
         <input id="kiosk-code" type="text" inputMode="numeric" pattern="[0-9]{6}" maxLength={6}
           autoComplete="one-time-code" placeholder="••••••" value={code}

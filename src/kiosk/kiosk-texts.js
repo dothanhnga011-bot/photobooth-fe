@@ -25,12 +25,10 @@ export const KIOSK_TEXT_GROUPS = [
     ["pay.title", "Tiêu đề màn đút tiền", "Đút tiền để bắt đầu chụp"],
   ]],
   ["Phòng Polaroid", [
-    ["layout.title", "Tiêu đề chọn layout", "Chọn layout"],
-    ["layout.subtitle", "Dòng dưới tiêu đề chọn layout", "Chạm vào layout bạn thích. Thanh toán tại quầy."],
-    ["layout.photos", "Số ảnh trên thẻ layout ({n} = số ảnh)", "{n} ảnh"],
-    ["layout.confirm", "Thông báo khi chọn layout", "Chọn layout này, vào chụp nha!"],
-    ["layout.go", "Nút vào chụp", "Vào chụp"],
-    ["layout.back", "Nút chọn lại", "Chọn lại"],
+    // Như Selfbooth: khách trả tiền ở quầy, nhân viên đưa mã (layout đã có trong mã), nhập mã là vào chụp.
+    ["polaroid.codeTitle", "Tiêu đề nhập mã", "Nhập mã chụp"],
+    ["polaroid.codeSubtitle", "Dòng dưới tiêu đề nhập mã", "Mã 6 số nhân viên đưa khi bạn thanh toán ở quầy. Layout và thời gian chụp đã có sẵn trong mã."],
+    ["layout.photos", "Số ảnh của layout ({n} = số ảnh)", "{n} ảnh"],
     ["done.polaroidTitle", "Tiêu đề màn QR", "Quét QR để tải toàn bộ ảnh gốc."],
   ]],
 ];

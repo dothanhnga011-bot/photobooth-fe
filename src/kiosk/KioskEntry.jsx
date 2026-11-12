@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { Brand, useStudio } from "../studio";
 import { useKioskText } from "./use-kiosk-text.js";
+import { ClassicCorners } from "./classic-ornaments.jsx";
 
+// classic: phòng Polaroid — thêm bốn góc hoa văn cổ điển quanh màn chờ.
 export function KioskEntry({
   roomId,
   onTap,
   children,
+  classic = false,
 }) {
   const t = useKioskText();
   const { settings = {}, screens = [] } = useStudio();
@@ -29,6 +32,7 @@ export function KioskEntry({
   const oneLineTitle = typeof idle.title === "string" && /^touch\s+to\s+start\b/i.test(idle.title.trim());
   return (
       <section className="kiosk-entry kiosk-attract">
+        {classic && <ClassicCorners className="is-screen" />}
         <button
           type="button"
           className={`kiosk-tap ${image ? "has-image" : ""}`}

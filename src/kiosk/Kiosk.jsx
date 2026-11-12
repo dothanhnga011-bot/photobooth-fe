@@ -77,8 +77,6 @@ import { KioskShoot, useObjectUrl } from "./KioskShoot.jsx";
 import { KioskSelect, useShotBitmaps } from "./KioskSelect.jsx";
 import { NO_DECOR, filterChoices, filterStepsFor, photoFilterId } from "./decor.js";
 import { KioskCode, KioskPackages, KioskPayChoice, KioskPayment, KioskPrintCount } from "./KioskSale.jsx";
-import { KioskLayouts } from "./KioskPolaroid.jsx";
-import { LAYOUT_COUNTS, polaroidPackage } from "../polaroid-layouts.js";
 import { extraPriceFor, isInstax, minSheets, saleTotal } from "./print-count.js";
 
 // Các chỗ báo lỗi mạng ở màn chụp: mỗi lần mất kết nối chỉ báo một lần, có mạng lại thì xoá.
@@ -209,7 +207,7 @@ export function Kiosk() {
     transition(() => setStep("start"), "fade");
   };
   useEffect(() => {
-    if (!["method", "code", "package", "print", "pay", "layout"].includes(step) || sale?.bills?.length || busy) return;
+    if (!["method", "code", "package", "print", "pay"].includes(step) || sale?.bills?.length || busy) return;
     let timer;
     const reset = () => {
       clearTimeout(timer);
@@ -750,7 +748,7 @@ export function Kiosk() {
     await importCameraPhoto(new File([blob], name, { type: "image/jpeg", lastModified: Date.now() }), `live/${name}`);
   }
   // Loại phòng (Quản lý máy → Cài máy chụp): photobooth (khách chọn Nhập mã / Tiền mặt, in DNP) hoặc
-  // Polaroid (khách chọn layout rồi chụp luôn, trả tiền ở quầy, in Instax).
+  // Polaroid (như Selfbooth: khách trả tiền ở quầy, nhập mã có sẵn layout rồi chụp luôn, in Instax).
   const polaroid = roomInfo?.kind === "polaroid";
   // Lượt mua dở (đã chọn gói / số tờ) chỉ có ở phòng photobooth. Phòng đã đổi sang Polaroid: bỏ lượt
   // mua dở chưa nhận tiền, về màn chờ. Đã nhận tiền thật thì giữ lại để nhân viên xử lý.
@@ -760,44 +758,19 @@ export function Kiosk() {
     setSale(null);
     if (["method", "code", "package", "print", "pay"].includes(step)) transition(() => setStep("start"), "fade");
   }, [roomKind, sale?.pack, sale?.bills?.length]);
+  // Phòng Polaroid: giao diện cổ điển Pháp (nâu be, hoạ tiết vàng) cho mọi màn phía khách
+  // (kiosk-classic.css đọc thuộc tính data-kiosk-theme trên thẻ <html>).
+  useEffect(() => {
+    const root = document.documentElement;
+    if (polaroid) root.dataset.kioskTheme = "classic";
+    else delete root.dataset.kioskTheme;
+    return () => {
+      delete root.dataset.kioskTheme;
+    };
+  }, [polaroid]);
   const cashReady = Boolean(roomInfo?.cashCheckoutReady);
   // Phòng photobooth bán tờ bé / tờ to (DNP); layout khổ Instax là của phòng Polaroid.
   const boothPackages = useMemo(() => roomPackages.filter((p) => !isInstax(p)), [roomPackages]);
-  // Phòng Polaroid bán 2 layout: 1 ảnh to, 2 ảnh dọc chia đôi.
-  const layouts = useMemo(
-    () => roomPackages
-      .filter((p) => isInstax(p) && LAYOUT_COUNTS.includes(Number(p.selectCount) || 1))
-      .map(polaroidPackage)
-      .sort((a, b) => (a.selectCount || 0) - (b.selectCount || 0) || a.price - b.price),
-    [roomPackages],
-  );
-  // Phòng Polaroid: chọn layout xong vào chụp luôn — máy chủ mở lượt chụp (chưa thu tiền, khách trả
-  // ở quầy). Mã giao dịch giữ nguyên khi gửi lại, để mất phản hồi cũng không mở 2 lượt.
-  const polaroidKey = useRef({ pack: "", key: "" });
-  async function startPolaroid(pack) {
-    if (busy) return;
-    if (!device)
-      return toast.warning("Máy chụp chưa được gán phòng. Nhờ lễ tân mở liên kết Cài máy chụp.");
-    if (!checkFolder()) return;
-    if (polaroidKey.current.pack !== pack._id) polaroidKey.current = { pack: pack._id, key: crypto.randomUUID() };
-    setBusy(true);
-    setError("");
-    try {
-      const opened = await api("/kiosk/polaroid", {
-        method: "POST",
-        retry: 2,
-        body: { device, package: pack._id, requestKey: polaroidKey.current.key },
-      });
-      polaroidKey.current = { pack: "", key: "" };
-      openSession(opened);
-    } catch (e) {
-      setError(e.message);
-      toast.error(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   // ─── Chụp ────────────────────────────────────────────────────────────────
   // Hình trực tiếp mở khi chuẩn bị chụp, tắt khi chuyển sang chọn ảnh.
   useEffect(() => {
@@ -1513,6 +1486,7 @@ export function Kiosk() {
           webcam={{ on: webcamTest, label: liveLabel, count: snapCount, onSnap: snapWebcam, onToggle: setWebcamTest }}
           canvasPreview={lowPower}
           mirror={mirror}
+          classic={polaroid}
         />
         {error && !(error === CAMERA_ERROR && !ready) && (
           <div className="shoot-error">
@@ -1532,7 +1506,8 @@ export function Kiosk() {
         code={code}
         setCode={setCode}
         onSubmit={claim}
-        onBack={() => goTo("method")}
+        onBack={() => (polaroid ? backToStart() : goTo("method"))}
+        polaroid={polaroid}
         busy={busy}
         error={error}
         device={device}
@@ -1548,18 +1523,6 @@ export function Kiosk() {
           goTo("code");
         }}
         onCash={() => goTo("package")}
-        onBack={backToStart}
-      />
-    );
-  // Phòng Polaroid: Chạm để bắt đầu → chọn layout → "vào chụp nha" → chụp luôn (trả tiền ở quầy).
-  if (step === "layout")
-    return (
-      <KioskLayouts
-        layouts={layouts}
-        instax={instax}
-        busy={busy}
-        error={error}
-        onStart={startPolaroid}
         onBack={backToStart}
       />
     );
@@ -1620,13 +1583,15 @@ export function Kiosk() {
   return (
     <KioskEntry
       onTap={() => {
-        // Còn tiền đã đút dở (tải lại trang): quay lại đúng màn đọc tiền. Phòng Polaroid vào chọn
-        // layout; phòng photobooth tiếp tục lượt mua dở, không có thì chọn cách thanh toán.
+        // Còn tiền đã đút dở (tải lại trang): quay lại đúng màn đọc tiền. Phòng Polaroid vào nhập mã
+        // (như Selfbooth); phòng photobooth tiếp tục lượt mua dở, không có thì chọn cách thanh toán.
+        if (polaroid && !sale?.bills?.length) setCode("");
         goTo(sale?.bills?.length ? "pay"
-          : polaroid ? "layout"
+          : polaroid ? "code"
           : sale?.pack ? (sale.stage === "pay" ? "pay" : "print") : "method");
       }}
       roomId={roomId}
+      classic={polaroid}
     >
       <KioskSettings
         folder={folder}
