@@ -68,19 +68,8 @@ export function KioskPayChoice({ onCode, onCash, onBack }) {
 // polaroid: phòng Polaroid (như Selfbooth) — mã đã gồm layout và thời gian chụp, chữ riêng của phòng.
 export function KioskCode({ code, setCode, onSubmit, onBack, busy, error, device, cameraReady, polaroid = false }) {
   const t = useKioskText();
-  // Gõ đủ 6 số: tự kiểm tra mã, khách không phải bấm thêm. Mỗi mã chỉ tự gửi một lần; mã sai thì máy
-  // xoá để nhập lại, còn mạng lỗi thì giữ mã và khách bấm "Bắt đầu chụp" để thử lại.
-  const form = useRef(null);
-  const sent = useRef("");
-  useEffect(() => {
-    if (code.length !== 6) {
-      sent.current = "";
-      return;
-    }
-    if (busy || !device || !cameraReady || sent.current === code) return;
-    sent.current = code;
-    form.current?.requestSubmit();
-  }, [code, busy, device, cameraReady]);
+  // Gõ đủ 6 số rồi khách bấm "Bắt đầu chụp" mới vào chụp (13/11 chủ tiệm bỏ tự vào chụp khi đủ số):
+  // khách kịp nhìn lại mã. Mã sai thì máy xoá để nhập lại.
   return (
     <section className={`kiosk-flow code-screen${polaroid ? " is-polaroid" : ""}`}>
       <header className="flow-head">
@@ -93,7 +82,7 @@ export function KioskCode({ code, setCode, onSubmit, onBack, busy, error, device
         <p className="soft-note">Máy chụp chưa được gán phòng. Mở liên kết Cài máy chụp trong Quản trị → Quản lý máy.</p>
       )}
       {!cameraReady && <p className="soft-note">{FOLDER_NOTE}</p>}
-      <form ref={form} className="payment-voucher code-card" onSubmit={onSubmit}>
+      <form className="payment-voucher code-card" onSubmit={onSubmit}>
         <label htmlFor="kiosk-code">Mã chụp</label>
         <input id="kiosk-code" type="text" inputMode="numeric" pattern="[0-9]{6}" maxLength={6}
           autoComplete="one-time-code" placeholder="••••••" value={code}
