@@ -124,6 +124,9 @@ function adminPage(path) {
       return { enabledFilters: [], customFilters: [] };
     case "/api/admin/settings/rx1-output":
       return { configured: true, settings: { gamma: 1.5, maxResolution: true } };
+    // Thanh bên: số đơn chờ thu tiền cạnh "Đơn hàng".
+    case "/api/admin/bookings/awaiting-payment":
+      return { count: 0 };
     case "/api/admin/bookings":
     case "/api/admin/rooms":
     case "/api/admin/packages":

@@ -11,6 +11,7 @@ import { ExtraPrints } from "../extra-prints";
 import { PeriodPicker } from "./period-picker";
 import { PrintOrderDialog } from "./print-order-dialog.jsx";
 import { QuickKiosk } from "./quick-kiosk.jsx";
+import { ordersChanged } from "./nav-badges";
 
 // Khổ in của đơn: DNP 10 × 15 (to / nhỏ cắt đôi) hoặc Instax Wide.
 const SIZE_NAMES = { full: "Lớn", strip: "Nhỏ", instax: "Instax" };
@@ -170,6 +171,7 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
     setBusyId(booking._id);
     try {
       await api(`/admin/bookings/${booking._id}`, { method: "PATCH", body });
+      ordersChanged();
       await load();
       notify(body.status === "cancelled" ? `Đã hủy đơn #${booking.code}.`
         : body.collected ? `Đã ghi nhận thu ${money(booking.total)} (${paymentLabel(body.collected)}) cho đơn #${booking.code}.`

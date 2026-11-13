@@ -58,6 +58,9 @@ let rooms;
 let devices;
 // Số liệu kho ảnh trả cho /api/admin/storage (mặc định chưa có số liệu).
 let storageSummary = {};
+// Số đơn chờ thu tiền (/api/admin/bookings/awaiting-payment) và máy in báo về (null = mẫu mặc định có lỗi).
+let awaitingCount = 0;
+let printerRows = null;
 let requests = [];
 let unexpected = [];
 let pageErrors = [];
@@ -168,6 +171,10 @@ before(async () => {
         });
         return;
       }
+      if (path === "/api/admin/bookings/awaiting-payment") {
+        send({ count: awaitingCount });
+        return;
+      }
       if (path === "/api/admin/bookings" || path === "/api/admin/print-jobs") {
         send(path === "/api/admin/bookings" && entry.search.has("from") ? orderFixtures : []);
         return;
@@ -197,7 +204,7 @@ before(async () => {
       }
       // Print agent cạnh máy Instax đã báo về: còn 2 tấm phim.
       if (path === "/api/admin/print-jobs/printers") {
-        send([{ branch: "Chi nhánh Nguyễn Trãi", at: new Date().toISOString(),
+        send(printerRows || [{ branch: "Chi nhánh Nguyễn Trãi", at: new Date().toISOString(),
           instax: { ready: true, film: 2, battery: 70, charging: false, message: "" },
           agent: { running: true, at: new Date().toISOString(), printSizes: ["full", "instax", "strip"] } },
         // Máy DNP của Phòng 01 (chương trình in trên mini PC của phòng): máy in đang tắt, 1 tờ chờ.
@@ -294,12 +301,15 @@ after(async () => {
   if (server) await new Promise((resolve) => server.close(resolve));
 });
 
-async function mount(nextRole = "staff", width = 1440, permissions = defaultStaffPermissions, storage = {}) {
+async function mount(nextRole = "staff", width = 1440, permissions = defaultStaffPermissions,
+  { storage = {}, awaiting = 0, printers = null } = {}) {
   role = nextRole;
   staffPermissions = permissions;
   rooms = structuredClone(roomFixtures);
   devices = new Map([["room-1", { token: deviceToken, name: "Phòng 01" }]]);
   storageSummary = storage;
+  awaitingCount = awaiting;
+  printerRows = printers;
   requests = [];
   unexpected = [];
   pageErrors = [];
@@ -711,10 +721,10 @@ test("admin keeps inactive rooms, create/edit/deactivate controls, and room edit
 test("admin sidebar: one line per page, one icon column, 44 px rows, plain group labels and the storage %", async () => {
   // Kho ảnh đã dùng 84%: mục "Dung lượng ảnh" hiện số % màu vàng.
   const usedBytes = 430 * 1024 * 1024;
-  await mount("admin", 1440, defaultStaffPermissions, {
+  await mount("admin", 1440, defaultStaffPermissions, { storage: {
     cluster: { available: true, usedBytes },
     quota: { scope: "cluster", limitMB: 512, usagePercent: 84, remainingBytes: 82 * 1024 * 1024 },
-  });
+  } });
   const nav = page.getByRole("navigation", { name: "Quản lý studio" });
   await nav.locator(".nav-storage").waitFor();
   const measure = () => page.evaluate(() => {
@@ -743,7 +753,9 @@ test("admin sidebar: one line per page, one icon column, 44 px rows, plain group
   assert.deepEqual(wide.labels, [{ text: "Tổng quan", icons: 0 }, { text: "Thiết lập", icons: 0 }]);
   assert.equal(wide.mainLeft, wide.sidebar, "the page starts right after the sidebar");
   const badge = nav.locator(".nav-storage");
-  assert.equal(await badge.innerText(), "84%");
+  assert.match(await badge.textContent(), /^84%/);
+  // Số % không đổi tên nút; nút đọc nó qua aria-describedby.
+  await nav.getByRole("button", { name: "Dung lượng ảnh", exact: true }).waitFor();
   assert.match(await badge.getAttribute("class"), /is-warning/);
   await mkdir(screenshots, { recursive: true });
   await page.locator(".admin-sidebar").screenshot({ path: join(screenshots, "sidebar-1440.png") });
@@ -763,6 +775,43 @@ test("admin sidebar: one line per page, one icon column, 44 px rows, plain group
   await page.screenshot({ path: join(screenshots, "sidebar-390.png"), fullPage: true });
   assert.equal(phone.overflow, false);
   assert.ok(phone.heights.length === 14 && phone.heights.every((h) => h >= 44), JSON.stringify(phone.heights));
+  assertClean();
+});
+
+test("sidebar badges: orders waiting for payment on Đơn hàng, a red dot on Quản lý máy when a printer needs a look", async () => {
+  // Mẫu máy in mặc định: DNP Phòng 01 mất kết nối, Instax còn 2 tấm phim.
+  await mount("staff", 1440, defaultStaffPermissions, { awaiting: 3 });
+  const nav = page.getByRole("navigation", { name: "Quản lý studio" });
+  const orders = nav.getByRole("button", { name: "Đơn hàng", exact: true });
+  const machines = nav.getByRole("button", { name: "Quản lý máy", exact: true });
+  // Rê chuột lên mục (title — cũng là mô tả cho trình đọc màn hình) để đọc chi tiết.
+  await orders.locator(".nav-alert").waitFor();
+  assert.equal(await orders.locator(".nav-alert").textContent(), "3");
+  assert.equal(await orders.getAttribute("title"), "3 đơn chờ thu tiền");
+  await machines.locator(".nav-dot").waitFor();
+  assert.deepEqual((await machines.getAttribute("title")).split("\n"),
+    ["2 máy in cần xem:", "Máy Instax: sắp hết phim", "Phòng 01: máy in DNP chưa sẵn sàng"]);
+  await mkdir(screenshots, { recursive: true });
+  await page.locator(".admin-sidebar").screenshot({ path: join(screenshots, "sidebar-badges-1440.png") });
+  // Vừa xác nhận đã thu ở quầy: số cập nhật ngay, không đợi lần làm mới 30 giây.
+  awaitingCount = 0;
+  await page.evaluate(() => window.dispatchEvent(new Event("nxc:orders")));
+  await orders.locator(".nav-alert").waitFor({ state: "detached" });
+  assertClean();
+
+  // Mọi máy in ổn, không đơn nào chờ thu: không số, không chấm.
+  const now = new Date().toISOString();
+  await mount("staff", 1440, defaultStaffPermissions, { printers: [
+    { branch: "Chi nhánh Nguyễn Trãi", at: now, instax: { ready: true, film: 8, battery: 90, charging: false, message: "" },
+      agent: { running: true, at: now, printSizes: ["instax"] } },
+    { branch: "Chi nhánh Nguyễn Trãi", room: "room-1", roomName: "Phòng 01", at: null, instax: null,
+      agent: { running: true, at: now, printSizes: ["full"] }, dnp: { ready: true, state: "Sẵn sàng", jobs: 0, at: now } },
+  ] });
+  const asked = (path) => requests.some((entry) => entry.path === path);
+  for (let i = 0; i < 50 && !(asked("/api/admin/print-jobs/printers") && asked("/api/admin/bookings/awaiting-payment")); i++)
+    await page.waitForTimeout(100);
+  await page.waitForTimeout(300);
+  assert.equal(await page.locator(".admin-sidebar .nav-alert, .admin-sidebar .nav-dot").count(), 0);
   assertClean();
 });
 

@@ -5,6 +5,7 @@
   - Mọi mục, trong nhóm hay đứng riêng, thẳng một cột icon và cao 44px (vừa ngón tay trên màn cảm ứng).
   - Kẻ mảnh tách bốn cụm: Tổng quan · Đơn hàng + Quản lý máy · Thiết lập · Tài khoản + Dung lượng ảnh.
   - "Dung lượng ảnh" có số % kho đã dùng; vàng từ 80%, đỏ từ 90%.
+  - "Đơn hàng" có số đơn chờ thu tiền; "Quản lý máy" có chấm đỏ khi máy in cần xem (nav-badges.jsx).
   - Thứ tự mục lục giữ nguyên như Snapbox (config.js NAV_TREE).
 */
 @layer components {
@@ -13,6 +14,43 @@
     margin: 0;
     padding: 0;
     border: 0;
+  }
+  /* Đơn hàng: số đơn chờ thu tiền — nền đỏ đậm, chữ trắng, nổi trên cả hàng đang chọn. */
+  .admin-shell .admin-sidebar .nav-alert {
+    min-width: 22px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: #b42318;
+    color: #fff;
+    box-shadow: none;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.4;
+    text-align: center;
+  }
+  /* Quản lý máy: chấm đỏ khi có máy in cần xem (rê chuột để đọc lý do). */
+  .admin-shell .admin-sidebar .nav-dot {
+    justify-self: end;
+    width: 10px;
+    height: 10px;
+    margin-right: 4px;
+    border-radius: 50%;
+    background: #d92d20;
+    box-shadow: 0 0 0 3px rgba(217, 45, 32, 0.2);
+  }
+  .admin-shell .admin-sidebar button.active .nav-dot {
+    background: #ff6b5e;
+    box-shadow: 0 0 0 3px rgba(255, 107, 94, 0.3);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .admin-shell .admin-sidebar .nav-dot {
+      animation: nav-dot-pulse 2.4s ease-in-out infinite;
+    }
+  }
+  @keyframes nav-dot-pulse {
+    50% {
+      box-shadow: 0 0 0 6px rgba(217, 45, 32, 0.08);
+    }
   }
   .admin-shell .admin-sidebar .nav-storage {
     min-width: 0;

@@ -33,17 +33,12 @@ function storageUsage(summary) {
   return { cluster, quota, knownUsage, level };
 }
 
-// Số % đã dùng cạnh mục "Dung lượng ảnh" trên thanh bên: nhìn là biết kho còn chỗ hay sắp đầy.
-export function StorageNavBadge() {
+// Số % đã dùng cho mục "Dung lượng ảnh" trên thanh bên: nhìn là biết kho còn chỗ hay sắp đầy.
+// Chưa có số liệu đáng tin thì không hiện gì.
+export function useStorageUsage() {
   const { summary } = useStorageMonitor();
   const { quota, knownUsage, level } = storageUsage(summary);
-  if (!knownUsage) return null;
-  const percent = Math.min(100, Math.round(quota.usagePercent));
-  return (
-    <span className={`nav-count nav-storage is-${level}`} title={`Kho ảnh đã dùng ${percent}%`}>
-      {percent}%
-    </span>
-  );
+  return knownUsage ? { percent: Math.min(100, Math.round(quota.usagePercent)), level } : null;
 }
 
 export function StorageWarning({ onOpenStorage }) {

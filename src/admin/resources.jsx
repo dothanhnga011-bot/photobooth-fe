@@ -38,6 +38,7 @@ import { ResourceEditor } from "./resource-editor";
 import { ServiceTabs, serviceOf, useServiceTab } from "./service-tabs";
 import { LAYOUT_COUNTS, polaroidPackage } from "../polaroid-layouts.js";
 import { createSampleLayouts, createTestFrames, SAMPLE_PRICE, TEST_FRAMES } from "./polaroid-presets";
+import { instaxLow, instaxOk, roomPrinterReady } from "./printer-issues";
 
 const searchable = (value) =>
   String(value || "")
@@ -60,8 +61,6 @@ const RESOURCE_ICONS = {
 
 const clock = (value) =>
   new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
-// Hộp phim Instax Wide có 10 tấm: còn ≤ 3 tấm thì nhắc thay phim.
-const FILM_LOW = 3;
 const AGENT_SIZES = { full: "DNP", strip: "DNP", instax: "Instax" };
 const CUT_TEXT = {
   auto: " · tờ nhỏ tự cắt đôi",
@@ -71,7 +70,7 @@ const CUT_TEXT = {
 // Máy in DNP của một phòng (chương trình in trên mini PC của phòng, cài ở "Cài máy chụp").
 function RoomPrinter({ roomName, agent, dnp }) {
   const running = Boolean(agent?.running);
-  const ready = running && (!dnp || dnp.ready);
+  const ready = roomPrinterReady({ agent, dnp });
   return (
     <p className={ready ? "is-ready" : "is-warn"}>
       <strong>{roomName}</strong> · Máy in DNP{" "}
@@ -104,7 +103,7 @@ function PrinterStatus({ printers }) {
         </div>
       ))}
       {printers.filter((row) => !row.room).map(({ branch, at, instax, agent }) => {
-        const low = instax?.ready && Number.isInteger(instax.film) && instax.film <= FILM_LOW;
+        const low = instaxLow(instax);
         const kinds = [...new Set((agent?.printSizes || []).map((s) => AGENT_SIZES[s]))].join(" + ");
         return (
           <div key={branch} className="printer-status-branch">
@@ -118,7 +117,7 @@ function PrinterStatus({ printers }) {
               </p>
             )}
             {instax && (
-              <p className={instax.ready && !low ? "is-ready" : "is-warn"}>
+              <p className={instaxOk(instax) ? "is-ready" : "is-warn"}>
                 <strong>{agent ? "Máy Instax Link WIDE" : branch}</strong> ·{" "}
                 {instax.ready ? (low ? "Sắp hết phim — chuẩn bị hộp phim mới" : "Sẵn sàng") : instax.message}
                 {Number.isInteger(instax.film) && ` · còn ${instax.film} tấm phim`}

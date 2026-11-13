@@ -5,6 +5,7 @@ import { includedSheets, isStrip, piecesLabel } from "./kiosk/print-count.js";
 import { polaroidLayout } from "./polaroid-layouts.js";
 import { Button, ErrorBox, useStudio, useToast } from "./studio";
 import { FieldError, chosen, useValidation } from "./validate";
+import { ordersChanged } from "./admin/nav-badges";
 
 const RULES = {
   package: ["Gói chụp", chosen],
@@ -118,6 +119,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
         },
       });
       setTicket(result);
+      ordersChanged();
     } catch (e) {
       setError(e.message);
       toast.error(e.message);
@@ -141,6 +143,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
         },
       });
       setTicket(active);
+      ordersChanged();
       onCreated(active);
     } catch (e) {
       setError(e.message);
