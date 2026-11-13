@@ -10,6 +10,7 @@ import { CounterTicket } from "../counter-ticket";
 import { ExtraPrints } from "../extra-prints";
 import { PeriodPicker } from "./period-picker";
 import { PrintOrderDialog } from "./print-order-dialog.jsx";
+import { QuickKiosk } from "./quick-kiosk.jsx";
 
 // Khổ in của đơn: DNP 10 × 15 (to / nhỏ cắt đôi) hoặc Instax Wide.
 const SIZE_NAMES = { full: "Lớn", strip: "Nhỏ", instax: "Instax" };
@@ -117,7 +118,7 @@ function DownloadMenu({ booking }) {
 // Máy chủ trả tối đa bấy nhiêu đơn mới nhất cho một khoảng ngày (BOOKING_RANGE_LIMIT ở backend).
 const RANGE_LIMIT = 2000;
 
-export function BookingsManager({ notify, canSeeMoney, canExport = true, canCancel = false, canPrint = true, assignedBranch }) {
+export function BookingsManager({ notify, canSeeMoney, canExport = true, canCancel = false, canPrint = true, canOpenKiosk = false, assignedBranch }) {
   const toast = useToast();
   const lastError = useRef("");
   const today = localDate();
@@ -213,6 +214,7 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
       {canExport && <Button className="outline small" onClick={csv}><Download size={15} /> Xuất CSV (Excel)</Button>}
       <Button className="outline small" onClick={() => load()} aria-label="Làm mới"><RefreshCw size={15} /></Button>
       {hasFilters && <Button className="outline small" onClick={resetFilters}><X size={15} /> Xóa bộ lọc</Button>}
+      {canOpenKiosk && <QuickKiosk toast={toast} />}
       <Button onClick={() => setCreating(true)}><Plus size={15} /> Tạo đơn</Button>
     </div>
     <p className="order-limit-note">Lịch sử đơn và ảnh chỉ lưu 3 ngày. Tổng thu chi của các ngày cũ vẫn có trong Thống kê doanh thu.</p>

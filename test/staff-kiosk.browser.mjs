@@ -782,6 +782,29 @@ test("orders open on the last 72 hours and explain where older revenue is retain
   assertClean();
 });
 
+test("the orders page opens a room's kiosk in a new tab without going to Quản lý máy", async () => {
+  await mount();
+  const nav = page.getByRole("navigation", { name: "Quản lý studio" });
+  await nav.getByRole("button", { name: "Đơn hàng", exact: true }).click();
+  await page.getByRole("button", { name: "Mở máy chụp" }).click();
+  const menu = page.getByRole("menu", { name: "Mở máy chụp của phòng" });
+  await menu.getByRole("menuitem", { name: /Phòng 01/ }).waitFor();
+  // Chỉ phòng đang hoạt động.
+  assert.deepEqual(await menu.getByRole("menuitem").locator("strong").allInnerTexts(), ["Phòng 01", "Phòng 02"]);
+  const [kiosk] = await Promise.all([page.waitForEvent("popup"), menu.getByRole("menuitem", { name: /Phòng 02/ }).click()]);
+  await kiosk.waitForURL(/\/kiosk\?device=/);
+  assert.match(kiosk.url(), /device=fixture-device\.token_01-keep\.room-2$/);
+  assert.ok(requests.some((entry) => entry.path === "/api/admin/rooms/room-2/device" && entry.method === "POST"));
+  await kiosk.close();
+  await menu.waitFor({ state: "detached" });
+  // Tài khoản không có quyền cài máy chụp: không có nút.
+  await mount("staff", 1440, ["orders:export", "print:operate"]);
+  await page.getByRole("navigation", { name: "Quản lý studio" }).getByRole("button", { name: "Đơn hàng", exact: true }).click();
+  await page.getByRole("button", { name: /Tạo đơn/ }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Mở máy chụp" }).count(), 0);
+  assertClean();
+});
+
 test("orders say so when the server's 2000-order cap for a date range is reached", async () => {
   orderFixtures = Array.from({ length: 2000 }, (_, i) => ({
     _id: `order-${i}`, code: String(100000 + i), name: `Khách ${i}`, status: "completed", total: 50000,

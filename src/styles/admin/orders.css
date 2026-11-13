@@ -563,3 +563,49 @@
     .admin-shell .order-date-range input { flex: 1 1 100%; }
   }
 }
+
+/* Nút "Mở máy chụp" trên trang Đơn hàng (admin/quick-kiosk.jsx): danh sách phòng thả xuống. */
+@layer components {
+  .admin-shell .quick-kiosk {
+    position: relative;
+  }
+  .admin-shell .quick-kiosk-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 30;
+    display: grid;
+    gap: 4px;
+    min-width: 260px;
+    padding: 6px;
+    border: 1px solid var(--mellow-line, #e5d9cf);
+    border-radius: 14px;
+    background: var(--mellow-card, #fffaf3);
+    box-shadow: 0 12px 30px rgb(74 50 38 / 20%);
+  }
+  .admin-shell .quick-kiosk-menu p {
+    margin: 0;
+    padding: 10px 12px;
+    color: var(--mellow-muted, #7a5a48);
+  }
+  .admin-shell .quick-kiosk-menu button {
+    display: grid;
+    gap: 2px;
+    min-height: 48px;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--mellow-ink, #3f2c25);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .admin-shell .quick-kiosk-menu button:hover:not(:disabled),
+  .admin-shell .quick-kiosk-menu button:focus-visible {
+    background: #f3e3d4;
+  }
+  .admin-shell .quick-kiosk-menu small {
+    color: var(--mellow-muted, #7a5a48);
+  }
+}

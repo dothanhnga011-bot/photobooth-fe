@@ -169,6 +169,7 @@ export function Admin() {
                 canExport={can(user, "orders:export")}
                 canCancel={can(user, "orders:cancel")}
                 canPrint={can(user, "print:operate")}
+                canOpenKiosk={can(user, "rooms:setup")}
                 assignedBranch={user.branch}
               />
             ) : currentTab === "screens" ? (
