@@ -42,6 +42,9 @@ import {
   stickerArea,
   stickerBoxes,
   stickersReady,
+  TEXT_MARKS,
+  TEXT_PRESETS,
+  TEXT_SYMBOLS,
 } from "./decor.js";
 import { useObjectUrl } from "./KioskShoot.jsx";
 import { useKioskText } from "./use-kiosk-text.js";
@@ -315,18 +318,22 @@ function useFitGrid(count, { aspect = 3 / 2, frame = 8, min = 120 } = {}) {
   return { ref, style, fitted: Boolean(layout && !layout.scroll) };
 }
 
-function Pick({ shot, order, onToggle, disabled }) {
+// Một ảnh đã chụp: chạm để đặt vào ô kế tiếp (chạm lại để dùng thêm cho ô khác). slots: các ô (1, 2…) ảnh
+// này đang nằm. Đủ ô thì không chọn thêm được; bỏ một ô bằng cách chạm ô đó trên khung.
+function Pick({ shot, slots, onPick, disabled }) {
   const src = useObjectUrl(shot.preview);
+  const picked = slots.length > 0;
   return (
     <button
       type="button"
-      className={`select-shot ${order ? "is-picked" : ""}`}
-      aria-pressed={Boolean(order)}
-      disabled={disabled && !order}
-      onClick={() => onToggle(shot.key)}
+      className={`select-shot ${picked ? "is-picked" : ""}`}
+      aria-pressed={picked}
+      aria-label={picked ? `Ảnh ở ô ${slots.join(", ")}` : "Chọn ảnh này"}
+      disabled={disabled}
+      onClick={() => onPick(shot.key)}
     >
       {src && <img src={src} alt="" loading="lazy" />}
-      {order ? <span className="select-order">{order}</span> : null}
+      {picked ? <span className={`select-order${slots.length > 1 ? " is-many" : ""}`}>{slots.join("·")}</span> : null}
     </button>
   );
 }
@@ -467,7 +474,7 @@ function OnScreenKeyboard({ onKey, onBackspace, onSpace, caps, onToggleCaps }) {
 // bản in với đúng màu ảnh và nhãn dán đang thấy rồi gửi máy in.
 // needs: số ảnh mỗi khung cần (cùng thứ tự frames).
 export function KioskSelect({
-  shots, bitmaps, count, selected, onToggle, secondsLeft,
+  shots, bitmaps, count, selected, onPick, onRemove, onClear, secondsLeft,
   frames, needs = [], index, setIndex, onConfirm, busy, prints, qrUrl,
   filters = [], decor, onDecor, shopStickers = [],
 }) {
@@ -477,6 +484,11 @@ export function KioskSelect({
   const ready = selected.filter((key) => bitmaps.has(key));
   const images = ready.map((key) => bitmaps.get(key));
   const full = selected.length >= count;
+  // Một ảnh có thể nằm ở nhiều ô: danh sách ảnh khác nhau (chỉnh ảnh, màu riêng) và các ô của từng ảnh.
+  const uniqueReady = [...new Set(ready)];
+  // Vị trí trong `selected` của từng ảnh đang vẽ trên khung (ảnh chưa tải xong chưa có trên khung).
+  const readySlots = selected.flatMap((key, i) => (bitmaps.has(key) ? [i] : []));
+  const slotsOf = (key) => selected.reduce((list, k, i) => (k === key ? [...list, i + 1] : list), []);
   const move = (by) => frames.length > 1 && setIndex((index + by + frames.length) % frames.length);
   useEffect(() => {
     const onKey = (event) => {
@@ -632,7 +644,7 @@ export function KioskSelect({
 
   const thumbShot = shots.find((s) => s.key === (target === "all" ? selected[0] : target)) || shots[0];
   const lead = {
-    photos: `Chọn ${count} tấm để ghép khung · đã chọn ${selected.length}/${count}`,
+    photos: `Chọn ${count} ô ảnh · đã chọn ${selected.length}/${count} · ${selected.length ? "chạm ô trên khung để bỏ" : "một ảnh dùng được nhiều ô"}`,
     frames: `Chạm một khung để đổi · ${frames.length} khung, đã ghép sẵn ảnh bạn chọn`,
     adjust: "Kéo ảnh trên khung để dời, chụm / mở hai ngón để thu nhỏ / phóng to (vẫn giữ nét)",
     color: "Chọn màu cho tất cả ảnh hoặc từng ảnh — khung và nhãn dán giữ nguyên màu",
@@ -651,7 +663,12 @@ export function KioskSelect({
               : <>{before}<u>{secondsLeft}</u>{after}</>;
           })()}
         </h1>
-        <p>{lead}</p>
+        <p>
+          {lead}
+          {current === "photos" && selected.length > 0 && (
+            <> · <button type="button" className="select-clear" onClick={onClear}>Chọn lại</button></>
+          )}
+        </p>
       </header>
       <div className="select-layout">
         <div className="select-preview">
@@ -677,6 +694,8 @@ export function KioskSelect({
                 onPhotoTap={
                   current === "color" ? (photo) => ready[photo] && setColorTarget(ready[photo])
                   : current === "adjust" ? (photo) => ready[photo] && setAdjustKey(ready[photo])
+                  // Mục Chọn ảnh: chạm ô có ảnh để bỏ ảnh ở ô đó (ô sau dồn lên).
+                  : current === "photos" ? (photo) => readySlots[photo] !== undefined && onRemove(readySlots[photo])
                   : null
                 }
                 photoGesture={current === "adjust" ? photoGesture : null}
@@ -741,9 +760,9 @@ export function KioskSelect({
                   <Pick
                     key={shot.key}
                     shot={shot}
-                    order={selected.indexOf(shot.key) + 1}
+                    slots={slotsOf(shot.key)}
                     disabled={full}
-                    onToggle={onToggle}
+                    onPick={onPick}
                   />
                 ))}
               </div>
@@ -804,10 +823,10 @@ export function KioskSelect({
               ) : (
                 <>
                   <div className="adjust-photos" role="group" aria-label="Chọn ảnh để chỉnh">
-                    {ready.map((key, i) => (
+                    {uniqueReady.map((key) => (
                       <button key={key} type="button" className={`adjust-photo${adjustKey === key ? " is-active" : ""}`} onClick={() => setAdjustKey(key)}>
                         <AdjustThumb shot={shots.find((s) => s.key === key)} />
-                        <b>{i + 1}</b>
+                        <b>{slotsOf(key).join("·")}</b>
                       </button>
                     ))}
                   </div>
@@ -848,11 +867,11 @@ export function KioskSelect({
                   onClick={() => setColorTarget("all")}>
                   Tất cả ảnh
                 </button>
-                {selected.map((key, i) => (
+                {[...new Set(selected)].map((key) => (
                   <TargetChip
                     key={key}
                     shot={shots.find((s) => s.key === key)}
-                    number={i + 1}
+                    number={slotsOf(key).join("·")}
                     active={target === key}
                     label={ownColor(key) ? filterOf(key)?.label : ""}
                     css={filterOf(key)?.css}
@@ -865,7 +884,7 @@ export function KioskSelect({
                   ? Object.keys(photoFilters).some(ownColor)
                     ? "Chọn màu ở đây sẽ áp cho tất cả ảnh (bỏ màu riêng của từng ảnh)."
                     : "Màu áp cho tất cả ảnh trong khung. Muốn màu riêng: chọn số ảnh, hoặc chạm vào ảnh trên khung."
-                  : `Đang chọn màu riêng cho ảnh ${selected.indexOf(target) + 1}.`}
+                  : `Đang chọn màu riêng cho ảnh ở ô ${slotsOf(target).join(", ")}.`}
               </p>
               <ColorChoices shot={thumbShot} filters={filters} value={shownFilter?.id} onChange={applyColor} />
             </div>
@@ -885,6 +904,17 @@ export function KioskSelect({
               <div className="text-colors" role="group" aria-label="Màu chữ">
                 {DECOR_COLORS.map((c) => (
                   <button key={c} type="button" className={textColor === c ? "is-on" : ""} style={{ background: c }} onClick={() => setTextColor(c)} aria-label={`Màu ${c}`} />
+                ))}
+              </div>
+              {/* Ký tự cho tên / chữ ký: dấu của tên Instagram, ký hiệu trang trí và mẫu ghép sẵn (vẽ bằng font
+                  đang chọn, ký hiệu lấy từ font đi kèm nên không lỗi ô vuông). */}
+              <div className="text-symbols" role="group" aria-label="Ký tự trang trí"
+                style={{ fontFamily: (DECOR_FONTS[textFont] || DECOR_FONTS.sans).css }}>
+                {[...TEXT_MARKS, ...TEXT_SYMBOLS, ...TEXT_PRESETS].map((mark) => (
+                  <button key={mark} type="button" className={mark.length > 2 ? "is-preset" : ""}
+                    aria-label={`Thêm ${mark}`} onClick={() => setTyped((v) => (v + mark).slice(0, 40))}>
+                    {mark}
+                  </button>
                 ))}
               </div>
               <OnScreenKeyboard

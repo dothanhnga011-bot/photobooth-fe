@@ -9,15 +9,24 @@ import {
 import {
   DECOR_COLORS,
   DECOR_FONTS,
+  decorFontsReady,
   decorationBox,
   decorationsReady,
   drawDecorations,
+  loadDecorFonts,
   preloadDecorations,
 } from "../album/decorations.js";
 import { photoLayout, slotRect } from "../frame-utils.js";
 
 // Dùng lại bảng font & màu của phần album cho chữ đánh máy trên máy chụp.
 export { DECOR_COLORS, DECOR_FONTS };
+
+// Bảng ký tự cho chữ ký / tên trên khung (kiểu "hntram.ngn__ ♡ __tthiuha__"): dấu hay dùng trong tên
+// Instagram, ký hiệu trang trí và vài mẫu ghép sẵn. Chỉ gồm ký tự có trong font đi kèm (♡ ☆ ✿… thuộc
+// Noto Sans Symbols 2) — test/font-coverage.test.js kiểm tra từng ký tự, không ra ô vuông.
+export const TEXT_MARKS = [".", "_", "@", "-", "~", "·", "—"];
+export const TEXT_SYMBOLS = ["♡", "♥", "❤", "☆", "★", "✩", "✿", "❀", "✧", "✦", "⋆", "☁", "☀", "❦"];
+export const TEXT_PRESETS = ["__ ♡ __", "~ ♡ ~", "— ☆ —", "✧˚ · ✧", "⋆˚✿˚⋆", "♡♡♡"];
 
 // Trang trí trên màn chọn ảnh của máy chụp: một màu ảnh (filter) cho mọi ảnh trong khung và các
 // nhãn dán trên khung. Ảnh xem trước, ảnh ghép trong album và ảnh in vẽ bằng cùng các hàm này.
@@ -137,7 +146,11 @@ export const stickerBoxes = (ctx, stickers, area, index, width, height) =>
   placedStickers(stickers, area)
     .filter((item) => item.index === index)
     .map((item) => decorationBox(ctx, item, width, height));
-// Ảnh nhãn dán của tiệm nạp xong mới vẽ được (ảnh lỗi thì bỏ qua).
+// Ảnh nhãn dán của tiệm nạp xong mới vẽ được (ảnh lỗi thì bỏ qua); chữ khách gõ chờ font tải xong.
 const imageItems = (stickers = []) => stickers.filter((s) => s.src).map((s) => ({ src: s.src }));
-export const stickersReady = (stickers) => decorationsReady(imageItems(stickers));
-export const loadStickers = (stickers) => preloadDecorations(imageItems(stickers));
+const textItems = (stickers = []) =>
+  stickers.filter((s) => s.type === "text" && s.text).map((s) => ({ type: "text", text: s.text, font: s.font, bold: s.bold }));
+export const stickersReady = (stickers) =>
+  decorationsReady(imageItems(stickers)) && decorFontsReady(textItems(stickers));
+export const loadStickers = (stickers) =>
+  Promise.all([preloadDecorations(imageItems(stickers)), loadDecorFonts(textItems(stickers))]);

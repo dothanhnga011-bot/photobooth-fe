@@ -1088,14 +1088,17 @@ export function Kiosk() {
     const list = current.current?.selected || [];
     patch({ frameIndex: i, ...(list.length > keep && { selected: list.slice(0, keep) }) });
   };
-  const toggleShot = (shotKey) => {
+  // Chạm một ảnh: đặt vào ô kế tiếp của khung. Một ảnh dùng được cho nhiều ô (chạm lại để thêm ô nữa).
+  const pickShot = (shotKey) => {
     const list = current.current.selected || [];
-    patch({
-      selected: list.includes(shotKey)
-        ? list.filter((k) => k !== shotKey)
-        : list.length < need ? [...list, shotKey] : list,
-    });
+    if (list.length < need) patch({ selected: [...list, shotKey] });
   };
+  // Bỏ ảnh ở một ô (chạm ô đó trên khung): các ô sau dồn lên.
+  const removePick = (slot) => {
+    const list = current.current.selected || [];
+    if (slot >= 0 && slot < list.length) patch({ selected: list.filter((_, i) => i !== slot) });
+  };
+  const clearPicks = () => patch({ selected: [] });
   // Chọn ảnh và khung trên cùng một màn ("frame" là bước cũ — lượt dở dang trước khi cập nhật).
   const choosing = phase === "select" || phase === "frame";
   const selectLeft = secondsUntil(session?.selectEndsAt || session?.frameEndsAt);
@@ -1457,7 +1460,9 @@ export function Kiosk() {
         bitmaps={bitmaps}
         count={need}
         selected={selected}
-        onToggle={toggleShot}
+        onPick={pickShot}
+        onRemove={removePick}
+        onClear={clearPicks}
         secondsLeft={selectLeft}
         frames={frames}
         needs={frames.map(needOf)}

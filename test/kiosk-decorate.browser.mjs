@@ -70,6 +70,7 @@ const fixture = `
   import { KioskSettings } from '/src/kiosk/KioskSettings.jsx';
   import { windowsScript, macScript } from '/src/admin/kiosk-autostart.js';
   import '/src/tailwind.css';
+  import '/src/kiosk/decor-fonts.js';
   const studio = ${JSON.stringify({ settings: SETTINGS, packages: [], frames: [FRAME, { ...FRAME, _id: "frame-second", name: "Khung thứ hai", thumb: dataUrl(frameThumb) }], stickers: [STICKER, STAR] })};
   // Tiệm chưa tải nhãn dán nào (?stickers=0): máy chụp ẩn mục Nhãn dán.
   if (new URLSearchParams(location.search).get('stickers') === '0') studio.stickers = [];
@@ -324,6 +325,63 @@ test("with a single frame (a Polaroid layout) the frame arrows are hidden: there
     const arrows = page.locator(".frame-arrow");
     assert.equal(await arrows.count(), 2);
     assert.deepEqual(await arrows.evaluateAll((list) => list.map((b) => getComputedStyle(b).visibility)), ["hidden", "hidden"]);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("one photo can fill several slots; tapping its slot on the frame removes it; Chọn lại starts over", async () => {
+  const { page, errors } = await selectScreen();
+  try {
+    const shots = page.getByRole("group", { name: "Ảnh đã chụp" }).getByRole("button");
+    const photosTab = page.getByRole("tab", { name: /^Chọn ảnh/ });
+    // Cùng một ảnh cho cả hai ô của khung.
+    await shots.nth(0).click();
+    await shots.nth(0).click();
+    assert.deepEqual((await saved(page)).selected, ["p1", "p1"]);
+    await photosTab.click();
+    assert.equal(await shots.nth(0).getAttribute("aria-label"), "Ảnh ở ô 1, 2");
+    assert.equal(await shots.nth(0).locator(".select-order").innerText(), "1·2");
+    assert.equal(await shots.nth(1).isDisabled(), true, "every slot is filled");
+    // Chạm ô thứ hai trên khung xem trước: bỏ ảnh ở ô đó, rồi chọn ảnh khác cho ô đó.
+    await page.waitForFunction(() => document.querySelector(".decor-canvas:not(.is-loading)"));
+    const box = await page.getByRole("img", { name: /Khung ảnh xem trước/ }).boundingBox();
+    await page.mouse.click(box.x + 0.5 * box.width, box.y + 0.74 * box.height);
+    assert.deepEqual((await saved(page)).selected, ["p1"]);
+    await shots.nth(1).click();
+    assert.deepEqual((await saved(page)).selected, ["p1", "p2"]);
+    await photosTab.click();
+    await page.getByRole("button", { name: "Chọn lại", exact: true }).click();
+    assert.deepEqual((await saved(page)).selected, []);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("names and signatures: soft bundled fonts and a symbol palette, with the fonts loaded before drawing", async () => {
+  const { page, errors } = await selectScreen();
+  try {
+    const shots = page.getByRole("group", { name: "Ảnh đã chụp" }).getByRole("button");
+    await shots.nth(0).click();
+    await shots.nth(1).click();
+    await page.getByRole("tab", { name: /Thêm chữ/ }).click();
+    const fonts = page.getByRole("group", { name: "Kiểu chữ" });
+    for (const label of ["Chữ ký", "Mềm mại", "Bo tròn"]) await fonts.getByRole("button", { name: label, exact: true }).waitFor();
+    await fonts.getByRole("button", { name: "Chữ ký", exact: true }).click();
+    const keyboard = page.getByRole("group", { name: "Bàn phím" });
+    for (const key of "an") await keyboard.getByRole("button", { name: key, exact: true }).click();
+    const marks = page.getByRole("group", { name: "Ký tự trang trí" });
+    await marks.getByRole("button", { name: "Thêm .", exact: true }).click();
+    await marks.getByRole("button", { name: "Thêm __ ♡ __", exact: true }).click();
+    await marks.getByRole("button", { name: "Thêm ☆", exact: true }).click();
+    await page.getByRole("button", { name: /Thêm chữ vào khung/ }).click();
+    const sticker = (await saved(page)).decor.stickers.at(-1);
+    assert.deepEqual([sticker.type, sticker.text, sticker.font], ["text", "an.__ ♡ __☆", "vibes"]);
+    // Font viết tay và font ký hiệu đi kèm đã tải xong (khung vẽ bằng chúng, không ra ô vuông).
+    await page.waitForFunction(() => {
+      const loaded = (family) => [...document.fonts].some((f) => f.family.replace(/["']/g, "") === family && f.status === "loaded");
+      return loaded("Great Vibes") && loaded("Noto Sans Symbols 2");
+    }, null, { timeout: 10000 });
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: join(tmpdir(), "photobooth-fe-select-text.png") });
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });

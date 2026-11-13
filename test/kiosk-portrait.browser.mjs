@@ -46,7 +46,7 @@ const fixture = `
   // Phòng Polaroid: giao diện cổ điển (Kiosk.jsx đặt thuộc tính này trên <html>).
   if (screen.startsWith('polaroid')) document.documentElement.dataset.kioskTheme = 'classic';
   // Màn chụp: hình trực tiếp giả lập 16 : 9 (luồng từ canvas) và ba ảnh đã chụp.
-  function Shoot() {
+  function Shoot({ classic = true }) {
     const video = useRef(null);
     useEffect(() => {
       const c = document.createElement('canvas');
@@ -64,11 +64,13 @@ const fixture = `
       const timer = setInterval(paint, 100);
       return () => clearInterval(timer);
     }, []);
-    const shots = [['#c98f7a', '#7d5a48'], ['#8fb3c9', '#48627d'], ['#d9c27a', '#7d6a48']]
-      .map((colors, i) => ({ key: 'shot' + i, preview: picture(1500, 1000, colors) }));
+    const [shots, setShots] = useState(() => [['#c98f7a', '#7d5a48'], ['#8fb3c9', '#48627d'], ['#d9c27a', '#7d6a48']]
+      .map((colors, i) => ({ key: 'shot' + i, preview: picture(1500, 1000, colors) })));
+    // Khách vừa bấm dây: một ảnh mới tới (test gọi window.addShot()).
+    window.addShot = () => setShots((list) => [...list, { key: 'shot' + list.length, preview: picture(1500, 1000, ['#7ac98f', '#2f6a3d']) }]);
     return <KioskShoot videoRef={video} zoom={0} ready phase="shoot" preCount={0} showCountdown={false}
       sessionLeft={172} taken={shots.length} quota={0} shots={shots} flash={0} receiving={false} ending={false}
-      onEnd={() => {}} onReopenCamera={() => {}} classic />;
+      onEnd={() => {}} onReopenCamera={() => {}} classic={classic} />;
   }
   function App() {
     const [code, setCode] = useState('12');
@@ -87,6 +89,7 @@ const fixture = `
       case 'polaroid-code': return <KioskCode code={code} setCode={setCode} onSubmit={(e) => e.preventDefault()} onBack={none}
         busy={false} error="" device="fixture-device" cameraReady={true} polaroid />;
       case 'polaroid-shoot': return <Shoot />;
+      case 'ptb-shoot': return <Shoot classic={false} />;
       case 'polaroid-done': return <KioskDone left={90} pending={0} nextGuest={none} done={{
         composite: picture(1800, 1200, ['#c98f7a', '#8fb3c9']), url: 'https://mellowptb.com/album/fixture',
         code: '123456', prints: 1, print: { status: 'printing' }, printSize: 'instax', framed: true }} />;
@@ -265,6 +268,34 @@ test("polaroid shoot, landscape: live view 2/3, a classic side panel 1/3 with th
   assert.deepEqual([m.thumbs.count, m.thumbs.rows], [3, 1]);
   assert.ok(m.end.minHeight >= 64, `nút Chụp xong cao ${m.end.minHeight} px`);
   assert.equal(m.corner.count, 8, "bốn góc quanh hình trực tiếp, bốn góc quanh cột ảnh");
+});
+
+test("PTB shoot, landscape: the photo column is twice as wide and a new photo shows over the live view for 1.5 s", async () => {
+  const m = await portrait("ptb-shoot", { rail: ".shoot-rail", thumbs: ".shoot-thumbs img", live: ".shoot-stage video", stage: ".shoot-stage" },
+    { width: 1920, height: 1080 });
+  assert.equal(m.pageScrolls, false);
+  // Cột ảnh trước rộng 228 px ở màn 1920: giờ gấp đôi.
+  assert.ok(m.rail.minWidth >= 440 && m.rail.minWidth <= 470, `cột ảnh rộng ${m.rail.minWidth} px`);
+  assert.ok(m.thumbs.minWidth >= 400, `ảnh nhỏ rộng ${m.thumbs.minWidth} px`);
+  // Hình trực tiếp thấy đủ khung (không cắt hai bên): rộng bằng vùng hình, không tràn ra ngoài.
+  assert.ok(Math.abs(m.live.minWidth - m.stage.minWidth) <= 4 && m.live.minHeight <= 1080, JSON.stringify({ live: m.live, stage: m.stage }));
+
+  const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  try {
+    await page.goto(`${base}/?screen=ptb-shoot`);
+    await page.waitForFunction(() => [...document.querySelectorAll("video")].every((v) => v.style.visibility === "visible"));
+    assert.equal(await page.locator(".shoot-review").count(), 0, "photos already taken are not replayed");
+    await page.evaluate(() => window.addShot());
+    await page.locator(".shoot-review.is-shown").waitFor({ timeout: 2000 });
+    assert.equal(await page.locator(".shoot-review-no").innerText(), "Ảnh 4");
+    const shownAt = Date.now();
+    await page.locator(".shoot-review").waitFor({ state: "detached", timeout: 4000 });
+    const shownMs = Date.now() - shownAt;
+    assert.ok(shownMs >= 1200 && shownMs <= 2300, `ảnh hiện ${shownMs} ms`);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
 });
 
 test("polaroid shoot, portrait: live view on top, the latest photo below", async () => {

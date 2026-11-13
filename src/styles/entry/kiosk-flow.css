@@ -9,7 +9,9 @@
     inset: 0;
     z-index: 20;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) clamp(156px, 15vw, 228px);
+    /* Cột ảnh vừa chụp bên phải rộng gấp đôi trước (228 → 460 px ở màn 1920) để khách xem ảnh dễ hơn;
+       hình trực tiếp thu lại tương ứng (vẫn thấy đủ khung hình). */
+    grid-template-columns: minmax(0, 1fr) clamp(300px, 24vw, 460px);
     background: #120c0a;
     color: #faf2eb;
     overflow: hidden;
@@ -184,6 +186,41 @@
     text-align: center;
   }
   .shoot-capture-status p { margin: 0; color: inherit; }
+  /* Ảnh vừa chụp đè lên hình trực tiếp 1,5 giây (KioskShoot Review), hiện dần cho êm mắt. */
+  .shoot-review {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    display: grid;
+    place-items: center;
+    margin: 0;
+    background: #000;
+    opacity: 0;
+    transition: opacity 0.15s ease-out;
+  }
+  .shoot-review.is-shown {
+    opacity: 1;
+  }
+  .shoot-review img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .shoot-review-no {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    padding: 6px 16px;
+    border-radius: 999px;
+    background: rgb(33 23 19 / 78%);
+    color: #fff;
+    font-size: clamp(16px, 1.6vw, 24px);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .shoot-review { transition: none; }
+  }
   .shoot-ending {
     position: absolute;
     inset: 0;
@@ -218,7 +255,7 @@
     letter-spacing: 0.12em;
   }
   .shoot-timer strong {
-    font: 700 clamp(24px, 2.8vw, 44px) / 1.05 var(--mellow-display, Georgia, serif);
+    font: 700 clamp(30px, 3.4vw, 60px) / 1.05 var(--mellow-display, Georgia, serif);
     font-variant-numeric: tabular-nums;
   }
   .shoot-timer small {
@@ -352,7 +389,7 @@
     justify-content: center;
     gap: 8px;
     width: 100%;
-    min-height: 56px;
+    min-height: 64px;
     margin: 0 auto;
     padding: 0 12px;
     border: 0;
@@ -1040,6 +1077,26 @@
     height: clamp(32px, 2.4vw, 44px);
     font-size: clamp(16px, 1.3vw, 22px);
   }
+  /* Một ảnh ở nhiều ô: nhãn "1·3" dài ra theo số ô. */
+  .select-tab-panel .select-order.is-many {
+    width: auto;
+    min-width: clamp(32px, 2.4vw, 44px);
+    padding: 0 0.6em;
+    border-radius: 999px;
+  }
+  /* "Chọn lại": bỏ hết ảnh đã chọn (nằm trong dòng hướng dẫn dưới tiêu đề). */
+  .select-clear {
+    /* Không làm dòng hướng dẫn cao lên (mục Chọn ảnh và Khung cao bằng nhau). */
+    padding: 0 12px;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--mellow-cocoa, #522e22);
+    font: inherit;
+    font-weight: 700;
+    line-height: 1.25;
+    cursor: pointer;
+  }
   /* Mục "Khung": mọi khung của gói cùng lúc, mỗi khung ghép sẵn ảnh khách chọn. Số cột / cỡ ô do
      KioskSelect (useFitGrid) chọn như lưới ảnh; ô nhỏ hơn 140 px thì lưới cuộn dọc. */
   .frame-choices {
@@ -1436,7 +1493,8 @@
     min-height: 64px; display: grid; place-items: center; padding: 10px 16px;
     border-radius: 18px; background: #fffaf3;
     box-shadow: inset 0 0 0 1px rgb(122 74 54 / 15%);
-    font-size: 30px; font-weight: 700; text-align: center; word-break: break-word;
+    /* Cùng nét với chữ vẽ lên khung (không đậm): khách thấy đúng như bản in. */
+    font-size: 30px; font-weight: 400; text-align: center; word-break: break-word;
   }
   .text-preview .text-ph { color: #c3ab9b; font-weight: 400; font-size: 18px; }
   .text-fonts { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -1446,6 +1504,19 @@
     color: var(--mellow-ink, #3f2c25); font-size: 16px; cursor: pointer;
   }
   .text-fonts button.is-on { border-color: var(--mellow-cocoa, #522e22); background: #f3e3d4; }
+  /* Ký tự trang trí: một hàng vuốt ngang (dấu tên Instagram, ♡ ☆ ✿…, mẫu ghép sẵn). */
+  .text-symbols {
+    display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px;
+    scroll-snap-type: x proximity; scrollbar-width: thin;
+  }
+  .text-symbols button {
+    flex: none; min-width: 48px; min-height: 48px; padding: 0 12px; border-radius: 12px;
+    border: 1px solid rgb(122 74 54 / 30%); background: #fffaf3;
+    color: var(--mellow-ink, #3f2c25); font: inherit; font-size: 24px; line-height: 1;
+    scroll-snap-align: start; cursor: pointer;
+  }
+  .text-symbols button.is-preset { font-size: 20px; }
+  .text-symbols button:active { background: #f3e3d4; }
   .text-colors { display: flex; flex-wrap: wrap; gap: 8px; }
   .text-colors button {
     width: 38px; height: 38px; padding: 0; border-radius: 50%;

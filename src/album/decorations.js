@@ -1,11 +1,18 @@
 // Chữ, sticker và chữ ký vẽ tay trên khung. Tọa độ lưu theo tỉ lệ 0–1 của khung, cỡ chữ / nét vẽ
 // theo khung rộng 1200 px, nên ảnh xem trước và ảnh in 10 × 15 cm vẽ ra giống hệt nhau.
+// Font viết tay đi kèm web (Great Vibes, Dancing Script, Pacifico — đủ dấu tiếng Việt, nạp trong main.jsx)
+// nên máy chụp nào cũng vẽ giống nhau. Ký hiệu trang trí (♡ ☆ ✿ ✧…) font chữ không có thì lấy từ font ký
+// hiệu đi kèm (Noto Sans Symbols 2) ngay sau font chính: không bao giờ ra ô vuông (test/font-coverage).
+const SYMBOLS = "'Noto Sans Symbols 2'";
 export const DECOR_FONTS = {
-  sans: { label: "Hiện đại", css: "'Be Vietnam Pro', Arial, sans-serif" },
-  serif: { label: "Cổ điển", css: "Georgia, 'Times New Roman', serif" },
-  handwritten: { label: "Viết tay", css: "'Segoe Script', 'Brush Script MT', cursive" },
-  round: { label: "Tròn", css: "'Comic Sans MS', 'Chalkboard SE', 'Trebuchet MS', sans-serif" },
-  typewriter: { label: "Đánh máy", css: "'Courier New', Courier, monospace" },
+  sans: { label: "Hiện đại", css: `'Be Vietnam Pro', ${SYMBOLS}, Arial, sans-serif` },
+  vibes: { label: "Chữ ký", css: `'Great Vibes', ${SYMBOLS}, cursive` },
+  dancing: { label: "Mềm mại", css: `'Dancing Script', ${SYMBOLS}, cursive` },
+  pacifico: { label: "Bo tròn", css: `'Pacifico', ${SYMBOLS}, cursive` },
+  serif: { label: "Cổ điển", css: `Georgia, ${SYMBOLS}, 'Times New Roman', serif` },
+  handwritten: { label: "Viết tay", css: `'Segoe Script', 'Brush Script MT', ${SYMBOLS}, cursive` },
+  round: { label: "Tròn", css: `'Comic Sans MS', 'Chalkboard SE', 'Trebuchet MS', ${SYMBOLS}, sans-serif` },
+  typewriter: { label: "Đánh máy", css: `'Courier New', Courier, ${SYMBOLS}, monospace` },
 };
 export const DECOR_COLORS = [
   "#382b26", "#ffffff", "#7a4b36", "#c89b7b", "#e8d5c4", "#d94f5c",
@@ -47,6 +54,14 @@ function fontOf(item, px) {
   const family = (DECOR_FONTS[item.font] || DECOR_FONTS.sans).css;
   return `${item.type === "signature" ? "italic " : ""}${item.bold ? "700 " : ""}${px}px ${family}`;
 }
+// Font của chữ trên khung phải tải xong mới vẽ được lên canvas (khung xem trước, ảnh in): tải đúng các
+// ký tự đang dùng (font chia theo bảng chữ, chỉ phần cần thiết). Không có document.fonts (test Node): bỏ qua.
+const textItems = (decorations) => decorations.filter((d) => d.text && !d.src);
+export const decorFontsReady = (decorations = []) =>
+  !globalThis.document?.fonts || textItems(decorations).every((d) => document.fonts.check(fontOf(d, 48), String(d.text)));
+export const loadDecorFonts = (decorations = []) =>
+  !globalThis.document?.fonts ? Promise.resolve([])
+    : Promise.all(textItems(decorations).map((d) => document.fonts.load(fontOf(d, 48), String(d.text)).catch(() => [])));
 // Nhãn dán trên máy chụp được phóng to tới gần nửa khung (cỡ 600 ở khung rộng 1200 px).
 const sizeOf = (item, width) => Math.max(12, Math.min(600, Number(item.size) || 36)) * width / 1200;
 

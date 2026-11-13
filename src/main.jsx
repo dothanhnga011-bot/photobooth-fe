@@ -22,6 +22,8 @@ import "@fontsource/playfair-display/latin-500-italic.css";
 import "@fontsource/playfair-display/vietnamese-500-italic.css";
 import "@fontsource/patrick-hand/latin-400.css";
 import "@fontsource/patrick-hand/vietnamese-400.css";
+// Chữ khách gõ lên khung ở máy chụp: font viết tay đủ dấu tiếng Việt và font ký hiệu ♡ ☆ ✿ ✧.
+import "./kiosk/decor-fonts.js";
 import "./tailwind.css";
 
 // An album opened from its QR code: ask for the album while the album screen's code is still
