@@ -1,0 +1,152 @@
+/*
+  Thanh bên quản trị (13/11): dễ đọc, dễ bấm. Nạp sau cùng để ghi đè các lớp cũ của mục lục.
+  - Rộng 256px: tên trang dài nhất ("Khổ ảnh & bảng giá", "Chữ trên máy chụp") nằm trên một dòng.
+  - Tên nhóm (TỔNG QUAN, THIẾT LẬP) là nhãn chữ in hoa nhỏ, không icon, để không bị nhầm là nút bấm.
+  - Mọi mục, trong nhóm hay đứng riêng, thẳng một cột icon và cao 44px (vừa ngón tay trên màn cảm ứng).
+  - Kẻ mảnh tách bốn cụm: Tổng quan · Đơn hàng + Quản lý máy · Thiết lập · Tài khoản + Dung lượng ảnh.
+  - "Dung lượng ảnh" có số % kho đã dùng; vàng từ 80%, đỏ từ 90%.
+  - Thứ tự mục lục giữ nguyên như Snapbox (config.js NAV_TREE).
+*/
+@layer components {
+  /* Trang trong nhóm thẳng hàng với mục đứng riêng (máy tính và điện thoại): bỏ thụt lề, đường kẻ dọc. */
+  .admin-shell .admin-sidebar .admin-nav-children {
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .admin-shell .admin-sidebar .nav-storage {
+    min-width: 0;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(255, 250, 243, 0.85);
+    color: var(--mellow-muted);
+    box-shadow: inset 0 0 0 1px #cdb49c;
+    font-size: 11.5px;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+  .admin-shell .admin-sidebar .nav-storage.is-warning {
+    background: #f8e2b8;
+    color: #6f4306;
+    box-shadow: none;
+  }
+  .admin-shell .admin-sidebar .nav-storage.is-critical {
+    background: #f3c4bd;
+    color: #85190f;
+    box-shadow: none;
+  }
+
+  @media (min-width: 761px) {
+    .admin-shell {
+      --admin-sidebar-w: 256px;
+    }
+    .admin-shell .admin-sidebar {
+      width: var(--admin-sidebar-w);
+      padding: 22px 14px 16px;
+    }
+    .admin-shell .admin-main {
+      margin-left: var(--admin-sidebar-w);
+    }
+    .admin-shell .admin-sidebar .brand {
+      margin: 6px 12px 22px;
+    }
+
+    .admin-shell .admin-sidebar .admin-nav-tree,
+    .admin-shell .admin-sidebar .admin-nav-branch,
+    .admin-shell .admin-sidebar .admin-nav-children {
+      gap: 2px;
+    }
+    .admin-shell .admin-sidebar .admin-nav-branch {
+      margin-top: 0;
+    }
+    /* Tên nhóm: nhãn nhỏ phía trên các trang của nhóm. */
+    .admin-shell .admin-sidebar .admin-nav-parent {
+      display: block;
+      min-height: 0;
+      padding: 4px 12px 6px;
+      color: var(--mellow-muted);
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      line-height: 1.3;
+    }
+    /* Kẻ mảnh giữa nhóm và các mục đứng riêng (cả hai chiều). */
+    .admin-shell .admin-sidebar .admin-nav-branch:has(+ button) {
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #cdb49c;
+    }
+    .admin-shell .admin-sidebar button + .admin-nav-branch {
+      margin-top: 8px;
+      padding-top: 12px;
+      border-top: 1px solid #cdb49c;
+    }
+
+    .admin-shell .admin-sidebar .admin-nav-tree button,
+    .admin-shell .admin-sidebar .admin-nav-tree button.admin-nav-child {
+      grid-template-columns: 22px minmax(0, 1fr) auto;
+      gap: 12px;
+      min-height: 44px;
+      padding: 8px 12px;
+      font-size: 14px;
+      line-height: 1.3;
+    }
+    .admin-shell .admin-sidebar .admin-nav-text {
+      overflow-wrap: normal;
+    }
+
+    .admin-shell .sidebar-bottom {
+      gap: 2px;
+      padding-top: 10px;
+    }
+    .admin-shell .sidebar-bottom button {
+      min-height: 44px;
+      font-size: 13px;
+    }
+  }
+
+  /* Điện thoại (menu mở ra, hai cột): trang trong nhóm cũng cao 48px như mục đứng riêng. */
+  @media (max-width: 760px) {
+    .admin-shell .admin-sidebar .admin-nav-tree button,
+    .admin-shell .admin-sidebar .admin-nav-tree button.admin-nav-child {
+      min-height: 48px;
+      padding: 10px 11px;
+      font-size: 13px;
+      line-height: 1.3;
+    }
+    .admin-shell .admin-sidebar .admin-nav-parent {
+      display: block;
+      min-height: 0;
+      padding: 10px 6px 4px;
+      font-size: 11.5px;
+    }
+  }
+
+  /* Màn thấp (laptop 768px): gọn lại để thấy được nhiều mục hơn, vẫn đủ to để bấm chuột. */
+  @media (min-width: 761px) and (max-height: 860px) {
+    .admin-shell .admin-sidebar {
+      padding-top: 14px;
+    }
+    .admin-shell .admin-sidebar .brand {
+      margin-bottom: 12px;
+    }
+    .admin-shell .admin-sidebar .brand-logo {
+      width: 48px;
+      height: 48px;
+    }
+    .admin-shell .admin-sidebar .admin-nav-tree button,
+    .admin-shell .admin-sidebar .admin-nav-tree button.admin-nav-child,
+    .admin-shell .sidebar-bottom button {
+      min-height: 38px;
+      padding-block: 6px;
+    }
+    .admin-shell .admin-sidebar .admin-nav-branch:has(+ button) {
+      margin-bottom: 6px;
+      padding-bottom: 6px;
+    }
+    .admin-shell .admin-sidebar button + .admin-nav-branch {
+      margin-top: 6px;
+      padding-top: 8px;
+    }
+  }
+}

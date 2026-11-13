@@ -56,6 +56,8 @@ let page;
 let role = "staff";
 let rooms;
 let devices;
+// Số liệu kho ảnh trả cho /api/admin/storage (mặc định chưa có số liệu).
+let storageSummary = {};
 let requests = [];
 let unexpected = [];
 let pageErrors = [];
@@ -148,7 +150,7 @@ before(async () => {
         return;
       }
       if (path === "/api/admin/storage") {
-        send({});
+        send(storageSummary);
         return;
       }
       if (path === "/api/admin/stats") {
@@ -292,11 +294,12 @@ after(async () => {
   if (server) await new Promise((resolve) => server.close(resolve));
 });
 
-async function mount(nextRole = "staff", width = 1440, permissions = defaultStaffPermissions) {
+async function mount(nextRole = "staff", width = 1440, permissions = defaultStaffPermissions, storage = {}) {
   role = nextRole;
   staffPermissions = permissions;
   rooms = structuredClone(roomFixtures);
   devices = new Map([["room-1", { token: deviceToken, name: "Phòng 01" }]]);
+  storageSummary = storage;
   requests = [];
   unexpected = [];
   pageErrors = [];
@@ -702,6 +705,64 @@ test("admin keeps inactive rooms, create/edit/deactivate controls, and room edit
     path: join(screenshots, "rooms-admin-1440.png"),
     fullPage: true,
   });
+  assertClean();
+});
+
+test("admin sidebar: one line per page, one icon column, 44 px rows, plain group labels and the storage %", async () => {
+  // Kho ảnh đã dùng 84%: mục "Dung lượng ảnh" hiện số % màu vàng.
+  const usedBytes = 430 * 1024 * 1024;
+  await mount("admin", 1440, defaultStaffPermissions, {
+    cluster: { available: true, usedBytes },
+    quota: { scope: "cluster", limitMB: 512, usagePercent: 84, remainingBytes: 82 * 1024 * 1024 },
+  });
+  const nav = page.getByRole("navigation", { name: "Quản lý studio" });
+  await nav.locator(".nav-storage").waitFor();
+  const measure = () => page.evaluate(() => {
+    const items = [...document.querySelectorAll("#admin-navigation button")].map((button) => {
+      const text = button.querySelector(".admin-nav-text");
+      const lineHeight = parseFloat(getComputedStyle(text).lineHeight);
+      return {
+        label: text.textContent,
+        height: Math.round(button.getBoundingClientRect().height),
+        iconLeft: Math.round(button.querySelector("svg, img").getBoundingClientRect().left),
+        oneLine: text.getBoundingClientRect().height < lineHeight * 1.5,
+      };
+    });
+    const labels = [...document.querySelectorAll(".admin-nav-parent")].map((label) => ({
+      text: label.textContent, icons: label.querySelectorAll("svg").length,
+    }));
+    const sidebar = document.querySelector(".admin-sidebar").getBoundingClientRect();
+    const main = document.querySelector(".admin-main").getBoundingClientRect();
+    return { items, labels, sidebar: Math.round(sidebar.width), mainLeft: Math.round(main.left) };
+  });
+  const wide = await measure();
+  assert.equal(wide.items.length, 14, JSON.stringify(wide.items.map((i) => i.label)));
+  assert.deepEqual(wide.items.filter((i) => !i.oneLine).map((i) => i.label), [], "every page name fits on one line");
+  assert.ok(wide.items.every((i) => i.height >= 44), JSON.stringify(wide.items.map((i) => [i.label, i.height])));
+  assert.equal(new Set(wide.items.map((i) => i.iconLeft)).size, 1, "pages in a group line up with the other pages");
+  assert.deepEqual(wide.labels, [{ text: "Tổng quan", icons: 0 }, { text: "Thiết lập", icons: 0 }]);
+  assert.equal(wide.mainLeft, wide.sidebar, "the page starts right after the sidebar");
+  const badge = nav.locator(".nav-storage");
+  assert.equal(await badge.innerText(), "84%");
+  assert.match(await badge.getAttribute("class"), /is-warning/);
+  await mkdir(screenshots, { recursive: true });
+  await page.locator(".admin-sidebar").screenshot({ path: join(screenshots, "sidebar-1440.png") });
+  // Laptop 768 px: hàng gọn hơn nhưng tên trang vẫn một dòng.
+  await page.setViewportSize({ width: 1366, height: 768 });
+  const laptop = await measure();
+  assert.deepEqual(laptop.items.filter((i) => !i.oneLine).map((i) => i.label), []);
+  assert.ok(laptop.items.every((i) => i.height >= 38), JSON.stringify(laptop.items.map((i) => [i.label, i.height])));
+  await page.screenshot({ path: join(screenshots, "sidebar-1366x768.png") });
+  assertClean();
+  // Điện thoại: menu mở ra không tràn ngang, mỗi mục vẫn ≥ 44 px.
+  await mount("admin", 390);
+  const phone = await page.evaluate(() => ({
+    overflow: document.documentElement.scrollWidth > innerWidth,
+    heights: [...document.querySelectorAll("#admin-navigation button")].map((b) => Math.round(b.getBoundingClientRect().height)),
+  }));
+  await page.screenshot({ path: join(screenshots, "sidebar-390.png"), fullPage: true });
+  assert.equal(phone.overflow, false);
+  assert.ok(phone.heights.length === 14 && phone.heights.every((h) => h >= 44), JSON.stringify(phone.heights));
   assertClean();
 });
 

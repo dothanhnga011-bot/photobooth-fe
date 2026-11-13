@@ -8,8 +8,8 @@ import { R2StorageWarning } from "./r2-storage";
 const number = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 });
 const mb = (bytes) => number.format(bytes / (1024 * 1024));
 
-export function StorageWarning({ onOpenStorage }) {
-  const { summary, loadError } = useStorageMonitor();
+// Mức dùng kho ảnh từ số liệu máy chủ: normal < 80% ≤ warning < 90% ≤ critical; thiếu số liệu → unknown.
+function storageUsage(summary) {
   const cluster = summary?.cluster;
   const quota = summary?.quota;
   const knownUsage =
@@ -30,6 +30,25 @@ export function StorageWarning({ onOpenStorage }) {
         ? "warning"
         : "normal"
     : "unknown";
+  return { cluster, quota, knownUsage, level };
+}
+
+// Số % đã dùng cạnh mục "Dung lượng ảnh" trên thanh bên: nhìn là biết kho còn chỗ hay sắp đầy.
+export function StorageNavBadge() {
+  const { summary } = useStorageMonitor();
+  const { quota, knownUsage, level } = storageUsage(summary);
+  if (!knownUsage) return null;
+  const percent = Math.min(100, Math.round(quota.usagePercent));
+  return (
+    <span className={`nav-count nav-storage is-${level}`} title={`Kho ảnh đã dùng ${percent}%`}>
+      {percent}%
+    </span>
+  );
+}
+
+export function StorageWarning({ onOpenStorage }) {
+  const { summary, loadError } = useStorageMonitor();
+  const { cluster, quota, knownUsage, level } = storageUsage(summary);
   const needsCleanup = level === "warning" || level === "critical";
   const unavailable =
     !!loadError || (summary && !knownUsage && Number.isFinite(quota?.limitMB));

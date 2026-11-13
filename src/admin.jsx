@@ -18,7 +18,7 @@ import { Rx1OutputManager } from "./admin/rx1-output.jsx";
 import { useAdminSession } from "./admin/use-admin-session";
 import { LoginPage, PasswordDialog } from "./admin/auth";
 import { StorageMonitorProvider } from "./admin/storage-monitor";
-import { StorageWarning } from "./admin/storage-warning";
+import { StorageNavBadge, StorageWarning } from "./admin/storage-warning";
 import { StorageAssistant } from "./admin/storage-assistant";
 
 // Trang album chỉ tải bản CSS không có phần quản trị (xem guestStylesheet trong vite.config.js); vào
@@ -77,6 +77,7 @@ export function Admin() {
     >
       <Icon size={18} aria-hidden="true" />
       <span className="admin-nav-text">{label}</span>
+      {key === "storage" && <StorageNavBadge />}
     </button>
   );
   const parent = parents[currentTab];
@@ -97,7 +98,8 @@ export function Admin() {
             <div className="admin-nav-group admin-nav-tree">
               {tree.map(([key, label, Icon, children]) => {
                 if (!children) return navButton([key, label, Icon]);
-                // Nhóm luôn mở sẵn mọi trang con, không phải bấm mở / đóng.
+                // Nhóm luôn mở sẵn mọi trang con, không phải bấm mở / đóng. Tên nhóm là nhãn chữ nhỏ
+                // (không icon) để không bị nhầm là một nút bấm.
                 return (
                   <div
                     className={`admin-nav-branch ${children.some(([child]) => child === currentTab) ? "holds-current" : ""}`}
@@ -106,7 +108,6 @@ export function Admin() {
                     aria-labelledby={`admin-nav-${key}`}
                   >
                     <div className="admin-nav-parent" id={`admin-nav-${key}`}>
-                      <Icon size={18} aria-hidden="true" />
                       <span className="admin-nav-text">{label}</span>
                     </div>
                     <div className="admin-nav-children">
