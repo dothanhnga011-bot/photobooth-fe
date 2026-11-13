@@ -1,4 +1,5 @@
-/* Phòng Selfbooth trên điện thoại (album/SelfboothStudio.jsx): thả tim ảnh, làm đẹp, chọn khung, in Instax.
+/* Phòng Selfbooth trên điện thoại (album/SelfboothStudio.jsx): chọn ảnh (thả tim, làm đẹp) → chọn khung →
+   thêm ảnh vào ô → in Instax.
    Giao diện Mellow; ưu tiên ngón cái: nút chính ở thanh dưới, ô chạm ≥ 44 px. */
 @layer components {
   .selfbooth-studio {
@@ -171,6 +172,182 @@
     width: 100%;
   }
 
+  /* Thanh bước như Selfbooth (tab gạch chân): Chọn ảnh → Chọn khung → Thêm ảnh → In. */
+  .selfbooth-steps ol {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+    padding: 0;
+    border-bottom: 1px solid var(--mellow-line, #e5d9cf);
+    list-style: none;
+  }
+  .selfbooth-steps li { display: flex; }
+  .selfbooth-steps button {
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 3px;
+    width: 100%;
+    min-width: 0;
+    min-height: 54px;
+    margin-bottom: -1px;
+    padding: 8px 2px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    color: var(--mellow-muted, #7a5a48);
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+  }
+  .selfbooth-steps button svg { font-size: 20px; }
+  .selfbooth-steps button.is-done { color: var(--mellow-cocoa, #522e22); }
+  .selfbooth-steps button.is-active {
+    border-bottom-color: var(--mellow-cocoa, #522e22);
+    color: var(--mellow-cocoa, #522e22);
+    font-weight: 700;
+  }
+  .selfbooth-steps button:disabled:not(.is-active) { color: #a3968c; }
+
+  /* Bước Thêm ảnh: khung lớn (kéo ảnh trong ô), chọn ô, dải ảnh đã thả tim, phóng to. */
+  .studio-compose {
+    display: grid;
+    gap: 12px;
+    max-width: 640px;
+    width: 100%;
+    margin: 0 auto;
+  }
+  .studio-compose-stage {
+    position: relative;
+    /* Kéo ảnh trong ô không cuộn trang. */
+    touch-action: none;
+    user-select: none;
+    cursor: grab;
+  }
+  .studio-compose-stage:active { cursor: grabbing; }
+  .studio-slot-ring {
+    position: absolute;
+    border: 3px solid #e0526b;
+    border-radius: 4px;
+    box-shadow: 0 0 0 2px rgb(255 255 255 / 85%);
+    pointer-events: none;
+  }
+  .studio-compose-stage:has(.is-loading) .studio-slot-ring { display: none; }
+  .studio-slots {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+  }
+  .studio-slots button {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 48px;
+    padding: 4px 14px 4px 4px;
+    border: 2px solid var(--mellow-line, #e5d9cf);
+    border-radius: 999px;
+    background: var(--mellow-card, #fffaf3);
+    color: inherit;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .studio-slots button[aria-checked="true"] { border-color: #e0526b; }
+  .studio-slots img {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  .studio-strip-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .selfbooth-studio .studio-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--mellow-line, #e5d9cf);
+    border-radius: 999px;
+    background: var(--mellow-card, #fffaf3);
+    color: var(--mellow-cocoa, #522e22);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .studio-strip {
+    display: flex;
+    gap: 10px;
+    margin: 0;
+    padding: 2px 2px 6px;
+    overflow-x: auto;
+    list-style: none;
+    scroll-snap-type: x proximity;
+  }
+  .studio-strip li { flex: none; scroll-snap-align: start; }
+  .studio-strip button {
+    position: relative;
+    display: block;
+    width: 92px;
+    padding: 0;
+    border: 3px solid transparent;
+    border-radius: 12px;
+    background: var(--mellow-card, #fffaf3);
+    overflow: hidden;
+    cursor: pointer;
+  }
+  .studio-strip button[aria-pressed="true"] { border-color: #e0526b; }
+  .studio-strip img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    object-fit: cover;
+  }
+  .studio-strip b {
+    position: absolute;
+    left: 4px;
+    bottom: 4px;
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: #e0526b;
+    color: #fff;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+  .studio-adjust {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+  }
+  .studio-adjust label {
+    display: grid;
+    flex: 1;
+    gap: 4px;
+    font-size: 14px;
+  }
+  .studio-adjust label span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .studio-adjust input {
+    width: 100%;
+    min-height: 28px;
+    accent-color: var(--mellow-cocoa, #522e22);
+  }
+
   /* Thanh dưới cố định: Quay lại / Tiếp tục / In ảnh. */
   .studio-foot {
     position: fixed;
@@ -292,7 +469,10 @@
     border: 0;
     background: none;
     color: inherit;
-    font: 600 12px / 1.2 inherit;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
   }
   .studio-editor-filters img {
     width: 72px;

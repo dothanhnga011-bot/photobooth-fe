@@ -17,6 +17,7 @@ import {
   Printer,
   RotateCcw,
   Sparkles,
+  Frame,
   Trash2,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -36,7 +37,7 @@ import { PackageCatalog } from "./package-catalog";
 import { ResourceEditor } from "./resource-editor";
 import { ServiceTabs, serviceOf, useServiceTab } from "./service-tabs";
 import { LAYOUT_COUNTS, polaroidPackage } from "../polaroid-layouts.js";
-import { createSampleLayouts, SAMPLE_PRICE } from "./polaroid-presets";
+import { createSampleLayouts, createTestFrames, SAMPLE_PRICE, TEST_FRAMES } from "./polaroid-presets";
 
 const searchable = (value) =>
   String(value || "")
@@ -304,6 +305,24 @@ export function ResourceManager({ resource, notify, me }) {
       setBusy(false);
     }
   }
+  // Tab Polaroid: 2 khung thử Mellow (1 ảnh, 2 ảnh) để thử phòng Selfbooth ngay; khung cùng tên đã có thì giữ.
+  async function createTrialFrames() {
+    if (!canManage || busy) return;
+    if (!confirm(`Tạo ${TEST_FRAMES.length} khung thử Instax Wide (${TEST_FRAMES.map((f) => f.name).join(", ")})?
+Khung có chữ Mellow, tim và ngày in — dùng để thử phòng Selfbooth. Tắt hoặc xoá ở mục Khung khi có khung thật.`)) return;
+    setBusy(true);
+    try {
+      const made = await createTestFrames();
+      reloadCatalog?.();
+      notify(made.length
+        ? `Đã tạo ${made.length} khung thử: ${made.join(", ")}.`
+        : "Đã có đủ khung thử — không tạo thêm.");
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function deactivate(item) {
     if (!canManage) return;
     if (!confirm(`Ngừng sử dụng ${item.name || item.code}?`)) return;
@@ -418,10 +437,16 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
           onStatusChange={setStatus}
           onCreate={() => newItem(service === "polaroid" ? "instax" : "full")}
           actions={service === "polaroid" && canManage && (
-            <Button className="outline" disabled={busy || loading} onClick={createSamples}>
-              <Sparkles size={16} aria-hidden="true" />
-              {busy ? "Đang tạo…" : "Tạo 2 layout mẫu"}
-            </Button>
+            <>
+              <Button className="outline" disabled={busy || loading} onClick={createSamples}>
+                <Sparkles size={16} aria-hidden="true" />
+                {busy ? "Đang tạo…" : "Tạo 2 layout mẫu"}
+              </Button>
+              <Button className="outline" disabled={busy || loading} onClick={createTrialFrames}>
+                <Frame size={16} aria-hidden="true" />
+                {busy ? "Đang tạo…" : "Tạo 2 khung thử"}
+              </Button>
+            </>
           )}
           loading={loading}
         />

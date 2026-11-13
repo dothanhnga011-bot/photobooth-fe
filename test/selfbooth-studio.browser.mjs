@@ -1,9 +1,11 @@
-// Phòng Selfbooth trên điện thoại: khách quét QR → thả tim ảnh → làm đẹp → chọn khung → In (tấm Instax gửi
-// tới máy in cạnh máy chụp). Đồng hồ do máy chủ đặt (edit-start); hết giờ tự gửi in.
+// Phòng Selfbooth trên điện thoại (4 bước như Selfbooth): khách quét QR → Chọn ảnh (thả tim, làm đẹp) → Chọn
+// khung → Thêm ảnh (ảnh nào vào ô nào, kéo / phóng) → In (tấm Instax gửi tới máy in cạnh máy chụp). Đồng hồ do
+// máy chủ đặt (edit-start); hết giờ tự gửi in.
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { after, before, test } from "node:test";
 import { crc32, deflateSync } from "node:zlib";
 import { build } from "vite";
@@ -47,7 +49,9 @@ const FRAMES = [
   { _id: "white", name: "Trắng", printSize: "instax", active: true, image: frameArt([255, 255, 255, 255]), slots: SLOTS },
   { _id: "pink", name: "Hồng", printSize: "instax", active: true, image: frameArt([240, 150, 180, 255]), slots: SLOTS },
 ];
-const photo = png(300, 200, (x) => (x < 150 ? [200, 120, 100, 255] : [100, 140, 200, 255]));
+// Ảnh số n một màu riêng: đọc màu ở giữa ô của ảnh in để biết ảnh nào vào ô nào.
+const COLORS = { 1: [220, 40, 40, 255], 2: [40, 180, 60, 255], 3: [40, 80, 220, 255], 4: [230, 200, 30, 255] };
+const photos = Object.fromEntries(Object.entries(COLORS).map(([n, c]) => [n, png(300, 400, () => c)]));
 
 let server, browser, base, portrait;
 const fixture = `
@@ -56,18 +60,34 @@ const fixture = `
   import { MemoryRouter, Route, Routes } from 'react-router-dom';
   import { StudioContext, ToastProvider } from '/src/studio.jsx';
   import { AlbumPage } from '/src/pages.jsx';
+  import { TEST_FRAMES, drawTestFrame, testFrameRegions } from '/src/admin/polaroid-presets.js';
+  import '/src/kiosk/decor-fonts.js';
   import '/src/tailwind.css';
-  const studio = ${JSON.stringify({ settings: {}, packages: [], frames: FRAMES })};
-  createRoot(document.getElementById('root')).render(
-    React.createElement(MemoryRouter, { initialEntries: ['/album/fixture-album'] },
-      React.createElement(StudioContext.Provider, { value: studio },
-        React.createElement(ToastProvider, null,
-          React.createElement(Routes, null, React.createElement(Route, { path: '/album/:token', element: React.createElement(AlbumPage) }))))));
+  // ?trial: dùng đúng 2 khung thử Mellow mà nút "Tạo 2 khung thử" trong quản trị tạo ra.
+  (async () => {
+    const frames = new URLSearchParams(location.search).has('trial')
+      ? await Promise.all(TEST_FRAMES.map(async (design, i) => ({
+        _id: 'trial' + i, name: design.name, printSize: 'instax', active: true, order: 0, dateColor: '#4b332a',
+        image: await drawTestFrame(design), slots: testFrameRegions(design),
+      })))
+      : ${JSON.stringify(FRAMES)};
+    window.fixtureFrames = frames;
+    const studio = { settings: {}, packages: [], frames };
+    createRoot(document.getElementById('root')).render(
+      React.createElement(MemoryRouter, { initialEntries: ['/album/fixture-album'] },
+        React.createElement(StudioContext.Provider, { value: studio },
+          React.createElement(ToastProvider, null,
+            React.createElement(Routes, null, React.createElement(Route, { path: '/album/:token', element: React.createElement(AlbumPage) }))))));
+  })();
 `;
 
 before(async () => {
+  await mkdir(resolve('.cache/main-flows'), { recursive: true });
   portrait = await readFile(new URL('../src/admin/assets/rx1-preview-default.jpg', import.meta.url));
   const bundle = await build({
+    // Ổ đĩa viết hoa ("C:", như đường dẫn thật Vite đọc ra cho node_modules): thư mục đang đứng có thể là "c:",
+    // khác chữ hoa ổ đĩa thì Vite nạp React (và ngữ cảnh Toast) hai lần.
+    root: fileURLToPath(new URL('..', import.meta.url)).replace(/^[a-z]:/, (drive) => drive.toUpperCase()),
     configFile: false, logLevel: "error", esbuild: { jsx: "automatic" },
     define: { "process.env.NODE_ENV": '"development"', "import.meta.env.VITE_API_URL": '""' },
     build: { write: false, minify: false, rollupOptions: { input: "virtual:selfbooth.jsx" } },
@@ -100,7 +120,7 @@ before(async () => {
 after(async () => { await browser?.close(); await new Promise((resolve) => server?.close(resolve)); });
 
 async function phone({ secondsLeft = 250, originalPending = false, photoCount = 4, printError = null, lostReply = false,
-  viewport = { width: 390, height: 844 }, realPhoto = false } = {}) {
+  viewport = { width: 390, height: 844 }, realPhoto = false, trial = false } = {}) {
   const page = await browser.newPage({ viewport, isMobile: true, hasTouch: true });
   const errors = [], prints = [], mediaRequests = [];
   let savedJob = null, failedOnce = false;
@@ -113,9 +133,10 @@ async function phone({ secondsLeft = 250, originalPending = false, photoCount = 
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
-    if (/\/albums\/fixture-album\/photos\/p\d/.test(path)) {
+    const media = path.match(/\/albums\/fixture-album\/photos\/p(\d)/);
+    if (media) {
       mediaRequests.push(url.searchParams.get('size'));
-      return route.fulfill({ body: realPhoto ? portrait : photo, contentType: realPhoto ? 'image/jpeg' : "image/png" });
+      return route.fulfill({ body: realPhoto ? portrait : photos[media[1]], contentType: realPhoto ? 'image/jpeg' : "image/png" });
     }
     if (path.endsWith('/albums/fixture-album/print')) return route.fulfill({json:savedJob});
     if (path.endsWith("/albums/fixture-album/edit-start"))
@@ -133,37 +154,82 @@ async function phone({ secondsLeft = 250, originalPending = false, photoCount = 
     if (path.endsWith("/albums/fixture-album")) return route.fulfill({ json: booking });
     return route.fulfill({ status: 404, json: { message: `unexpected ${path}` } });
   });
-  await page.goto(`${base}/album/fixture-album`);
+  await page.goto(`${base}/album/fixture-album${trial ? "?trial" : ""}`);
   return { page, errors, prints, mediaRequests, originalsReady:()=>{booking.photos.forEach(p=>delete p.originalPending)} };
 }
 
-test("heart two photos, change a colour, pick a frame and print one Instax Wide sheet; a 250-second clock runs", async () => {
+const stored = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("selfbooth-v1-fixture-album")));
+// Màu ở điểm (tỉ lệ 0–1) của ảnh ghép khung trên màn "Đã gửi in!".
+const compositeColor = (page, fx, fy) => page.evaluate(async ([fx, fy]) => {
+  const img = document.querySelector('img[alt="Ảnh đã ghép khung"]');
+  await img.decode();
+  const canvas = document.createElement("canvas");
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0);
+  return [...ctx.getImageData(Math.round(fx * canvas.width), Math.round(fy * canvas.height), 1, 1).data].slice(0, 3);
+}, [fx, fy]);
+const grey = ([r, g, b]) => Math.abs(r - g) < 14 && Math.abs(g - b) < 14 && r > 120;
+const step = (page) => page.locator('.selfbooth-steps [aria-current="step"]').textContent();
+
+test("the four Selfbooth steps: heart freely, pick a frame, put photos into slots (one photo twice, zoom, drag), print one Instax Wide sheet", async () => {
   const { page, errors, prints } = await phone();
   try {
-    await page.getByRole("heading", { name: "Thả tim ảnh để in" }).waitFor();
+    await page.getByRole("heading", { name: "Thả tim ảnh bạn thích" }).waitFor();
     assert.match(await page.getByRole("timer").innerText(), /^4:(10|09|08)$/);
+    assert.equal((await step(page)).trim(), "Chọn ảnh");
     const next = page.getByRole("button", { name: /Tiếp tục/ });
-    assert.equal(await next.isDisabled(), true, "the layout needs two photos");
-    await page.getByRole("button", { name: "Thả tim ảnh 4" }).click();
-    await page.getByRole("button", { name: "Thả tim ảnh 2" }).click();
-    // Đủ ảnh: thả tim thêm thì nhắc bỏ bớt.
-    await page.getByRole("button", { name: "Thả tim ảnh 1" }).click();
-    await page.getByText("Layout này in 2 ảnh — bỏ tim một ảnh trước nhé.").waitFor();
+    assert.equal(await next.isDisabled(), true, "heart at least one photo first");
+    assert.equal(await page.getByRole("button", { name: /Chọn khung/ }).isDisabled(), true);
+    // Thả tim không giới hạn (như Selfbooth): 3 ảnh cho khung 2 ô.
+    for (const n of [4, 2, 1]) await page.getByRole("button", { name: `Thả tim ảnh ${n}` }).click();
+    await page.getByRole("button", { name: "Bỏ tim ảnh 1" }).waitFor();
     // Làm đẹp ảnh 4: đổi bộ lọc màu (không cần nhận diện khuôn mặt).
     await page.getByRole("button", { name: "Làm đẹp ảnh 4" }).click();
     const editor = page.getByRole("dialog", { name: "Làm đẹp ảnh 4" });
     for (const label of ["Mịn da", "Trắng da", "Thon mặt (V-Line)", "Má hồng"]) await editor.getByRole("tab", { name: label }).waitFor();
     await editor.getByRole("radio", { name: "Đen trắng" }).click();
     await editor.getByRole("button", { name: /Xong/ }).click();
-    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("selfbooth-v1-fixture-album")));
-    assert.deepEqual(saved.hearts, ["p4", "p2"]);
+    let saved = await stored(page);
+    assert.deepEqual(saved.hearts, ["p4", "p2", "p1"]);
     assert.equal(saved.adjusts.p4.filter, "mono");
     await page.getByText("Đã làm đẹp").waitFor();
-    // Hai khung Instax: chọn khung hồng rồi xem lại và in.
+    // Bước 2: chọn khung hồng.
     await next.click();
     await page.getByRole("heading", { name: "Chọn khung" }).waitFor();
     await page.getByRole("radio", { name: /Hồng/ }).click();
+    await next.click();
+    // Bước 3: thêm ảnh. Mặc định các ô theo thứ tự thả tim (ảnh 4, ảnh 2); ảnh thả tim thứ ba chờ ở dải ảnh.
+    await page.getByRole("heading", { name: "Thêm ảnh vào khung" }).waitFor();
+    assert.equal((await step(page)).trim(), "Thêm ảnh");
+    const stage = page.getByRole("img", { name: "Khung đang ghép" });
+    await stage.waitFor();
+    assert.equal(await page.locator(".studio-strip li").count(), 3);
+    assert.equal(await page.getByRole("radio", { name: /Ô 1/ }).getAttribute("aria-checked"), "true");
+    // Ô 2 cũng lấy ảnh 4 (một ảnh vào nhiều ô).
+    await page.getByRole("radio", { name: /Ô 2/ }).click();
+    await page.getByRole("button", { name: "Đặt ảnh 4 vào ô 2" }).click();
+    await page.getByText("Ô 1, 2").waitFor();
+    saved = await stored(page);
+    assert.deepEqual(saved.slots, ["p4", "p4"]);
+    // Phóng ảnh ở ô 2, kéo ảnh ở ô 1 (chạm vào ô 1 trên khung thì ô 1 được chọn).
+    await page.getByRole("slider", { name: "Phóng to ảnh ở ô 2" }).fill("150");
+    const box = await stage.boundingBox();
+    const sx = box.x + box.width * 0.2575, sy = box.y + box.height * 0.5;
+    await page.mouse.move(sx, sy);
+    await page.mouse.down();
+    await page.mouse.move(sx + 30, sy + 10, { steps: 4 });
+    await page.mouse.up();
+    await page.waitForFunction(() => JSON.parse(localStorage.getItem("selfbooth-v1-fixture-album")).transforms?.[0]?.x > 0);
+    assert.equal(await page.getByRole("radio", { name: /Ô 1/ }).getAttribute("aria-checked"), "true");
+    saved = await stored(page);
+    assert.equal(saved.transforms[1].zoom, 1.5);
+    assert.ok(saved.transforms[0].x > 0 && saved.transforms[0].x < 1);
+    await page.screenshot({ path: resolve(".cache/main-flows/phone-compose-390.png"), fullPage: true });
+    // Bước 4: xem lại và in.
     await page.getByRole("button", { name: /Xem lại/ }).click();
+    await page.getByRole("heading", { name: "Xem lại & in" }).waitFor();
     await page.getByRole("img", { name: "Ảnh in xem trước" }).waitFor();
     await page.getByRole("button", { name: /In ảnh/ }).click();
     await page.getByRole("heading", { name: "Đã gửi in!" }).waitFor({ timeout: 20000 });
@@ -172,8 +238,46 @@ test("heart two photos, change a colour, pick a frame and print one Instax Wide 
     assert.equal(prints[0].key, saved.requestKey);
     assert.deepEqual(jpegSize(prints[0].body), [1260, 840], "one Instax Wide sheet");
     assert.equal(Number(prints[0].sizes), prints[0].body.length);
+    // Cả hai ô in ảnh 4 đã làm đẹp (đen trắng), không phải ảnh 2 (xanh lá).
+    for (const fx of [0.2575, 0.7425]) {
+      const color = await compositeColor(page, fx, 0.5);
+      assert.ok(grey(color), `slot at ${fx} prints the black & white photo 4: ${color}`);
+    }
     // Sau khi in: vẫn lưu được toàn bộ ảnh.
     await page.getByRole("button", { name: /Lưu tất cả/ }).waitFor();
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("the two Mellow trial frames from admin go through the whole phone flow", async () => {
+  const { page, errors, prints } = await phone({ trial: true });
+  try {
+    await page.getByRole("heading", { name: "Thả tim ảnh bạn thích" }).waitFor();
+    for (const n of [3, 1]) await page.getByRole("button", { name: `Thả tim ảnh ${n}` }).click();
+    await page.getByRole("button", { name: /Tiếp tục/ }).click();
+    // Gói chọn 2 ảnh: chỉ khung thử 2 ô.
+    await page.getByRole("radio", { name: "Khung thử Mellow · 2 ảnh" }).waitFor();
+    assert.equal(await page.getByRole("radio").count(), 1);
+    await page.getByRole("button", { name: /Tiếp tục/ }).click();
+    await page.getByRole("img", { name: "Khung đang ghép" }).waitFor();
+    await page.screenshot({ path: resolve(".cache/main-flows/phone-compose-trial.png"), fullPage: true });
+    await page.getByRole("button", { name: /Xem lại/ }).click();
+    await page.getByRole("button", { name: /In ảnh/ }).click();
+    await page.getByRole("heading", { name: "Đã gửi in!" }).waitFor({ timeout: 20000 });
+    assert.equal(prints[0].frame, "Khung thử Mellow · 2 ảnh");
+    assert.deepEqual(jpegSize(prints[0].body), [1260, 840]);
+    // Ảnh 3 (xanh dương) ô trái, ảnh 1 (đỏ) ô phải; nền giấy hồng phấn ở dải chữ dưới.
+    const [left, right] = [await compositeColor(page, 0.27, 0.45), await compositeColor(page, 0.73, 0.45)];
+    assert.ok(left[2] > 170 && left[0] < 90, `photo 3 on the left: ${left}`);
+    assert.ok(right[0] > 170 && right[2] < 90, `photo 1 on the right: ${right}`);
+    await page.locator('img[alt="Ảnh đã ghép khung"]').screenshot({ path: resolve(".cache/main-flows/trial-print.png") });
+    // Ảnh khung thử: PNG đúng cỡ Instax Wide 1800 × 1200.
+    const arts = await page.evaluate(() => window.fixtureFrames.map((f) => f.image));
+    for (const [i, art] of arts.entries()) {
+      const bytes = Buffer.from(art.split(",")[1], "base64");
+      assert.deepEqual([bytes.readUInt32BE(16), bytes.readUInt32BE(20)], [1800, 1200]);
+      await writeFile(resolve(`.cache/main-flows/trial-frame-${i + 1}.png`), bytes);
+    }
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });
@@ -184,7 +288,7 @@ test('phone controls fit narrow screens and the editor keeps the photo and Done 
   for (const viewport of [{width:390,height:844},{width:320,height:568}]) {
     const {page,errors} = await phone({viewport,realPhoto:true});
     try {
-      await page.getByRole('heading',{name:'Thả tim ảnh để in'}).waitFor();
+      await page.getByRole('heading',{name:'Thả tim ảnh bạn thích'}).waitFor();
       await page.evaluate(()=>document.fonts.ready);
       await page.waitForFunction(()=>[...document.querySelectorAll('.studio-photos img')].every(img=>img.complete && img.naturalWidth>0));
       await page.locator('.studio-photos img').evaluateAll(imgs=>Promise.all(imgs.map(img=>img.decode())));
@@ -264,9 +368,11 @@ test('a lost print response is recovered by looking up the job, without sending 
 test('a layout with only one captured photo still fills its two slots',async()=>{
   const {page,prints,errors}=await phone({photoCount:1});
   try{
-    await page.getByText(/Ảnh bạn chọn sẽ được lặp để đủ 2 ô/).waitFor();
     await page.getByRole('button',{name:'Thả tim ảnh 1'}).click();
     await page.getByRole('button',{name:/Tiếp tục/}).click();
+    await page.getByRole('button',{name:/Tiếp tục/}).click();
+    await page.getByText(/ảnh được lặp cho đủ ô/).waitFor();
+    await page.getByText('Ô 1, 2').waitFor();
     await page.getByRole('button',{name:/Xem lại/}).click();
     await page.getByRole('img',{name:'Ảnh in xem trước'}).waitFor();
     await page.getByRole('button',{name:'In ảnh',exact:true}).click();

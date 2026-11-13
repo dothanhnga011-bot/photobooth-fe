@@ -1,15 +1,21 @@
-// Phòng Selfbooth (Polaroid, khổ Instax): chụp xong, máy chụp chỉ hiện mã QR. Khách quét rồi trên điện thoại:
-// thả tim ảnh ưng ý (đủ số ô của layout), làm đẹp từng ảnh — mịn da, trắng da, thon mặt, má hồng, bộ lọc màu
-// (beauty.js, như Selfbooth, nhận diện khuôn mặt ngay trên máy) —, chọn khung, xem trước rồi bấm In: tấm Instax
-// gửi tới máy in cạnh máy chụp (cùng đường in của máy chụp: /albums/:token/print-pack).
+// Phòng Selfbooth (Polaroid, khổ Instax): chụp xong, máy chụp chỉ hiện mã QR. Khách quét rồi trên điện thoại đi
+// 4 bước như Selfbooth: Chọn ảnh (thả tim ảnh ưng ý — không giới hạn —, chạm ảnh để làm đẹp: mịn da, trắng da,
+// thon mặt, má hồng, bộ lọc màu; beauty.js nhận diện khuôn mặt ngay trên máy) → Chọn khung → Thêm ảnh (ảnh nào
+// vào ô nào, một ảnh vào được nhiều ô; kéo để dời, phóng to) → In: tấm Instax gửi tới máy in cạnh máy chụp
+// (cùng đường in của máy chụp: /albums/:token/print-pack).
 // Thời gian do máy chủ đặt từ lần mở đầu tiên (POST /albums/:token/edit-start, mặc định 250 giây — cùng cài đặt
 // "Thời gian chọn ảnh"); hết giờ thì tự gửi in những gì đang chọn.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { PiArrowLeftBold, PiCheckBold, PiHeartFill, PiHeartBold, PiPrinterBold, PiSlidersHorizontalBold, PiTimerBold } from "react-icons/pi";
+import {
+  PiArrowLeftBold, PiArrowsOutCardinalBold, PiCheckBold, PiHeartBold, PiHeartFill, PiImagesDuotone, PiPlusBold,
+  PiPrinterBold, PiPrinterDuotone, PiSelectionAllBold, PiSlidersHorizontalBold, PiStackDuotone, PiTimerBold,
+} from "react-icons/pi";
 import { api } from "../api";
 import { Button, ErrorBox, useStudio, useToast } from "../studio";
 import { ADJUST_LABELS, COLOR_FILTERS, DEFAULT_ADJUST, FILTER_CSS, isNeutral, warmFaceModel } from "../beauty.js";
 import { composeFrameTile, composePreview, frameCandidates, printSheets, renderPrintFrame } from "../kiosk/compose.js";
+import { photoAt } from "../kiosk/decor.js";
+import { photoLayout } from "../frame-utils.js";
 import { onNetworkRecovery } from "../network.js";
 import { PhotoThumb } from "./photo-thumb.jsx";
 import { printPackUpload } from "./print-upload.js";
@@ -17,8 +23,27 @@ import { AlbumViewer } from "./AlbumViewer.jsx";
 import { createStudioMedia, needsFaces } from './studio-media.js';
 
 const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+// Các bước như Selfbooth, đúng thứ tự của tiệm: chọn ảnh → chọn khung → thêm ảnh vào khung → in. Thanh bước
+// kiểu tab gạch chân như Selfbooth; bước đã qua hiện dấu ✓.
+const STEPS = [
+  ["photos", "Chọn ảnh", PiImagesDuotone],
+  ["frame", "Chọn khung", PiStackDuotone],
+  ["compose", "Thêm ảnh", PiSelectionAllBold],
+  ["print", "In", PiPrinterDuotone],
+];
+const HEAD = {
+  photos: "Thả tim ảnh bạn thích",
+  frame: "Chọn khung",
+  compose: "Thêm ảnh vào khung",
+  print: "Xem lại & in",
+};
+// Ảnh trong ô: 100 % = phủ kín ô (như Selfbooth), phóng tới 300 %; x / y là phần của bề rộng / cao ô.
+const NO_MOVE = { zoom: 1, x: 0, y: 0 };
+const ZOOM = { min: 100, max: 300 };
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 
-// Trạng thái lưu trên máy (tải lại trang vẫn giữ): ảnh đã thả tim, chỉnh của từng ảnh, khung, mã lệnh in.
+// Trạng thái lưu trên máy (tải lại trang vẫn giữ): ảnh đã thả tim, chỉnh của từng ảnh, khung, ảnh của từng ô,
+// mã lệnh in.
 function useSaved(key, initial) {
   const [value, setValue] = useState(() => {
     try { return { ...initial, ...JSON.parse(localStorage.getItem(key) || "{}") }; } catch { return initial; }
@@ -97,22 +122,67 @@ function Editor({ token, media, photo, adjust, onChange, onClose }) {
   );
 }
 
-// Khung ghép sẵn ảnh đã chọn (đã làm đẹp) để xem / chọn.
-function FramePreview({ frame, images, className = "", label, tile = false }) {
+// Khung ghép sẵn ảnh của các ô (đã làm đẹp, phóng / dời) để xem / chọn. keep: đang kéo / phóng ảnh — giữ ảnh
+// cũ tới khi ảnh mới ghép xong (không nháy "Đang ghép…").
+function FramePreview({ frame, images, className = "", label, tile = false, transforms = [], keep = false }) {
   const [src, setSrc] = useState("");
+  const moves = JSON.stringify(transforms);
   useEffect(() => {
     const controller = new AbortController();
-    setSrc('');
+    if (!keep) setSrc('');
     if (!images.length) return;
-    const render = tile ? composeFrameTile(frame, images, { signal: controller.signal, placeholders: false })
-      : composePreview(frame, images, 720, '', { signal: controller.signal });
+    const render = tile ? composeFrameTile(frame, images, { signal: controller.signal, placeholders: false, transforms })
+      : composePreview(frame, images, 720, '', { signal: controller.signal, transforms });
     render.then((canvas) => {
       if (!controller.signal.aborted) setSrc(canvas.toDataURL("image/jpeg", 0.88));
       canvas.width = canvas.height = 0;
     }).catch(() => {});
     return () => controller.abort();
-  }, [frame, images, tile]);
-  return src ? <img className={className} src={src} alt={label} /> : <span className={`${className} is-loading`} role="status">Đang ghép…</span>;
+  }, [frame, images, tile, moves]);
+  return src ? <img className={className} src={src} alt={label} draggable={false} />
+    : <span className={`${className} is-loading`} role="status">Đang ghép…</span>;
+}
+
+// Bước "Thêm ảnh": khung lớn, ô đang chọn có viền. Chạm một ô để chọn, kéo trong ô để dời ảnh (gộp theo
+// khung hình của màn hình: mỗi khung hình ghép lại một lần).
+function ComposeStage({ frame, images, transforms, active, onActive, onMove, disabled }) {
+  const box = useRef(null);
+  const drag = useRef(null);
+  const slots = useMemo(() => photoLayout(frame).slots, [frame]);
+  useEffect(() => () => cancelAnimationFrame(drag.current?.raf), []);
+  function down(event) {
+    if (disabled || !box.current) return;
+    const r = box.current.getBoundingClientRect();
+    const slot = photoAt(frame, (event.clientX - r.left) / r.width, (event.clientY - r.top) / r.height);
+    if (slot < 0) return;
+    onActive(slot);
+    drag.current = { id: event.pointerId, slot, x: event.clientX, y: event.clientY, start: { ...NO_MOVE, ...transforms[slot] } };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
+  function move(event) {
+    const d = drag.current;
+    if (!d || d.id !== event.pointerId) return;
+    const r = box.current.getBoundingClientRect(), s = slots[d.slot];
+    d.next = {
+      ...d.start,
+      x: clamp(d.start.x + (event.clientX - d.x) / (s.w * r.width), -1, 1),
+      y: clamp(d.start.y + (event.clientY - d.y) / (s.h * r.height), -1, 1),
+    };
+    if (!d.raf) d.raf = requestAnimationFrame(() => { d.raf = 0; onMove(d.slot, d.next); });
+  }
+  function up() {
+    const d = drag.current;
+    drag.current = null;
+    if (d?.raf) { cancelAnimationFrame(d.raf); onMove(d.slot, d.next); }
+  }
+  const s = slots[active];
+  return (
+    <div className="studio-compose-stage" ref={box} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
+      <FramePreview frame={frame} images={images} transforms={transforms} keep className="studio-print-preview" label="Khung đang ghép" />
+      {s && <span className="studio-slot-ring" aria-hidden="true"
+        style={{ left: `${s.x * 100}%`, top: `${s.y * 100}%`, width: `${s.w * 100}%`, height: `${s.h * 100}%` }} />}
+    </div>
+  );
 }
 
 export function SelfboothStudio({ token, booking, reload }) {
@@ -125,24 +195,39 @@ export function SelfboothStudio({ token, booking, reload }) {
   const frames = useMemo(() => frameCandidates(catalog.filter((f) => f.active !== false), { count: need, printSize: "instax" })
     .filter((f) => (f.printSize || "full") === "instax"), [catalog, need]);
   const alreadyPrinted = (Number(booking.printSheets) || 0) >= (Number(booking.prints) || 1);
-  const [saved, save] = useSaved(`selfbooth-v1-${token}`, { hearts: [], adjusts: {}, frameId: "", requestKey: crypto.randomUUID() });
+  const [saved, save] = useSaved(`selfbooth-v1-${token}`, {
+    hearts: [], adjusts: {}, frameId: "", slots: [], transforms: [], requestKey: crypto.randomUUID(),
+  });
   const [step, setStep] = useState("photos");
   const [shotRatio, setShotRatio] = useState("");
   const [editing, setEditing] = useState(null);
+  const [active, setActive] = useState(0);
   const [printing, setPrinting] = useState(false);
   const [result, setResult] = useState(alreadyPrinted ? { sent: true } : null);
   const [error, setError] = useState("");
-  const hearts = saved.hearts.filter((id) => photos.some((p) => String(p.id) === id)).slice(0, need);
+  const photoOf = (id) => photos.find((p) => String(p.id) === id);
+  // Thả tim không giới hạn (như Selfbooth).
+  const hearts = saved.hearts.filter((id) => photoOf(id));
   const frame = frames.find((f) => f._id === saved.frameId) || frames[0];
-  const minimum = Math.min(need, photos.length);
-  const printIds = [...hearts];
-  for (const photo of photos) if (printIds.length < need && !printIds.includes(String(photo.id))) printIds.push(String(photo.id));
-  const printPhotos = printIds.map(id => photos.find(photo => String(photo.id) === id)).filter(Boolean);
+  const slotCount = frame ? photoLayout(frame).slots.length || need : need;
+  // Ảnh của từng ô: khách đặt ở bước Thêm ảnh; ô chưa đặt lấy lần lượt các ảnh đã thả tim chưa nằm ở ô nào
+  // (thả tim ít hơn số ô thì lặp lại). Hết giờ mà chưa thả tim ảnh nào: các ảnh đầu tiên.
+  const pool = hearts.length ? hearts : photos.map((p) => String(p.id));
+  const slotIds = [];
+  for (let i = 0; i < slotCount; i++) {
+    const placed = saved.slots?.[i];
+    if (photoOf(placed)) { slotIds.push(placed); continue; }
+    const later = (saved.slots || []).slice(i + 1);
+    slotIds.push(pool.find((id) => !slotIds.includes(id) && !later.includes(id)) ?? pool[i % Math.max(1, pool.length)]);
+  }
+  const printPhotos = slotIds.map(photoOf).filter(Boolean);
+  const transforms = Array.from({ length: slotCount }, (_, i) => ({ ...NO_MOVE, ...saved.transforms?.[i] }));
   const originalsReady = printPhotos.length > 0 && printPhotos.every(photo => !photo.originalPending);
   const pendingOriginals = photos.filter(photo => photo.originalPending).length;
   const printLock = useRef(false);
   const preparedPrint = useRef(null);
   const [retry, setRetry] = useState(0);
+  useEffect(() => { if (active >= slotCount) setActive(0); }, [active, slotCount]);
 
   // Hạn chọn ảnh do máy chủ đặt (bù đồng hồ lệch của điện thoại).
   const [deadline, setDeadline] = useState(null);
@@ -177,40 +262,60 @@ export function SelfboothStudio({ token, booking, reload }) {
   }, [token, alreadyPrinted, Boolean(photos.length)]);
   const left = deadline ? Math.max(0, Math.ceil((deadline - (now + offset.current)) / 1000)) : null;
 
-  // Ảnh đã thả tim (đã làm đẹp, cỡ xem trước) cho khung xem trước.
+  // Ảnh của các ô (đã làm đẹp, cỡ xem trước) cho khung xem trước; ảnh nằm ở nhiều ô chỉ làm một lần.
   const [images, setImages] = useState([]);
-  const adjustKey = JSON.stringify(hearts.map((id) => saved.adjusts[id] || null));
+  const adjustKey = JSON.stringify(slotIds.map((id) => saved.adjusts[id] || null));
   useEffect(() => {
     let alive = true;
-    const chosen = hearts.map((id) => photos.find((p) => String(p.id) === id)).filter(Boolean);
-    const list = [];
+    const made = new Map();
+    const drop = () => made.forEach((image) => { image.width = image.height = 0; });
     (async () => {
-      for (const p of chosen) {
-        const canvas = await media.edited(p, saved.adjusts[p.id], 'preview', { isCurrent: () => alive });
-        list.push(canvas);
-        if (!alive) { list.forEach(image => { image.width = image.height = 0; }); return; }
+      for (const id of slotIds) {
+        const p = photoOf(id);
+        if (!p || made.has(id)) continue;
+        made.set(id, await media.edited(p, saved.adjusts[p.id], 'preview', { isCurrent: () => alive }));
+        if (!alive) return drop();
       }
-      setImages(list);
-    })().catch(() => list.forEach(image => { image.width = image.height = 0; }));
+      setImages(slotIds.map((id) => made.get(id)).filter(Boolean));
+    })().catch(drop);
     return () => { alive = false; };
-  }, [media, hearts.join(), adjustKey]);
+  }, [media, slotIds.join(), adjustKey]);
 
   const autoTried = useRef(false);
   useEffect(() => onNetworkRecovery(() => { autoTried.current = false; setRetry(n => n + 1); }), []);
   const locked = printing || Boolean(preparedPrint.current);
+  const frozen = locked || left === 0;
 
   function toggleHeart(photo) {
-    if (locked || left === 0) return;
+    if (frozen) return;
     const id = String(photo.id);
-    if (hearts.includes(id)) return save({ hearts: hearts.filter((h) => h !== id) });
-    if (hearts.length >= need) return toast.warning(`Layout này in ${need} ảnh — bỏ tim một ảnh trước nhé.`);
-    save({ hearts: [...hearts, id] });
+    save({ hearts: hearts.includes(id) ? hearts.filter((h) => h !== id) : [...hearts, id] });
+  }
+  function chooseFrame(f) {
+    if (frozen || f._id === frame?._id) return;
+    // Ô của khung mới khác chỗ: ảnh về giữa ô.
+    save({ frameId: f._id, transforms: [] });
+    setActive(0);
+  }
+  // Đặt ảnh vào ô đang chọn (ảnh mới về giữa ô) rồi chuyển sang ô kế tiếp.
+  function place(photo) {
+    if (frozen) return;
+    const slots = [...slotIds], moves = [...transforms];
+    slots[active] = String(photo.id);
+    moves[active] = NO_MOVE;
+    save({ slots, transforms: moves });
+    if (active < slotCount - 1) setActive(active + 1);
+  }
+  function moveSlot(slot, t) {
+    if (frozen) return;
+    const moves = [...transforms];
+    moves[slot] = t;
+    save({ slots: slotIds, transforms: moves });
   }
 
   async function print({ auto = false } = {}) {
     if (printLock.current || result) return;
     if (!frame) return setError("Tiệm chưa có khung Instax cho layout này — nhờ nhân viên in giúp bạn.");
-    // Hết giờ mà chưa đủ tim: thêm các ảnh đầu cho đủ.
     const chosen = printPhotos;
     if (!chosen.length) return;
     if (!deadline) return setError('Đang đồng bộ thời gian chọn ảnh. Vui lòng đợi kết nối lại.');
@@ -226,7 +331,7 @@ export function SelfboothStudio({ token, booking, reload }) {
       if (!preparedPrint.current) {
         const shots = chosen.map(photo => ({ key: String(photo.id), photo }));
         const sheet = await renderPrintFrame(frame, shots, token, `${location.origin}/album/${token}`, {
-          scale: 1, sharp: true,
+          scale: 1, sharp: true, transforms,
           sourceFor: shot => media.edited(shot.photo, saved.adjusts[shot.photo.id], 'print'),
         });
         try {
@@ -281,15 +386,29 @@ export function SelfboothStudio({ token, booking, reload }) {
       </section>
     );
 
-  const editingPhoto = photos.find((p) => String(p.id) === editing);
+  // Bước mở được: khung cần ít nhất một ảnh đã thả tim; thêm ảnh / in cần có khung.
+  const canOpen = (key) => key === "photos" || (hearts.length > 0 && (key === "frame" || Boolean(frame)));
+  const at = STEPS.findIndex(([key]) => key === step);
+  const next = STEPS[at + 1]?.[0];
+  const back = STEPS[at - 1]?.[0];
+  const editingPhoto = photoOf(editing);
+  // Ảnh để đặt vào ô: ảnh đã thả tim và ảnh đang nằm trong ô (như Selfbooth).
+  const strip = [...new Set([...hearts, ...slotIds.filter(Boolean)])].map(photoOf).filter(Boolean);
+  const t = transforms[active] || NO_MOVE;
+  const lead = {
+    photos: `Đã thả tim ${hearts.length} ảnh · chạm ảnh để làm đẹp · khung in ${slotCount} ảnh`,
+    frame: "Chạm một khung để chọn — khung ghép sẵn ảnh bạn thả tim",
+    compose: slotCount > 1
+      ? "Chạm ô trên khung rồi chạm ảnh bên dưới để đặt vào · kéo ảnh trong ô để dời"
+      : "Chạm ảnh bên dưới để đặt vào khung · kéo ảnh trong ô để dời",
+    print: "Kiểm tra lần cuối rồi bấm In ảnh",
+  }[step];
   return (
     <section className="selfbooth-studio">
       <header className="studio-head">
         <div>
-          <h2>{step === "photos" ? "Thả tim ảnh để in" : step === "frame" ? "Chọn khung" : "Xem lại & in"}</h2>
-          <p>{step === "photos"
-            ? `Chọn ${need} ảnh · đã chọn ${hearts.length}/${need} · chạm ảnh để làm đẹp`
-            : step === "frame" ? "Chạm một khung để chọn" : "Xem lại ảnh trước khi gửi in"}</p>
+          <h2>{HEAD[step]}</h2>
+          <p>{lead}</p>
         </div>
         {left !== null && (
           <span className={`studio-timer${left <= 30 ? " is-urgent" : ""}`} role="timer" aria-label={`Còn ${clock(left)}`}>
@@ -297,29 +416,39 @@ export function SelfboothStudio({ token, booking, reload }) {
           </span>
         )}
       </header>
+      <nav className="selfbooth-steps" aria-label="Các bước">
+        <ol>
+          {STEPS.map(([key, label, Icon], i) => (
+            <li key={key}>
+              <button type="button" className={step === key ? "is-active" : i < at ? "is-done" : ""}
+                aria-current={step === key ? "step" : undefined} disabled={frozen || !canOpen(key)} onClick={() => setStep(key)}>
+                {i < at ? <PiCheckBold aria-hidden="true" /> : <Icon aria-hidden="true" />} <span>{label}</span>
+              </button>
+            </li>
+          ))}
+        </ol>
+      </nav>
       <ErrorBox error={error} />
       {deadlineError && <p className="studio-status is-warn" role="status">{deadlineError} — đang tự kết nối lại.</p>}
       {!frames.length && <p className="studio-status is-warn" role="status">Chưa có khung cho layout này. Nhờ nhân viên kiểm tra khung Instax trước khi in.</p>}
       {!photos.length && <p className="studio-status" role="status">Đang nhận ảnh từ máy chụp. Ảnh sẽ tự xuất hiện tại đây.</p>}
       {pendingOriginals > 0 && <p className="studio-status" role="status">Đang nhận {pendingOriginals} ảnh gốc chất lượng cao. Bạn vẫn chọn ảnh và làm đẹp được; bản in sẽ đợi ảnh gốc.</p>}
-      {photos.length > 0 && photos.length < need && <p className="studio-status">Album hiện có {photos.length} ảnh. Ảnh bạn chọn sẽ được lặp để đủ {need} ô của khung.</p>}
       {step === "photos" && (
         // Ô ảnh theo đúng tỉ lệ ảnh máy chụp (máy phòng này chụp dọc): ảnh to, không trống hai bên.
         <ul className="studio-photos" aria-label="Ảnh vừa chụp" style={shotRatio ? { "--shot-ratio": shotRatio } : undefined}>
           {[...photos].reverse().map((photo) => {
-            const order = hearts.indexOf(String(photo.id)) + 1;
+            const hearted = hearts.includes(String(photo.id));
             const tuned = !isNeutral({ ...DEFAULT_ADJUST, ...saved.adjusts[photo.id] });
             return (
-              <li key={photo.id} className={order ? "is-hearted" : ""}>
-                <button type="button" className="studio-photo" disabled={locked || left === 0} onClick={() => setEditing(String(photo.id))} aria-label={`Làm đẹp ảnh ${photo.number}`}>
+              <li key={photo.id} className={hearted ? "is-hearted" : ""}>
+                <button type="button" className="studio-photo" disabled={frozen} onClick={() => setEditing(String(photo.id))} aria-label={`Làm đẹp ảnh ${photo.number}`}>
                   <PhotoThumb photo={photo} token={token} alt="" loading="lazy" decoding="async"
                     onLoad={(e) => !shotRatio && e.currentTarget.naturalWidth && setShotRatio(`${e.currentTarget.naturalWidth} / ${e.currentTarget.naturalHeight}`)} />
                   {tuned && <span className="studio-tuned"><PiSlidersHorizontalBold aria-hidden="true" /> Đã làm đẹp</span>}
                 </button>
-                <button type="button" className="studio-heart" disabled={locked || left === 0} aria-pressed={Boolean(order)} onClick={() => toggleHeart(photo)}
-                  aria-label={order ? `Bỏ tim ảnh ${photo.number}` : `Thả tim ảnh ${photo.number}`}>
-                  {order ? <PiHeartFill aria-hidden="true" /> : <PiHeartBold aria-hidden="true" />}
-                  {order > 0 && need > 1 && <b>{order}</b>}
+                <button type="button" className="studio-heart" disabled={frozen} aria-pressed={hearted} onClick={() => toggleHeart(photo)}
+                  aria-label={hearted ? `Bỏ tim ảnh ${photo.number}` : `Thả tim ảnh ${photo.number}`}>
+                  {hearted ? <PiHeartFill aria-hidden="true" /> : <PiHeartBold aria-hidden="true" />}
                 </button>
               </li>
             );
@@ -329,30 +458,81 @@ export function SelfboothStudio({ token, booking, reload }) {
       {step === "frame" && (
         <div className="studio-frames" role="radiogroup" aria-label="Khung">
           {frames.map((f) => (
-            <button key={f._id} type="button" role="radio" disabled={locked || left === 0} aria-checked={frame?._id === f._id} onClick={() => save({ frameId: f._id })}>
+            <button key={f._id} type="button" role="radio" disabled={frozen} aria-checked={frame?._id === f._id} onClick={() => chooseFrame(f)}>
               <FramePreview frame={f} images={images} label={f.name} tile />
               <span>{f.name}</span>
             </button>
           ))}
         </div>
       )}
+      {step === "compose" && frame && (
+        <div className="studio-compose">
+          {hearts.length < slotCount && (
+            <p className="studio-status">
+              Bạn thả tim {hearts.length} ảnh cho khung {slotCount} ô — ảnh được lặp cho đủ ô. Thả tim thêm hoặc chạm ảnh để đổi.
+            </p>
+          )}
+          <ComposeStage frame={frame} images={images} transforms={transforms} active={active} disabled={frozen}
+            onActive={setActive} onMove={moveSlot} />
+          {slotCount > 1 && (
+            <div className="studio-slots" role="radiogroup" aria-label="Ô trên khung">
+              {slotIds.map((id, i) => (
+                <button key={i} type="button" role="radio" aria-checked={active === i} disabled={frozen} onClick={() => setActive(i)}>
+                  {photoOf(id) && <PhotoThumb photo={photoOf(id)} token={token} alt="" />}
+                  <span>Ô {i + 1}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="studio-strip-head">
+            <strong>{slotCount > 1 ? `Ảnh cho ô ${active + 1}` : "Ảnh cho khung"}</strong>
+            <button type="button" className="studio-link" disabled={frozen} onClick={() => setStep("photos")}>
+              <PiPlusBold aria-hidden="true" /> Thả tim thêm ảnh
+            </button>
+          </div>
+          <ul className="studio-strip" aria-label="Ảnh đã thả tim">
+            {strip.map((photo) => {
+              const id = String(photo.id);
+              const used = slotIds.flatMap((s, i) => (s === id ? [i + 1] : []));
+              return (
+                <li key={id}>
+                  <button type="button" disabled={frozen} aria-pressed={slotIds[active] === id} onClick={() => place(photo)}
+                    aria-label={`Đặt ảnh ${photo.number} vào ô ${active + 1}`}>
+                    <PhotoThumb photo={photo} token={token} alt="" loading="lazy" decoding="async" />
+                    {used.length > 0 && <b>{slotCount > 1 ? `Ô ${used.join(", ")}` : <PiCheckBold aria-label="Đang dùng" />}</b>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="studio-adjust">
+            <label>
+              <span><PiArrowsOutCardinalBold aria-hidden="true" /> Phóng to ô {active + 1} · {Math.round(t.zoom * 100)}%</span>
+              <input type="range" min={ZOOM.min} max={ZOOM.max} step={5} value={Math.round(t.zoom * 100)} disabled={frozen}
+                aria-label={`Phóng to ảnh ở ô ${active + 1}`}
+                onChange={(e) => moveSlot(active, { ...t, zoom: Number(e.target.value) / 100 })} />
+            </label>
+            <button type="button" className="studio-link" disabled={frozen || (t.zoom === 1 && !t.x && !t.y)}
+              onClick={() => moveSlot(active, NO_MOVE)}>Căn giữa</button>
+          </div>
+        </div>
+      )}
       {step === "print" && frame && (
         <div className="studio-print">
-          <FramePreview frame={frame} images={images} className="studio-print-preview" label="Ảnh in xem trước" />
+          <FramePreview frame={frame} images={images} transforms={transforms} className="studio-print-preview" label="Ảnh in xem trước" />
         </div>
       )}
       <footer className="studio-foot">
-        {step !== "photos" && (
-          <Button className="outline" disabled={locked} onClick={() => setStep(step === "print" && frames.length > 1 ? "frame" : "photos")}>
+        {back && (
+          <Button className="outline" disabled={locked} onClick={() => setStep(back)}>
             <PiArrowLeftBold aria-hidden="true" /> Quay lại
           </Button>
         )}
-        {step === "photos" && !(left === 0 && error) && (
-          <Button disabled={locked || left === 0 || !photos.length || hearts.length < minimum} onClick={() => setStep(frames.length > 1 ? "frame" : "print")}>
-            Tiếp tục <PiCheckBold aria-hidden="true" />
+        {next && !(left === 0 && error) && (
+          <Button disabled={frozen || !photos.length || !canOpen(next)} onClick={() => setStep(next)}>
+            {next === "print" ? "Xem lại" : "Tiếp tục"} <PiCheckBold aria-hidden="true" />
           </Button>
         )}
-        {step === "frame" && !(left === 0 && error) && <Button disabled={locked || left === 0} onClick={() => setStep("print")}>Xem lại <PiCheckBold aria-hidden="true" /></Button>}
         {(step === "print" || (left === 0 && error)) && (
           <Button disabled={printing || !frame || !deadline || !originalsReady} onClick={() => print()}>
             <PiPrinterBold aria-hidden="true" /> {printing ? "Đang chuẩn bị và gửi in…" : preparedPrint.current ? "Kiểm tra và thử lại" : "In ảnh"}

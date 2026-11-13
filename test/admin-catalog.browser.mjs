@@ -531,6 +531,42 @@ test("packages are grouped by photo size; a small-size package starts with one s
   assertClean();
 });
 
+test("Polaroid trial frames: two Mellow Instax Wide frames (1 and 2 photos, print date) are made once for testing the Selfbooth room", async () => {
+  await mount("packages");
+  await page.getByRole("tab", { name: /Polaroid/ }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Tạo 2 khung thử" }).click();
+  await page.waitForFunction(() => window.notifications.length === 1);
+  const made = mutations();
+  assert.deepEqual(made.map((m) => `${m.method} ${m.path}`), Array(2).fill("POST /api/admin/frames"));
+  const frames = made.map((m) => m.body);
+  const kinds = (f, kind) => f.slots.filter((s) => s.kind === kind).length;
+  assert.deepEqual(frames.map((f) => [f.name, f.printSize, f.themeName, f.active, f.order, kinds(f, "photo"), kinds(f, "date")]), [
+    ["Khung thử Mellow · 1 ảnh", "instax", "", true, 0, 1, 1],
+    ["Khung thử Mellow · 2 ảnh", "instax", "", true, 0, 2, 1],
+  ]);
+  for (const f of frames) {
+    for (const s of f.slots) assert.ok(s.x >= 0 && s.y >= 0 && s.x + s.w <= 1 && s.y + s.h <= 1, `${f.name}: region inside the card`);
+    // Ô ảnh dọc (máy phòng Selfbooth chụp dọc) trên thẻ ngang 1800 × 1200.
+    for (const s of f.slots.filter((r) => r.kind === "photo")) assert.ok(s.h * 1200 > s.w * 1800 * 0.95);
+    const size = await page.evaluate((src) => new Promise((resolve) => {
+      const image = new Image();
+      image.onload = () => resolve([image.naturalWidth, image.naturalHeight]);
+      image.src = src;
+    }), f.image);
+    assert.deepEqual(size, [1800, 1200]);
+  }
+  assert.deepEqual(await notifications(), ["Đã tạo 2 khung thử: Khung thử Mellow · 1 ảnh, Khung thử Mellow · 2 ảnh."]);
+  // Bấm lại: khung thử đã có, không tạo thêm.
+  requests = [];
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Tạo 2 khung thử" }).click();
+  await page.waitForFunction(() => window.notifications.length === 2);
+  assert.deepEqual(mutations(), []);
+  assert.equal((await notifications())[1], "Đã có đủ khung thử — không tạo thêm.");
+  assert.deepEqual(pageErrors, []);
+});
+
 test("Polaroid sample packages offer 1 pick in 3 minutes or 2 picks in 5 minutes without a shot limit", async () => {
   await mount("packages");
   await page.getByRole("tab", { name: /Polaroid/ }).click();
