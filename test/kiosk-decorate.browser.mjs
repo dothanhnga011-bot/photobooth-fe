@@ -382,6 +382,15 @@ test("names and signatures: soft bundled fonts and a symbol palette, with the fo
     }, null, { timeout: 10000 });
     await page.waitForTimeout(300);
     await page.screenshot({ path: join(tmpdir(), "photobooth-fe-select-text.png") });
+    // Màn của tiệm (ngang 1920 × 1080, dọc 1080 × 1920): mục Thêm chữ vừa một màn, không phải cuộn.
+    for (const viewport of [{ width: 1920, height: 1080 }, { width: 1080, height: 1920 }]) {
+      await page.setViewportSize(viewport);
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: join(tmpdir(), `photobooth-fe-select-text-${viewport.width}.png`) });
+      const fit = await page.evaluate(() => ({ scrolls: document.documentElement.scrollHeight > innerHeight + 1,
+        print: document.querySelector(".kiosk-next")?.getBoundingClientRect().bottom <= innerHeight }));
+      assert.deepEqual(fit, { scrolls: false, print: true }, `text tab at ${viewport.width} × ${viewport.height}`);
+    }
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });

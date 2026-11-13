@@ -1499,9 +1499,10 @@
   .text-preview .text-ph { color: #c3ab9b; font-weight: 400; font-size: 18px; }
   .text-fonts { display: flex; flex-wrap: wrap; gap: 8px; }
   .text-fonts button {
-    min-height: 46px; padding: 0 16px; border-radius: 999px;
+    /* Tên kiểu chữ viết bằng chính kiểu đó: cỡ 20 px để nét mảnh (Chữ ký, Mềm mại) vẫn đọc được. */
+    min-height: 48px; padding: 0 16px; border-radius: 999px;
     border: 2px solid rgb(122 74 54 / 30%); background: #fffaf3;
-    color: var(--mellow-ink, #3f2c25); font-size: 16px; cursor: pointer;
+    color: var(--mellow-ink, #3f2c25); font-size: 20px; line-height: 1.1; cursor: pointer;
   }
   .text-fonts button.is-on { border-color: var(--mellow-cocoa, #522e22); background: #f3e3d4; }
   /* Ký tự trang trí: một hàng vuốt ngang (dấu tên Instagram, ♡ ☆ ✿…, mẫu ghép sẵn). */
@@ -1627,6 +1628,11 @@
   .done-cards.is-studio {
     grid-template-columns: minmax(0, 1fr);
     width: min(560px, 100%);
+  }
+  /* Hướng dẫn dưới tiêu đề: khách đứng xa vẫn đọc được. */
+  .done-screen.is-studio .done-print {
+    font-size: clamp(16px, 1.3vw, 22px);
+    line-height: 1.5;
   }
   .done-cards.is-studio .done-qr svg {
     width: min(100%, 52dvh, 480px);

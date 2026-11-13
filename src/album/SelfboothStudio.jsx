@@ -127,6 +127,7 @@ export function SelfboothStudio({ token, booking, reload }) {
   const alreadyPrinted = (Number(booking.printSheets) || 0) >= (Number(booking.prints) || 1);
   const [saved, save] = useSaved(`selfbooth-v1-${token}`, { hearts: [], adjusts: {}, frameId: "", requestKey: crypto.randomUUID() });
   const [step, setStep] = useState("photos");
+  const [shotRatio, setShotRatio] = useState("");
   const [editing, setEditing] = useState(null);
   const [printing, setPrinting] = useState(false);
   const [result, setResult] = useState(alreadyPrinted ? { sent: true } : null);
@@ -303,14 +304,16 @@ export function SelfboothStudio({ token, booking, reload }) {
       {pendingOriginals > 0 && <p className="studio-status" role="status">Đang nhận {pendingOriginals} ảnh gốc chất lượng cao. Bạn vẫn chọn ảnh và làm đẹp được; bản in sẽ đợi ảnh gốc.</p>}
       {photos.length > 0 && photos.length < need && <p className="studio-status">Album hiện có {photos.length} ảnh. Ảnh bạn chọn sẽ được lặp để đủ {need} ô của khung.</p>}
       {step === "photos" && (
-        <ul className="studio-photos" aria-label="Ảnh vừa chụp">
+        // Ô ảnh theo đúng tỉ lệ ảnh máy chụp (máy phòng này chụp dọc): ảnh to, không trống hai bên.
+        <ul className="studio-photos" aria-label="Ảnh vừa chụp" style={shotRatio ? { "--shot-ratio": shotRatio } : undefined}>
           {[...photos].reverse().map((photo) => {
             const order = hearts.indexOf(String(photo.id)) + 1;
             const tuned = !isNeutral({ ...DEFAULT_ADJUST, ...saved.adjusts[photo.id] });
             return (
               <li key={photo.id} className={order ? "is-hearted" : ""}>
                 <button type="button" className="studio-photo" disabled={locked || left === 0} onClick={() => setEditing(String(photo.id))} aria-label={`Làm đẹp ảnh ${photo.number}`}>
-                  <PhotoThumb photo={photo} token={token} alt="" loading="lazy" decoding="async" />
+                  <PhotoThumb photo={photo} token={token} alt="" loading="lazy" decoding="async"
+                    onLoad={(e) => !shotRatio && e.currentTarget.naturalWidth && setShotRatio(`${e.currentTarget.naturalWidth} / ${e.currentTarget.naturalHeight}`)} />
                   {tuned && <span className="studio-tuned"><PiSlidersHorizontalBold aria-hidden="true" /> Đã làm đẹp</span>}
                 </button>
                 <button type="button" className="studio-heart" disabled={locked || left === 0} aria-pressed={Boolean(order)} onClick={() => toggleHeart(photo)}

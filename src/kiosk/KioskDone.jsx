@@ -6,6 +6,7 @@ import {
 import { QRCodeSVG } from "qrcode.react";
 import { Brand, Button } from "../studio";
 import { useKioskText } from "./use-kiosk-text.js";
+import { ClassicCorners } from "./classic-ornaments.jsx";
 
 const PRINT_TEXT = {
   sending: "Đang gửi ảnh tới máy in…",
@@ -38,6 +39,8 @@ export function KioskDone({ done, pending, left, nextGuest }) {
   if (done.studio)
     return (
       <section className="kiosk-flow done-screen is-studio">
+        {/* Cùng khung viền hoa văn vàng với màn chờ / nhập mã / chụp của phòng này. */}
+        <ClassicCorners className="is-screen" />
         <header className="flow-head">
           <Brand />
         </header>

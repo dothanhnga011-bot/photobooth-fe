@@ -89,6 +89,8 @@ const fixture = `
         busy={false} error="" device="fixture-device" cameraReady={true} polaroid />;
       case 'polaroid-shoot': return <Shoot />;
       case 'ptb-shoot': return <Shoot ornaments={false} />;
+      case 'studio-done': return <KioskDone left={90} pending={0} nextGuest={none} done={{
+        url: 'https://mellowptb.com/album/fixture', code: '123456', photos: 12, prints: 1, printSize: 'instax', studio: true }} />;
       case 'polaroid-done': return <KioskDone left={90} pending={0} nextGuest={none} done={{
         composite: picture(1800, 1200, ['#c98f7a', '#8fb3c9']), url: 'https://mellowptb.com/album/fixture',
         code: '123456', prints: 1, print: { status: 'printing' }, printSize: 'instax', framed: true }} />;
@@ -304,6 +306,17 @@ test("polaroid QR screen, landscape: no video, so the composite and the QR code 
   assert.deepEqual([m.cards.count, m.cards.rows], [2, 1]);
   assert.ok(m.qr.minWidth >= 440, `mã QR rộng ${m.qr.minWidth} px`);
   assert.ok(m.photo.minWidth >= 560, `ảnh ghép rộng ${m.photo.minWidth} px`);
+});
+
+test("Selfbooth room QR screen: one big QR to choose, beautify and print on the phone, on both screen shapes", async () => {
+  for (const viewport of [{ width: 1920, height: 1080 }, { width: 1080, height: 1920 }]) {
+    const m = await portrait("studio-done", { qr: ".done-qr svg", title: ".done-title", cards: ".done-card", foot: FOOT }, viewport);
+    assert.equal(m.pageScrolls, false, `${viewport.width}`);
+    assert.equal(m.cards.count, 1, "only the QR card");
+    assert.ok(m.qr.minWidth >= 440, `mã QR rộng ${m.qr.minWidth} px`);
+    assert.equal(m.title.count, 1);
+    assert.equal(m.foot.count, 1);
+  }
 });
 
 test("QR screen: the message on top, a big QR code, then the composite and the video", async () => {

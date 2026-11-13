@@ -84,7 +84,8 @@
   .selfbooth-studio .studio-photo img {
     display: block;
     width: 100%;
-    aspect-ratio: 3 / 2;
+    /* Tỉ lệ ảnh thật (SelfboothStudio đặt --shot-ratio theo ảnh đầu tiên): ảnh dọc ra ô dọc. */
+    aspect-ratio: var(--shot-ratio, 3 / 2);
     min-height: 0;
     object-fit: contain;
   }
