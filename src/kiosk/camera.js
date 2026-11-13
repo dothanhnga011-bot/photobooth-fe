@@ -51,3 +51,63 @@ export const videoConstraints = (deviceId, light = false) => ({
   },
   audio: false,
 });
+
+export function cameraProblem(error) {
+  if (error?.cameraProblem) return error.cameraProblem;
+  switch (error?.name) {
+    case 'NotFoundError': case 'DevicesNotFoundError':
+      return { message: 'Máy tính chưa nhận thiết bị video. Nhờ nhân viên kiểm tra thẻ ghi hình trong ứng dụng Camera và Device Manager, rồi cắm lại USB của thẻ ghi hình.' };
+    case 'NotAllowedError': case 'PermissionDeniedError': case 'SecurityError':
+      return { message: `Quyền camera đang bị chặn. Cho phép camera cho trang web và ${isMac ? 'trong cài đặt quyền riêng tư của macOS' : 'bật quyền camera cho ứng dụng desktop trong Windows'}, sau đó tải lại trang.` };
+    case 'NotReadableError': case 'TrackStartError':
+      return { message: 'Chưa đọc được thẻ ghi hình. Đóng ứng dụng Camera, OBS, Zoom và tab kiosk khác đang dùng thẻ; kiểm tra cổng USB rồi mở lại camera.' };
+    case 'OverconstrainedError': case 'ConstraintNotSatisfiedError':
+      return { message: 'Thiết bị video đã thay đổi hoặc chế độ hình chưa phù hợp. Chọn lại thẻ ghi hình trong Cài đặt máy chụp rồi thử lại.' };
+    case 'NotSupportedError':
+      return { message: 'Trình duyệt chưa cung cấp quyền truy cập camera. Mở kiosk bằng Chrome hoặc Edge qua HTTPS.' };
+    default: return { message: CAMERA_ERROR };
+  }
+}
+
+// Each attempt owns one stream. Release it before switching UVC sources: on
+// Windows an old stream can otherwise keep the same capture device busy.
+// Never probe EOS Webcam Utility as a fallback when named HDMI devices exist.
+export async function openLiveVideo({ devices = globalThis.navigator?.mediaDevices, id = '', webcam = false } = {}) {
+  if (!devices?.getUserMedia || !devices?.enumerateDevices)
+    throw Object.assign(new Error('Camera API unavailable'), { name: 'NotSupportedError' });
+  const usable = liveUsableFor({ webcam }), failed = new Set();
+  const inputs = async () => (await devices.enumerateDevices()).filter(device => device.kind === 'videoinput');
+  const choose = list => list.find(device => device.deviceId === id && usable(device) && !failed.has(device.deviceId)) ||
+    list.filter(device => usable(device) && cameraRank(device) < 9 && !failed.has(device.deviceId))
+      .sort((a, b) => cameraRank(a) - cameraRank(b))[0];
+  const stop = stream => stream?.getTracks().forEach(track => track.stop());
+  const blocked = list => Object.assign(new Error('No usable capture device'), { cameraProblem: {
+    message: list.some(isCameraUsbVideo) ? CAMERA_USB_MESSAGE : NO_HDMI_MESSAGE,
+  } });
+  let media;
+  try {
+    let list = await inputs();
+    const named = list.some(device => device.label);
+    const first = named ? choose(list)?.deviceId : id;
+    if (named && !first) throw blocked(list);
+    try { media = await devices.getUserMedia(videoConstraints(first, webcam)); }
+    catch (error) {
+      if (['NotAllowedError', 'SecurityError', 'PermissionDeniedError'].includes(error.name)) throw error;
+      if (first) failed.add(first);
+      list = await inputs();
+      const alternative = choose(list);
+      if (alternative) media = await devices.getUserMedia(videoConstraints(alternative.deviceId, webcam));
+      else if (first && !named) media = await devices.getUserMedia(videoConstraints('', webcam));
+      else throw error;
+    }
+    list = await inputs();
+    const wanted = choose(list)?.deviceId;
+    if (wanted && media.getVideoTracks()[0]?.getSettings().deviceId !== wanted) {
+      stop(media);
+      media = null;
+      media = await devices.getUserMedia(videoConstraints(wanted, webcam));
+    }
+    if (!media.getVideoTracks()[0] || !usable(media.getVideoTracks()[0])) throw blocked(list);
+    return { stream: media, cameras: list };
+  } catch (error) { stop(media); throw error; }
+}

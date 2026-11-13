@@ -185,14 +185,14 @@ export async function preloadFrameTiles(frames, { first = frames[0], signal } = 
   }
 }
 let tileTurn = Promise.resolve();
-export function composeFrameTile(frame, images, { filters = [], transforms = [], signal } = {}) {
+export function composeFrameTile(frame, images, { filters = [], transforms = [], signal, placeholders = true } = {}) {
   const run = tileTurn.then(async () => {
     signal?.throwIfAborted();
     const background = await tileBackground(frame);
     const width = background.naturalWidth >= background.naturalHeight
       ? TILE_EDGE
       : Math.max(1, Math.round((TILE_EDGE * background.naturalWidth) / background.naturalHeight));
-    return composePreview(frame, images, width, "", { placeholders: true, filters, transforms, signal, background });
+    return composePreview(frame, images, width, "", { placeholders, filters, transforms, signal, background });
   });
   tileTurn = run.catch(() => {}).then(() => new Promise((resolve) => setTimeout(resolve, 0)));
   return run;
@@ -250,7 +250,7 @@ const rotated = (t) => Boolean(((t?.rotate || 0) % 360 + 360) % 360);
 // guest composites (~20 MP), rendered from the full camera source with strict=true.
 // sharp (tờ in DNP): khung và ảnh co / giãn bằng Lanczos3 một lần, ảnh đặt ở toạ độ nguyên (lanczos.js) —
 // chi tiết mảnh của ảnh giữ 83 % thay vì 64 %, chữ / nét khung 65 % thay vì 46 % (ở 0,4 chu kỳ / điểm in).
-export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filters = [], stickers = [], transforms = [], scale = 1, pixels = 0, strict = false, sharp = false } = {}) {
+export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filters = [], stickers = [], transforms = [], scale = 1, pixels = 0, strict = false, sharp = false, sourceFor = printSource } = {}) {
   const layout = photoLayout(frame);
   const background = await loadFrameImage(frame.image);
   const canvas = document.createElement("canvas");
@@ -280,7 +280,7 @@ export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filter
         for (const image of sources.values()) release(image);
         sources.clear();
         fitted.clear();
-        sources.set(shot.key, await printSource(shot, token, { strict }));
+        sources.set(shot.key, await sourceFor(shot, token, { strict }));
       }
       const source = sources.get(shot.key);
       const t = transforms[index];
@@ -299,6 +299,9 @@ export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filter
       await loadStickers(stickers);
       drawStickers(ctx, stickers, stickerArea(layout), canvas.width, canvas.height);
     }
+  } catch (error) {
+    canvas.width = canvas.height = 0;
+    throw error;
   } finally {
     for (const image of sources.values()) release(image);
   }

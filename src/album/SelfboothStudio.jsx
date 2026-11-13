@@ -8,14 +8,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PiArrowLeftBold, PiCheckBold, PiHeartFill, PiHeartBold, PiPrinterBold, PiSlidersHorizontalBold, PiTimerBold } from "react-icons/pi";
 import { api } from "../api";
 import { Button, ErrorBox, useStudio, useToast } from "../studio";
-import { ADJUST_LABELS, COLOR_FILTERS, DEFAULT_ADJUST, FILTER_CSS, applyBeauty, detectFaces, isNeutral, warmFaceModel } from "../beauty.js";
-import { composePreview, frameCandidates, printSheets, renderPrintFrame } from "../kiosk/compose.js";
-import { fetchMediaBlob, storageLink } from "../media-delivery.js";
-import { PhotoThumb, photoUrl } from "./photo-thumb.jsx";
+import { ADJUST_LABELS, COLOR_FILTERS, DEFAULT_ADJUST, FILTER_CSS, isNeutral, warmFaceModel } from "../beauty.js";
+import { composeFrameTile, composePreview, frameCandidates, printSheets, renderPrintFrame } from "../kiosk/compose.js";
+import { onNetworkRecovery } from "../network.js";
+import { PhotoThumb } from "./photo-thumb.jsx";
 import { printPackUpload } from "./print-upload.js";
 import { AlbumViewer } from "./AlbumViewer.jsx";
+import { createStudioMedia, needsFaces } from './studio-media.js';
 
-const needsFaces = (a) => ["smooth", "whiten", "slim", "blush"].some((k) => Number(a?.[k]) > 0);
 const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
 // Trạng thái lưu trên máy (tải lại trang vẫn giữ): ảnh đã thả tim, chỉnh của từng ảnh, khung, mã lệnh in.
@@ -29,38 +29,7 @@ function useSaved(key, initial) {
   return [value, (changes) => setValue((v) => ({ ...v, ...changes }))];
 }
 
-// Ảnh của album theo cỡ ("preview" 1600 px để chỉnh, "print" 3000 px để in), dùng chung giữa các bước.
-const bitmaps = new Map();
-const faceCache = new Map();
-function sourceOf(token, photo, size) {
-  const key = `${photo.id}|${size}`;
-  if (!bitmaps.has(key))
-    bitmaps.set(key, fetchMediaBlob(photoUrl(token, photo.id, size), { link: storageLink(photo, size) || undefined })
-      .then((blob) => createImageBitmap(blob))
-      .catch((error) => { bitmaps.delete(key); throw error; }));
-  return bitmaps.get(key);
-}
-// Khuôn mặt nhận diện trên ảnh 1600 px (một lần mỗi ảnh); không thấy mặt / không tải được mô hình: [].
-function facesOf(token, photo) {
-  if (!faceCache.has(photo.id))
-    faceCache.set(photo.id, sourceOf(token, photo, "preview").then((image) => detectFaces(image))
-      .catch((error) => { faceCache.delete(photo.id); throw error; }));
-  return faceCache.get(photo.id);
-}
-const scaled = (faces, k) => faces.map((face) => face.map((p) => ({ ...p, x: p.x * k, y: p.y * k })));
-// Ảnh đã làm đẹp ở cỡ cần dùng (canvas). Mặt nhận diện trên ảnh xem trước, đổi tỉ lệ cho ảnh in.
-async function edited(token, photo, adjust, size = "preview") {
-  const image = await sourceOf(token, photo, size);
-  if (isNeutral({ ...DEFAULT_ADJUST, ...adjust })) return applyBeauty(image, [], DEFAULT_ADJUST);
-  let faces = [];
-  if (needsFaces(adjust)) {
-    const preview = await sourceOf(token, photo, "preview");
-    faces = scaled(await facesOf(token, photo).catch(() => []), image.width / preview.width);
-  }
-  return applyBeauty(image, faces, adjust);
-}
-
-function Editor({ token, photo, adjust, onChange, onClose }) {
+function Editor({ token, media, photo, adjust, onChange, onClose }) {
   const view = useRef(null);
   const [status, setStatus] = useState("loading");
   const [tab, setTab] = useState("smooth");
@@ -71,23 +40,23 @@ function Editor({ token, photo, adjust, onChange, onClose }) {
   useEffect(() => {
     const mine = ++turn.current;
     const run = async () => {
-      if (needsFaces(a) && !faceCache.has(photo.id)) setStatus("faces");
+      if (needsFaces(a)) setStatus("faces");
       try {
-        const canvas = await edited(token, photo, a);
-        if (mine !== turn.current || !view.current) return;
+        const canvas = await media.edited(photo, a, 'preview', { isCurrent: () => mine === turn.current });
+        if (mine !== turn.current || !view.current) { canvas.width = canvas.height = 0; return; }
         view.current.width = canvas.width;
         view.current.height = canvas.height;
         view.current.getContext("2d").drawImage(canvas, 0, 0);
         canvas.width = canvas.height = 0;
-        const faces = needsFaces(a) ? await facesOf(token, photo).catch(() => []) : null;
+        const faces = needsFaces(a) ? await media.facesOf(photo) : null;
         if (mine === turn.current) setStatus(faces && !faces.length ? "noface" : "ready");
       } catch (error) {
         if (mine === turn.current) setStatus(error.code === "FACE_DETECTION_UNAVAILABLE" ? "nomodel" : "error");
       }
     };
-    const frame = requestAnimationFrame(run);
-    return () => cancelAnimationFrame(frame);
-  }, [photo.id, JSON.stringify(a)]);
+    const frame = setTimeout(run, 80);
+    return () => { turn.current++; clearTimeout(frame); };
+  }, [media, photo.id, JSON.stringify(a)]);
   return (
     <div className="studio-editor" role="dialog" aria-modal="true" aria-label={`Làm đẹp ảnh ${photo.number}`}>
       <header>
@@ -129,23 +98,28 @@ function Editor({ token, photo, adjust, onChange, onClose }) {
 }
 
 // Khung ghép sẵn ảnh đã chọn (đã làm đẹp) để xem / chọn.
-function FramePreview({ frame, images, className = "", label }) {
+function FramePreview({ frame, images, className = "", label, tile = false }) {
   const [src, setSrc] = useState("");
   useEffect(() => {
-    let alive = true;
+    const controller = new AbortController();
+    setSrc('');
     if (!images.length) return;
-    composePreview(frame, images, 720).then((canvas) => {
-      if (alive) setSrc(canvas.toDataURL("image/jpeg", 0.88));
+    const render = tile ? composeFrameTile(frame, images, { signal: controller.signal, placeholders: false })
+      : composePreview(frame, images, 720, '', { signal: controller.signal });
+    render.then((canvas) => {
+      if (!controller.signal.aborted) setSrc(canvas.toDataURL("image/jpeg", 0.88));
       canvas.width = canvas.height = 0;
     }).catch(() => {});
-    return () => { alive = false; };
-  }, [frame._id, images]);
+    return () => controller.abort();
+  }, [frame, images, tile]);
   return src ? <img className={className} src={src} alt={label} /> : <span className={`${className} is-loading`} role="status">Đang ghép…</span>;
 }
 
 export function SelfboothStudio({ token, booking, reload }) {
   const toast = useToast();
   const { frames: catalog = [] } = useStudio();
+  const media = useMemo(() => createStudioMedia(token), [token]);
+  useEffect(() => () => media.clear(), [media]);
   const photos = useMemo(() => booking.photos.filter((p) => p.kind === "original"), [booking.photos]);
   const need = Math.max(1, Number(booking.selectCount) || 1);
   const frames = useMemo(() => frameCandidates(catalog.filter((f) => f.active !== false), { count: need, printSize: "instax" })
@@ -159,22 +133,47 @@ export function SelfboothStudio({ token, booking, reload }) {
   const [error, setError] = useState("");
   const hearts = saved.hearts.filter((id) => photos.some((p) => String(p.id) === id)).slice(0, need);
   const frame = frames.find((f) => f._id === saved.frameId) || frames[0];
+  const minimum = Math.min(need, photos.length);
+  const printIds = [...hearts];
+  for (const photo of photos) if (printIds.length < need && !printIds.includes(String(photo.id))) printIds.push(String(photo.id));
+  const printPhotos = printIds.map(id => photos.find(photo => String(photo.id) === id)).filter(Boolean);
+  const originalsReady = printPhotos.length > 0 && printPhotos.every(photo => !photo.originalPending);
+  const pendingOriginals = photos.filter(photo => photo.originalPending).length;
+  const printLock = useRef(false);
+  const preparedPrint = useRef(null);
+  const [retry, setRetry] = useState(0);
 
   // Hạn chọn ảnh do máy chủ đặt (bù đồng hồ lệch của điện thoại).
   const [deadline, setDeadline] = useState(null);
+  const [deadlineError, setDeadlineError] = useState('');
   const offset = useRef(0);
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
-    if (alreadyPrinted) return;
-    const sent = Date.now();
-    api(`/albums/${token}/edit-start`, { method: "POST" }).then((r) => {
-      offset.current = Number(r.serverTime) - (sent + Date.now()) / 2 || 0;
-      setDeadline(new Date(r.editEndsAt).getTime());
-      setNow(Date.now());
-    }).catch(() => {});
+    if (alreadyPrinted || !photos.length) return;
+    let alive = true, running = false, retryTimer;
+    const start = async () => {
+      if (running || !alive) return;
+      running = true;
+      clearTimeout(retryTimer);
+      const sent = Date.now();
+      try {
+        const r = await api(`/albums/${token}/edit-start`, { method: 'POST' });
+        if (!alive) return;
+        const endsAt = new Date(r.editEndsAt).getTime();
+        if (!Number.isFinite(endsAt)) throw new Error('Chưa nhận được thời gian chọn ảnh. Đang kết nối lại…');
+        offset.current = Number(r.serverTime) - (sent + Date.now()) / 2 || 0;
+        setDeadline(endsAt);
+        setDeadlineError('');
+        setNow(Date.now());
+      } catch (e) {
+        if (alive) { setDeadlineError(e.message); retryTimer = setTimeout(start, 5000); }
+      } finally { running = false; }
+    };
+    start();
+    const recover = onNetworkRecovery(start);
     const timer = setInterval(() => setNow(Date.now()), 500);
-    return () => clearInterval(timer);
-  }, [token, alreadyPrinted]);
+    return () => { alive = false; clearInterval(timer); clearTimeout(retryTimer); recover(); };
+  }, [token, alreadyPrinted, Boolean(photos.length)]);
   const left = deadline ? Math.max(0, Math.ceil((deadline - (now + offset.current)) / 1000)) : null;
 
   // Ảnh đã thả tim (đã làm đẹp, cỡ xem trước) cho khung xem trước.
@@ -183,12 +182,24 @@ export function SelfboothStudio({ token, booking, reload }) {
   useEffect(() => {
     let alive = true;
     const chosen = hearts.map((id) => photos.find((p) => String(p.id) === id)).filter(Boolean);
-    Promise.all(chosen.map((p) => edited(token, p, saved.adjusts[p.id]).then((c) => createImageBitmap(c))))
-      .then((list) => alive && setImages(list)).catch(() => {});
+    const list = [];
+    (async () => {
+      for (const p of chosen) {
+        const canvas = await media.edited(p, saved.adjusts[p.id], 'preview', { isCurrent: () => alive });
+        list.push(canvas);
+        if (!alive) { list.forEach(image => { image.width = image.height = 0; }); return; }
+      }
+      setImages(list);
+    })().catch(() => list.forEach(image => { image.width = image.height = 0; }));
     return () => { alive = false; };
-  }, [hearts.join(), adjustKey]);
+  }, [media, hearts.join(), adjustKey]);
+
+  const autoTried = useRef(false);
+  useEffect(() => onNetworkRecovery(() => { autoTried.current = false; setRetry(n => n + 1); }), []);
+  const locked = printing || Boolean(preparedPrint.current);
 
   function toggleHeart(photo) {
+    if (locked || left === 0) return;
     const id = String(photo.id);
     if (hearts.includes(id)) return save({ hearts: hearts.filter((h) => h !== id) });
     if (hearts.length >= need) return toast.warning(`Layout này in ${need} ảnh — bỏ tim một ảnh trước nhé.`);
@@ -196,48 +207,61 @@ export function SelfboothStudio({ token, booking, reload }) {
   }
 
   async function print({ auto = false } = {}) {
-    if (printing || result) return;
+    if (printLock.current || result) return;
     if (!frame) return setError("Tiệm chưa có khung Instax cho layout này — nhờ nhân viên in giúp bạn.");
     // Hết giờ mà chưa đủ tim: thêm các ảnh đầu cho đủ.
-    const ids = [...hearts];
-    for (const p of photos) if (ids.length < need && !ids.includes(String(p.id))) ids.push(String(p.id));
-    const chosen = ids.map((id) => photos.find((p) => String(p.id) === id)).filter(Boolean);
+    const chosen = printPhotos;
     if (!chosen.length) return;
+    if (!deadline) return setError('Đang đồng bộ thời gian chọn ảnh. Vui lòng đợi kết nối lại.');
+    if (chosen.some(photo => photo.originalPending))
+      return setError('Ảnh gốc đang tải lên. Khi ảnh sẵn sàng, bạn có thể gửi in với đầy đủ chất lượng.');
+    printLock.current = true;
+    setEditing(null);
     setPrinting(true);
     setError("");
     try {
-      const shots = [];
-      for (const photo of chosen) {
-        const canvas = await edited(token, photo, saved.adjusts[photo.id], "print");
-        const image = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.95));
-        canvas.width = canvas.height = 0;
-        shots.push({ key: String(photo.id), image, mirrored: false });
+      const lookup = () => api(`/albums/${token}/print?requestKey=${saved.requestKey}`, { allowNull: true });
+      if (await lookup()) { setResult({ sent: true }); reload?.(); return; }
+      if (!preparedPrint.current) {
+        const shots = chosen.map(photo => ({ key: String(photo.id), photo }));
+        const sheet = await renderPrintFrame(frame, shots, token, `${location.origin}/album/${token}`, {
+          scale: 1, sharp: true,
+          sourceFor: shot => media.edited(shot.photo, saved.adjusts[shot.photo.id], 'print'),
+        });
+        try {
+          const composite = sheet.toDataURL('image/jpeg', 0.95);
+          const [instax] = await printSheets(sheet, frame, 1, 'instax');
+          preparedPrint.current = { composite, options: printPackUpload({
+            images: [instax], frameName: frame.themeName?.trim() || frame.name || 'Khung ảnh', requestKey: saved.requestKey,
+          }) };
+        } finally { sheet.width = sheet.height = 0; }
       }
-      const sheet = await renderPrintFrame(frame, shots, token, `${location.origin}/album/${token}`, { scale: 1 });
-      const composite = sheet.toDataURL("image/jpeg", 0.9);
-      const [instax] = await printSheets(sheet, frame, 1, "instax");
-      sheet.width = sheet.height = 0;
-      await api(`/albums/${token}/print-pack`, printPackUpload({
-        images: [instax], frameName: frame.themeName?.trim() || frame.name || "Khung ảnh", requestKey: saved.requestKey,
-      }));
-      setResult({ sent: true, composite });
+      await api(`/albums/${token}/print-pack`, preparedPrint.current.options);
+      setResult({ sent: true, composite: preparedPrint.current.composite });
+      preparedPrint.current = null;
       reload?.();
       if (auto) toast.info("Hết thời gian chọn ảnh — đã gửi in những ảnh bạn đang chọn.");
     } catch (e) {
-      // Lượt này đã in (gửi lại từ máy khác / lần trước mất kết nối): coi như đã gửi.
-      if (e.status === 409 && /tờ|in/.test(e.message)) setResult({ sent: true });
-      else setError(e.message || "Chưa gửi in được — thử lại nhé.");
+      // A conflict can also mean changed content or a job still being saved.
+      // Only a real saved print job proves the earlier request succeeded.
+      const previous = e.status === 409 && await api(`/albums/${token}/print?requestKey=${saved.requestKey}`, { allowNull: true }).catch(() => null);
+      if (previous) { setResult({ sent: true, composite: preparedPrint.current?.composite }); preparedPrint.current = null; reload?.(); }
+      else {
+        if (e.status === 400) preparedPrint.current = null;
+        setError(e.message || 'Chưa gửi in được — thử lại nhé.');
+      }
     } finally {
+      printLock.current = false;
       setPrinting(false);
     }
   }
-  const autoTried = useRef(false);
+  const autoReady = frame && originalsReady;
   useEffect(() => {
-    if (left === 0 && !result && !autoTried.current) {
+    if (left === 0 && !result && autoReady && !autoTried.current) {
       autoTried.current = true;
       print({ auto: true });
     }
-  }, [left]);
+  }, [left, Boolean(autoReady), frame?._id, retry]);
 
   if (result)
     return (
@@ -264,7 +288,7 @@ export function SelfboothStudio({ token, booking, reload }) {
           <h2>{step === "photos" ? "Thả tim ảnh để in" : step === "frame" ? "Chọn khung" : "Xem lại & in"}</h2>
           <p>{step === "photos"
             ? `Chọn ${need} ảnh · đã chọn ${hearts.length}/${need} · chạm ảnh để làm đẹp`
-            : step === "frame" ? "Chạm một khung để chọn" : "Ảnh in ra đúng như bên dưới"}</p>
+            : step === "frame" ? "Chạm một khung để chọn" : "Xem lại ảnh trước khi gửi in"}</p>
         </div>
         {left !== null && (
           <span className={`studio-timer${left <= 30 ? " is-urgent" : ""}`} role="timer" aria-label={`Còn ${clock(left)}`}>
@@ -273,6 +297,11 @@ export function SelfboothStudio({ token, booking, reload }) {
         )}
       </header>
       <ErrorBox error={error} />
+      {deadlineError && <p className="studio-status is-warn" role="status">{deadlineError} — đang tự kết nối lại.</p>}
+      {!frames.length && <p className="studio-status is-warn" role="status">Chưa có khung cho layout này. Nhờ nhân viên kiểm tra khung Instax trước khi in.</p>}
+      {!photos.length && <p className="studio-status" role="status">Đang nhận ảnh từ máy chụp. Ảnh sẽ tự xuất hiện tại đây.</p>}
+      {pendingOriginals > 0 && <p className="studio-status" role="status">Đang nhận {pendingOriginals} ảnh gốc chất lượng cao. Bạn vẫn chọn ảnh và làm đẹp được; bản in sẽ đợi ảnh gốc.</p>}
+      {photos.length > 0 && photos.length < need && <p className="studio-status">Album hiện có {photos.length} ảnh. Ảnh bạn chọn sẽ được lặp để đủ {need} ô của khung.</p>}
       {step === "photos" && (
         <ul className="studio-photos" aria-label="Ảnh vừa chụp">
           {[...photos].reverse().map((photo) => {
@@ -280,11 +309,11 @@ export function SelfboothStudio({ token, booking, reload }) {
             const tuned = !isNeutral({ ...DEFAULT_ADJUST, ...saved.adjusts[photo.id] });
             return (
               <li key={photo.id} className={order ? "is-hearted" : ""}>
-                <button type="button" className="studio-photo" onClick={() => setEditing(String(photo.id))} aria-label={`Làm đẹp ảnh ${photo.number}`}>
+                <button type="button" className="studio-photo" disabled={locked || left === 0} onClick={() => setEditing(String(photo.id))} aria-label={`Làm đẹp ảnh ${photo.number}`}>
                   <PhotoThumb photo={photo} token={token} alt="" loading="lazy" decoding="async" />
                   {tuned && <span className="studio-tuned"><PiSlidersHorizontalBold aria-hidden="true" /> Đã làm đẹp</span>}
                 </button>
-                <button type="button" className="studio-heart" aria-pressed={Boolean(order)} onClick={() => toggleHeart(photo)}
+                <button type="button" className="studio-heart" disabled={locked || left === 0} aria-pressed={Boolean(order)} onClick={() => toggleHeart(photo)}
                   aria-label={order ? `Bỏ tim ảnh ${photo.number}` : `Thả tim ảnh ${photo.number}`}>
                   {order ? <PiHeartFill aria-hidden="true" /> : <PiHeartBold aria-hidden="true" />}
                   {order > 0 && need > 1 && <b>{order}</b>}
@@ -297,8 +326,8 @@ export function SelfboothStudio({ token, booking, reload }) {
       {step === "frame" && (
         <div className="studio-frames" role="radiogroup" aria-label="Khung">
           {frames.map((f) => (
-            <button key={f._id} type="button" role="radio" aria-checked={frame?._id === f._id} onClick={() => save({ frameId: f._id })}>
-              <FramePreview frame={f} images={images} label={f.name} />
+            <button key={f._id} type="button" role="radio" disabled={locked || left === 0} aria-checked={frame?._id === f._id} onClick={() => save({ frameId: f._id })}>
+              <FramePreview frame={f} images={images} label={f.name} tile />
               <span>{f.name}</span>
             </button>
           ))}
@@ -311,24 +340,24 @@ export function SelfboothStudio({ token, booking, reload }) {
       )}
       <footer className="studio-foot">
         {step !== "photos" && (
-          <Button className="outline" onClick={() => setStep(step === "print" && frames.length > 1 ? "frame" : "photos")}>
+          <Button className="outline" disabled={locked} onClick={() => setStep(step === "print" && frames.length > 1 ? "frame" : "photos")}>
             <PiArrowLeftBold aria-hidden="true" /> Quay lại
           </Button>
         )}
-        {step === "photos" && (
-          <Button disabled={hearts.length < need} onClick={() => setStep(frames.length > 1 ? "frame" : "print")}>
+        {step === "photos" && !(left === 0 && error) && (
+          <Button disabled={locked || left === 0 || !photos.length || hearts.length < minimum} onClick={() => setStep(frames.length > 1 ? "frame" : "print")}>
             Tiếp tục <PiCheckBold aria-hidden="true" />
           </Button>
         )}
-        {step === "frame" && <Button onClick={() => setStep("print")}>Xem lại <PiCheckBold aria-hidden="true" /></Button>}
-        {step === "print" && (
-          <Button disabled={printing} onClick={() => print()}>
-            <PiPrinterBold aria-hidden="true" /> {printing ? "Đang gửi in…" : "In ảnh"}
+        {step === "frame" && !(left === 0 && error) && <Button disabled={locked || left === 0} onClick={() => setStep("print")}>Xem lại <PiCheckBold aria-hidden="true" /></Button>}
+        {(step === "print" || (left === 0 && error)) && (
+          <Button disabled={printing || !frame || !deadline || !originalsReady} onClick={() => print()}>
+            <PiPrinterBold aria-hidden="true" /> {printing ? "Đang chuẩn bị và gửi in…" : preparedPrint.current ? "Kiểm tra và thử lại" : "In ảnh"}
           </Button>
         )}
       </footer>
       {editingPhoto && (
-        <Editor token={token} photo={editingPhoto} adjust={saved.adjusts[editingPhoto.id]}
+        <Editor token={token} media={media} photo={editingPhoto} adjust={saved.adjusts[editingPhoto.id]}
           onChange={(a) => save({ adjusts: { ...saved.adjusts, [editingPhoto.id]: a } })}
           onClose={() => setEditing(null)} />
       )}

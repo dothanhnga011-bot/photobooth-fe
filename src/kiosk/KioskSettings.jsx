@@ -15,6 +15,7 @@ import {
 import { canPickFolder } from "./folder.js";
 import { cameraProfile } from "./camera-profile.js";
 import { FolderCheck } from "./FolderCheck.jsx";
+import { LiveCameraCheck } from './LiveCameraCheck.jsx';
 import { KioskDevices } from "./KioskDevices.jsx";
 import { isAudioEnabled, setAudioEnabled } from "./kiosk-audio.js";
 import { useState } from "react";
@@ -27,6 +28,7 @@ export function KioskSettings({
   cameras,
   cameraId,
   setCameraId,
+  setCameras,
   mirror,
   setMirror,
   mirrorLocked = false,
@@ -113,9 +115,7 @@ export function KioskSettings({
           <select
             aria-label="Hình trực tiếp từ máy ảnh"
             value={
-              cameras.some((c) => c.deviceId === cameraId && !usable(c))
-                ? ""
-                : cameraId
+              cameras.some((c) => c.deviceId === cameraId && usable(c)) ? cameraId : ''
             }
             onChange={(e) => {
               setCameraId(e.target.value);
@@ -142,6 +142,7 @@ export function KioskSettings({
             ))}
           </select>
         </label>
+        <LiveCameraCheck cameraId={cameraId} webcamTest={webcamTest} onDevices={setCameras} />
         {cameras.some(isCameraUsbVideo) && (
           <p className="kiosk-check-result is-warn kiosk-webcam-note">
             {CAMERA_USB_MESSAGE}

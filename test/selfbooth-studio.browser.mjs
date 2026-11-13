@@ -2,6 +2,8 @@
 // tới máy in cạnh máy chụp). Đồng hồ do máy chủ đặt (edit-start); hết giờ tự gửi in.
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { mkdir, readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { after, before, test } from "node:test";
 import { crc32, deflateSync } from "node:zlib";
 import { build } from "vite";
@@ -47,7 +49,7 @@ const FRAMES = [
 ];
 const photo = png(300, 200, (x) => (x < 150 ? [200, 120, 100, 255] : [100, 140, 200, 255]));
 
-let server, browser, base;
+let server, browser, base, portrait;
 const fixture = `
   import React from 'react';
   import { createRoot } from 'react-dom/client';
@@ -64,6 +66,7 @@ const fixture = `
 `;
 
 before(async () => {
+  portrait = await readFile(new URL('../src/admin/assets/rx1-preview-default.jpg', import.meta.url));
   const bundle = await build({
     configFile: false, logLevel: "error", esbuild: { jsx: "automatic" },
     define: { "process.env.NODE_ENV": '"development"', "import.meta.env.VITE_API_URL": '""' },
@@ -75,13 +78,20 @@ before(async () => {
   const assets = new Map(bundle.output.map((a) => ["/" + a.fileName, a.code || a.source]));
   const entry = bundle.output.find((a) => a.isEntry).fileName;
   const css = bundle.output.filter((a) => a.fileName.endsWith(".css"));
-  server = createServer((req, res) => {
-    if (assets.has(req.url)) {
-      res.setHeader("Content-Type", req.url.endsWith(".css") ? "text/css" : "application/javascript");
-      return res.end(assets.get(req.url));
+  server = createServer(async (req, res) => {
+    const path = new URL(req.url, 'http://localhost').pathname;
+    const type = path.endsWith('.css') ? 'text/css' : path.endsWith('.webp') ? 'image/webp'
+      : path.endsWith('.jpg') ? 'image/jpeg' : path.endsWith('.woff2') ? 'font/woff2' : 'application/javascript';
+    if (assets.has(path)) {
+      res.setHeader("Content-Type", type);
+      return res.end(assets.get(path));
+    }
+    if (/^\/fonts\/[\w-]+\.woff2$/.test(path) || path === '/logo-m-384.jpg') {
+      res.setHeader('Content-Type', type);
+      return res.end(await readFile(new URL('../public' + path, import.meta.url)));
     }
     res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.end(`<div id="root"></div>${css.map((a) => `<link rel="stylesheet" href="/${a.fileName}">`).join("")}<script type="module" src="/${entry}"></script>`);
+    res.end(`<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><div id="root"></div>${css.map((a) => `<link rel="stylesheet" href="/${a.fileName}">`).join("")}<script type="module" src="/${entry}"></script>`);
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   base = `http://127.0.0.1:${server.address().port}`;
@@ -89,33 +99,42 @@ before(async () => {
 });
 after(async () => { await browser?.close(); await new Promise((resolve) => server?.close(resolve)); });
 
-async function phone({ secondsLeft = 250 } = {}) {
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
-  const errors = [], prints = [];
+async function phone({ secondsLeft = 250, originalPending = false, photoCount = 4, printError = null, lostReply = false,
+  viewport = { width: 390, height: 844 }, realPhoto = false } = {}) {
+  const page = await browser.newPage({ viewport, isMobile: true, hasTouch: true });
+  const errors = [], prints = [], mediaRequests = [];
+  let savedJob = null, failedOnce = false;
   page.on("pageerror", (e) => errors.push(e.message));
   const booking = {
     _id: "b", code: "246810", status: "completed", printSize: "instax", selectCount: 2, prints: 1, printSheets: 0,
     mediaExpiresAt: new Date(Date.now() + 3 * 86400000).toISOString(),
-    photos: [1, 2, 3, 4].map((n) => ({ id: `p${n}`, number: n, kind: "original" })),
+    photos: Array.from({length:photoCount},(_,i)=>i+1).map((n) => ({ id: `p${n}`, number: n, kind: "original", ...(originalPending && {originalPending:true}) })),
   };
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
-    if (/\/albums\/fixture-album\/photos\/p\d/.test(path)) return route.fulfill({ body: photo, contentType: "image/png" });
+    if (/\/albums\/fixture-album\/photos\/p\d/.test(path)) {
+      mediaRequests.push(url.searchParams.get('size'));
+      return route.fulfill({ body: realPhoto ? portrait : photo, contentType: realPhoto ? 'image/jpeg' : "image/png" });
+    }
+    if (path.endsWith('/albums/fixture-album/print')) return route.fulfill({json:savedJob});
     if (path.endsWith("/albums/fixture-album/edit-start"))
       return route.fulfill({ json: { editEndsAt: new Date(Date.now() + secondsLeft * 1000).toISOString(), serverTime: Date.now() } });
     if (path.endsWith("/albums/fixture-album/print-pack")) {
       const headers = route.request().headers();
       prints.push({ sizes: headers["x-print-sheets"], frame: decodeURIComponent(headers["x-print-frame"]), key: headers["x-print-key"],
         body: route.request().postDataBuffer() });
+      if(printError && !failedOnce){failedOnce=true;return route.fulfill({status:409,json:{message:printError}})}
       booking.printSheets = 1;
+      savedJob={_id:'job',status:'pending',printSheets:1};
+      if(lostReply && !failedOnce){failedOnce=true;return route.abort('failed')}
       return route.fulfill({ status: 201, json: { _id: "job", status: "pending", prints: 1, printSheets: 1 } });
     }
     if (path.endsWith("/albums/fixture-album")) return route.fulfill({ json: booking });
     return route.fulfill({ status: 404, json: { message: `unexpected ${path}` } });
   });
   await page.goto(`${base}/album/fixture-album`);
-  return { page, errors, prints };
+  return { page, errors, prints, mediaRequests, originalsReady:()=>{booking.photos.forEach(p=>delete p.originalPending)} };
 }
 
 test("heart two photos, change a colour, pick a frame and print one Instax Wide sheet; a 250-second clock runs", async () => {
@@ -159,6 +178,35 @@ test("heart two photos, change a colour, pick a frame and print one Instax Wide 
   } finally { await page.close(); }
 });
 
+test('phone controls fit narrow screens and the editor keeps the photo and Done button visible', async () => {
+  const folder = resolve('.cache/main-flows');
+  await mkdir(folder, { recursive: true });
+  for (const viewport of [{width:390,height:844},{width:320,height:568}]) {
+    const {page,errors} = await phone({viewport,realPhoto:true});
+    try {
+      await page.getByRole('heading',{name:'Thả tim ảnh để in'}).waitFor();
+      await page.evaluate(()=>document.fonts.ready);
+      await page.waitForFunction(()=>[...document.querySelectorAll('.studio-photos img')].every(img=>img.complete && img.naturalWidth>0));
+      await page.locator('.studio-photos img').evaluateAll(imgs=>Promise.all(imgs.map(img=>img.decode())));
+      await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'page fits the viewport');
+      await page.screenshot({path:resolve(folder,`phone-photos-${viewport.width}.png`),fullPage:true});
+      await page.getByRole('button',{name:'Làm đẹp ảnh 4'}).click();
+      await page.waitForFunction(()=>document.querySelector('.studio-editor canvas')?.width>300);
+      const done=page.getByRole('button',{name:'Xong',exact:true});
+      const box=await done.boundingBox();
+      await page.screenshot({path:resolve(folder,`phone-editor-${viewport.width}.png`)});
+      assert.ok(box.y>=0 && box.y+box.height<=viewport.height,`Done stays on screen: ${JSON.stringify(box)}`);
+      const canvas=await page.locator('.studio-editor canvas').boundingBox();
+      assert.ok(canvas.height>=100 && canvas.width<=viewport.width,'photo stays usable above the controls');
+      const tabs=await page.getByRole('tablist',{name:'Làm đẹp',exact:true}).boundingBox();
+      const filters=await page.getByRole('radiogroup',{name:'Bộ lọc màu'}).boundingBox();
+      assert.ok(canvas.y+canvas.height<=tabs.y+1 && tabs.y+tabs.height<=filters.y,'image never covers the adjustment controls');
+      assert.deepEqual(errors,[]);
+    } finally { await page.close(); }
+  }
+});
+
 test("when the time is up, the photos being chosen (topped up) go to the printer by themselves", async () => {
   const { page, errors, prints } = await phone({ secondsLeft: 0 });
   try {
@@ -169,4 +217,61 @@ test("when the time is up, the photos being chosen (topped up) go to the printer
     assert.deepEqual(jpegSize(prints[0].body), [1260, 840]);
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
+});
+
+test('an expired phone selection waits for camera originals instead of printing cached previews',async()=>{
+  const {page,prints,mediaRequests,originalsReady,errors}=await phone({secondsLeft:0,originalPending:true});
+  try{
+    await page.getByText(/Đang nhận 4 ảnh gốc chất lượng cao/).waitFor();
+    await page.waitForTimeout(300);
+    assert.equal(prints.length,0);
+    assert.equal(mediaRequests.includes('print'),false);
+    originalsReady();
+    await page.getByRole('button',{name:'Làm mới ảnh'}).click();
+    await page.getByRole('heading',{name:'Đã gửi in!'}).waitFor({timeout:20000});
+    assert.equal(prints.length,1);
+    assert.ok(mediaRequests.includes('print'));
+    assert.deepEqual(jpegSize(prints[0].body),[1260,840]);
+    assert.deepEqual(errors,[]);
+  }finally{await page.close()}
+});
+
+test('a print conflict with the word in does not pretend paper has been sent',async()=>{
+  const {page,prints,errors}=await phone({secondsLeft:0,printError:'Các tờ in của yêu cầu này đã thay đổi. Vui lòng kiểm tra yêu cầu đã gửi.'});
+  try{
+    await page.getByText(/Các tờ in của yêu cầu này đã thay đổi/).waitFor({timeout:20000});
+    assert.equal(await page.getByRole('heading',{name:'Đã gửi in!'}).count(),0);
+    await page.getByRole('button',{name:'Kiểm tra và thử lại'}).click();
+    await page.getByRole('heading',{name:'Đã gửi in!'}).waitFor({timeout:20000});
+    assert.equal(prints.length,2);
+    assert.equal(prints[0].key,prints[1].key);
+    assert.ok(prints[0].body.equals(prints[1].body),'retry keeps the exact already-prepared sheet');
+    assert.deepEqual(errors,[]);
+  }finally{await page.close()}
+});
+
+test('a lost print response is recovered by looking up the job, without sending a second sheet',async()=>{
+  const {page,prints,errors}=await phone({secondsLeft:0,lostReply:true});
+  try{
+    await page.getByRole('button',{name:'Kiểm tra và thử lại'}).waitFor({timeout:20000});
+    await page.getByRole('button',{name:'Kiểm tra và thử lại'}).click();
+    await page.getByRole('heading',{name:'Đã gửi in!'}).waitFor();
+    assert.equal(prints.length,1);
+    assert.deepEqual(errors,[]);
+  }finally{await page.close()}
+});
+
+test('a layout with only one captured photo still fills its two slots',async()=>{
+  const {page,prints,errors}=await phone({photoCount:1});
+  try{
+    await page.getByText(/Ảnh bạn chọn sẽ được lặp để đủ 2 ô/).waitFor();
+    await page.getByRole('button',{name:'Thả tim ảnh 1'}).click();
+    await page.getByRole('button',{name:/Tiếp tục/}).click();
+    await page.getByRole('button',{name:/Xem lại/}).click();
+    await page.getByRole('img',{name:'Ảnh in xem trước'}).waitFor();
+    await page.getByRole('button',{name:'In ảnh',exact:true}).click();
+    await page.getByRole('heading',{name:'Đã gửi in!'}).waitFor({timeout:20000});
+    assert.deepEqual(jpegSize(prints[0].body),[1260,840]);
+    assert.deepEqual(errors,[]);
+  }finally{await page.close()}
 });

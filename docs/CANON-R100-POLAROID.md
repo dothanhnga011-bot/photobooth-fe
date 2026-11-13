@@ -6,14 +6,14 @@ Phòng Polaroid hoạt động theo mô hình **Selfbooth**: nhân viên chọn 
 
 Màn nhập mã dùng nâu óc chó, be giấy và hoa văn lá cuộn vàng cổ kiểu Pháp. Khi chụp trên màn ngang, **live view chiếm 2/3, cột ảnh chiếm 1/3**. Cột bên phải có thời gian còn lại, ảnh mới nhất cỡ lớn, dải ảnh đã chụp và nút **Chụp xong**. Trên màn đứng, live view ở trên, ảnh ở dưới. Giao diện đã kiểm tra ở 1024 × 600, 1366 × 768 và 1920 × 1080.
 
-Kiosk bỏ đếm ngược chuẩn bị và số 3–2–1 giữa màn hình cho phòng Polaroid, kể cả khi tải lại lượt cũ. Khi mở lượt, kiosk chỉ chờ máy chủ xác nhận phiên. Đồng hồ bên cạnh vẫn giới hạn thời gian của gói; hết giờ chuyển sang chọn ảnh, không kích hoạt máy ảnh. Tải lại phiên đang chụp vẫn nhận diện Canon từ thông tin phiên khi yêu cầu kiểm tra phòng tạm mất mạng.
+Kiosk bỏ đếm ngược chuẩn bị và số 3–2–1 giữa màn hình cho phòng Polaroid, kể cả khi tải lại lượt cũ. Khi mở lượt, kiosk chỉ chờ máy chủ xác nhận phiên. Đồng hồ bên cạnh vẫn giới hạn thời gian của gói; hết giờ hiện QR để chọn ảnh trên điện thoại, không kích hoạt máy ảnh. Tải lại phiên đang chụp vẫn nhận diện Canon từ thông tin phiên khi yêu cầu kiểm tra phòng tạm mất mạng.
 
 | Gói Polaroid | Thời gian chụp | Số ảnh chụp | Số ảnh chọn để in |
 | --- | --- | --- | --- |
 | Ảnh nhỏ | 3 phút | Không giới hạn | 1 ảnh |
 | Ảnh to | 5 phút | Không giới hạn | 2 ảnh |
 
-Thời gian trên là thời gian **chụp**, tính khi máy chủ mở phiên thành công. Bước chọn ảnh và trang trí vẫn có đồng hồ riêng. Giá do quản trị đặt; mỗi lượt vẫn in 1 tấm Instax Wide theo khung 1 hoặc 2 ô hiện có, QR nhận toàn bộ ảnh đã chụp.
+Thời gian trên là thời gian **chụp**, tính khi máy chủ mở phiên thành công. Khách quét QR rồi chọn ảnh, làm đẹp và chọn khung trên điện thoại, có đồng hồ riêng (mặc định 250 giây, quản trị thay đổi được). Giá do quản trị đặt; mỗi lượt vẫn in 1 tấm Instax Wide theo khung 1 hoặc 2 ô hiện có, QR nhận toàn bộ ảnh đã chụp. Bản in đợi ảnh gốc, kể cả khi ảnh gốc đến sau lúc hết giờ chọn.
 
 Gói cũ có số lần bấm dây hoặc thời lượng khác được áp dụng quy tắc trên cho lượt mới, không cần tạo lại gói. Thời gian của lượt đã mở giữ theo snapshot của lượt đó. Cập nhật cả backend và frontend, rồi tải lại kiosk khi hết lượt khách; frontend cũ vẫn có thể hiển thị giới hạn cũ.
 
@@ -58,8 +58,8 @@ R100 không cấp nguồn/sạc qua USB: kiểm tra pin hoặc dùng bộ nguồ
 3. Bấm **Chọn thư mục ảnh**, chọn thư mục JPEG vừa cấu hình và cấp quyền đọc mỗi lần truy cập nếu trình duyệt hỏi.
    Tắt **Thử máy bằng webcam máy tính** trước khi dùng R100; chế độ thử bằng phím Space lấy ảnh webcam và có đếm ngược riêng.
 4. Bấm **Thử nhận ảnh từ máy ảnh**, nhấn dây chụp; xác nhận ảnh thử hiện trong kiosk.
-5. Chọn thiết bị HDMI, thường có tên USB Video/Cam Link. Nếu tín hiệu có chữ hoặc ô lấy nét, chỉnh hiển thị HDMI trên máy ảnh và thử lại trong chế độ chụp ảnh đang dùng.
-6. Trong quầy **Tạo mã chụp**, chọn gói Polaroid và phòng, xác nhận đã thu tiền rồi lấy mã 6 số. Thử đầy đủ: nhập mã → bấm dây → chọn ảnh → nhận bản in → quét QR và lưu ảnh.
+5. Chọn thiết bị HDMI, thường có tên USB Video/Cam Link, bấm **Kiểm tra hình trực tiếp**. Tắt xem thử trước khi bắt đầu. Nếu tín hiệu có chữ hoặc ô lấy nét, chỉnh hiển thị HDMI trên máy ảnh và thử lại trong chế độ chụp ảnh đang dùng.
+6. Trong quầy **Tạo mã chụp**, chọn gói Polaroid và phòng, xác nhận đã thu tiền rồi lấy mã 6 số. Thử đầy đủ: nhập mã → bấm dây → quét QR → chọn ảnh/làm đẹp/chọn khung trên điện thoại → gửi in → nhận bản in và lưu ảnh.
 
 Quyền thư mục Canon được lưu riêng với Fujifilm. Khi chuyển phòng từ cấu hình Fuji cũ sang Canon, cần chọn thư mục Canon một lần.
 

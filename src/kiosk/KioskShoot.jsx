@@ -107,6 +107,8 @@ export function KioskShoot({
   ending,
   onEnd,
   onReopenCamera,
+  cameraIssue = null,
+  cameraOpening = false,
   webcam = null,
   canvasPreview = false,
   mirror = false,
@@ -195,10 +197,10 @@ export function KioskShoot({
               <PiVideoCameraSlashDuotone />
             </span>
             <strong>Chưa có hình trực tiếp</strong>
-            <p>Máy ảnh chưa gửi hình qua thẻ ghi hình HDMI. Ảnh gốc vẫn được nhận khi bấm dây chụp.</p>
+            <p>{cameraIssue?.message || 'Máy ảnh chưa gửi hình qua thẻ ghi hình HDMI. Ảnh gốc vẫn được nhận khi bấm dây chụp.'}</p>
             <div className="shoot-no-camera-actions">
-              <Button className="small" onClick={onReopenCamera}>
-                <PiArrowClockwiseBold aria-hidden="true" /> Mở lại camera
+              <Button className="small" disabled={cameraOpening} onClick={onReopenCamera}>
+                <PiArrowClockwiseBold aria-hidden="true" /> {cameraOpening ? 'Đang mở camera…' : 'Mở lại camera'}
               </Button>
               {webcam && !webcam.on && (
                 <Button className="outline small" onClick={() => webcam.onToggle(true)}>

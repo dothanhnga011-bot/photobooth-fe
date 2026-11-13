@@ -17,13 +17,8 @@ import { transition } from "../transitions";
 import { CAMERA_KEY, LOW_POWER_KEY, MIRROR_KEY, QR_SECONDS, WEBCAM_KEY } from "./constants.js";
 import {
   CAMERA_ERROR,
-  cameraRank,
-  CAMERA_USB_MESSAGE,
-  hdmiFailed,
-  isCameraUsbVideo,
-  liveUsableFor,
-  NO_HDMI_MESSAGE,
-  videoConstraints,
+  cameraProblem,
+  openLiveVideo,
 } from "./camera.js";
 import {
   canPickFolder,
@@ -147,6 +142,8 @@ export function Kiosk() {
     [liveLabel, setLiveLabel] = useState(""),
     [snapCount, setSnapCount] = useState(0);
   const [ready, setReady] = useState(false),
+    [cameraIssue, setCameraIssue] = useState(null),
+    [cameraOpening, setCameraOpening] = useState(false),
     [flash, setFlash] = useState(0),
     [done, setDone] = useState(null),
     [left, setLeft] = useState(0),
@@ -469,94 +466,64 @@ export function Kiosk() {
   }
   // Mặc định dùng thẻ ghi hình / máy ảnh, không dùng OBS; nhớ lựa chọn của nhân viên.
   async function openCamera(id = cameraId) {
+    if (opening.current) return false;
+    const mode = webcamRef.current;
     opening.current = true;
+    setCameraOpening(true);
     try {
       return await openCameraNow(id);
     } finally {
       opening.current = false;
+      if (alive.current) {
+        setCameraOpening(false);
+        if (mode !== webcamRef.current && ['ready', 'shoot'].includes(phaseOf(current.current)))
+          queueMicrotask(() => openCamera());
+      }
     }
   }
   async function openCameraNow(id) {
     const turn = ++request.current;
-    const getMedia = (deviceId) =>
-      navigator.mediaDevices.getUserMedia(videoConstraints(deviceId, webcamRef.current));
-    const videoInputs = async () =>
-      (await navigator.mediaDevices.enumerateDevices()).filter(
-        (d) => d.kind === "videoinput",
-      );
-    const usable = liveUsableFor({ webcam: webcamRef.current });
-    const choose = (list) =>
-      list.some((d) => d.deviceId === id && usable(d))
-        ? id
-        : list
-            .filter((d) => usable(d) && cameraRank(d) < 9)
-            .sort((a, b) => cameraRank(a) - cameraRank(b))[0]?.deviceId;
-    const blocked = new Error("blocked");
-    let failed = null;
+    stream.current?.getTracks().forEach(track => track.stop());
+    stream.current = null;
+    setReady(false);
+    setCameraIssue(null);
+    let media;
     try {
-      const known = await videoInputs();
-      const named = known.some((d) => d.label);
-      const first = named ? choose(known) : id;
-      blocked.message = known.some(isCameraUsbVideo)
-        ? CAMERA_USB_MESSAGE
-        : NO_HDMI_MESSAGE;
-      if (named && !first && known.some((d) => !usable(d))) throw blocked;
-      let media = await getMedia(first).catch((e) => {
-        if (!first) throw e;
-        failed = e;
-        const card = known.find((d) => d.deviceId === first);
-        blocked.message = hdmiFailed(card?.label || "camera", e);
-        return getMedia("");
-      });
-      const list = await videoInputs();
-      const want = choose(list);
-      if (want && media.getVideoTracks()[0].getSettings().deviceId !== want)
-        try {
-          const next = await getMedia(want);
-          media.getTracks().forEach((t) => t.stop());
-          media = next;
-        } catch {
-          /* giữ camera đang mở được */
-        }
-      if (!usable(media.getVideoTracks()[0])) {
-        media.getTracks().forEach((t) => t.stop());
-        throw blocked;
-      }
+      const opened = await openLiveVideo({ id, webcam: webcamRef.current });
+      media = opened.stream;
       if (!alive.current || turn !== request.current || !video$.current) {
         media.getTracks().forEach((t) => t.stop());
         return false;
       }
-      stream.current?.getTracks().forEach((t) => t.stop());
       stream.current = media;
-      setCameras(list);
+      setCameras(opened.cameras);
       video$.current.srcObject = media;
-      await video$.current.play().catch(() => {});
+      await video$.current.play();
+      if (!alive.current || turn !== request.current) { media.getTracks().forEach(track => track.stop()); return false; }
       setLiveLabel(media.getVideoTracks()[0]?.label || "");
       setReady(true);
       setError((e) => (e === CAMERA_ERROR ? "" : e));
-      cameraError.current = failed ? `${failed.name}: ${failed.message}`.trim() : "";
+      cameraError.current = '';
+      media.getVideoTracks()[0]?.addEventListener('ended', () => {
+        if (stream.current !== media) return;
+        stream.current = null;
+        setReady(false);
+        setCameraIssue({ message: 'Nguồn hình vừa ngắt. Kiểm tra lại USB của thẻ ghi hình rồi bấm Mở lại camera.' });
+      }, { once: true });
       delete shown.current.camera;
       return true;
     } catch (e) {
       if (alive.current && turn === request.current) {
-        cameraError.current =
-          e === blocked
-            ? failed
-              ? `${failed.name}: ${failed.message}`.trim()
-              : "Không có thẻ ghi hình dùng được"
-            : `${e.name}: ${e.message}`.trim();
-        if (e === blocked) {
-          stream.current?.getTracks().forEach((t) => t.stop());
-          stream.current = null;
-          setReady(false);
-          notifyOnce("camera", "warning", blocked.message, 15000);
-        } else {
-          setError(CAMERA_ERROR);
-          notifyOnce("camera", "error", CAMERA_ERROR);
-        }
+        cameraError.current = `${e.name}: ${e.message}`.trim();
+        const problem = cameraProblem(e);
+        setCameraIssue(problem);
+        setReady(false);
+        stream.current = null;
+        setError(CAMERA_ERROR);
+        notifyOnce('camera', 'warning', problem.message, 15000);
       }
       return false;
-    }
+    } finally { if (media && stream.current !== media) media.getTracks().forEach(track => track.stop()); }
   }
   async function start(s) {
     try {
@@ -1496,6 +1463,8 @@ export function Kiosk() {
           ending={ending}
           onEnd={() => endCapture(false)}
           onReopenCamera={() => openCamera()}
+          cameraIssue={cameraIssue}
+          cameraOpening={cameraOpening}
           webcam={{ on: webcamTest, label: liveLabel, count: snapCount, onSnap: snapWebcam, onToggle: setWebcamTest }}
           canvasPreview={lowPower}
           mirror={mirror}
@@ -1615,6 +1584,7 @@ export function Kiosk() {
         cameras={cameras}
         cameraId={cameraId}
         setCameraId={setCameraId}
+        setCameras={setCameras}
         mirror={mirror}
         setMirror={setMirror}
         mirrorLocked={remoteFlip !== "device"}

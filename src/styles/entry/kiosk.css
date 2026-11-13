@@ -1,4 +1,8 @@
 @layer components {
+  .kiosk-live-check { display: grid; gap: 12px; }
+  .kiosk-live-check > .button { justify-self: start; }
+  .kiosk-live-check > video { display: none; width: min(100%, 640px); max-height: 320px; background: #211a16; border-radius: 10px; object-fit: contain; }
+  .kiosk-live-check > video.is-live { display: block; }
   .booth-folder-alert p {
     color: #f3dfa8;
   }

@@ -98,6 +98,22 @@ after(async () => {
   await new Promise((resolve) => server?.close(resolve));
 });
 
+test('staff can check live video before a code is used; leaving settings releases the camera', async()=>{
+  const b=await booth(fakeCamera,{webcam:false,room:{_id:'room',kind:'polaroid'}});
+  try{
+    await b.page.evaluate(()=>sessionStorage.setItem('photo-capture-fixture-device','null'));
+    await b.page.reload();
+    await b.page.getByText('Cài đặt máy chụp (nhân viên)',{exact:false}).click();
+    await b.page.getByRole('button',{name:'Kiểm tra hình trực tiếp',exact:true}).click();
+    await b.page.getByRole('button',{name:'Tắt xem thử',exact:true}).waitFor();
+    await b.page.evaluate(()=>{window.preflightTrack=document.querySelector('.kiosk-live-check video').srcObject.getVideoTracks()[0]});
+    assert.equal(await b.page.evaluate(()=>window.preflightTrack.readyState),'live');
+    await b.page.getByRole('button',{name:'Chạm để bắt đầu',exact:true}).click();
+    await b.page.waitForFunction(()=>window.preflightTrack.readyState==='ended');
+    assert.deepEqual(b.errors,[]);
+  }finally{await b.close()}
+});
+
 // Thử máy bằng webcam: chờ hình trực tiếp sẵn sàng (không có nút chụp trên màn — tiệm dùng dây bấm).
 async function liveReady(page) {
   await page.locator(".shoot-screen:not(.no-live)").waitFor({ timeout: 15000 });
