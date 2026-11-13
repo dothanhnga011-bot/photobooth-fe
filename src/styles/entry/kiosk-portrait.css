@@ -62,14 +62,6 @@
       padding: 96px clamp(32px, 6vw, 72px);
       text-align: center;
     }
-    .kiosk-tap::before {
-      top: 4%;
-      width: 140px;
-    }
-    .kiosk-tap::after {
-      bottom: 5%;
-      width: 96px;
-    }
     .kiosk-polaroid {
       width: min(64vw, 700px);
       padding: 20px 20px 84px;

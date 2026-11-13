@@ -155,7 +155,11 @@ async function portrait(screen, selectors = {}, viewport = { width: 1080, height
   const tag = viewport.width > viewport.height ? "landscape" : "portrait";
   await page.screenshot({ path: join(tmpdir(), `photobooth-fe-${tag}-${screen}.png`) });
   const sizes = await page.evaluate((selectors) => {
-    const out = { pageScrolls: document.documentElement.scrollHeight > innerHeight + 1 };
+    // Máy chụp là giấy kraft trơn (13/11 chủ tiệm bỏ hoạ tiết): không phần tử nào còn nền sao / chùm sao.
+    const stars = [...document.querySelectorAll("*")].flatMap((e) => [null, "::before", "::after"]
+      .filter((pseudo) => /star/i.test(getComputedStyle(e, pseudo).backgroundImage))
+      .map((pseudo) => `${e.tagName.toLowerCase()}.${[...e.classList].join(".")}${pseudo || ""}`));
+    const out = { pageScrolls: document.documentElement.scrollHeight > innerHeight + 1, stars };
     for (const [name, selector] of Object.entries(selectors)) {
       const boxes = [...document.querySelectorAll(selector)].map((e) => e.getBoundingClientRect());
       out[name] = boxes.length ? {
@@ -171,6 +175,7 @@ async function portrait(screen, selectors = {}, viewport = { width: 1080, height
   }, selectors);
   await page.close();
   assert.deepEqual(errors, []);
+  assert.deepEqual(sizes.stars, [], `${screen}: còn hoạ tiết sao trên màn máy chụp`);
   return sizes;
 }
 

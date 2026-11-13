@@ -508,7 +508,7 @@
     gap: 18px;
     min-height: 100dvh;
     padding: clamp(18px, 3vw, 36px) clamp(18px, 4vw, 56px);
-    background: var(--mellow-stars-soft, none), var(--mellow-kraft, #e8d6c2);
+    background: var(--mellow-grain, none), var(--mellow-kraft, #e8d6c2);
     color: var(--mellow-ink, #3f2c25);
   }
   .flow-head {

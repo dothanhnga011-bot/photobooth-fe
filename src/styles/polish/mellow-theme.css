@@ -5,7 +5,8 @@
   Color:  giấy #f8f2ec (quản trị) · kraft #e8d6c2 + vân giấy (phía khách) · thẻ #fffaf3
           · mực #3f2c25 · nâu cacao #522e22 (nút chính) · bóng sticker #2f1a12 · be #e9d8c8
           · kẻ #e5d9cf · bút dạ #ecb9c1 · sao #d7a0a9 / #b69a83 (studio-star-cluster.svg).
-  Nền:    nâu be rắc sao đen nhỏ (star-pattern.svg; quản trị dùng bản nhạt star-pattern-soft.svg),
+  Nền:    máy chụp (màn chờ, các bước, QR) là giấy kraft trơn + vân giấy, không rắc sao, không chùm sao
+          (13/11 chủ tiệm bỏ hoạ tiết). Album điện thoại và quản trị vẫn dùng sao nhạt star-pattern-soft.svg,
           chỉ ở lớp nền — thẻ, bảng, ô nhập vẫn là giấy trơn để dễ đọc.
   Moves:  B — tiêu đề serif lớn, dòng mục lục chữ in hoa + kẻ đậm 3px, nút khối nâu.
           C — thẻ giấy dán băng keo, ảnh nghiêng nhẹ, nút sticker viền kem + bóng cứng.
@@ -121,7 +122,7 @@
     --booth-line: #cdb49c;
     --booth-text: var(--mellow-ink);
     --booth-muted: var(--mellow-muted);
-    background: var(--mellow-stars), var(--mellow-grain), var(--mellow-kraft);
+    background: var(--mellow-grain), var(--mellow-kraft);
     color: var(--mellow-ink);
   }
   /* Bố cục giữa màn hình nhưng không cắt đầu nội dung khi cao hơn màn hình */
@@ -143,10 +144,6 @@
     color: var(--mellow-ink);
     font-size: 13px;
     letter-spacing: 0.12em;
-  }
-  .kiosk-mast > span {
-    padding-right: 52px;
-    background: var(--studio-star-cluster) right center / 42px 28px no-repeat;
   }
   .kiosk-entry h1,
   .kiosk-done h1 {
@@ -457,7 +454,7 @@
     position: relative;
     grid-auto-flow: row;
     gap: 10px;
-    background: var(--mellow-stars), var(--mellow-grain), var(--mellow-kraft);
+    background: var(--mellow-grain), var(--mellow-kraft);
     color: var(--mellow-ink);
   }
   .idle-preview strong {

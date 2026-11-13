@@ -43,26 +43,6 @@
     text-align: left;
     cursor: pointer;
   }
-  .kiosk-tap::before,
-  .kiosk-tap::after {
-    content: "";
-    position: absolute;
-    aspect-ratio: 3 / 2;
-    background: var(--studio-star-cluster) center / contain no-repeat;
-    pointer-events: none;
-  }
-  .kiosk-tap::before {
-    top: 7%;
-    right: 7%;
-    width: 96px;
-    rotate: 8deg;
-  }
-  .kiosk-tap::after {
-    bottom: 8%;
-    left: 6%;
-    width: 64px;
-    rotate: -12deg;
-  }
   .kiosk-polaroid {
     position: relative;
     flex: 0 0 auto;

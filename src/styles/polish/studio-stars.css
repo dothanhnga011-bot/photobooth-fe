@@ -68,21 +68,10 @@
     transform: translateY(-50%) scaleX(-1);
   }
 
+  /* Máy chụp không còn chùm sao (13/11 chủ tiệm bỏ hoạ tiết ở màn máy chụp). */
   .kiosk-entry-card,
   .kiosk-done-card {
     position: relative;
-  }
-  .kiosk-entry-card::before,
-  .kiosk-done-card::before {
-    content: "";
-    position: absolute;
-    top: 12px;
-    right: 8px;
-    width: 42px;
-    height: 28px;
-    background: var(--studio-star-cluster) center / contain no-repeat;
-    pointer-events: none;
-    user-select: none;
   }
 
   @media (max-width: 760px) {
