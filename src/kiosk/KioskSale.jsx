@@ -13,7 +13,7 @@ import {
 import { money } from "../api";
 import { Brand, Button, ErrorBox } from "../studio";
 import { billAcceptor } from "./bill-acceptor.js";
-import { ClassicCorners, Fleuron } from "./classic-ornaments.jsx";
+import { ClassicCorners } from "./classic-ornaments.jsx";
 import { useKioskText } from "./use-kiosk-text.js";
 import {
   extraSheets,
@@ -86,9 +86,7 @@ export function KioskCode({ code, setCode, onSubmit, onBack, busy, error, device
     <section className={`kiosk-flow code-screen${polaroid ? " is-polaroid" : ""}`}>
       <header className="flow-head">
         <Brand />
-        {polaroid && <span className="classic-entry-label">Mellow · Selfbooth</span>}
         <h1>{t(polaroid ? "polaroid.codeTitle" : "code.title")}</h1>
-        {polaroid && <Fleuron />}
         <p>{t(polaroid ? "polaroid.codeSubtitle" : "code.subtitle")}</p>
       </header>
       <ErrorBox error={error} />
@@ -97,6 +95,7 @@ export function KioskCode({ code, setCode, onSubmit, onBack, busy, error, device
       )}
       {!cameraReady && <p className="soft-note">{FOLDER_NOTE}</p>}
       <form ref={form} className="payment-voucher code-card" onSubmit={onSubmit}>
+        {/* Phòng Polaroid / Selfbooth: khung viền hoa văn vàng quanh thẻ nhập mã. */}
         {polaroid && <ClassicCorners className="is-card" />}
         <label htmlFor="kiosk-code">Mã chụp</label>
         <input id="kiosk-code" type="text" inputMode="numeric" pattern="[0-9]{6}" maxLength={6}

@@ -11,6 +11,7 @@ import { labels, formatDate, formatDateTime } from "./api";
 import { useLiveData } from "./use-live-data";
 import { isConnectivityError } from "./network.js";
 import { AlbumViewer } from "./album/AlbumViewer.jsx";
+import { SelfboothStudio } from "./album/SelfboothStudio.jsx";
 
 // Album coi là đã đủ khi đứng yên 3 phút (không thêm / bớt ảnh, video, ảnh ghép, không đổi trạng thái).
 const ALBUM_SETTLE_MS = 3 * 60000;
@@ -106,6 +107,8 @@ function AlbumSession({ token }) {
     (b) => b.status === "cancelled" || b.mediaDeleted,
   );
   const ready = booking?.status === "completed" && !booking.mediaDeleted;
+  // Phòng Selfbooth (khổ Instax, có tấm in): khách chọn ảnh, làm đẹp, ghép khung và gửi in ngay trên điện thoại.
+  const studio = ready && booking.printSize === "instax" && Number(booking.prints) > 0;
   const expires = formatDateTime(booking?.mediaExpiresAt);
   return (
     <section className={`page ${ready ? "studio-page" : "narrow"}`}>
@@ -123,7 +126,9 @@ function AlbumSession({ token }) {
       )}
       {ready && (
         <>
-          <AlbumViewer token={token} booking={booking} />
+          {studio
+            ? <SelfboothStudio token={token} booking={booking} reload={reload} />
+            : <AlbumViewer token={token} booking={booking} />}
           <div className="studio-meta">
             <div className="studio-meta-heading">
               <span className="studio-album-ticket">

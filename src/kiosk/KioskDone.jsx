@@ -33,6 +33,32 @@ export function KioskDone({ done, pending, left, nextGuest }) {
   const print = done.print?.status;
   const framed = done.framed !== false;
   const instax = done.printSize === "instax";
+  // Phòng Selfbooth: chưa chọn ảnh ở máy chụp — chỉ mã QR to, khách chọn ảnh, làm đẹp, ghép khung và gửi in
+  // trên điện thoại (ảnh ra ở máy Instax cạnh máy chụp).
+  if (done.studio)
+    return (
+      <section className="kiosk-flow done-screen is-studio">
+        <header className="flow-head">
+          <Brand />
+        </header>
+        <div className="done-cards is-studio">
+          <figure className="done-card done-qr">
+            <QRCodeSVG value={done.url} size={260} marginSize={2} />
+            <figcaption>Quét QR</figcaption>
+          </figure>
+        </div>
+        <h1 className="done-title">{t("done.studioTitle")}</h1>
+        <p className="done-print" role="status">
+          <PiPrinterDuotone aria-hidden="true" />
+          Thả tim ảnh ưng ý, làm đẹp, chọn khung rồi bấm In trên điện thoại — ảnh ra ở máy Instax cạnh bạn
+          {" · "}Vé {done.code} · {done.photos} ảnh · lưu 3 ngày
+        </p>
+        {pending > 0 && <p className="done-sync">Đang tải {pending} ảnh gốc lên album — vui lòng giữ nguyên màn hình…</p>}
+        <footer className="flow-foot">
+          <Button className="kiosk-next" onClick={nextGuest}>Khách tiếp theo ({left}s)</Button>
+        </footer>
+      </section>
+    );
   return (
     <section className="kiosk-flow done-screen">
       <header className="flow-head">

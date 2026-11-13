@@ -86,8 +86,8 @@ const PING_MS = 60_000;
 // Thời gian chuẩn bị trước khi khách bấm dây, chọn ảnh & khung.
 const READY_SECONDS = 3;
 // Chọn ảnh, màu ảnh và nhãn dán trên cùng một màn: quản trị đặt thời gian ở Thiết lập → Chữ trên máy
-// chụp (settings.selectSeconds, 30–900 giây); chưa đặt thì 150 giây.
-const SELECT_SECONDS = 150;
+// chụp (settings.selectSeconds, 30–900 giây); chưa đặt thì 250 giây.
+const SELECT_SECONDS = 250;
 const selectSecondsOf = (settings) => {
   const value = Number(settings?.selectSeconds);
   return Number.isInteger(value) && value >= 30 && value <= 900 ? value : SELECT_SECONDS;
@@ -761,16 +761,6 @@ export function Kiosk() {
     setSale(null);
     if (["method", "code", "package", "print", "pay"].includes(step)) transition(() => setStep("start"), "fade");
   }, [roomKind, sale?.pack, sale?.bills?.length]);
-  // Phòng Polaroid: giao diện cổ điển Pháp (nâu be, hoạ tiết vàng) cho mọi màn phía khách
-  // (kiosk-classic.css đọc thuộc tính data-kiosk-theme trên thẻ <html>).
-  useEffect(() => {
-    const root = document.documentElement;
-    if (polaroid) root.dataset.kioskTheme = "classic";
-    else delete root.dataset.kioskTheme;
-    return () => {
-      delete root.dataset.kioskTheme;
-    };
-  }, [polaroid]);
   const cashReady = Boolean(roomInfo?.cashCheckoutReady);
   // Phòng photobooth bán tờ bé / tờ to (DNP); layout khổ Instax là của phòng Polaroid.
   const boothPackages = useMemo(() => roomPackages.filter((p) => !isInstax(p)), [roomPackages]);
@@ -1027,6 +1017,13 @@ export function Kiosk() {
         transition(() => showDone(live.booking, live.accessToken, { expired }), "zoom");
         return;
       }
+      // Phòng Selfbooth (Polaroid, khổ Instax): không chọn ảnh ở máy chụp. Hết giờ (hoặc khách bấm Chụp xong) là
+      // hiện mã QR: khách thả tim, làm đẹp, ghép khung và gửi in trên điện thoại.
+      if (live.booking.printSize === "instax") {
+        transition(() => showDone(live.booking, live.accessToken, { expired, studio: true }), "zoom");
+        if (expired) toast.info("Đã hết thời gian chụp — quét mã QR để chọn ảnh nhé.");
+        return;
+      }
       transition(() => update({
         ...live,
         phase: "select",
@@ -1230,7 +1227,8 @@ export function Kiosk() {
       setComposing(false);
     }
   }
-  function showDone(booking, accessToken, { expired = false, composite = "", framed = true, prints } = {}) {
+  // studio: phòng Selfbooth — khách chọn ảnh, làm đẹp, ghép khung và gửi in trên điện thoại (quét QR).
+  function showDone(booking, accessToken, { expired = false, composite = "", framed = true, prints, studio = false } = {}) {
     setLeft(QR_SECONDS);
     setPrint(kioskPrintState(accessToken) || null);
     setDone({
@@ -1243,6 +1241,7 @@ export function Kiosk() {
       framed,
       prints: prints ?? 0,
       expired,
+      studio,
     });
   }
   // Màn QR tự đóng sau 2 phút để phòng sẵn sàng cho khách tiếp theo.
@@ -1500,8 +1499,8 @@ export function Kiosk() {
           webcam={{ on: webcamTest, label: liveLabel, count: snapCount, onSnap: snapWebcam, onToggle: setWebcamTest }}
           canvasPreview={lowPower}
           mirror={mirror}
-          classic={polaroid}
           minShots={shotQuota ? Math.min(selectCount, shotQuota) : selectCount}
+          ornaments={polaroid}
         />
         {error && !(error === CAMERA_ERROR && !ready) && (
           <div className="shoot-error">
@@ -1606,7 +1605,7 @@ export function Kiosk() {
           : sale?.pack ? (sale.stage === "pay" ? "pay" : "print") : "method");
       }}
       roomId={roomId}
-      classic={polaroid}
+      ornaments={polaroid}
     >
       <KioskSettings
         folder={folder}

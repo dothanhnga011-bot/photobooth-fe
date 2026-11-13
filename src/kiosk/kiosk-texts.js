@@ -30,6 +30,7 @@ export const KIOSK_TEXT_GROUPS = [
     ["polaroid.codeSubtitle", "Dòng dưới tiêu đề nhập mã", "Mã 6 số nhân viên đưa khi bạn thanh toán ở quầy. Layout và thời gian chụp đã có sẵn trong mã."],
     ["layout.photos", "Số ảnh của layout ({n} = số ảnh)", "{n} ảnh"],
     ["done.polaroidTitle", "Tiêu đề màn QR", "Quét QR để tải toàn bộ ảnh gốc."],
+    ["done.studioTitle", "Tiêu đề màn QR (chọn ảnh trên điện thoại)", "Quét mã QR để chọn ảnh, làm đẹp và in nhé!"],
   ]],
 ];
 export const KIOSK_TEXT_DEFAULTS = Object.fromEntries(

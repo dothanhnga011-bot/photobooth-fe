@@ -905,7 +905,8 @@ test("the admin sets how long guests have to pick photos, and Ca trực / Đối
   assert.equal(await page.getByText("Ca trực", { exact: true }).count(), 0, "no shift panel on the overview");
   await navButton("Chữ trên máy chụp").click();
   const time = page.getByRole("region", { name: "Thời gian chọn ảnh" });
-  await time.getByText("= 2 phút 30 giây · đang dùng: 2 phút 30 giây").waitFor();
+  // Chưa đặt: mặc định 250 giây.
+  await time.getByText("= 4 phút 10 giây · đang dùng: 4 phút 10 giây").waitFor();
   const save = time.getByRole("button", { name: "Lưu thời gian" });
   assert.equal(await save.isDisabled(), true, "nothing to save yet");
   await time.getByLabel("Số giây (30–900)").fill("20");

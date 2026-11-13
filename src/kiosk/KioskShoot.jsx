@@ -89,8 +89,6 @@ const clock = (s) =>
 // chữ trên hình. Bên phải: thời gian còn lại, số tấm đã chụp, các ảnh vừa chụp xếp dọc và nút
 // "Chụp xong". webcam: chế độ thử máy bằng webcam máy tính (khi không có máy ảnh) — { on, label,
 // count (đếm ngược), onSnap, onToggle }.
-// classic: phòng Polaroid (như Selfbooth) — màn ngang chia 2/3 hình trực tiếp (thấy đủ khung hình),
-// 1/3 cột giấy be viền hoa văn: đồng hồ, ảnh vừa chụp phóng to, dải ảnh đã chụp, nút Chụp xong.
 // minShots: số ảnh layout cần — chưa đủ thì chưa bấm "Chụp xong" được (lỡ tay bấm sớm thì layout 2 ảnh
 // thành 1 ảnh, khung 4 ô phải lặp ảnh). Hết giờ vẫn chuyển sang chọn ảnh với số ảnh đã có.
 export function KioskShoot({
@@ -112,12 +110,13 @@ export function KioskShoot({
   webcam = null,
   canvasPreview = false,
   mirror = false,
-  classic = false,
   minShots = 1,
+  // Phòng Polaroid / Selfbooth: khung viền hoa văn vàng quanh hình trực tiếp.
+  ornaments = false,
 }) {
   const portrait = usePortrait();
   const enough = taken >= Math.max(1, minShots);
-  const showLatest = portrait || classic;
+  const showLatest = portrait;
   // Phòng PTB trên màn ngang: ảnh vừa chụp đè lên hình trực tiếp 1,5 giây (màn đứng và phòng Polaroid đã
   // có ô ảnh vừa chụp phóng to). Ảnh có sẵn lúc mở màn (tải lại trang) không hiện lại.
   const reviewing = !showLatest;
@@ -181,7 +180,7 @@ export function KioskShoot({
     return () => clearTimeout(timer);
   }, [flash]);
   return (
-    <section className={`shoot-screen phase-${phase}${ready ? "" : " no-live"}${portrait ? " is-portrait" : ""}${classic ? " is-classic" : ""}`}>
+    <section className={`shoot-screen phase-${phase}${ready ? "" : " no-live"}${portrait ? " is-portrait" : ""}`}>
       <div className="shoot-stage">
         {/* Thấy đủ khung hình (không cắt hai bên) ở mọi bố cục: hình trực tiếp nhỏ đi một chút để cột ảnh
             vừa chụp bên phải to gấp đôi. */}
@@ -189,7 +188,7 @@ export function KioskShoot({
         {review && !ending && (
           <Review key={review.shot.key} shot={review.shot} number={review.number} onDone={() => setReview(null)} />
         )}
-        {classic && <ClassicCorners className="is-stage" />}
+        {ornaments && <ClassicCorners className="is-stage" />}
         {!ready && (
           <div className="shoot-no-camera" role="status">
             <span className="shoot-no-camera-icon" aria-hidden="true">
@@ -232,7 +231,6 @@ export function KioskShoot({
       </div>
 
       <aside className="shoot-rail" aria-label="Thời gian và ảnh đã chụp">
-          {classic && <ClassicCorners className="is-rail" />}
           {showLatest && <Latest shot={shots[shots.length - 1]} number={shots.length} receiving={receiving} />}
           {/* Còn dưới 1 phút: đồng hồ đỏ, nhấp nháy (như Selfbooth). */}
           <div className={`shoot-timer${phase === "shoot" && sessionLeft < 60 ? " is-urgent" : ""}`} role="timer">
@@ -240,7 +238,7 @@ export function KioskShoot({
             <strong>{phase === "ready" ? "—" : clock(sessionLeft)}</strong>
             <div className="shoot-progress">
               <small>
-                {classic && !quota ? <>Đã chụp <b>{taken}</b> ảnh</>
+                {!quota ? <>Đã chụp <b>{taken}</b> ảnh</>
                   : <>Đã chụp <b>{Math.min(taken, quota || taken)}</b>/{quota || "∞"} tấm</>}
               </small>
               {quota > 0 && (
@@ -251,7 +249,7 @@ export function KioskShoot({
             </div>
           </div>
           <ol className="shoot-thumbs" ref={rail}
-            aria-label={classic && !portrait ? "Ảnh vừa chụp, mới nhất bên trái" : "Ảnh vừa chụp, mới nhất ở trên"}>
+            aria-label="Ảnh vừa chụp, mới nhất ở trên">
             {receiving && (
               <li className="shoot-thumb-pending" role="status">
                 <span className="spinner" aria-hidden="true" />

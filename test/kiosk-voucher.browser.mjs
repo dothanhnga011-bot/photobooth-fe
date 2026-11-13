@@ -197,7 +197,7 @@ test("money already inserted is never dropped: the bill screen comes back even i
   } finally { await page.close(); }
 });
 
-test("polaroid room (Selfbooth model): touch → enter the code bought at the counter → classic shoot screen", async () => {
+test("polaroid (Selfbooth) room: touch → enter the code bought at the counter → shoot screen with the gold border", async () => {
   const claims = [];
   const polaroidBooking = { ...booking, packageName: "Polaroid đôi", printSize: "instax", selectCount: 2, prints: 1, captureDuration: 5 };
   const { page, errors } = await openKiosk({ _id: "room-1", flip: "device", kind: "polaroid" }, {
@@ -219,8 +219,8 @@ test("polaroid room (Selfbooth model): touch → enter the code bought at the co
     assert.equal(await page.getByRole("heading", { name: "Chọn cách thanh toán" }).count(), 0);
     assert.equal(await page.getByRole("heading", { name: "Chọn layout" }).count(), 0);
     assert.match(await page.locator(".flow-head p").innerText(), /thanh toán ở quầy/);
-    // Giao diện cổ điển: thuộc tính trên <html>, hoa văn quanh thẻ nhập mã.
-    assert.equal(await page.evaluate(() => document.documentElement.dataset.kioskTheme), "classic");
+    // Giao diện Mellow chung (không bật giao diện cổ điển), giữ khung viền hoa văn vàng quanh thẻ nhập mã.
+    assert.equal(await page.evaluate(() => document.documentElement.dataset.kioskTheme), undefined);
     assert.equal(await page.locator(".code-card .ornament-corner").count(), 4);
     await page.getByRole('button', { name: 'Đóng thông báo' }).evaluateAll(buttons => buttons.forEach(button => button.click()));
     await page.locator('.toast').waitFor({ state: 'detached' });
@@ -247,8 +247,8 @@ test("polaroid room (Selfbooth model): touch → enter the code bought at the co
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.getByRole("textbox", { name: "Mã chụp" }).fill("654321");
     // Màn chụp như Selfbooth: hình trực tiếp, cột bên có đồng hồ và ô ảnh vừa chụp.
-    await page.locator(".shoot-screen.is-classic.phase-shoot").waitFor();
-    assert.equal(await page.locator(".shoot-rail .shoot-latest").count(), 1);
+    await page.locator(".shoot-screen.phase-shoot").waitFor();
+    assert.equal(await page.locator(".shoot-stage .ornament-corner").count(), 4);
     assert.match(await page.locator(".shoot-timer").innerText(), /THỜI GIAN CÒN LẠI\s*\d\d:\d\d/);
     assert.deepEqual(claims.map((c) => c.code), ["123456", "654321"]);
     assert.deepEqual(errors, []);

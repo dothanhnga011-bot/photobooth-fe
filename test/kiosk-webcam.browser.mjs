@@ -217,7 +217,7 @@ test("in webcam test mode the Space key counts down, takes a photo from the webc
     }
     await b.page.getByRole("button", { name: "Chụp xong, chọn ảnh" }).click();
     await b.page.getByRole("heading", { name: /để chọn ảnh/ }).waitFor({ timeout: 20000 });
-    // Thời gian chọn ảnh theo cài đặt của quản trị (45 giây), không phải 150 giây mặc định.
+    // Thời gian chọn ảnh theo cài đặt của quản trị (45 giây), không phải 250 giây mặc định.
     assert.match(await b.page.getByRole("heading", { name: /để chọn ảnh/ }).innerText(), /Bạn có 4[2-5]s để chọn ảnh/);
     const picks = b.page.getByRole("group", { name: "Ảnh đã chụp" }).getByRole("button");
     await picks.first().waitFor();
@@ -249,7 +249,7 @@ test("in webcam test mode the Space key counts down, takes a photo from the webc
   } finally { await b.close(); }
 });
 
-for (const count of [1, 2]) test(`Polaroid accepts 12 Canon JPEGs beyond its legacy quota and only selects ${count} photos`, async () => {
+for (const count of [1, 2]) test(`Selfbooth room (${count}-photo layout): 12 Canon JPEGs beyond the legacy quota, then the QR to choose on the phone`, async () => {
   const b = await booth(fakeCamera, {
     webcam: false,
     room: { _id: "room", flip: "device", kind: "polaroid" },
@@ -262,6 +262,9 @@ for (const count of [1, 2]) test(`Polaroid accepts 12 Canon JPEGs beyond its leg
     assert.equal(await b.page.locator('.shoot-thumbs .shoot-thumb-no').count(), 0, 'HDMI is preview only');
     assert.equal(await b.page.getByRole("button", { name: "Chạm để chụp" }).count(), 0);
     assert.equal(await b.page.getByText("Nhấn nút trên dây bấm để chụp").count(), 0);
+    // Giao diện Mellow kèm khung viền hoa văn vàng quanh hình trực tiếp (không còn giao diện cổ điển).
+    assert.equal(await b.page.locator('.shoot-stage .ornament-corner').count(), 4);
+    assert.equal(await b.page.evaluate(() => document.documentElement.dataset.kioskTheme), undefined);
     // "Chụp xong" chỉ bấm được khi đã đủ số ảnh của layout (layout 2 ảnh: 1 tấm chưa đủ).
     const end = b.page.getByRole("button", { name: "Chụp xong, chọn ảnh" });
     assert.equal(await end.isDisabled(), true);
@@ -274,43 +277,13 @@ for (const count of [1, 2]) test(`Polaroid accepts 12 Canon JPEGs beyond its leg
     });
     await b.page.waitForFunction(() => document.querySelectorAll('.shoot-thumbs .shoot-thumb-no').length === 12, null, { timeout: 30000 });
     assert.equal(await b.page.locator('.shoot-screen.phase-shoot').count(), 1, 'does not auto-finish at the legacy quota');
-    await b.page.waitForFunction(() => document.querySelector('.shoot-latest img')?.naturalWidth > 0);
-    if (count === 1) {
-      await b.page.emulateMedia({ reducedMotion: 'reduce' });
-      const captures = resolve('.cache/polaroid-selfbooth');
-      await mkdir(captures, { recursive: true });
-      for (const viewport of [{ width: 1920, height: 1080 }, { width: 1366, height: 768 }, { width: 1024, height: 600 }]) {
-        await b.page.setViewportSize(viewport);
-        const layout = await b.page.locator('.shoot-screen').evaluate(screen => {
-          const rail = screen.querySelector('.shoot-rail').getBoundingClientRect();
-          const stage = screen.querySelector('.shoot-stage').getBoundingClientRect();
-          const latest = screen.querySelector('.shoot-latest').getBoundingClientRect();
-          const end = screen.querySelector('.shoot-end').getBoundingClientRect();
-          return { ratio: rail.width / innerWidth, stageRight: stage.right, railLeft: rail.left,
-            latest: { left: latest.left, right: latest.right, height: latest.height },
-            endBottom: end.bottom, height: innerHeight, width: innerWidth };
-        });
-        assert.ok(Math.abs(layout.ratio - 1 / 3) < .005, JSON.stringify(layout));
-        assert.ok(Math.abs(layout.stageRight - layout.railLeft) < 2);
-        assert.ok(layout.latest.left >= layout.railLeft && layout.latest.right <= layout.width && layout.latest.height >= 100, JSON.stringify(layout));
-        assert.ok(layout.endBottom <= layout.height, JSON.stringify(layout));
-        await b.page.getByRole('button', { name: 'Đóng thông báo' }).evaluateAll(buttons => buttons.forEach(button => button.click()));
-        await b.page.locator('.toast').waitFor({ state: 'detached' });
-        await b.page.screenshot({ path: resolve(captures, `shoot-${viewport.width}.png`) });
-      }
-    }
-    await b.page.getByRole("button", { name: "Chụp xong, chọn ảnh" }).click();
-    await b.page.getByRole("heading", { name: /để chọn ảnh/ }).waitFor({ timeout: 30000 });
-    const picks = b.page.getByRole("group", { name: "Ảnh đã chụp" }).getByRole("button");
-    await picks.nth(11).waitFor();
-    assert.equal(await picks.count(), 12);
-    for (let i = 0; i < count; i++) await picks.nth(i).click();
-    const photoTab = b.page.getByRole('tab', { name: /^Chọn ảnh/ });
-    if (await photoTab.count()) await photoTab.click();
-    assert.equal(await picks.nth(count).isDisabled(), true, 'cannot pick more than the package allows');
-    const saved = await b.page.evaluate(() => JSON.parse(sessionStorage.getItem('photo-capture-fixture-device')));
-    assert.equal(saved.selected.length, count);
-    // Phòng Polaroid không quay video tua nhanh: khách nhận ảnh gốc qua QR.
+    // Chụp xong: không chọn ảnh ở máy chụp — hiện mã QR để khách chọn ảnh, làm đẹp và in trên điện thoại.
+    await end.click();
+    await b.page.getByRole("heading", { name: "Quét mã QR để chọn ảnh, làm đẹp và in nhé!" }).waitFor({ timeout: 30000 });
+    assert.equal(await b.page.locator(".done-cards.is-studio .done-qr svg").count(), 1);
+    assert.equal(await b.page.getByRole("group", { name: "Ảnh đã chụp" }).count(), 0, "no photo selection on the booth");
+    assert.equal((await b.page.evaluate(() => JSON.parse(sessionStorage.getItem('photo-capture-fixture-device') || "null")))?.phase === "select", false);
+    // Phòng này không quay video tua nhanh: khách nhận ảnh gốc qua QR.
     assert.deepEqual(await b.page.evaluate(() => window.__recorders), [], "no timelapse recorder");
     await b.page.waitForTimeout(2000);
     assert.deepEqual(b.videos, [], "no video is uploaded");
@@ -318,20 +291,18 @@ for (const count of [1, 2]) test(`Polaroid accepts 12 Canon JPEGs beyond its leg
   } finally { await b.close(); }
 });
 
-test("a resumed Canon session keeps its theme and receives shutter JPEGs while the room ping is offline", async () => {
+test("a resumed Canon session keeps its gold border and receives shutter JPEGs while the room ping is offline", async () => {
   const b = await booth(fakeCamera, { webcam: false,
     room: { _id: 'room', flip: 'device', kind: 'polaroid' },
     extra: { printSize: 'instax', selectCount: 1, prints: 1 },
   });
   try {
-    await b.page.locator('.shoot-screen.is-classic').waitFor();
+    await b.page.locator('.shoot-stage .ornament-corner').first().waitFor();
     await b.page.route('**/api/kiosk/ping', route => route.abort('failed'));
     await b.page.reload();
-    await b.page.locator('.shoot-screen.is-classic').waitFor();
-    assert.equal(await b.page.evaluate(() => document.documentElement.dataset.kioskTheme), 'classic');
+    await b.page.locator('.shoot-stage .ornament-corner').first().waitFor();
     await b.page.evaluate(() => window.deliverCanonPhoto(1));
-    await b.page.waitForFunction(() => document.querySelector('.shoot-latest img')?.naturalWidth > 0, null, { timeout: 15000 });
-    assert.equal(await b.page.locator('.shoot-thumbs .shoot-thumb-no').count(), 1);
+    await b.page.waitForFunction(() => document.querySelectorAll('.shoot-thumbs .shoot-thumb-no').length === 1, null, { timeout: 15000 });
     assert.deepEqual(b.errors, []);
   } finally { await b.close(); }
 });

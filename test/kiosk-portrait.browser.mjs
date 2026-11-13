@@ -1,6 +1,6 @@
 // The guest flow on the shop's portrait touch screen (1080 × 1920): every screen a guest sees in a
 // photobooth or polaroid room fills the screen without scrolling, with big touch targets. The polaroid
-// room (Selfbooth model, classic French theme) also gets a landscape shoot screen: 2/3 live, 1/3 panel.
+// room (now the Selfbooth room) keeps the Mellow look with its gold ornament border.
 // Each screen is mounted on its own (?screen=…) with fixture props; screenshots go to the temp folder.
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
@@ -44,9 +44,8 @@ const fixture = `
   const settings = { name: 'Mellow', kiosk: { idleImage: picture(400, 500, ['#d9a38f', '#8a6450']) } };
   const screen = new URLSearchParams(location.search).get('screen');
   // Phòng Polaroid: giao diện cổ điển (Kiosk.jsx đặt thuộc tính này trên <html>).
-  if (screen.startsWith('polaroid')) document.documentElement.dataset.kioskTheme = 'classic';
   // Màn chụp: hình trực tiếp giả lập 16 : 9 (luồng từ canvas) và ba ảnh đã chụp.
-  function Shoot({ classic = true }) {
+  function Shoot({ ornaments = true }) {
     const video = useRef(null);
     useEffect(() => {
       const c = document.createElement('canvas');
@@ -70,7 +69,7 @@ const fixture = `
     window.addShot = () => setShots((list) => [...list, { key: 'shot' + list.length, preview: picture(1500, 1000, ['#7ac98f', '#2f6a3d']) }]);
     return <KioskShoot videoRef={video} zoom={0} ready phase="shoot" preCount={0} showCountdown={false}
       sessionLeft={172} taken={shots.length} quota={0} shots={shots} flash={0} receiving={false} ending={false}
-      onEnd={() => {}} onReopenCamera={() => {}} classic={classic} />;
+      onEnd={() => {}} onReopenCamera={() => {}} ornaments={ornaments} />;
   }
   function App() {
     const [code, setCode] = useState('12');
@@ -85,11 +84,11 @@ const fixture = `
       case 'print': return <KioskPrintCount pack={packs[0]} sheets={sheets} extraPrintPrice={20000} onChange={setSheets} onNext={none} onBack={none} />;
       case 'pay': return <KioskPayment pack={packs[0]} total={70000} sheets={1} bills={[]} onBill={none} onPaid={none} onSkip={none}
         onBack={none} onIdle={none} testMode={false} busy={false} error="" cameraReady={true} cashReady={false} />;
-      case 'polaroid-idle': return <KioskEntry roomId="room" onTap={none} classic />;
+      case 'polaroid-idle': return <KioskEntry roomId="room" onTap={none} ornaments />;
       case 'polaroid-code': return <KioskCode code={code} setCode={setCode} onSubmit={(e) => e.preventDefault()} onBack={none}
         busy={false} error="" device="fixture-device" cameraReady={true} polaroid />;
       case 'polaroid-shoot': return <Shoot />;
-      case 'ptb-shoot': return <Shoot classic={false} />;
+      case 'ptb-shoot': return <Shoot ornaments={false} />;
       case 'polaroid-done': return <KioskDone left={90} pending={0} nextGuest={none} done={{
         composite: picture(1800, 1200, ['#c98f7a', '#8fb3c9']), url: 'https://mellowptb.com/album/fixture',
         code: '123456', prints: 1, print: { status: 'printing' }, printSize: 'instax', framed: true }} />;
@@ -227,7 +226,7 @@ test("bill reader: big totals and a pointer down to the bill acceptor", async ()
   footOk(m, 1);
 });
 
-test("polaroid room: classic idle screen with ornament corners", async () => {
+test("polaroid (Selfbooth) room: Mellow idle screen with the gold ornament border", async () => {
   const m = await portrait("polaroid-idle", { corner: ".classic-corners .ornament-corner", start: ".kiosk-sticker" });
   assert.equal(m.pageScrolls, false);
   assert.equal(m.corner.count, 4);
@@ -235,39 +234,31 @@ test("polaroid room: classic idle screen with ornament corners", async () => {
   assert.ok(m.start.minHeight >= 90, `nút bắt đầu cao ${m.start.minHeight} px`);
 });
 
-test("polaroid room: the code screen replaces the layout picker (classic card, big keypad)", async () => {
+test("polaroid (Selfbooth) room: Mellow code screen with the gold border around the card, big keypad", async () => {
   const m = await portrait("polaroid-code", {
-    key: ".voucher-keypad button", box: "#kiosk-code", corner: ".code-card .ornament-corner", fleuron: ".ornament-fleuron", foot: FOOT,
+    key: ".voucher-keypad button", box: "#kiosk-code", corner: ".code-card .ornament-corner", foot: FOOT,
   });
   assert.equal(m.pageScrolls, false);
   assert.equal(m.key.count, 12);
   assert.ok(m.key.minHeight >= 96 && m.key.minWidth >= 200, JSON.stringify(m.key));
   assert.ok(m.box.minHeight >= 96, `ô mã cao ${m.box.minHeight} px`);
   assert.equal(m.corner.count, 4);
-  assert.equal(m.fleuron.count, 1);
-  // "Quay lại" của phòng Polaroid là nút phụ dạng chữ (giao diện cổ điển), vẫn đủ lớn để chạm.
-  assert.equal(m.foot.count, 1);
-  assert.ok(m.foot.minHeight >= 44, `nút Quay lại cao ${m.foot.minHeight} px`);
+  footOk(m, 1);
   const wide = await portrait("polaroid-code", { key: ".voucher-keypad button", corner: ".code-card .ornament-corner" }, { width: 1920, height: 1080 });
   assert.equal(wide.pageScrolls, false);
   assert.equal(wide.corner.count, 4);
 });
 
-test("polaroid shoot, landscape: live view 2/3, a classic side panel 1/3 with the latest photo large", async () => {
+test("polaroid (Selfbooth) shoot, landscape: the Mellow layout of the PTB room, with the gold border around the live view", async () => {
   const m = await portrait("polaroid-shoot", {
-    stage: ".shoot-stage", rail: ".shoot-rail", latest: ".shoot-latest img", thumbs: ".shoot-thumbs img",
-    end: ".shoot-end", corner: ".ornament-corner", live: ".shoot-stage video",
+    stage: ".shoot-stage", rail: ".shoot-rail", thumbs: ".shoot-thumbs img", end: ".shoot-end",
+    corner: ".ornament-corner", stageCorner: ".shoot-stage .ornament-corner", live: ".shoot-stage video",
   }, { width: 1920, height: 1080 });
   assert.equal(m.pageScrolls, false);
-  assert.ok(Math.abs(m.stage.minWidth - 1280) <= 4, `hình trực tiếp rộng ${m.stage.minWidth} px`);
-  assert.ok(Math.abs(m.rail.minWidth - 640) <= 4, `cột bên rộng ${m.rail.minWidth} px`);
-  // Thấy đủ khung hình 16 : 9 (không cắt hai bên).
-  assert.ok(Math.abs(m.live.minWidth - 1280) <= 4 && Math.abs(m.live.minHeight - 720) <= 4, JSON.stringify(m.live));
-  assert.equal(m.latest.count, 1);
-  assert.ok(m.latest.minWidth >= 480 && m.latest.minHeight >= 300, JSON.stringify(m.latest));
-  assert.deepEqual([m.thumbs.count, m.thumbs.rows], [3, 1]);
+  assert.ok(m.rail.minWidth >= 440 && m.rail.minWidth <= 470, `cột ảnh rộng ${m.rail.minWidth} px`);
+  assert.ok(Math.abs(m.live.minWidth - m.stage.minWidth) <= 4, JSON.stringify({ live: m.live, stage: m.stage }));
   assert.ok(m.end.minHeight >= 64, `nút Chụp xong cao ${m.end.minHeight} px`);
-  assert.equal(m.corner.count, 8, "bốn góc quanh hình trực tiếp, bốn góc quanh cột ảnh");
+  assert.deepEqual([m.corner.count, m.stageCorner.count], [4, 4], "bốn góc hoa văn quanh hình trực tiếp");
 });
 
 test("PTB shoot, landscape: the photo column is twice as wide and a new photo shows over the live view for 1.5 s", async () => {
