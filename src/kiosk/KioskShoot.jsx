@@ -8,7 +8,6 @@ import {
 } from "react-icons/pi";
 import { Button } from "../studio";
 import { CameraPreview } from "./CameraPreview.jsx";
-import { ClassicCorners } from "./classic-ornaments.jsx";
 import { playCountdownBeep, playShutterSound } from "./kiosk-audio.js";
 
 // Ảnh trên máy (Blob) hoặc trên máy chủ (URL).
@@ -113,8 +112,6 @@ export function KioskShoot({
   canvasPreview = false,
   mirror = false,
   minShots = 1,
-  // Phòng Polaroid / Selfbooth: khung viền hoa văn vàng quanh hình trực tiếp.
-  ornaments = false,
 }) {
   const portrait = usePortrait();
   const enough = taken >= Math.max(1, minShots);
@@ -190,7 +187,6 @@ export function KioskShoot({
         {review && !ending && (
           <Review key={review.shot.key} shot={review.shot} number={review.number} onDone={() => setReview(null)} />
         )}
-        {ornaments && <ClassicCorners className="is-stage" />}
         {!ready && (
           <div className="shoot-no-camera" role="status">
             <span className="shoot-no-camera-icon" aria-hidden="true">

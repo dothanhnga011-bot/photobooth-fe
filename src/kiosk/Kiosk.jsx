@@ -1469,7 +1469,6 @@ export function Kiosk() {
           canvasPreview={lowPower}
           mirror={mirror}
           minShots={shotQuota ? Math.min(selectCount, shotQuota) : selectCount}
-          ornaments={polaroid}
         />
         {error && !(error === CAMERA_ERROR && !ready) && (
           <div className="shoot-error">
@@ -1574,7 +1573,6 @@ export function Kiosk() {
           : sale?.pack ? (sale.stage === "pay" ? "pay" : "print") : "method");
       }}
       roomId={roomId}
-      ornaments={polaroid}
     >
       <KioskSettings
         folder={folder}

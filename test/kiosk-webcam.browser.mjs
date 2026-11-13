@@ -278,8 +278,8 @@ for (const count of [1, 2]) test(`Selfbooth room (${count}-photo layout): 12 Can
     assert.equal(await b.page.locator('.shoot-thumbs .shoot-thumb-no').count(), 0, 'HDMI is preview only');
     assert.equal(await b.page.getByRole("button", { name: "Chạm để chụp" }).count(), 0);
     assert.equal(await b.page.getByText("Nhấn nút trên dây bấm để chụp").count(), 0);
-    // Giao diện Mellow kèm khung viền hoa văn vàng quanh hình trực tiếp (không còn giao diện cổ điển).
-    assert.equal(await b.page.locator('.shoot-stage .ornament-corner').count(), 4);
+    // Giao diện Mellow chung, không khung viền hoa văn vàng quanh hình trực tiếp (bỏ 13/11).
+    assert.equal(await b.page.locator('.ornament-corner').count(), 0);
     assert.equal(await b.page.evaluate(() => document.documentElement.dataset.kioskTheme), undefined);
     // "Chụp xong" chỉ bấm được khi đã đủ số ảnh của layout (layout 2 ảnh: 1 tấm chưa đủ).
     const end = b.page.getByRole("button", { name: "Chụp xong, chọn ảnh" });
@@ -307,16 +307,18 @@ for (const count of [1, 2]) test(`Selfbooth room (${count}-photo layout): 12 Can
   } finally { await b.close(); }
 });
 
-test("a resumed Canon session keeps its gold border and receives shutter JPEGs while the room ping is offline", async () => {
+test("a resumed Canon session stays a shutter-cable session and receives shutter JPEGs while the room ping is offline", async () => {
   const b = await booth(fakeCamera, { webcam: false,
     room: { _id: 'room', flip: 'device', kind: 'polaroid' },
     extra: { printSize: 'instax', selectCount: 1, prints: 1 },
   });
   try {
-    await b.page.locator('.shoot-stage .ornament-corner').first().waitFor();
+    await b.page.locator('.shoot-screen.phase-shoot').waitFor();
     await b.page.route('**/api/kiosk/ping', route => route.abort('failed'));
     await b.page.reload();
-    await b.page.locator('.shoot-stage .ornament-corner').first().waitFor();
+    await b.page.locator('.shoot-screen.phase-shoot').waitFor();
+    // Chưa có phản hồi ping: vẫn nhận ra phiên Instax (bấm dây, không có nút chạm để chụp).
+    assert.equal(await b.page.getByRole("button", { name: "Chạm để chụp" }).count(), 0);
     await b.page.evaluate(() => window.deliverCanonPhoto(1));
     await b.page.waitForFunction(() => document.querySelectorAll('.shoot-thumbs .shoot-thumb-no').length === 1, null, { timeout: 15000 });
     assert.deepEqual(b.errors, []);

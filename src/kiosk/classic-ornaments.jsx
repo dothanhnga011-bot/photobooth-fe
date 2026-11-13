@@ -1,4 +1,7 @@
 // Original gilded acanthus asset, shared by all corners; reflections stay in CSS.
+// 13/11 chủ tiệm bỏ khung viền vàng khỏi mọi màn máy chụp: không màn nào dùng ClassicCorners nữa. File và ảnh
+// rococo-corner-gold.webp vẫn giữ (của chủ tiệm). Muốn có lại thì đặt <ClassicCorners className="is-screen|is-card|is-stage" />
+// vào KioskEntry / thẻ nhập mã KioskSale / KioskShoot / KioskDone như trước (CSS ở kiosk-classic.css vẫn còn).
 import { useId } from "react";
 import goldCorner from "./assets/rococo-corner-gold.webp";
 

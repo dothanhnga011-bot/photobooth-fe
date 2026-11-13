@@ -219,9 +219,9 @@ test("polaroid (Selfbooth) room: touch → enter the code bought at the counter 
     assert.equal(await page.getByRole("heading", { name: "Chọn cách thanh toán" }).count(), 0);
     assert.equal(await page.getByRole("heading", { name: "Chọn layout" }).count(), 0);
     assert.match(await page.locator(".flow-head p").innerText(), /thanh toán ở quầy/);
-    // Giao diện Mellow chung (không bật giao diện cổ điển), giữ khung viền hoa văn vàng quanh thẻ nhập mã.
+    // Giao diện Mellow chung (không bật giao diện cổ điển), không còn khung viền hoa văn vàng (bỏ 13/11).
     assert.equal(await page.evaluate(() => document.documentElement.dataset.kioskTheme), undefined);
-    assert.equal(await page.locator(".code-card .ornament-corner").count(), 4);
+    assert.equal(await page.locator(".code-card .ornament-corner").count(), 0);
     await page.getByRole('button', { name: 'Đóng thông báo' }).evaluateAll(buttons => buttons.forEach(button => button.click()));
     await page.locator('.toast').waitFor({ state: 'detached' });
     for (const viewport of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }, { width: 1024, height: 600 }]) {
@@ -248,7 +248,7 @@ test("polaroid (Selfbooth) room: touch → enter the code bought at the counter 
     await page.getByRole("textbox", { name: "Mã chụp" }).fill("654321");
     // Màn chụp như Selfbooth: hình trực tiếp, cột bên có đồng hồ và ô ảnh vừa chụp.
     await page.locator(".shoot-screen.phase-shoot").waitFor();
-    assert.equal(await page.locator(".shoot-stage .ornament-corner").count(), 4);
+    assert.equal(await page.locator(".shoot-stage .ornament-corner").count(), 0);
     assert.match(await page.locator(".shoot-timer").innerText(), /THỜI GIAN CÒN LẠI\s*\d\d:\d\d/);
     assert.deepEqual(claims.map((c) => c.code), ["123456", "654321"]);
     assert.deepEqual(errors, []);

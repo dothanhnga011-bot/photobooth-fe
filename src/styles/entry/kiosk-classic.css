@@ -5,6 +5,7 @@
   Giao diện cổ điển Pháp đầy đủ (giấy da be, mực nâu óc chó, thẻ nhập mã viền vàng kép, màn chụp 2/3 – 1/3)
   vẫn giữ nguyên bên dưới, chỉ có hiệu lực khi <html data-kiosk-theme="classic"> (12/11 chủ tiệm chọn quay
   về giao diện Mellow, giữ khung viền) — bật lại thuộc tính đó là có lại toàn bộ.
+  13/11 chủ tiệm bỏ luôn khung viền: các màn máy chụp không đặt .classic-corners nữa, CSS dưới đây để dành.
 */
 @layer components {
   :root[data-kiosk-theme="classic"] {

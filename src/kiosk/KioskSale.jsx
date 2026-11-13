@@ -13,7 +13,6 @@ import {
 import { money } from "../api";
 import { Brand, Button, ErrorBox } from "../studio";
 import { billAcceptor } from "./bill-acceptor.js";
-import { ClassicCorners } from "./classic-ornaments.jsx";
 import { useKioskText } from "./use-kiosk-text.js";
 import {
   extraSheets,
@@ -95,8 +94,6 @@ export function KioskCode({ code, setCode, onSubmit, onBack, busy, error, device
       )}
       {!cameraReady && <p className="soft-note">{FOLDER_NOTE}</p>}
       <form ref={form} className="payment-voucher code-card" onSubmit={onSubmit}>
-        {/* Phòng Polaroid / Selfbooth: khung viền hoa văn vàng quanh thẻ nhập mã. */}
-        {polaroid && <ClassicCorners className="is-card" />}
         <label htmlFor="kiosk-code">Mã chụp</label>
         <input id="kiosk-code" type="text" inputMode="numeric" pattern="[0-9]{6}" maxLength={6}
           autoComplete="one-time-code" placeholder="••••••" value={code}
