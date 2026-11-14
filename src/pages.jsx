@@ -11,7 +11,7 @@ import { labels, formatDate, formatDateTime } from "./api";
 import { useLiveData } from "./use-live-data";
 import { isConnectivityError } from "./network.js";
 import { AlbumViewer } from "./album/AlbumViewer.jsx";
-import { SelfboothStudio } from "./album/SelfboothStudio.jsx";
+import { SelfboothAlbum } from "./album/selfbooth/SelfboothAlbum.jsx";
 
 // Album coi là đã đủ khi đứng yên 3 phút (không thêm / bớt ảnh, video, ảnh ghép, không đổi trạng thái).
 const ALBUM_SETTLE_MS = 3 * 60000;
@@ -124,11 +124,13 @@ function AlbumSession({ token }) {
           )}
         </div>
       )}
-      {ready && (
+      {ready && studio && (
+        // Phòng Selfbooth: album như web Selfbooth (đầu trang "Ảnh của bạn", 4 bước Ảnh → Chủ đề → Ghép ảnh → Kết quả).
+        <SelfboothAlbum token={token} booking={booking} setBooking={setBooking} reload={reload} />
+      )}
+      {ready && !studio && (
         <>
-          {studio
-            ? <SelfboothStudio token={token} booking={booking} reload={reload} />
-            : <AlbumViewer token={token} booking={booking} />}
+          <AlbumViewer token={token} booking={booking} />
           <div className="studio-meta">
             <div className="studio-meta-heading">
               <span className="studio-album-ticket">

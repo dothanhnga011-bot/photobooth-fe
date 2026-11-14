@@ -116,7 +116,8 @@ export const PHOTO_ZOOM = { min: 0.5, max: 3 };
 export const clampZoom = (zoom) =>
   Math.max(PHOTO_ZOOM.min, Math.min(PHOTO_ZOOM.max, Number.isFinite(zoom) ? zoom : 1));
 
-// Tọa độ pixel của một ô trên canvas (nới 1px để không lộ viền trắng).
+// Tọa độ pixel của một ô trên canvas (nới 1px để không lộ viền trắng). Ô xoay (khung chép từ Selfbooth)
+// mang theo góc (độ, quanh tâm ô).
 export function slotRect(slot, width, height) {
   const x = Math.floor(slot.x * width) - 1,
     y = Math.floor(slot.y * height) - 1;
@@ -125,7 +126,71 @@ export function slotRect(slot, width, height) {
     y,
     w: Math.ceil(slot.w * width) + 2,
     h: Math.ceil(slot.h * height) + 2,
+    ...(slot.angle ? { angle: slot.angle } : {}),
   };
+}
+
+// Xoay ngữ cảnh vẽ quanh tâm ô (ô không xoay: giữ nguyên).
+export function rotateSlotContext(ctx, rect) {
+  if (!rect.angle) return;
+  const cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2;
+  ctx.translate(cx, cy);
+  ctx.rotate((rect.angle * Math.PI) / 180);
+  ctx.translate(-cx, -cy);
+}
+
+// Điểm (tỉ lệ 0–1 trên khung) có nằm trong ô không, kể cả ô xoay. size: kích thước khung (px) để quy đổi
+// góc đúng trên khung dọc / ngang.
+export function regionContains(region, point, size = { width: 1, height: 1 }) {
+  const angle = ((region.angle || 0) * Math.PI) / 180;
+  const dx = (point.x - region.x - region.w / 2) * size.width;
+  const dy = (point.y - region.y - region.h / 2) * size.height;
+  const lx = (Math.cos(angle) * dx + Math.sin(angle) * dy) / size.width;
+  const ly = (-Math.sin(angle) * dx + Math.cos(angle) * dy) / size.height;
+  return Math.abs(lx) <= region.w / 2 + 1e-10 && Math.abs(ly) <= region.h / 2 + 1e-10;
+}
+
+// Như Selfbooth: ô nằm trên "cửa sổ" trong suốt của khung (PNG khoét ô) thì vẽ lại khung đè lên ảnh, giữ
+// góc bo / viền của thiết kế; ô trên nền trắng đục thì ảnh nằm trên. Đo một lần cho mỗi ảnh khung + bộ ô.
+const cutoutCache = new WeakMap();
+export function slotCutouts(frameImage, slots) {
+  if (!frameImage || typeof frameImage !== "object") return slots.map(() => false);
+  let known = cutoutCache.get(frameImage);
+  if (!known) cutoutCache.set(frameImage, (known = new Map()));
+  const key = JSON.stringify(slots);
+  if (known.has(key)) return known.get(key);
+  let cutouts = slots.map(() => false);
+  try {
+    const width = frameImage.naturalWidth || frameImage.width;
+    const height = frameImage.naturalHeight || frameImage.height;
+    const k = Math.min(1, 400 / Math.max(width, height));
+    const probe = document.createElement("canvas");
+    probe.width = Math.max(1, Math.round(width * k));
+    probe.height = Math.max(1, Math.round(height * k));
+    const ctx = probe.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(frameImage, 0, 0, probe.width, probe.height);
+    const data = ctx.getImageData(0, 0, probe.width, probe.height).data;
+    cutouts = slots.map((slot) => {
+      const cx = Math.round((slot.x + slot.w / 2) * probe.width);
+      const cy = Math.round((slot.y + slot.h / 2) * probe.height);
+      if (cx < 0 || cy < 0 || cx >= probe.width || cy >= probe.height) return false;
+      return data[(cy * probe.width + cx) * 4 + 3] < 128;
+    });
+    probe.width = probe.height = 0;
+  } catch { /* ảnh khung khác nguồn (CORS): coi như ô trên nền đục */ }
+  known.set(key, cutouts);
+  return cutouts;
+}
+export function overlayFrame(ctx, frameImage, rect) {
+  const base = ctx.getTransform();
+  ctx.save();
+  rotateSlotContext(ctx, rect);
+  ctx.beginPath();
+  ctx.rect(rect.x, rect.y, rect.w, rect.h);
+  ctx.clip();
+  ctx.setTransform(base);
+  ctx.drawImage(frameImage, 0, 0, ctx.canvas.width, ctx.canvas.height);
+  ctx.restore();
 }
 
 // Tỉ lệ phóng ảnh khi đặt vào ô (> 1: ảnh nguồn ít điểm ảnh hơn ô cần, bị phóng lên).
@@ -155,6 +220,7 @@ export function drawSlot(ctx, image, rect, t = DEFAULT_TRANSFORM) {
   const dx = Math.max(-limitX, Math.min(limitX, cos * px + sin * py));
   const dy = Math.max(-limitY, Math.min(limitY, -sin * px + cos * py));
   ctx.save();
+  rotateSlotContext(ctx, rect);
   ctx.beginPath();
   ctx.rect(rect.x, rect.y, rect.w, rect.h);
   ctx.clip();
@@ -240,7 +306,8 @@ export function drawMarks(ctx, frame, qr, width, height) {
 }
 
 // Ghép khung: nền khung trước, ảnh đặt vào các ô trắng/trong suốt. `extras` (khung theo photoLayout
-// + ảnh QR) vẽ thêm các ô bản sao, mã QR và ngày in.
+// + ảnh QR) vẽ thêm các ô bản sao, mã QR và ngày in; extras.overlay (album Selfbooth): ô trên cửa sổ trong
+// suốt của khung được vẽ khung đè lại như bên Selfbooth.
 export function composeLayout(canvas, frameImage, slots, images, transforms, decorations = [], extras = null) {
   const ctx = canvas.getContext("2d");
   ctx.imageSmoothingEnabled = true;
@@ -248,14 +315,12 @@ export function composeLayout(canvas, frameImage, slots, images, transforms, dec
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(frameImage, 0, 0, canvas.width, canvas.height);
+  const cutouts = extras?.overlay ? slotCutouts(frameImage, slots) : [];
   slots.forEach((slot, i) => {
-    if (images[i])
-      drawSlot(
-        ctx,
-        images[i],
-        slotRect(slot, canvas.width, canvas.height),
-        transforms[i],
-      );
+    if (!images[i]) return;
+    const rect = slotRect(slot, canvas.width, canvas.height);
+    drawSlot(ctx, images[i], rect, transforms[i]);
+    if (cutouts[i]) overlayFrame(ctx, frameImage, rect);
   });
   if (extras?.frame) {
     for (const copy of extras.frame.copies || [])

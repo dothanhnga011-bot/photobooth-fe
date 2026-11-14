@@ -16,7 +16,7 @@ import {
   loadDecorFonts,
   preloadDecorations,
 } from "../album/decorations.js";
-import { photoLayout, slotRect } from "../frame-utils.js";
+import { photoLayout, regionContains, slotRect } from "../frame-utils.js";
 
 // Dùng lại bảng font & màu của phần album cho chữ đánh máy trên máy chụp.
 export { DECOR_COLORS, DECOR_FONTS };
@@ -83,9 +83,10 @@ export function filterPhotos(ctx, frame, filters, width, height) {
   for (const copy of layout.copies) paint(copy.slot, stepsOf(copy.of));
 }
 // Ảnh (thứ tự đặt vào khung) ở điểm chạm x, y (tỉ lệ 0–1 của khung), kể cả ô bản sao; -1 nếu ngoài ô ảnh.
-export function photoAt(frame, x, y) {
+// size: kích thước khung (px) — cần cho ô xoay (khung chép từ Selfbooth) trên khung dọc / ngang.
+export function photoAt(frame, x, y, size) {
   const layout = photoLayout(frame);
-  const inside = (s) => x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h;
+  const inside = (s) => regionContains(s, { x, y }, size);
   const slot = layout.slots.findIndex(inside);
   if (slot >= 0) return slot;
   return layout.copies.find((copy) => inside(copy.slot))?.of ?? -1;
