@@ -1,11 +1,14 @@
 import { api } from "../api";
 import { WIDE_FRAME } from "../polaroid-layouts.js";
+import { POLAROID_SIZE } from "../print-sizes.js";
 // Giá mặc định khi thêm gói Polaroid mới (Bảng giá → tab Polaroid).
 export const SAMPLE_PRICE = 100000;
+// 1800 × 1200 → 3600 × 2400: tờ 20 × 30 ngang.
+const SCALE = 2;
 
-// ─── Khung thử Mellow (Instax Wide 1800 × 1200) để thử phòng Selfbooth ngay, chưa cần thiết kế khung ────
+// ─── Khung thử Mellow (tờ 20 × 30 ngang, 3600 × 2400) để thử phòng Selfbooth ngay, chưa cần thiết kế khung ────
 // Vẽ bằng canvas: nền giấy kem / hồng phấn, chữ "Mellow" viết tay, tim ♡, ngày in. Vị trí theo px trên khung
-// 1800 × 1200 (phim Wide che ~17 px hai bên, ~46 px trên / dưới: chữ và ô đều nằm trong vùng in).
+// 1800 × 1200 (cùng tỉ lệ 3 : 2), vẽ phóng 2 lần ra đúng cỡ tờ 20 × 30 máy DS820 (8 × 12 inch, 300 điểm / inch).
 const COCOA = "#4b332a";
 const ROSE = "#e0526b";
 const SCRIPT = '"Great Vibes", "Dancing Script", cursive';
@@ -64,9 +67,10 @@ export async function drawTestFrame(design) {
   }
   const { w, h } = WIDE_FRAME;
   const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
+  canvas.width = w * SCALE;
+  canvas.height = h * SCALE;
   const ctx = canvas.getContext("2d");
+  ctx.scale(SCALE, SCALE);
   ctx.fillStyle = design.paper;
   ctx.fillRect(0, 0, w, h);
   // Viền đôi mảnh màu nâu cacao.
@@ -104,7 +108,7 @@ export async function createTestFrames() {
         themeName: "",
         // Thứ tự 0: khách thấy khung thử đầu tiên, trước khung trắng.
         order: 0,
-        printSize: "instax",
+        printSize: POLAROID_SIZE,
         image: await drawTestFrame(design),
         slots: testFrameRegions(design),
         sheet: false,

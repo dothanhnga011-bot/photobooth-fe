@@ -23,6 +23,7 @@ import {
   required,
 } from "../validate";
 import { AssistantAvatar } from "./assistant-avatar";
+import { isPolaroidSize } from "../print-sizes.js";
 
 // Tên hiển thị & luật kiểm tra cho từng loại dữ liệu quản trị.
 export const RESOURCE_LABELS = {
@@ -37,12 +38,12 @@ export const priceVND = custom(
   "Giá tối thiểu 1.000 đ (để 0 nếu miễn phí) — kiểm tra có gõ thiếu số 0 không.",
 );
 
-// Gói Polaroid (khổ Instax) không có số lần chụp / số ảnh chọn (chụp không giới hạn, chọn trên điện thoại);
-// số tấm Instax có luật riêng (ít nhất 1).
+// Gói Polaroid (tờ 20 × 30 / Instax cũ) không có số lần chụp / số ảnh chọn (chụp không giới hạn, chọn trên
+// điện thoại); số tờ in có luật riêng (ít nhất 1).
 const exceptLayouts = (rules) =>
-  rules.map((rule) => (v, label, all) => (all.printSize === "instax" ? "" : rule(v, label, all)));
+  rules.map((rule) => (v, label, all) => (isPolaroidSize(all.printSize) ? "" : rule(v, label, all)));
 const onlyInstax = (rules) =>
-  rules.map((rule) => (v, label, all) => (all.printSize === "instax" ? rule(v, label, all) : ""));
+  rules.map((rule) => (v, label, all) => (isPolaroidSize(all.printSize) ? rule(v, label, all) : ""));
 
 export const RESOURCE_RULES = {
   rooms: {
@@ -160,7 +161,7 @@ export const NAV_DESCRIPTIONS = {
 // kết / QR. Đầu ca nhân viên mở máy chụp từng phòng.
 export const ROOM_KINDS = [
   ["photobooth", "Photobooth", "Khách chọn Nhập mã (đã chuyển khoản ở quầy) hoặc Tiền mặt (chọn loại tờ, số lượng rồi đút tiền). Chụp xong chọn ảnh, khung rồi in ở máy DNP."],
-  ["polaroid", "Polaroid", "Như Selfbooth: khách trả tiền ở quầy theo gói (số phút, số tấm), nhập mã rồi bấm dây không giới hạn. Hết giờ quét QR: chọn ảnh, bộ khung, ghép ảnh và gửi in trên điện thoại — in ở máy Instax Link WIDE."],
+  ["polaroid", "Polaroid", "Như Selfbooth: khách trả tiền ở quầy theo gói (số phút, số tờ), nhập mã rồi bấm dây không giới hạn (máy ảnh Fujifilm X-T3). Hết giờ quét QR: chọn ảnh, bộ khung, ghép ảnh và gửi in trên điện thoại — in tờ 20 × 30 ở máy DNP DS820."],
 ];
 export const ROOM_KIND_NAMES = { photobooth: "Phòng Photobooth", polaroid: "Phòng Polaroid" };
 

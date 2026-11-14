@@ -34,7 +34,7 @@ export function KioskDone({ done, pending, left, nextGuest }) {
   const framed = done.framed !== false;
   const instax = done.printSize === "instax";
   // Phòng Selfbooth: chưa chọn ảnh ở máy chụp — chỉ mã QR to, khách chọn ảnh, làm đẹp, ghép khung và gửi in
-  // trên điện thoại (ảnh ra ở máy Instax cạnh máy chụp).
+  // trên điện thoại (từ 14/11 ảnh in tờ 20 × 30 ở máy DNP DS820 của phòng; vé Instax cũ: máy Instax cạnh máy chụp).
   if (done.studio)
     return (
       <section className="kiosk-flow done-screen is-studio">
@@ -50,7 +50,7 @@ export function KioskDone({ done, pending, left, nextGuest }) {
         <h1 className="done-title">{t("done.studioTitle")}</h1>
         <p className="done-print" role="status">
           <PiPrinterDuotone aria-hidden="true" />
-          Thả tim ảnh ưng ý, làm đẹp, chọn khung rồi bấm In trên điện thoại — ảnh ra ở máy Instax cạnh bạn
+          Thả tim ảnh ưng ý, làm đẹp, chọn khung rồi bấm In trên điện thoại — {instax ? "ảnh ra ở máy Instax cạnh bạn" : "ảnh in tờ 20 × 30 ở máy in DNP DS820 của phòng"}
           {" · "}Vé {done.code} · {done.photos} ảnh · lưu 3 ngày
         </p>
         {pending > 0 && <p className="done-sync">Đang tải {pending} ảnh gốc lên album — vui lòng giữ nguyên màn hình…</p>}

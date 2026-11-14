@@ -55,6 +55,12 @@ function printAgentDownload() {
         fileName: 'downloads/print-agent-dnp.ps1',
         source: readFileSync(new URL('./src/admin/installers/print-agent-dnp.ps1', import.meta.url)),
       });
+      // Chương trình in DNP DS820 của phòng Polaroid / Selfbooth tự cập nhật từ đây.
+      this.emitFile({
+        type: 'asset',
+        fileName: 'downloads/print-agent-ds820.ps1',
+        source: readFileSync(new URL('./src/admin/installers/print-agent-ds820.ps1', import.meta.url)),
+      });
       // Ảnh cho tờ "In thử độ nét" khi máy in của phòng chưa in tờ nào (bình thường dùng tờ in gần nhất).
       this.emitFile({
         type: 'asset',

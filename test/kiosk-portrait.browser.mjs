@@ -90,7 +90,7 @@ const fixture = `
       case 'polaroid-shoot': return <Shoot />;
       case 'ptb-shoot': return <Shoot />;
       case 'studio-done': return <KioskDone left={90} pending={0} nextGuest={none} done={{
-        url: 'https://mellowptb.com/album/fixture', code: '123456', photos: 12, prints: 1, printSize: 'instax', studio: true }} />;
+        url: 'https://mellowptb.com/album/fixture', code: '123456', photos: 12, prints: 1, printSize: 'large', studio: true }} />;
       case 'polaroid-done': return <KioskDone left={90} pending={0} nextGuest={none} done={{
         composite: picture(1800, 1200, ['#c98f7a', '#8fb3c9']), url: 'https://mellowptb.com/album/fixture',
         code: '123456', prints: 1, print: { status: 'printing' }, printSize: 'instax', framed: true }} />;

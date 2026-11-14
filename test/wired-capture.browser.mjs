@@ -67,7 +67,7 @@ async function booth(phase, { polaroid = false, deferStart = false } = {}) {
   let booking = {
     _id: "fixture-booking", packageName: "Gói thử", shots: 3, photos: [],
     captureDuration: 10, status: "checked_in",
-    ...(polaroid ? { source: "polaroid", printSize: "instax" } : {}),
+    ...(polaroid ? { source: "polaroid", printSize: "large" } : {}),
     ...(phase === "shoot" ? {
       captureStartedAt: new Date().toISOString(),
       captureEndsAt: new Date(Date.now() + 600000).toISOString(),

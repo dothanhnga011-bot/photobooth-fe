@@ -580,24 +580,24 @@ test("code entry uses larger touch text without overflowing short and full-HD ki
   } finally { await page.close(); }
 });
 
-test("Polaroid staff setup and startup scripts select Canon; Photobooth retains Fujifilm", async () => {
+// Từ 14/11 phòng Polaroid / Selfbooth cũng chụp Fujifilm X-T3 qua X Acquire (in tờ 20 × 30 máy DS820).
+test("Polaroid staff setup and startup scripts select the Fujifilm X-T3 like Photobooth; no Canon left", async () => {
   const { page, errors } = await selectScreen();
   try {
     await page.evaluate(() => window.showCameraSetup('polaroid'));
     await page.locator('.kiosk-settings > summary').click();
-    await page.getByRole('button', { name: /Hướng dẫn: kết nối Canon EOS R100/ }).click();
-    await page.getByText(/Cài EOS Utility hỗ trợ EOS R100/).waitFor();
-    assert.ok((await page.locator('.guide-body').innerText()).includes('RS-60E3'));
-    assert.equal(await page.getByRole('link', { name: 'Tải Canon EOS Utility' }).count(), 1);
+    await page.getByRole('button', { name: /Hướng dẫn: kết nối Fujifilm X-T3/ }).click();
+    await page.getByText(/Mở FUJIFILM X Acquire/).waitFor();
+    assert.ok(!(await page.locator('.guide-body').innerText()).includes('EOS Utility'));
+    assert.equal(await page.getByRole('link', { name: 'Tải FUJIFILM X Acquire' }).count(), 1);
+    assert.equal(await page.getByRole('link', { name: 'Tải Canon EOS Utility' }).count(), 0);
     assert.equal(await page.getByText('Máy đọc tiền (ICT)', { exact: true }).count(), 0);
-    const canon = await page.evaluate(() => window.makeKioskScripts('polaroid'));
-    const payload = /rem NXC_EOS_UTILITY_BASE64:([A-Za-z0-9+/=]+)/.exec(canon.windows);
+    const polaroid = await page.evaluate(() => window.makeKioskScripts('polaroid'));
+    const payload = /rem NXC_FUJI_ACQUIRE_BASE64:([A-Za-z0-9+/=]+)/.exec(polaroid.windows);
     assert.ok(payload);
-    const decoded = Buffer.from(payload[1], 'base64').toString('utf8');
-    assert.ok(decoded.includes('C:\\PhotoBooth\\Canon'));
-    assert.ok(decoded.includes('EOS Utility 3.exe'));
-    assert.ok(!canon.windows.includes('NXC_FUJI_ACQUIRE_BASE64:'));
-    assert.ok(canon.mac.includes('open -a "EOS Utility"'));
+    assert.ok(Buffer.from(payload[1], 'base64').toString('utf8').includes('C:\\PhotoBooth\\Fujifilm'));
+    assert.ok(!polaroid.windows.includes('NXC_EOS_UTILITY_BASE64:'));
+    assert.ok(polaroid.mac.includes('FUJIFILM X Acquire'));
     await page.evaluate(() => window.showCameraSetup('photobooth'));
     assert.equal(await page.getByRole('link', { name: 'Tải FUJIFILM X Acquire' }).count(), 1);
     assert.equal(await page.getByText('Máy đọc tiền (ICT)', { exact: true }).count(), 1);

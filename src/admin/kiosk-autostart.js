@@ -19,7 +19,8 @@ const safe = (url) => {
 
 // Launch the transfer application for this room's camera, alongside the kiosk.
 export function windowsScript(url, room, kind = "photobooth") {
-  const canon = kind === "polaroid";
+  // Từ 14/11 phòng Polaroid / Selfbooth cũng dùng Fujifilm X-T3 + X Acquire (như phòng Photobooth).
+  const canon = false;
   const key = canon ? "EOS_UTILITY" : "FUJI_ACQUIRE";
   const filename = canon ? "start-eos-utility.ps1" : "start-fuji-acquire.ps1";
   const camera = [
@@ -76,7 +77,7 @@ mkdir -p "$DIR"
 printf '%s' "$URL" > "$DIR/url.txt"
 cat > "$DIR/mo-kiosk.sh" <<'SCRIPT'
 #!/bin/bash
-open -a "${kind === "polaroid" ? "EOS Utility" : "FUJIFILM X Acquire"}" >/dev/null 2>&1 || true
+open -a "FUJIFILM X Acquire" >/dev/null 2>&1 || true
 APP="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 [ -x "$APP" ] || APP="/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"
 "$APP" --start-fullscreen --new-window --user-data-dir="$HOME/NXC-Kiosk/chrome" ${FLAGS} "$(cat "$HOME/NXC-Kiosk/url.txt")" >/dev/null 2>&1 &

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Copy, X } from "lucide-react";
 import { api, money } from "./api";
-import { includedSheets, isStrip, piecesLabel } from "./kiosk/print-count.js";
+import { includedSheets, isPolaroid, isStrip, pieceUnit, piecesLabel } from "./kiosk/print-count.js";
 import { Button, ErrorBox, useStudio, useToast } from "./studio";
 import { FieldError, chosen, useValidation } from "./validate";
 import { ordersChanged } from "./admin/nav-badges";
@@ -11,16 +11,15 @@ const RULES = {
   room: ["Máy / phòng chụp", chosen],
 };
 
-// Số tờ khách nhận: "2 tờ nhỏ (1 tờ 10 × 15 cắt đôi)" / "2 tờ 10 × 15 cm" / "2 tấm Instax".
+// Số tờ khách nhận: "2 tờ nhỏ (1 tờ 10 × 15 cắt đôi)" / "2 tờ 10 × 15 cm" / "2 tờ 20 × 30" / "2 tấm Instax".
 const printsText = (pack) => {
   const sheets = includedSheets(pack);
   const pieces = piecesLabel(pack, sheets);
   if (isStrip(pack)) return `${pieces} (${sheets} tờ 10 × 15 cắt đôi)`;
-  return pack.printSize === "instax" ? pieces : `${pieces} 10 × 15 cm`;
+  return isPolaroid(pack) ? pieces : `${pieces} 10 × 15 cm`;
 };
 
-// Layout Polaroid (khổ Instax): mã nhập ở phòng Polaroid; gói khác: mã nhập ở phòng photobooth.
-const isPolaroid = (pack) => pack?.printSize === "instax";
+// Gói Polaroid (tờ 20 × 30 / Instax cũ): mã nhập ở phòng Polaroid; gói khác: mã nhập ở phòng photobooth.
 const roomKind = (room) => (room.kind === "polaroid" ? "polaroid" : "photobooth");
 
 export function CounterTicket({ onClose, onCreated, initialDraft = null, assignedBranch = "" }) {
@@ -184,7 +183,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
               {ticket.roomName ? (
                 <strong>{ticket.roomName}</strong>
               ) : (
-                ticket.printSize === "instax" ? "phòng Polaroid đang trống" : "phòng Photobooth đang trống"
+                isPolaroid(ticket) ? "phòng Polaroid đang trống" : "phòng Photobooth đang trống"
               )}{" "}
               và nhập mã này trên màn hình máy chụp.
             </p>
@@ -282,7 +281,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
               {pack && (
                 <p className="muted">
                   {layout
-                    ? `Phòng Polaroid (Selfbooth) · ${layout.duration} phút chụp, bấm dây không giới hạn · in ${Math.max(1, Number(layout.prints) || 1)} tấm Instax · khách chọn ảnh & bộ khung trên điện thoại`
+                    ? `Phòng Polaroid (Selfbooth) · ${layout.duration} phút chụp, bấm dây không giới hạn · in ${Math.max(1, Number(layout.prints) || 1)} ${pieceUnit(layout)} · khách chọn ảnh & bộ khung trên điện thoại`
                     : `${pack.shots || "—"} lần chụp · ${printsText(pack)}`}
                 </p>
               )}

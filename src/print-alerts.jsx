@@ -34,7 +34,7 @@ export function PrintAlerts() {
     // động lại, 502…): tự mở lại luồng với thời gian chờ tăng dần. Nối lại được thì báo `nxc:print`
     // vì lệnh in gửi trong lúc mất kết nối không có thông báo.
     let source, timer, failures = 0, lost = false, stopped = false;
-    const unit = (job) => (job.printSize === "instax" ? "tấm Instax" : "tờ");
+    const unit = (job) => (job.printSize === "instax" ? "tấm Instax" : job.printSize === "large" ? "tờ 20 × 30" : "tờ");
     const notify = (title, text) => {
       beep();
       if ("Notification" in window && Notification.permission === "granted")

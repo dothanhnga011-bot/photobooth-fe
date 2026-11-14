@@ -4,8 +4,8 @@ import { api } from "../api";
 import { Button, ErrorBox } from "../studio";
 
 // Khung ảnh → "Chép khung từ Selfbooth": danh sách khung đang có trên web Selfbooth của tiệm, chọn khung
-// rồi chép sang làm khung Instax của phòng Polaroid (giữ ảnh, chủ đề và các ô, cả ô nghiêng). Khung đã
-// chép rồi thì không chép lại.
+// rồi chép sang làm khung tờ 20 × 30 (máy DNP DS820) của phòng Polaroid (giữ ảnh, chủ đề và các ô, cả ô nghiêng).
+// Khung đã chép rồi thì không chép lại; bản chép cũ khổ Instax (trước 14/11) được chọn sẵn để đổi sang 20 × 30.
 export function SelfboothImport({ onClose, onDone }) {
   const [list, setList] = useState(null);
   const [error, setError] = useState("");
@@ -52,8 +52,8 @@ export function SelfboothImport({ onClose, onDone }) {
           <button type="button" className="icon-button" aria-label="Đóng" onClick={onClose} disabled={busy}><X /></button>
         </div>
         <p className="muted">
-          Khung chép sang dùng cho phòng Polaroid (in máy Instax Wide, khung dọc tự xoay cho vừa tấm), giữ nguyên ảnh,
-          chủ đề và các ô ảnh. Sau khi chép vẫn sửa / tắt được ở Khung ảnh.
+          Khung chép sang dùng cho phòng Polaroid (in tờ 20 × 30 ở máy DNP DS820, như web Selfbooth), giữ nguyên ảnh,
+          chủ đề và các ô ảnh. Khung đã chép trước đây khổ Instax được chọn sẵn: bấm chép để đổi sang 20 × 30. Sau khi chép vẫn sửa / tắt được ở Khung ảnh.
         </p>
         <ErrorBox error={error} />
         {!list && !error && (
@@ -74,6 +74,7 @@ export function SelfboothImport({ onClose, onDone }) {
                     <small>
                       {frame.slots} ô ảnh{frame.angled ? " · có ô nghiêng" : ""}
                       {frame.copied && <> · <Check size={12} aria-hidden="true" /> đã chép</>}
+                      {frame.outdated && " · đã chép khổ Instax — chép lại để đổi sang 20 × 30"}
                     </small>
                   </label>
                 ))}

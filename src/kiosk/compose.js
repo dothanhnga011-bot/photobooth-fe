@@ -10,6 +10,7 @@ import {
   slotScale,
   frameOutputSize,
   instaxPrint,
+  largePrint,
   isSingleStrip,
   loadFrameImage,
   loadImageOnce,
@@ -24,6 +25,7 @@ import { qrImage } from "../qr-image.js";
 import { fetchMediaBlob } from "../media-delivery.js";
 import { jpegDataUrl, pngDataUrl } from "../album/encode-jpeg.js";
 import { printPackUpload } from "../album/print-upload.js";
+import { isPolaroidSize } from "../print-sizes.js";
 import { drawStickers, filterPhotos, loadStickers, stickerArea } from "./decor.js";
 import { priority, whenUplinkIdle } from "./uplink.js";
 import { sendDirectPrint } from "./direct-print.js";
@@ -97,11 +99,12 @@ export function frameCandidates(frames, { count, printSize, themeOrder = [] }) {
     String(a.themeName || "").localeCompare(String(b.themeName || ""), "vi") ||
     compareFrameOrder(a, b));
   const sameSize = sorted.filter((f) => size(f) === (printSize || "full"));
-  if (printSize !== "instax" && sameSize.length) return sameSize;
+  const polaroid = isPolaroidSize(printSize);
+  if (!polaroid && sameSize.length) return sameSize;
   const exact = sameSize.filter((f) => frameCapacity(f) === count);
   if (exact.length) return exact;
-  // Khổ Instax in ở máy riêng: dùng khung Instax khác số ô trước khung 10 × 15.
-  if (printSize === "instax" && sameSize.length) return sameSize;
+  // Khổ Polaroid (20 × 30 / Instax) in ở máy riêng: dùng khung đúng khổ khác số ô trước khung 10 × 15.
+  if (polaroid && sameSize.length) return sameSize;
   const sameCount = sorted.filter((f) => frameCapacity(f) === count);
   return sameCount.length ? sameCount : sorted;
 }
@@ -109,7 +112,7 @@ export function frameCandidates(frames, { count, printSize, themeOrder = [] }) {
 // Số ảnh khách chọn cho khung đang xem: khổ lớn / nhỏ theo số ô của khung, Instax (và chưa có khung)
 // theo gói; không quá số ảnh đã chụp.
 export function frameNeed(frame, { count, printSize, shots }) {
-  const wanted = frame && printSize !== "instax" ? frameCapacity(frame) || count : count;
+  const wanted = frame && !isPolaroidSize(printSize) ? frameCapacity(frame) || count : count;
   return Math.max(0, Math.min(wanted, shots));
 }
 
@@ -329,6 +332,13 @@ export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filter
 // Khổ Instax (printSize của vé): mỗi tấm là một ảnh ngang 1260 × 840 riêng, máy Instax Link WIDE in từng tấm.
 export async function printSheets(frameCanvas, frame, prints, printSize = frame.printSize, scale = 1) {
   if (!prints) return [];
+  // Tờ 20 × 30 máy DS820 (phòng Polaroid / Selfbooth): mỗi tờ đúng 2400 × 3600 (hoặc ngang), JPEG như album.
+  if (printSize === "large") {
+    const image = largePrint(frameCanvas);
+    const data = await jpegDataUrl(image, 0.95);
+    if (image !== frameCanvas) image.width = image.height = 0;
+    return Array.from({ length: prints }, () => data);
+  }
   if (printSize === "instax") {
     const image = instaxPrint(frameCanvas);
     const data = await jpegDataUrl(image, 0.95);

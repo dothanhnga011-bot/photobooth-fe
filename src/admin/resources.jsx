@@ -29,13 +29,15 @@ import { TableHeading } from "./table-heading";
 import { Guide } from "../guide";
 import { download, macScript, windowsScript } from "./kiosk-autostart";
 import dnpAgent from "./installers/print-agent-dnp.ps1?raw";
+import ds820Agent from "./installers/print-agent-ds820.ps1?raw";
 import rx1Color from "./installers/configure-rx1-color.ps1?raw";
-import { printerColorInstaller, printerInstaller, printerInstallerName } from "./printer-installer";
+import { ds820Installer, printerColorInstaller, printerInstaller, printerInstallerName } from "./printer-installer";
 import { CatalogToolbar } from "./catalog-toolbar";
 import { PackageCatalog } from "./package-catalog";
 import { ResourceEditor } from "./resource-editor";
 import { ServiceTabs, serviceOf, useServiceTab } from "./service-tabs";
 import { polaroidPackage } from "../polaroid-layouts.js";
+import { isPolaroidSize, POLAROID_SIZE } from "../print-sizes.js";
 import { createTestFrames, SAMPLE_PRICE, TEST_FRAMES } from "./polaroid-presets";
 import { instaxLow, instaxOk, roomPrinterReady } from "./printer-issues";
 
@@ -60,7 +62,7 @@ const RESOURCE_ICONS = {
 
 const clock = (value) =>
   new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
-const AGENT_SIZES = { full: "DNP", strip: "DNP", instax: "Instax" };
+const AGENT_SIZES = { full: "DNP", strip: "DNP", large: "DNP DS820", instax: "Instax" };
 const CUT_TEXT = {
   auto: " · tờ nhỏ tự cắt đôi",
   queue: " · tờ nhỏ in qua hàng in cắt đôi 2 inch",
@@ -72,7 +74,7 @@ function RoomPrinter({ roomName, agent, dnp }) {
   const ready = roomPrinterReady({ agent, dnp });
   return (
     <p className={ready ? "is-ready" : "is-warn"}>
-      <strong>{roomName}</strong> · Máy in DNP{" "}
+      <strong>{roomName}</strong> · {/DS-?820/i.test(dnp?.printer || "") ? "Máy in DNP DS820 (tờ 20 × 30)" : "Máy in DNP"}{" "}
       {!running
         ? "— chương trình in không chạy: bật mini PC của phòng, hoặc chạy lại file cài máy in"
         : dnp
@@ -91,8 +93,8 @@ function PrinterStatus({ printers }) {
       </h3>
       {!printers.length && (
         <p className="is-warn">
-          Chưa có máy in nào báo về. Phòng Photobooth: bấm “Cài máy chụp” ở dòng phòng → “File cài máy in
-          (Windows)”, chạy trên mini PC cắm máy DNP và làm hết các bước (cửa sổ cài đặt có thể nằm sau cửa sổ đen).
+          Chưa có máy in nào báo về. Bấm “Cài máy chụp” ở dòng phòng → “File cài máy in (Windows)” (phòng Polaroid:
+          “File cài máy in DS820”), chạy trên máy tính cắm máy DNP và làm hết các bước (cửa sổ cài đặt có thể nằm sau cửa sổ đen).
           Mục này tự cập nhật, không cần tải lại trang.
         </p>
       )}
@@ -129,9 +131,9 @@ function PrinterStatus({ printers }) {
       })}
       <small className="muted">
         Phòng Photobooth in ở máy DNP cắm vào mini PC của phòng (tờ to in nguyên tờ, tờ nhỏ máy tự cắt đôi);
-        phòng Polaroid in Instax Wide. Máy Instax chưa sẵn sàng hay hết phim thì lệnh in
-        Polaroid chờ trong hàng và tự in khi máy in kết nối lại.
-        In lỗi (hết phim, mất kết nối) sẽ báo ngay trên trang quản trị.
+        phòng Polaroid / Selfbooth in tờ 20 × 30 ở máy DNP DS820 của phòng. Máy DS820 chưa sẵn sàng (hết giấy, mất
+        kết nối) thì lệnh in Polaroid chờ trong hàng và tự in khi máy in kết nối lại.
+        In lỗi (hết giấy, mất kết nối) sẽ báo ngay trên trang quản trị.
       </small>
     </section>
   );
@@ -151,7 +153,7 @@ export function ResourceManager({ resource, notify, me }) {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
-  // Máy in Instax cạnh máy chụp (print agent báo về mỗi phút): sẵn sàng, số phim, pin.
+  // Máy in của các phòng (print agent báo về mỗi phút): DNP RX1, DNP DS820; máy Instax cũ: sẵn sàng, số phim, pin.
   const [printers, setPrinters] = useState([]);
   // Khung ảnh có trang riêng (admin/frames.jsx); đây là máy, gói chụp và tài khoản.
   const isCatalog = resource === "packages";
@@ -207,8 +209,8 @@ export function ResourceManager({ resource, notify, me }) {
     setEdit(resource === "packages" ? polaroidPackage(item) : item);
   };
   const fields = definitions[resource];
-  // Gói mới theo khổ ảnh: khổ nhỏ kèm 1 tờ (cắt đôi = 2 tờ nhỏ), khổ to kèm 2 tờ; gói Polaroid (khổ
-  // Instax, như "chụp đơn" của Selfbooth) mặc định 7 phút, 100.000 đ, chụp không giới hạn, 1 tấm.
+  // Gói mới theo khổ ảnh: khổ nhỏ kèm 1 tờ (cắt đôi = 2 tờ nhỏ), khổ to kèm 2 tờ; gói Polaroid (tờ
+  // 20 × 30 máy DS820, như "chụp đơn" của Selfbooth) mặc định 7 phút, 100.000 đ, chụp không giới hạn, 1 tờ.
   function newItem(printSize = "full") {
     openEditor(
       Object.fromEntries([
@@ -216,12 +218,12 @@ export function ResourceManager({ resource, notify, me }) {
           key,
           type === "number"
             ? key === "duration"
-              ? printSize === "instax" ? 7 : 15
+              ? isPolaroidSize(printSize) ? 7 : 15
               : key === "shots"
-                ? printSize === "instax" ? 0 : 12
+                ? isPolaroidSize(printSize) ? 0 : 12
                 : key === "selectCount"
-                  ? printSize === "instax" ? 1 : 4
-                  : key === "price" && printSize === "instax"
+                  ? isPolaroidSize(printSize) ? 1 : 4
+                  : key === "price" && isPolaroidSize(printSize)
                     ? SAMPLE_PRICE
                   : key === "prints"
                     ? printSize === "full" ? 2 : 1
@@ -284,7 +286,7 @@ export function ResourceManager({ resource, notify, me }) {
   // Tab Polaroid: 2 khung thử Mellow (1 ảnh, 2 ảnh) để thử phòng Selfbooth ngay; khung cùng tên đã có thì giữ.
   async function createTrialFrames() {
     if (!canManage || busy) return;
-    if (!confirm(`Tạo ${TEST_FRAMES.length} khung thử Instax Wide (${TEST_FRAMES.map((f) => f.name).join(", ")})?
+    if (!confirm(`Tạo ${TEST_FRAMES.length} khung thử tờ 20 × 30 (${TEST_FRAMES.map((f) => f.name).join(", ")})?
 Khung có chữ Mellow, tim và ngày in — dùng để thử phòng Selfbooth. Tắt hoặc xoá ở mục Khung khi có khung thật.`)) return;
     setBusy(true);
     try {
@@ -354,6 +356,14 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
     setPrinterBusy(true);
     try {
       const d = await api(`/admin/rooms/${device.room._id}/printer`, { method: "POST", body: {} });
+      // Phòng Polaroid / Selfbooth: máy DNP DS820 in tờ 20 × 30 khách gửi từ điện thoại.
+      if (d.kind === "polaroid") {
+        download(printerInstallerName(d.name).replace(/^cai-may-in-/, "cai-may-in-ds820-"), ds820Installer({
+          script: ds820Agent, api: window.location.origin, token: d.token, room: d.name,
+        }));
+        notify("Đã tải file cài máy in DS820. Mở file trên máy tính cắm máy DS820 (Windows hỏi: “Thêm thông tin” → “Vẫn chạy”).");
+        return;
+      }
       download(printerInstallerName(d.name), printerInstaller({
         script: dnpAgent, api: window.location.origin, token: d.token, room: d.name,
       }));
@@ -411,7 +421,7 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
           onQueryChange={setQuery}
           status={status}
           onStatusChange={setStatus}
-          onCreate={() => newItem(service === "polaroid" ? "instax" : "full")}
+          onCreate={() => newItem(service === "polaroid" ? POLAROID_SIZE : "full")}
           actions={service === "polaroid" && canManage && (
             <Button className="outline" disabled={busy || loading} onClick={createTrialFrames}>
               <Frame size={16} aria-hidden="true" />
@@ -448,23 +458,23 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
           onDeactivate={deactivate}
           onCreate={newItem}
           filtered={filtered}
-          sizes={service === "polaroid" ? ["instax"] : ["strip", "full"]}
+          sizes={service === "polaroid" ? [POLAROID_SIZE, "instax"] : ["strip", "full"]}
         />
         {canManage && (
           <section className="panel extra-price-panel" aria-labelledby="extra-price-title">
             <div>
-              <h3 id="extra-price-title">{service === "polaroid" ? "Giá in thêm Instax Wide" : "Giá in thêm tờ ảnh"}</h3>
+              <h3 id="extra-price-title">{service === "polaroid" ? "Giá in thêm tờ 20 × 30" : "Giá in thêm tờ ảnh"}</h3>
               <p className="muted">
                 Khi khách mua thêm bản in tại quầy (Đơn hàng → In ảnh → Thêm lượt in)
                 {service === "polaroid"
-                  ? ". Phim Instax Wide có giá riêng, không theo giá tờ 10 × 15."
+                  ? ". Tờ 20 × 30 (máy DNP DS820) có giá riêng, không theo giá tờ 10 × 15."
                   : " hoặc chọn thêm ở máy chụp. Khổ nhỏ: mỗi tờ 10 × 15 cm = 2 tờ nhỏ."}
               </p>
             </div>
             <div className="extra-price-pair">
               {service === "polaroid" ? (
                 <div className="extra-price-item">
-                  <small>Phòng Polaroid · mỗi tấm Instax Wide</small>
+                  <small>Phòng Polaroid · mỗi tờ 20 × 30</small>
                   <PriceEditor instax price={settings.extraInstaxPrice} startOpen={false} onSaved={() => reloadCatalog?.()} />
                 </div>
               ) : (
@@ -719,7 +729,7 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
               <p>
                 Tải file cài về <b>máy tính trong phòng</b> rồi chạy một lần: từ
                 đó mỗi lần bật máy Windows sẽ mở Chrome toàn màn hình đúng phòng này.{" "}
-                {device.kind === "polaroid" ? "Canon EOS Utility" : "FUJIFILM X Acquire"} sẽ tự mở nếu đã cài; lần đầu nhớ cấu hình thư mục tải JPEG, cho phép camera và chọn cùng thư mục trong “Cài đặt máy chụp”.
+                FUJIFILM X Acquire (máy ảnh Fujifilm X-T3) sẽ tự mở nếu đã cài; lần đầu nhớ cấu hình thư mục tải JPEG, cho phép camera và chọn cùng thư mục trong “Cài đặt máy chụp”.
               </p>
               <div className="kiosk-autostart-actions">
                 <Button
@@ -802,6 +812,26 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
                   cắt đôi. Trong Color Management → Devices, kiểm tra đúng profile RX1/giấy cho cả hai hàng.
                   In thử cùng một ảnh qua kiosk để đối chiếu màu.
                 </p>
+              </section>
+            )}
+            {device.kind === "polaroid" && (
+              <section className="kiosk-autostart printer-setup" aria-label="Máy in DNP DS820 của phòng">
+                <h3>
+                  <Printer size={16} aria-hidden="true" /> Máy in DNP DS820 của phòng này
+                </h3>
+                <p>
+                  Như Selfbooth: khách chọn ảnh, bộ khung và bấm <b>Gửi in</b> trên điện thoại, máy <b>DNP DS820</b> tự in
+                  tờ <b>20 × 30 cm</b>. Tải file cài về <b>máy tính cắm máy DS820</b> rồi chạy một lần (không cần quyền quản trị).
+                </p>
+                <div className="kiosk-autostart-actions">
+                  <Button className="outline small" disabled={printerBusy} onClick={downloadPrinter}>
+                    <Download size={15} /> {printerBusy ? "Đang tạo file…" : "File cài máy in DS820 (Windows)"}
+                  </Button>
+                </div>
+                <small>
+                  Cần cài driver DNP DS820, nạp cuộn giấy 8 inch và cắm máy in trước; driver phải có khổ (8x12). Tình trạng máy
+                  in hiện ở mục “Máy in tự động” trên trang Quản lý máy.
+                </small>
               </section>
             )}
             </>

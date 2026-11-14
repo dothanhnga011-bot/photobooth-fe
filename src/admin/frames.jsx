@@ -23,21 +23,27 @@ import { compareFrameOrder } from "../frame-catalog-data";
 import { detectSlots, frameCapacity, isPhotoRegion, printDate } from "../frame-utils";
 import { serviceOf } from "./service-tabs";
 import { SelfboothImport } from "./selfbooth-import.jsx";
+import { isPolaroidSize } from "../print-sizes.js";
 
-// Khung phòng Polaroid (khổ Instax) gom theo chủ đề như Selfbooth: khách chọn cả bộ trên điện thoại.
-const isInstaxFrame = (frame) => frame.printSize === "instax";
+// Khung phòng Polaroid (tờ 20 × 30 máy DS820; khung Instax cũ) gom theo chủ đề như Selfbooth: khách chọn cả bộ
+// trên điện thoại.
+const isInstaxFrame = (frame) => isPolaroidSize(frame.printSize);
 
 const PAGE_SIZE = 12;
 const MAX_BYTES = 10 * 1024 * 1024;
-const SIZES = { full: "Size lớn", strip: "Size nhỏ", instax: "Size Instax" };
+const SIZES = { full: "Size lớn", strip: "Size nhỏ", large: "Size 20 × 30", instax: "Size Instax (cũ)" };
+// Khổ thêm mới được: từ 14/11 phòng Polaroid in tờ 20 × 30 máy DS820, không thêm khung Instax nữa.
+const NEW_SIZES = ["full", "strip", "large"];
 const SIZE_NOTES = {
   full: "In nguyên tờ 10 × 15 cm",
   strip: "2 dải 5 × 15 cm trên một tờ, máy in cắt đôi",
+  large: "Phòng Polaroid / Selfbooth: tờ 20 × 30 cm máy DNP DS820",
   instax: "Thẻ Instax Wide, ảnh ngang 3 : 2 (máy Instax Link WIDE)",
 };
-const FRAME_TITLES = { full: "size lớn", strip: "size nhỏ", instax: "Instax Wide" };
-// Cỡ ảnh khung theo khổ: tờ 10 × 15 và thẻ Instax Wide đều 1200 × 1800 (3 : 2; Instax Wide thường ngang).
-const FRAME_PIXELS = { full: [1200, 1800], strip: [1200, 1800], instax: [1200, 1800] };
+const FRAME_TITLES = { full: "size lớn", strip: "size nhỏ", large: "20 × 30", instax: "Instax Wide" };
+// Cỡ ảnh khung theo khổ: tờ 10 × 15 và thẻ Instax Wide đều 1200 × 1800 (3 : 2; Instax Wide thường ngang);
+// tờ 20 × 30 máy DS820 là 2400 × 3600 (8 × 12 inch, 300 điểm / inch).
+const FRAME_PIXELS = { full: [1200, 1800], strip: [1200, 1800], large: [2400, 3600], instax: [1200, 1800] };
 const pixelsText = (printSize) => {
   const [w, h] = FRAME_PIXELS[printSize] || FRAME_PIXELS.full;
   return `${w} × ${h} hoặc ${h} × ${w}`;
@@ -142,13 +148,15 @@ export function FramesManager({ notify, initialTheme = "all" }) {
       {importing && (
         <SelfboothImport
           onClose={() => setImporting(false)}
-          onDone={async ({ created = [], skipped = [] }) => {
+          onDone={async ({ created = [], skipped = [], converted = [] }) => {
             setImporting(false);
             await load();
             reloadCatalog?.();
-            notify(created.length
-              ? `Đã chép ${created.length} khung từ Selfbooth: ${created.join(", ")}.`
-              : `Các khung đã chọn đều đã chép trước đó${skipped.length ? `: ${skipped.join(", ")}` : ""}.`);
+            notify([
+              created.length && `Đã chép ${created.length} khung từ Selfbooth: ${created.join(", ")}.`,
+              converted.length && `Đã đổi ${converted.length} khung khổ Instax sang tờ 20 × 30: ${converted.join(", ")}.`,
+            ].filter(Boolean).join(" ") ||
+              `Các khung đã chọn đều đã chép trước đó${skipped.length ? `: ${skipped.join(", ")}` : ""}.`);
           }}
         />
       )}
@@ -167,7 +175,8 @@ export function FramesManager({ notify, initialTheme = "all" }) {
             <option value="all">Tất cả</option>
             <option value="full">Size lớn</option>
             <option value="strip">Size nhỏ</option>
-            <option value="instax">Size Instax</option>
+            <option value="large">Size 20 × 30</option>
+            {frames?.some((f) => f.printSize === "instax") && <option value="instax">Size Instax (cũ)</option>}
           </select>
         </label>
         <Button className="outline" onClick={() => setImporting(true)}>
@@ -179,7 +188,7 @@ export function FramesManager({ notify, initialTheme = "all" }) {
           </Button>
           {adding && (
             <div className="frames-add-menu" role="menu">
-              {Object.entries(SIZES).map(([key, label]) => (
+              {NEW_SIZES.map((key) => [key, SIZES[key]]).map(([key, label]) => (
                 <button key={key} type="button" role="menuitem" onClick={() => {
                   setAdding(false);
                   setEditing(newFrame(key, theme !== "all" && theme !== "none" && (themeKinds[theme] || "photobooth") === serviceOf(key)
@@ -529,7 +538,8 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
             <select value={frame.printSize} onChange={(e) => set({ printSize: e.target.value })}>
               <option value="full">Size lớn — in nguyên tờ 10 × 15</option>
               <option value="strip">Size nhỏ — 2 dải trên một tờ, cắt đôi</option>
-              <option value="instax">Size Instax — thẻ Instax Wide, ảnh ngang 3 : 2</option>
+              <option value="large">Size 20 × 30 — phòng Polaroid / Selfbooth, máy DNP DS820</option>
+              {frame.printSize === "instax" && <option value="instax">Size Instax (cũ) — thẻ Instax Wide</option>}
             </select>
           </label>
           <label className="frame-color">

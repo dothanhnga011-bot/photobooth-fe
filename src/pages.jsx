@@ -12,6 +12,7 @@ import { useLiveData } from "./use-live-data";
 import { isConnectivityError } from "./network.js";
 import { AlbumViewer } from "./album/AlbumViewer.jsx";
 import { SelfboothAlbum } from "./album/selfbooth/SelfboothAlbum.jsx";
+import { isPolaroidSize } from "./print-sizes.js";
 
 // Album coi là đã đủ khi đứng yên 3 phút (không thêm / bớt ảnh, video, ảnh ghép, không đổi trạng thái).
 const ALBUM_SETTLE_MS = 3 * 60000;
@@ -107,8 +108,8 @@ function AlbumSession({ token }) {
     (b) => b.status === "cancelled" || b.mediaDeleted,
   );
   const ready = booking?.status === "completed" && !booking.mediaDeleted;
-  // Phòng Selfbooth (khổ Instax, có tấm in): khách chọn ảnh, làm đẹp, ghép khung và gửi in ngay trên điện thoại.
-  const studio = ready && booking.printSize === "instax" && Number(booking.prints) > 0;
+  // Phòng Selfbooth (khổ 20 × 30 máy DS820 hoặc Instax cũ, có tờ in): khách chọn ảnh, làm đẹp, ghép khung và gửi in ngay trên điện thoại.
+  const studio = ready && isPolaroidSize(booking.printSize) && Number(booking.prints) > 0;
   const expires = formatDateTime(booking?.mediaExpiresAt);
   return (
     <section className={`page ${ready ? "studio-page" : "narrow"}`}>

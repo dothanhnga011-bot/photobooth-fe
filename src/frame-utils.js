@@ -1,3 +1,4 @@
+import { LARGE_SHEET } from "./print-sizes.js";
 import { imageRect } from "./image-utils.js";
 import { compareFrameOrder } from "./frame-catalog-data.js";
 import { createCanvasCache } from "./canvas-cache.js";
@@ -338,6 +339,8 @@ export const SHEET = { w: 1200, h: 1800 }; // 4 × 6 inch @ 300 pixels/inch
 // nét); máy Instax Link WIDE in ảnh ngang 1260 × 840.
 export const INSTAX_FRAME = { w: 1200, h: 1800 };
 export const INSTAX_PRINT = { w: 1260, h: 840 };
+// Khung phòng Polaroid / Selfbooth từ 14/11: tờ 20 × 30 cm máy DNP DS820, 2400 × 3600 (dọc hoặc ngang).
+export { LARGE_SHEET };
 
 // themeOrder: tên chủ đề theo thứ tự quản trị sắp ở Thiết lập → Chủ đề (chủ đề khác xếp sau).
 export function groupFramePacks(frames, themeOrder = []) {
@@ -372,7 +375,9 @@ export const isSingleStrip = (frame, width, height) =>
 // Kích thước xuất của một khung: giữ đúng tỉ lệ thiết kế, vừa khổ in.
 export function frameOutputSize(frame, image) {
   // Khung phủ cả tờ (khung nhỏ = 2 dải trên một tờ) in nguyên tờ; khung một dải chỉ nửa tờ.
-  const box = frame.printSize === "instax"
+  const box = frame.printSize === "large"
+    ? LARGE_SHEET
+    : frame.printSize === "instax"
     ? INSTAX_FRAME
     : isSingleStrip(frame, image.naturalWidth, image.naturalHeight) ? { w: SHEET.w / 2, h: SHEET.h } : SHEET;
   const landscape = image.naturalWidth > image.naturalHeight;
@@ -409,6 +414,22 @@ function placeOn(ctx, source, x, y, w, h) {
     source.height * scale,
   );
   ctx.restore();
+}
+
+// Một tờ 20 × 30 máy DNP DS820: đúng 2400 × 3600 (khung dọc) hoặc 3600 × 2400 (khung ngang), như máy chủ đòi.
+// Khung đã đúng cỡ thì dùng luôn; khung lệch tỉ lệ được đặt giữa tờ trắng (không cắt mất phần nào).
+export function largePrint(canvas) {
+  const landscape = canvas.width > canvas.height;
+  const [w, h] = landscape ? [LARGE_SHEET.h, LARGE_SHEET.w] : [LARGE_SHEET.w, LARGE_SHEET.h];
+  if (canvas.width === w && canvas.height === h) return canvas;
+  const out = document.createElement("canvas");
+  out.width = w;
+  out.height = h;
+  const ctx = out.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, w, h);
+  placeOn(ctx, canvas, 0, 0, w, h);
+  return out;
 }
 
 // Một tấm Instax Wide: ảnh ngang 1260 × 840, khung dọc được xoay cho vừa.

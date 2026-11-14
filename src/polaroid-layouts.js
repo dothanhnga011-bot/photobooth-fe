@@ -1,3 +1,4 @@
+import { isPolaroidSize } from "./print-sizes.js";
 // Layout phòng Polaroid trên thẻ Instax Wide (ảnh ngang 3 : 2, máy Instax Link WIDE): vị trí các ô
 // ảnh theo số ảnh của layout. Dùng chung cho hình layout trên máy chụp / quản trị và khung trắng mẫu.
 export const WIDE_FRAME = { w: 1800, h: 1200 };
@@ -7,10 +8,10 @@ const MARGIN_Y = 70;
 const GAP = 22;
 // Layout mẫu (khung thử): 1, 2, 3 ảnh xếp ngang; 4 ảnh 2 × 2; 5 ảnh = 2 ảnh to bên trái + 3 ảnh bé bên
 // phải; 6 ảnh 3 × 2.
-// Gói Polaroid (khổ Instax) tính theo thời gian như Selfbooth (14/11 chủ tiệm bỏ 2 layout 1 ảnh / 2 ảnh):
-// giá, số phút chụp, số tấm Instax; bấm dây không giới hạn. Máy chủ kiểm tra lại (ít nhất 1 tấm).
+// Gói Polaroid (tờ 20 × 30 máy DS820; gói Instax cũ) tính theo thời gian như Selfbooth (14/11 chủ tiệm bỏ
+// 2 layout 1 ảnh / 2 ảnh): giá, số phút chụp, số tờ in; bấm dây không giới hạn. Máy chủ kiểm tra lại (ít nhất 1 tờ).
 export function polaroidPackage(pack) {
-  return pack?.printSize === "instax" ? { ...pack, shots: 0 } : pack;
+  return isPolaroidSize(pack?.printSize) ? { ...pack, shots: 0 } : pack;
 }
 
 function grid(cols, rows, box) {

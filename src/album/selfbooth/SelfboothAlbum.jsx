@@ -1,8 +1,8 @@
-// Album phòng Selfbooth (phòng Polaroid, khổ Instax) — giao diện và các bước như album của web Selfbooth
+// Album phòng Selfbooth (phòng Polaroid; từ 14/11 in tờ 20 × 30 máy DNP DS820, vé Instax cũ vẫn in Instax) — giao diện và các bước như album của web Selfbooth
 // (14/11 chủ tiệm yêu cầu "làm theo Selfbooth"): 01 Ảnh (thư viện: thả tim, thêm ảnh từ điện thoại, xoá, tải,
 // chọn nhiều; chạm ảnh để làm đẹp) → 02 Chủ đề (chọn một bộ khung) → 03 Ghép ảnh (mọi khung của bộ: chạm ô,
-// chọn ảnh, kéo để dời, phóng to) → 04 Kết quả (mỗi khung là một tấm Instax Wide; chọn tấm muốn in trong số
-// tấm của vé rồi gửi in tới máy Instax cạnh máy chụp — /albums/:token/print-pack).
+// chọn ảnh, kéo để dời, phóng to) → 04 Kết quả (mỗi khung là một tờ 20 × 30; chọn tờ muốn in trong số
+// tờ của vé rồi gửi in tới máy DS820 của phòng — /albums/:token/print-pack).
 // Thời gian do máy chủ đặt từ lần mở đầu (POST /albums/:token/edit-start, cài đặt "Thời gian chọn ảnh", mặc
 // định 250 giây); hết giờ thì tự gửi in những gì đang chọn (chưa chọn bộ khung: bộ đầu tiên, ghép tự động).
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -20,7 +20,7 @@ import { ADJUST_LABELS, COLOR_FILTERS, DEFAULT_ADJUST, FILTER_CSS, isNeutral, wa
 import { renderPrintFrame } from "../../kiosk/compose.js";
 import { photoAt } from "../../kiosk/decor.js";
 import {
-  composeLayout, groupFramePacks, instaxPrint, loadFrameImage, photoLayout, rotateSlotContext, slotRect,
+  composeLayout, groupFramePacks, instaxPrint, largePrint, loadFrameImage, photoLayout, rotateSlotContext, slotRect,
 } from "../../frame-utils.js";
 import { onNetworkRecovery } from "../../network.js";
 import { storageLink } from "../../media-delivery.js";
@@ -28,6 +28,7 @@ import { savePhoto } from "../../kiosk/direct-upload.js";
 import { prepareCameraImageAsync } from "../../image-processing.js";
 import { PhotoThumb, photoUrl } from "../photo-thumb.jsx";
 import { printPackUpload } from "../print-upload.js";
+import { polaroidPrinter, polaroidUnit } from "../../print-sizes.js";
 import { mergeUploadedPhotos, uploadPhotos } from "../upload-photos.js";
 import { downloadEach } from "../save-to-phone.js";
 import { createStudioMedia, needsFaces } from "../studio-media.js";
@@ -301,7 +302,7 @@ function Gallery({ token, photos, favorites, adjustOf, busy, frozen, uploadProgr
 }
 
 // ─── 02 Chủ đề: chọn một bộ khung ───────────────────────────────────────────────────────────────────────
-function ThemePicker({ packs, selected, favorites, frozen, onSelect, onBack, onNext }) {
+function ThemePicker({ packs, selected, favorites, frozen, unit, onSelect, onBack, onNext }) {
   const pack = packs.find((p) => p.id === selected);
   const capacity = capacityOf(pack);
   const extra = pack ? Math.max(0, favorites - capacity) : 0;
@@ -311,7 +312,7 @@ function ThemePicker({ packs, selected, favorites, frozen, onSelect, onBack, onN
       <div className="studio-head theme-catalog-head">
         <div>
           <h2>Chọn bộ chủ đề</h2>
-          <p>Chọn một bộ bạn thích. Các khung trong bộ sẽ được ghép cùng nhau, mỗi khung in một tấm Instax.</p>
+          <p>Chọn một bộ bạn thích. Các khung trong bộ sẽ được ghép cùng nhau, mỗi khung in một {unit}.</p>
         </div>
         <span className="theme-total">{packs.length} bộ khung</span>
       </div>
@@ -356,7 +357,7 @@ function ThemePicker({ packs, selected, favorites, frozen, onSelect, onBack, onN
           </button>
         ))}
       </div>
-      {!packs.length && <div className="empty-state">Studio chưa có bộ khung Instax. Vui lòng liên hệ lễ tân.</div>}
+      {!packs.length && <div className="empty-state">Studio chưa có bộ khung in {unit}. Vui lòng liên hệ lễ tân.</div>}
       <div className="studio-actions theme-action-bar">
         <Button className="outline" onClick={onBack}><PiArrowLeftBold aria-hidden="true" /> Quay lại</Button>
         <span className="theme-action-summary">
@@ -594,22 +595,22 @@ function PackEditor({ token, pack, layouts, index, photos, small, photoOf, froze
   );
 }
 
-// ─── 04 Kết quả: mỗi khung một tấm Instax Wide, chọn tấm muốn in ─────────────────────────────────────────
-function Result({ booking, sheets, error, picked, remaining, quota, used, printing, onToggle, onPrint, onBack, onRetry }) {
+// ─── 04 Kết quả: mỗi khung một tờ 20 × 30 (vé cũ: một tấm Instax), chọn tờ muốn in ─────────────────────
+function Result({ booking, sheets, error, picked, remaining, quota, used, printing, unit, word, onToggle, onPrint, onBack, onRetry }) {
   return (
     <>
       <div className="studio-head result-head">
         <div>
           <h2>Thành phẩm của bạn</h2>
-          <p>{error ? "Chưa tạo được thành phẩm. Kiểm tra thông báo bên dưới." : sheets.length ? "Chọn tấm muốn in rồi bấm Gửi in." : "Đang tạo ảnh chất lượng cao…"}</p>
+          <p>{error ? "Chưa tạo được thành phẩm. Kiểm tra thông báo bên dưới." : sheets.length ? `Chọn ${word} muốn in rồi bấm Gửi in.` : "Đang tạo ảnh chất lượng cao…"}</p>
         </div>
       </div>
       <p className={`print-quota ${remaining ? "" : "empty"}`}>
         <PiPrinterDuotone aria-hidden="true" />
         <span>
-          Vé #{booking.code} gồm <b>{quota} tấm Instax</b> · đã gửi {used} · còn <b>{remaining} tấm</b>
-          {remaining > 0 && sheets.length > 1 && <small>Chạm vào tấm để chọn / bỏ chọn tấm muốn in.</small>}
-          {!remaining && <small>Muốn in thêm? Mua thêm tấm tại quầy — lễ tân cộng vào vé, bạn chỉ cần bấm Gửi in lại.</small>}
+          Vé #{booking.code} gồm <b>{quota} {unit}</b> · đã gửi {used} · còn <b>{remaining} {word}</b>
+          {remaining > 0 && sheets.length > 1 && <small>Chạm vào {word} để chọn / bỏ chọn {word} muốn in.</small>}
+          {!remaining && <small>Muốn in thêm? Mua thêm {word} tại quầy — lễ tân cộng vào vé, bạn chỉ cần bấm Gửi in lại.</small>}
         </span>
       </p>
       {error && (
@@ -633,7 +634,7 @@ function Result({ booking, sheets, error, picked, remaining, quota, used, printi
       <div className="studio-actions">
         <Button className="outline" disabled={printing} onClick={onBack}><PiArrowLeftBold aria-hidden="true" /> Quay lại</Button>
         <Button disabled={printing || !picked.size || !sheets.length} onClick={onPrint}>
-          <PiPrinterBold aria-hidden="true" /> {printing ? "Đang gửi in…" : `Gửi in (${picked.size} tấm Instax)`}
+          <PiPrinterBold aria-hidden="true" /> {printing ? "Đang gửi in…" : `Gửi in (${picked.size} ${unit})`}
         </Button>
       </div>
     </>
@@ -658,13 +659,16 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
   const favorites = photos.filter((p) => p.favorite);
   const adjustOf = (id) => ({ ...DEFAULT_ADJUST, ...saved.adjusts[id] });
   const small = useSmallEdits(media, adjustOf);
-  // Bộ khung: khung Instax đang bật gom theo chủ đề (chủ đề đang tắt thì ẩn), theo thứ tự chủ đề của tiệm.
+  // Khổ của vé: tờ 20 × 30 máy DS820 (vé Instax cũ: thẻ Instax). Album chỉ dùng khung đúng khổ đó.
+  const size = booking.printSize === "instax" ? "instax" : "large";
+  const unit = polaroidUnit(size), word = size === "instax" ? "tấm" : "tờ";
+  // Bộ khung: khung đúng khổ đang bật gom theo chủ đề (chủ đề đang tắt thì ẩn), theo thứ tự chủ đề của tiệm.
   const packs = useMemo(() => {
     const hidden = new Set((settings.themes || []).filter((t) => t.active === false).map((t) => t.name));
-    const frames = catalog.filter((f) => f.active !== false && f.printSize === "instax" && slotsOf(f).length &&
+    const frames = catalog.filter((f) => f.active !== false && f.printSize === size && slotsOf(f).length &&
       !hidden.has(f.themeName?.trim()));
     return groupFramePacks(frames, (settings.themes || []).map((t) => t.name));
-  }, [catalog, settings.themes]);
+  }, [catalog, settings.themes, size]);
   const pack = packs.find((p) => p.id === saved.packId);
   const required = capacityOf(pack);
   const layoutsOf = (p, layouts) => p && p.frames.every((f) => layouts[f._id]?.length === slotsOf(f).length);
@@ -843,7 +847,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
     return saved.autoFill ? [...favorites, ...photos.filter((p) => !p.favorite)] : photos.filter((p) => p.favorite || usedIds.has(p.id));
   }, [idsKey, hearts.join(), saved.layouts, saved.autoFill]);
 
-  // ── Kết quả: dựng tấm in Instax cho từng khung của bộ ──
+  // ── Kết quả: dựng tờ in 20 × 30 (vé cũ: tấm Instax) cho từng khung của bộ ──
   const [sheets, setSheets] = useState([]);
   const [sheetError, setSheetError] = useState("");
   const [picked, setPicked] = useState(() => new Set());
@@ -863,10 +867,11 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
       });
       try {
         if (!isLive()) return null;
-        const instax = instaxPrint(canvas);
-        const data = await new Promise((resolve) => resolve(instax.toDataURL("image/jpeg", 0.95)));
+        // Tờ 20 × 30: đúng 2400 × 3600 (hoặc ngang) như máy chủ đòi; JPEG 0,95 giữ chi tiết mà vẫn gửi nhanh qua 4G.
+        const sheet = size === "instax" ? instaxPrint(canvas) : largePrint(canvas);
+        const data = await new Promise((resolve) => resolve(sheet.toDataURL("image/jpeg", 0.95)));
         const preview = canvas.toDataURL("image/jpeg", 0.85);
-        instax.width = instax.height = 0;
+        if (sheet !== canvas) sheet.width = sheet.height = 0;
         out.push({ frameId: frame._id, name: frame.name, data, preview });
       } finally { canvas.width = canvas.height = 0; }
     }
@@ -888,7 +893,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
     if (printing) return;
     if (picked.has(i)) return setPicked((old) => new Set([...old].filter((k) => k !== i)));
     if (picked.size >= remaining)
-      return toast.warning(remaining ? `Vé của bạn còn ${remaining} tấm in — bỏ chọn một tấm khác trước.` : "Vé đã dùng hết tấm in.");
+      return toast.warning(remaining ? `Vé của bạn còn ${remaining} ${word} in — bỏ chọn một ${word} khác trước.` : `Vé đã dùng hết ${word} in.`);
     setPicked((old) => new Set(old).add(i));
   }
 
@@ -912,14 +917,14 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
         if (auto || !list.length) {
           // Hết giờ: bộ đang chọn (chưa chọn thì bộ đầu tiên), ô còn trống lấp bằng ảnh yêu thích rồi ảnh còn lại.
           const p = pack || packs[0];
-          if (!p) throw new Error("Tiệm chưa có bộ khung Instax — nhờ nhân viên in giúp bạn.");
+          if (!p) throw new Error(`Tiệm chưa có bộ khung ${size === "instax" ? "Instax" : "20 × 30"} — nhờ nhân viên in giúp bạn.`);
           const layouts = layoutsOf(p, saved.layouts) && p.frames.every((f) => isFilled(f, saved.layouts[f._id]))
             ? saved.layouts : autoLayouts(p.frames, pool(true), { repeat: true });
           list = await renderSheets(p, layouts);
           chosen = picked.size && sheets.length ? [...picked] : list.slice(0, remaining).map((_, i) => i);
         }
         chosen = chosen.sort((a, b) => a - b).filter((i) => list[i]).slice(0, remaining);
-        if (!chosen.length) throw new Error("Chọn ít nhất 1 tấm để in.");
+        if (!chosen.length) throw new Error(`Chọn ít nhất 1 ${word} để in.`);
         prepared.current = {
           options: printPackUpload({
             images: chosen.map((i) => list[i].data), frameName: (pack || packs[0])?.name || "Khung ảnh", requestKey: saved.requestKey,
@@ -985,7 +990,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
         )}
         {pendingOriginals > 0 && !result && (
           <p className="sb-timer" role="status">
-            Đang nhận {pendingOriginals} ảnh gốc chất lượng cao từ máy chụp — tấm in dùng ảnh gốc nên chờ thêm chút nhé.
+            Đang nhận {pendingOriginals} ảnh gốc chất lượng cao từ máy chụp — ảnh in dùng ảnh gốc nên chờ thêm chút nhé.
           </p>
         )}
       </div>
@@ -1010,16 +1015,16 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
         <div className="print-confirmation">
           <span className="print-confirmation-check" aria-hidden="true"><PiCheckBold /></span>
           <h2>Đã gửi in!</h2>
-          <p>Lấy ảnh ở máy Instax cạnh máy chụp — ảnh hiện màu dần sau ít phút.</p>
+          <p>{size === "instax" ? "Lấy ảnh ở máy Instax cạnh máy chụp — ảnh hiện màu dần sau ít phút." : `Ảnh đang in ở ${polaroidPrinter(size)} — mỗi tờ 20 × 30 khoảng 1 phút. Lấy ảnh ở khay máy in hoặc nhờ nhân viên giúp bạn.`}</p>
           {result.previews?.length > 0 && (
             <div className="sheet-strip is-done">
               {result.previews.map((src, i) => <img key={i} src={src} alt={`Tấm đã gửi in ${i + 1}`} />)}
             </div>
           )}
-          <p className="print-confirmation-ticket">Vé #{booking.code} · đã gửi {Math.min(quota, used + (result.count || 0))}/{quota} tấm</p>
+          <p className="print-confirmation-ticket">Vé #{booking.code} · đã gửi {Math.min(quota, used + (result.count || 0))}/{quota} {word}</p>
           {remaining - (result.count || 0) > 0 && (
             <Button className="outline" onClick={() => { setResult(null); save({ requestKey: crypto.randomUUID() }); }}>
-              In thêm ({remaining - (result.count || 0)} tấm còn lại)
+              In thêm ({remaining - (result.count || 0)} {word} còn lại)
             </Button>
           )}
         </div>
@@ -1029,7 +1034,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
           onDelete={removePhotos} onDownload={downloadOne} onEdit={(p) => setEditing(p.id)} onUpload={upload}
           onNext={() => go(1)} />
       ) : step === 1 ? (
-        <ThemePicker packs={packs} selected={saved.packId} favorites={favorites.length} frozen={frozen}
+        <ThemePicker packs={packs} selected={saved.packId} favorites={favorites.length} frozen={frozen} unit={unit}
           onSelect={choosePack} onBack={() => go(0)} onNext={toCompose} />
       ) : step === 2 && ready ? (
         <PackEditor token={token} pack={pack} layouts={saved.layouts} index={saved.frameIndex} photos={carousel}
@@ -1039,7 +1044,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
           onReshuffle={reshuffle} onBack={() => go(1)} onNext={() => go(3)} />
       ) : step === 3 && filled ? (
         <Result booking={booking} sheets={sheets} error={sheetError} picked={picked} remaining={remaining} quota={quota}
-          used={used} printing={printing} onToggle={togglePick} onPrint={() => print()} onBack={() => go(2)}
+          used={used} printing={printing} unit={unit} word={word} onToggle={togglePick} onPrint={() => print()} onBack={() => go(2)}
           onRetry={() => setRenderTurn((n) => n + 1)} />
       ) : null}
       {shortage && pack && (

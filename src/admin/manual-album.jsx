@@ -5,12 +5,15 @@ import { PhotoThumb } from "../album/photo-thumb.jsx";
 import { photoLayout } from "../frame-utils.js";
 import { printSheets, renderPrintFrame } from "../kiosk/compose.js";
 import { operatorPrint } from "./operator-print.js";
+import { isPolaroidSize } from "../print-sizes.js";
 import "./manual-album.css";
 
 // This recovery path prints locally. It never queues a second job on the room agent.
 export function ManualAlbum({ booking, onClose, onPrinted }) {
   const toast = useToast();
   const { frames = [] } = useStudio();
+  // Vé phòng Polaroid (tờ 20 × 30 máy DS820 / Instax cũ): ghép để tải file, không in qua RX1.
+  const polaroid = isPolaroidSize(booking.printSize);
   const available = useMemo(() => frames.filter(f => f.active !== false && (f.printSize || "full") === (booking.printSize || "full") && photoLayout(f).slots.length), [frames, booking.printSize]);
   const [frameId, setFrameId] = useState(available[0]?._id || "");
   const frame = available.find(f => f._id === frameId);
@@ -50,8 +53,8 @@ export function ManualAlbum({ booking, onClose, onPrinted }) {
       let canvas;
       try {
         canvas = await renderPrintFrame(frame, selected.slice(0, slots.length), booking.accessToken,
-          `${window.location.origin}/album/${booking.accessToken}`, { transforms, scale: booking.printSize === "instax" ? 1 : 2, strict: true, sharp: booking.printSize !== "instax" });
-        const result = await printSheets(canvas, frame, 1, booking.printSize || "full", booking.printSize === "instax" ? 1 : 2);
+          `${window.location.origin}/album/${booking.accessToken}`, { transforms, scale: polaroid ? 1 : 2, strict: true, sharp: booking.printSize !== "instax", overlay: polaroid });
+        const result = await printSheets(canvas, frame, 1, booking.printSize || "full", polaroid ? 1 : 2);
         if (active) { setSheet(result[0]); setError(""); }
       } catch (e) { if (active) setError(e.message); }
       finally { if (canvas) canvas.width = canvas.height = 0; if (active) setRendering(false); }
@@ -116,11 +119,12 @@ export function ManualAlbum({ booking, onClose, onPrinted }) {
         <img key={frame._id} src={frame.image} alt={`Xem trước khung ${frame.name}`} />
         <p className="manual-album-preview-caption" role="status">{rendering ? "Đang ghép ảnh chất lượng in…" : `${frame.name} · Chọn ảnh cho ${slots.length} ô để ghép và in.`}</p>
       </> : <p role="status">Chọn khung để xem trước.</p>}</div></div>
-      {booking.printSize !== "instax" && <p className="soft-note">PC đang dùng cần cắm RX1 và chạy chương trình in. File được gửi trực tiếp qua bộ in RX1, dùng cùng thiết lập màu, DPI và cắt đôi như kiosk; sau đó lưu vào lịch sử đơn để in lại. Đây là in hỗ trợ, không trừ lượt hoặc cộng tiền.</p>}
-      {booking.printSize !== "instax" && <><p className="soft-note">PNG 2400 × 3600 px (hoặc ngang), lấy từ ảnh gốc. Độ nét phụ thuộc nguồn ảnh và khung; bộ in chọn DPI cao nhất driver hỗ trợ.</p>
+      {!polaroid && <p className="soft-note">PC đang dùng cần cắm RX1 và chạy chương trình in. File được gửi trực tiếp qua bộ in RX1, dùng cùng thiết lập màu, DPI và cắt đôi như kiosk; sau đó lưu vào lịch sử đơn để in lại. Đây là in hỗ trợ, không trừ lượt hoặc cộng tiền.</p>}
+      {!polaroid && <><p className="soft-note">PNG 2400 × 3600 px (hoặc ngang), lấy từ ảnh gốc. Độ nét phụ thuộc nguồn ảnh và khung; bộ in chọn DPI cao nhất driver hỗ trợ.</p>
         <label>Số bộ in<select aria-label="Số bộ in" value={copies} disabled={locked} onChange={(event) => setCopies(Number(event.target.value))}>{Array.from({ length: 20 }, (_, i) => i + 1).map((value) => <option key={value} value={value}>{value}</option>)}</select></label></>}
-      <div className="order-print-actions"><Button className="outline" disabled={busy} onClick={onClose}>Quay lại</Button>{sheet && <a className="button outline" href={sheet} download={`NXC-${booking.code}-in.${booking.printSize === "instax" ? "jpg" : "png"}`}>Tải file in</a>}<Button disabled={!sheet || rendering || busy || booking.printSize === "instax"} onClick={printLocal}>{busy ? "Đang xử lý…" : archivePending ? "Lưu kết quả in" : "In qua RX1 & lưu file"}</Button></div>
+      <div className="order-print-actions"><Button className="outline" disabled={busy} onClick={onClose}>Quay lại</Button>{sheet && <a className="button outline" href={sheet} download={`NXC-${booking.code}-in.${polaroid ? "jpg" : "png"}`}>Tải file in</a>}<Button disabled={!sheet || rendering || busy || polaroid} onClick={printLocal}>{busy ? "Đang xử lý…" : archivePending ? "Lưu kết quả in" : "In qua RX1 & lưu file"}</Button></div>
       {booking.printSize === "instax" && <p>Khổ Instax: tải file và in bằng phần mềm dành cho máy Instax.</p>}
+      {booking.printSize === "large" && <p>Tờ 20 × 30 (JPEG 2400 × 3600): tải file và in ở máy DNP DS820 của phòng Polaroid, hoặc để khách bấm Gửi in trên điện thoại.</p>}
     </section>
   </div>;
 }

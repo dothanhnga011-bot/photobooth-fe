@@ -59,6 +59,56 @@ export function printerInstaller({ script, api, token, room }) {
   ].join("\r\n");
 }
 
+// File cài máy in DNP DS820 cho phòng Polaroid / Selfbooth (từ 14/11): chạy một lần trên máy tính Windows cắm DS820
+// (không cần quyền quản trị). Giải nén chương trình in (installers/print-agent-ds820.ps1) vào
+// %LOCALAPPDATA%\NXC-Printer-DS820 rồi chạy phần cài đặt của nó (tìm máy DS820, khổ 8x12, tự chạy khi bật máy).
+// Chương trình này nhận lệnh in tờ 20 × 30 khách gửi từ điện thoại của đúng phòng này.
+export function ds820Installer({ script, api, token, room }) {
+  if (!/^https?:\/\/[\w.:-]+$/.test(api)) throw new Error("Địa chỉ web không hợp lệ.");
+  const extract = [
+    "powershell -NoProfile -Command \"try { $s = [IO.File]::ReadAllText($env:NXC_PRINT_INSTALLER);",
+    "$m = [regex]::Match($s, '(?m)^rem NXC_PRINT_AGENT_BASE64:([A-Za-z0-9+/=]+)'); if (-not $m.Success) { exit 1 };",
+    "[IO.File]::WriteAllBytes((Join-Path $env:NXC_PRINT_DIR 'print-agent-ds820.ps1'), [Convert]::FromBase64String($m.Groups[1].Value)) }",
+    "catch { exit 1 }\"",
+  ].join(" ");
+  return [
+    "@echo off",
+    "setlocal DisableDelayedExpansion",
+    "rem NXC Photobooth - cai chuong trinh in tu dong cho may DNP DS820 cua phong Polaroid / Selfbooth.",
+    "rem Chay 1 lan tren may tinh cam may DS820. In to 20x30 cm khach gui tu dien thoai.",
+    'set "NXC_PRINT_INSTALLER=%~f0"',
+    'set "NXC_PRINT_DIR=%LOCALAPPDATA%\\NXC-Printer-DS820"',
+    'if not exist "%NXC_PRINT_DIR%" mkdir "%NXC_PRINT_DIR%"',
+    "echo Dang cai chuong trinh in DS820...",
+    extract,
+    "if errorlevel 1 (",
+    "  echo Khong giai nen duoc chuong trinh in. Tai lai file cai o Quan ly may.",
+    "  pause",
+    "  exit /b 1",
+    ")",
+    'if not exist "%NXC_PRINT_DIR%\\print-agent-ds820.ps1" (',
+    "  echo Khong thay chuong trinh in sau khi giai nen: phan mem diet virus co the da chan.",
+    "  echo Mo Windows Security - Virus and threat protection - Protection history de cho phep, roi chay lai file nay.",
+    "  pause",
+    "  exit /b 1",
+    ")",
+    'powershell -NoProfile -ExecutionPolicy Bypass -File "%NXC_PRINT_DIR%\\print-agent-ds820.ps1" -Install',
+    "if errorlevel 1 (",
+    "  echo.",
+    "  echo Cai may in DS820 chua xong. Chup man hinh cua so nay gui cho ky thuat.",
+    "  echo Nhat ky: %NXC_PRINT_DIR%\\install.log",
+    "  pause",
+    "  exit /b 1",
+    ")",
+    "echo Da cai xong may in DS820. Cua so nay tu dong sau 5 giay.",
+    "timeout /t 5 >nul",
+    "exit /b",
+    `rem NXC_PRINT_AGENT_BASE64:${encodePayload(script)}`,
+    `rem NXC_PRINT_CONFIG_BASE64:${encodePayload(JSON.stringify({ api, token, room }), { bom: false })}`,
+    "",
+  ].join("\r\n");
+}
+
 // Tên file: không dấu, chỉ chữ số và gạch nối ("Phòng 1" → cai-may-in-phong-1.bat).
 export const printerInstallerName = (room) =>
   `cai-may-in-${room.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\u0111/gi, "d")

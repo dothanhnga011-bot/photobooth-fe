@@ -392,6 +392,11 @@
     border: 3px solid #fffaf3;
     border-bottom-width: 7px;
   }
+  /* Tờ 20 × 30 (máy DS820) dọc, viền trắng mảnh */
+  .admin-shell .package-size-art.is-large i {
+    width: 24px;
+    border: 2px solid #fffaf3;
+  }
   /* Nút "Thêm gói …" của từng khổ: viền nét đứt nâu đậm, chữ đậm — nổi trên nền kraft
      (thêm .package-size-head để thắng viền nhạt chung của nút thẻ gói trong catalogs.css). */
   .admin-shell .package-size-head .package-size-add {
@@ -466,6 +471,7 @@
   .admin-shell .kiosk-size-preview .kiosk-size.full .kiosk-size-art i { width: 32px; }
   .admin-shell .kiosk-size-preview .kiosk-size.strip .kiosk-size-art i { width: 17px; }
   .admin-shell .kiosk-size-preview .kiosk-size.instax .kiosk-size-art i { width: 46px; border-width: 4px 4px 14px; }
+  .admin-shell .kiosk-size-preview .kiosk-size.large .kiosk-size-art i { width: 38px; border: 3px solid #fffaf3; }
   /* Hai nút chuyển loại hình chụp (Khổ ảnh & bảng giá, Chủ đề): Photobooth / Polaroid. */
   .admin-shell .service-tabs {
     display: grid;

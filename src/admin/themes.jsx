@@ -5,12 +5,12 @@ import { Button, ErrorBox, useStudio, useToast } from "../studio";
 import { TableHeading } from "./table-heading";
 
 
-const SIZES = { full: "10 × 15 cm", strip: "5 × 15 cm", instax: "Instax Wide" };
+const SIZES = { full: "10 × 15 cm", strip: "5 × 15 cm", large: "20 × 30 cm", instax: "Instax Wide" };
 const searchable = (value) =>
   String(value || "").normalize("NFD").replace(/\p{Diacritic}/gu, "").replace(/đ/gi, "d").toLowerCase();
 
 // askKind: thêm chủ đề mới thì chọn phòng dùng chủ đề (Photobooth: khung 10 × 15; Polaroid · Selfbooth:
-// khung Instax). Đổi tên thì giữ loại.
+// khung 20 × 30 máy DS820). Đổi tên thì giữ loại.
 function NameDialog({ title, initial = "", busy, onClose, onSave, askKind = false }) {
   const [name, setName] = useState(initial);
   const [kind, setKind] = useState("photobooth");
@@ -41,7 +41,7 @@ function NameDialog({ title, initial = "", busy, onClose, onSave, askKind = fals
               </label>
               <label className="checkbox">
                 <input type="radio" name="theme-kind" checked={kind === "polaroid"} onChange={() => setKind("polaroid")} />
-                Polaroid · Selfbooth — khung Instax (khách chọn bộ khung trên điện thoại)
+                Polaroid · Selfbooth — khung 20 × 30 (khách chọn bộ khung trên điện thoại)
               </label>
             </fieldset>
           )}
@@ -60,7 +60,7 @@ function NameDialog({ title, initial = "", busy, onClose, onSave, askKind = fals
 }
 
 // Thiết lập → Chủ đề (như Snapbox /setting/theme): mỗi chủ đề là một bộ khung. Phòng Photobooth: khung
-// 10 × 15; phòng Polaroid (Selfbooth, từ 14/11): khung Instax — khách chọn cả bộ trên điện thoại.
+// 10 × 15; phòng Polaroid (Selfbooth, từ 14/11): khung 20 × 30 máy DS820 — khách chọn cả bộ trên điện thoại.
 export function ThemesManager({ notify, onOpenFrames }) {
   const toast = useToast();
   const { reload } = useStudio();
@@ -132,7 +132,7 @@ export function ThemesManager({ notify, onOpenFrames }) {
             <h3>Chủ đề khung ảnh</h3>
             <p>
               Khung cùng chủ đề được ghép thành một bộ. Phòng Photobooth dùng khung 10 × 15; phòng Polaroid (Selfbooth)
-              dùng khung Instax — khách chọn cả bộ trên điện thoại. Thêm khung vào chủ đề ở mục Khung ảnh.
+              dùng khung 20 × 30 (máy DNP DS820) — khách chọn cả bộ trên điện thoại. Thêm khung vào chủ đề ở mục Khung ảnh.
             </p>
           </div>
           <div className="inline-actions">

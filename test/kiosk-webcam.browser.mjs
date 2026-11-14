@@ -54,12 +54,12 @@ before(async () => {
       transform(code, id) {
         if (!id.replaceAll("\\", "/").endsWith("/src/capture-store.js")) return;
         // Windows headless Chromium crashes when deserializing OPFS handles from
-        // IndexedDB. Supply the Canon setting directly; JPEG IO and the actual
+        // IndexedDB. Supply the Polaroid room's camera folder directly; JPEG IO and the actual
         // kiosk folder watcher stay real. All other settings use the real store.
         const declaration = 'export const readSetting = (key) => run(';
         assert.ok(code.includes(declaration));
         return code.replace(declaration, `export const readSetting = (key) =>
-          key === 'camera-folder-canon-r100' && new URLSearchParams(location.search).has('canon-folder')
+          key === 'camera-folder-fujifilm' && new URLSearchParams(location.search).has('canon-folder')
             ? navigator.storage.getDirectory() : run(`);
       },
     }],
@@ -265,12 +265,12 @@ test("in webcam test mode the Space key counts down, takes a photo from the webc
   } finally { await b.close(); }
 });
 
-for (const count of [1, 2]) test(`Selfbooth room (${count}-photo layout): 12 Canon JPEGs beyond the legacy quota, then the QR to choose on the phone`, async () => {
+for (const count of [1, 2]) test(`Selfbooth room (${count}-photo layout): 12 Fujifilm X-T3 JPEGs beyond the legacy quota, then the QR to choose on the phone`, async () => {
   const b = await booth(fakeCamera, {
     webcam: false,
     room: { _id: "room", flip: "device", kind: "polaroid" },
     // Even a legacy booking with a countdown must use the physical shutter JPEGs.
-    extra: { shots: 2, selectCount: count, countdownSeconds: 3, printSize: "instax", captureDuration: count === 1 ? 3 : 5 },
+    extra: { shots: 2, selectCount: count, countdownSeconds: 3, printSize: "large", captureDuration: count === 1 ? 3 : 5 },
   });
   try {
     await b.page.locator('.shoot-screen:not(.no-live)').waitFor();
@@ -307,17 +307,17 @@ for (const count of [1, 2]) test(`Selfbooth room (${count}-photo layout): 12 Can
   } finally { await b.close(); }
 });
 
-test("a resumed Canon session stays a shutter-cable session and receives shutter JPEGs while the room ping is offline", async () => {
+test("a resumed Polaroid (X-T3) session stays a shutter-cable session and receives shutter JPEGs while the room ping is offline", async () => {
   const b = await booth(fakeCamera, { webcam: false,
     room: { _id: 'room', flip: 'device', kind: 'polaroid' },
-    extra: { printSize: 'instax', selectCount: 1, prints: 1 },
+    extra: { printSize: 'large', selectCount: 1, prints: 1 },
   });
   try {
     await b.page.locator('.shoot-screen.phase-shoot').waitFor();
     await b.page.route('**/api/kiosk/ping', route => route.abort('failed'));
     await b.page.reload();
     await b.page.locator('.shoot-screen.phase-shoot').waitFor();
-    // Chưa có phản hồi ping: vẫn nhận ra phiên Instax (bấm dây, không có nút chạm để chụp).
+    // Chưa có phản hồi ping: vẫn nhận ra phiên phòng Polaroid (bấm dây, không có nút chạm để chụp).
     assert.equal(await b.page.getByRole("button", { name: "Chạm để chụp" }).count(), 0);
     await b.page.evaluate(() => window.deliverCanonPhoto(1));
     await b.page.waitForFunction(() => document.querySelectorAll('.shoot-thumbs .shoot-thumb-no').length === 1, null, { timeout: 15000 });

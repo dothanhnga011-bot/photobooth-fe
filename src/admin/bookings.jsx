@@ -13,8 +13,8 @@ import { PrintOrderDialog } from "./print-order-dialog.jsx";
 import { QuickKiosk } from "./quick-kiosk.jsx";
 import { ordersChanged } from "./nav-badges";
 
-// Khổ in của đơn: DNP 10 × 15 (to / nhỏ cắt đôi) hoặc Instax Wide.
-const SIZE_NAMES = { full: "Lớn", strip: "Nhỏ", instax: "Instax" };
+// Khổ in của đơn: DNP 10 × 15 (to / nhỏ cắt đôi), tờ 20 × 30 máy DS820 (phòng Polaroid) hoặc Instax Wide cũ.
+const SIZE_NAMES = { full: "Lớn", strip: "Nhỏ", large: "20 × 30", instax: "Instax" };
 
 const paymentLabel = (method) => method === "cash" ? "Tiền mặt" : method === "transfer" ? "Chuyển khoản" : "—";
 // Lượt chụp phòng Polaroid: khách trả tiền ở quầy sau khi chọn layout — nhân viên bấm "Đã thu".

@@ -6,9 +6,10 @@ import { Button, ErrorBox, useToast } from "../studio.jsx";
 import { checkDirectPrinter } from "../kiosk/direct-print.js";
 import { ManualAlbum } from "./manual-album.jsx";
 import { operatorPrint } from "./operator-print.js";
+import { isPolaroidSize, polaroidPrinter, polaroidUnit } from "../print-sizes.js";
 import "./print-order-dialog.css";
 
-const SIZES = { full: "10 × 15 cm", strip: "2 dải 5 × 15 cm / tờ", instax: "Instax Wide" };
+const SIZES = { full: "10 × 15 cm", strip: "2 dải 5 × 15 cm / tờ", large: "20 × 30 cm (DS820)", instax: "Instax Wide" };
 const STATES = { idle: "Chưa gửi máy in", queued: "Đang chờ máy in", sending: "Đang gửi máy in", sent: "Đã gửi tới hàng in", failed: "Lỗi hoặc mất xác nhận in" };
 const sheetUrl = (job, sheet, thumbnail = false) => assetUrl(`${job.image}?sheet=${sheet}${thumbnail ? "&size=thumbnail" : ""}`);
 
@@ -33,7 +34,9 @@ export function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
   const job = jobs.find((item) => item._id === selected) || jobs[0];
   const count = job?.sheetCount || 1;
   const printSize = job?.printSize || details.printSize || "full";
-  const maximum = printSize === "instax" ? 20 : Math.min(20, Math.floor(20 / count));
+  // Phòng Polaroid (tờ 20 × 30 máy DS820 / Instax cũ): in lại qua hàng chờ máy in của phòng, không qua RX1.
+  const polaroid = isPolaroidSize(printSize);
+  const maximum = polaroid ? 20 : Math.min(20, Math.floor(20 / count));
   const locked = busy || archivePending;
   const canOperate = !details.mediaDeleted && ["checked_in", "completed"].includes(details.status);
   const canSell = !details.mediaDeleted && details.paid && ["confirmed", "checked_in", "completed"].includes(details.status);
@@ -80,13 +83,13 @@ export function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
     if (!job || inFlight.current || !canOperate || copies > maximum) return;
     inFlight.current = true; setBusy(true); setError("");
     try {
-      if (printSize === "instax") {
+      if (polaroid) {
         const identity = `${job._id}:${copies}`;
         if (queuedAttempt.current?.identity !== identity) queuedAttempt.current = { identity, requestKey: crypto.randomUUID() };
         await api(`/admin/bookings/${booking._id}/reprint`, { method: "POST",
           body: { jobId: job._id, copies, requestKey: queuedAttempt.current.requestKey } });
         queuedAttempt.current = null;
-        toast.success("Đã tạo lệnh in lại cho máy Instax.");
+        toast.success(`Đã tạo lệnh in lại cho ${polaroidPrinter(printSize)}.`);
       } else {
         if (!archivePending) await checkDirectPrinter();
         if (imageCache.current?.id !== job._id) {
@@ -149,9 +152,10 @@ export function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
             <label>Số bộ in lại<select value={copies} disabled={locked || !maximum} onChange={(event) => setCopies(Number(event.target.value))}>
               {Array.from({ length: maximum }, (_, i) => i + 1).map((value) => <option key={value} value={value}>{value}</option>)}
             </select></label>
-            <p className="order-print-total"><b>{count * copies} {printSize === "instax" ? "tấm Instax" : "tờ 10 × 15 cm"}</b>
+            <p className="order-print-total"><b>{count * copies} {polaroid ? polaroidUnit(printSize) : "tờ 10 × 15 cm"}</b>
               {printSize === "strip" && <span>Máy cắt thành {count * copies * 2} dải nhỏ.</span>}</p>
-            {printSize !== "instax" && <p className="soft-note">In trên PC đang cắm RX1 và chạy chương trình in. Màu, độ nét và cắt giấy theo bộ in RX1 của máy đó.</p>}
+            {polaroid && <p className="soft-note">Lệnh in vào hàng chờ của {polaroidPrinter(printSize)} ở phòng chụp — máy in tự in khi sẵn sàng.</p>}
+            {!polaroid && <p className="soft-note">In trên PC đang cắm RX1 và chạy chương trình in. Màu, độ nét và cắt giấy theo bộ in RX1 của máy đó.</p>}
             {!maximum && <p className="soft-note">File vượt 20 tờ. Tải các tờ để chia lượt in.</p>}
           </div>
         </div>
@@ -171,7 +175,7 @@ export function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
         {job && canOperate && <Button className="outline" disabled={busy} onClick={() => setManual(true)}>Ghép ảnh thủ công</Button>}
         <Button className="outline" disabled={busy || loading || !canSell} onClick={() => onExtra(details)}>+ Thêm lượt in</Button>
         {job && <Button disabled={busy || !canOperate || !maximum || copies > maximum} onClick={reprint}><Printer size={16} />
-          {busy ? "Đang xử lý…" : archivePending ? "Lưu kết quả in" : printSize === "instax" ? "Gửi in lại Instax" : "In lại qua RX1"}</Button>}
+          {busy ? "Đang xử lý…" : archivePending ? "Lưu kết quả in" : polaroid ? (printSize === "instax" ? "Gửi in lại Instax" : "Gửi in lại DS820") : "In lại qua RX1"}</Button>}
       </div>
     </section>
   </div>;

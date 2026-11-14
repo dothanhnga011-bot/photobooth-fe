@@ -12,10 +12,10 @@ const rooms = [
   {_id:'booth',name:'PTB',branch:'HN',kind:'photobooth',active:true},
   {_id:'off',name:'Old booth',branch:'Closed',kind:'photobooth',active:false}];
 if(new URLSearchParams(location.search).has('multi'))rooms.push({_id:'booth-2',name:'PTB 2',branch:'HCM',kind:'photobooth',active:true});
-// Gói Polaroid tính theo phút như Selfbooth (giá, số phút, số tấm Instax) đứng trước.
+// Gói Polaroid tính theo phút như Selfbooth (giá, số phút, số tờ 20 × 30 máy DS820) đứng trước.
 const packages = [
-  {_id:'polaroid-big',name:'Chụp đôi',printSize:'instax',price:150000,duration:12,prints:2},
-  {_id:'instax',name:'Chụp đơn',printSize:'instax',price:90000,duration:7,prints:1},
+  {_id:'polaroid-big',name:'Chụp đôi',printSize:'large',price:150000,duration:12,prints:2},
+  {_id:'single',name:'Chụp đơn',printSize:'large',price:90000,duration:7,prints:1},
   {_id:'strip',name:'Gói photobooth',printSize:'strip',price:70000,prints:1,shots:4}];
 createRoot(document.getElementById('root')).render(React.createElement(StudioContext.Provider,
   {value:{rooms,packages,settings:{}}},React.createElement(ToastProvider,null,React.createElement(CounterTicket,
@@ -55,7 +55,7 @@ async function mount(branch = "", multi = false) {
       const polaroid = body.room === 'polaroid';
       draft = {_id:'draft',room:body.room,roomName:polaroid?'Polaroid':body.room==='booth-2'?'PTB 2':'PTB',
         branch:polaroid?'Bắc Ninh':body.room==='booth-2'?'HCM':'HN',status:'pending',paid:false,total:70000,
-        packageName:polaroid?'Polaroid đôi':'Gói photobooth',printSize:polaroid?'instax':'strip',prints:1};
+        packageName:polaroid?'Polaroid đôi':'Gói photobooth',printSize:polaroid?'large':'strip',prints:1};
       return route.fulfill({status:201,json:draft});
     }
     if (path.endsWith("/activate")) return route.fulfill({json:{...draft,code:'123456',status:'confirmed',paid:true}});
@@ -71,7 +71,7 @@ async function mount(branch = "", multi = false) {
   return {page,requests};
 }
 
-test("the counter defaults to HN photobooth even when a Polaroid-only branch and Instax package come first", async () => {
+test("the counter defaults to HN photobooth even when a Polaroid-only branch and 20 × 30 package come first", async () => {
   const {page,requests} = await mount();
   try {
     assert.equal(await page.getByRole("combobox",{name:/^Chi nhánh/}).count(),0);
@@ -121,7 +121,7 @@ test("the counter sells timed Polaroid packages as codes for the Polaroid room (
     await requoted;
     // Đổi gói tự chọn phòng Polaroid, không cần chọn chi nhánh.
     await page.getByText('Máy / phòng chụp: Polaroid',{exact:true}).waitFor();
-    await page.getByText("Phòng Polaroid (Selfbooth) · 12 phút chụp, bấm dây không giới hạn · in 2 tấm Instax · khách chọn ảnh & bộ khung trên điện thoại").waitFor();
+    await page.getByText("Phòng Polaroid (Selfbooth) · 12 phút chụp, bấm dây không giới hạn · in 2 tờ 20 × 30 · khách chọn ảnh & bộ khung trên điện thoại").waitFor();
     await page.getByRole("button",{name:"Tạo phiếu chụp",exact:true}).click();
     await page.getByRole("heading",{name:"Chờ xác nhận đã thu"}).waitFor();
     const draft = requests.find(r=>r.path.endsWith("/draft")).body;

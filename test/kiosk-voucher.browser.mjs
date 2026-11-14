@@ -207,7 +207,7 @@ test("money already inserted is never dropped: the bill screen comes back even i
 
 test("polaroid (Selfbooth) room: touch → enter the code bought at the counter → shoot screen with the gold border", async () => {
   const claims = [];
-  const polaroidBooking = { ...booking, packageName: "Polaroid đôi", printSize: "instax", selectCount: 2, prints: 1, captureDuration: 5 };
+  const polaroidBooking = { ...booking, packageName: "Polaroid đôi", printSize: "large", selectCount: 2, prints: 1, captureDuration: 5 };
   const { page, errors } = await openKiosk({ _id: "room-1", flip: "device", kind: "polaroid" }, {
     "/kiosk/claim": (route, body) => {
       claims.push(body);
@@ -268,7 +268,7 @@ test("polaroid (Selfbooth) room: touch → enter the code bought at the counter 
 test("the shoot timer shows the package's time even when the booth PC clock is 3 minutes slow", async () => {
   // Máy chủ chạy trước máy chụp 3 phút. Gói 5 phút: đồng hồ phải bắt đầu từ 05:00 (trước đây hiện 08:00).
   const skew = 3 * 60000;
-  const polaroidBooking = { ...booking, packageName: "Polaroid đôi", printSize: "instax", selectCount: 2, prints: 1, captureDuration: 5 };
+  const polaroidBooking = { ...booking, packageName: "Polaroid đôi", printSize: "large", selectCount: 2, prints: 1, captureDuration: 5 };
   let started = null;
   const startedBooking = () => (started ??= { ...polaroidBooking,
     captureStartedAt: new Date(Date.now() + skew).toISOString(),

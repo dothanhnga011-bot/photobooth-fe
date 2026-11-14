@@ -4,7 +4,8 @@ import { money } from "../api";
 import { Button, ErrorBox, useStudio } from "../studio";
 import { FieldError } from "../validate";
 import { definitions, DEFAULT_STAFF_PERMISSIONS, PERMISSION_GROUPS, ROOM_KINDS } from "./config";
-import { includedSheets, INSTAX_SHEETS, isInstax, isStrip, piecesLabel, printSizeOf } from "../kiosk/print-count.js";
+import { includedSheets, INSTAX_SHEETS, isPolaroid, isStrip, piecesLabel, printSizeOf } from "../kiosk/print-count.js";
+import { polaroidPrinter, polaroidUnit } from "../print-sizes.js";
 import { polaroidPackage } from "../polaroid-layouts.js";
 
 // Loại phòng quyết định màn đầu tiên khách thấy sau “Chạm để bắt đầu”.
@@ -90,7 +91,7 @@ export function ResourceEditor({
   const catalog = resource === "packages";
   const title =
     resource === "packages"
-      ? `${edit._id ? "Chỉnh sửa" : "Thêm"} ${isInstax(edit) ? "gói Polaroid" : "gói chụp"}`
+      ? `${edit._id ? "Chỉnh sửa" : "Thêm"} ${isPolaroid(edit) ? "gói Polaroid" : "gói chụp"}`
       : edit._id
         ? "Chỉnh sửa"
         : "Thêm mới";
@@ -99,18 +100,20 @@ export function ResourceEditor({
     onChange(catalog ? polaroidPackage(next) : next);
     form.clear(key);
   };
-  // Gói khổ Instax của phòng Polaroid tính theo thời gian như Selfbooth: tên, giá, số phút, số tấm Instax.
+  // Gói phòng Polaroid tính theo thời gian như Selfbooth: tên, giá, số phút, số tờ 20 × 30 (gói cũ: tấm Instax).
+  const unit = polaroidUnit(edit.printSize);
+  const pieces = Math.max(INSTAX_SHEETS, Number(edit.prints) || 0);
   const POLAROID_LABELS = {
     name: "Tên gói (vd. chụp đơn, chụp đôi)",
     price: "Giá gói (VND)",
     duration: "Thời gian chụp (phút) · bấm dây không giới hạn",
-    prints: "Số tấm Instax Wide kèm gói",
+    prints: `Số ${unit} kèm gói`,
   };
   const field = ([key, baseLabel, type = "text"]) => {
-    const label = catalog && edit.printSize === "instax" ? POLAROID_LABELS[key] || baseLabel : baseLabel;
+    const label = catalog && isPolaroid(edit) ? POLAROID_LABELS[key] || baseLabel : baseLabel;
     if (type === "permissions" && edit.role !== "staff") return null;
     // Gói Polaroid chụp không giới hạn; khách chọn ảnh và bộ khung trên điện thoại (không có số ảnh chọn).
-    if (catalog && isInstax(edit) && ["shots", "selectCount"].includes(key)) return null;
+    if (catalog && isPolaroid(edit) && ["shots", "selectCount"].includes(key)) return null;
     // Loại phòng: chỉ chọn lúc thêm phòng mới.
     if (type === "roomKind") {
       if (edit._id) return null;
@@ -157,9 +160,15 @@ export function ResourceEditor({
             onChange={(event) => update(key, event.target.value)}
           />
         ) : type === "printSize" ? (
-          // Gói phòng Photobooth chỉ đổi giữa khổ to / khổ nhỏ; gói Polaroid luôn in thẻ Instax Wide.
-          isInstax(edit) ? (
-            <span className="resource-field-fixed">Polaroid · Selfbooth — in thẻ Instax Wide (máy Instax Link WIDE cạnh máy chụp)</span>
+          // Gói phòng Photobooth chỉ đổi giữa khổ to / khổ nhỏ; gói Polaroid in tờ 20 × 30 máy DS820 (gói Instax
+          // cũ đổi được sang 20 × 30, không đổi ngược lại).
+          edit.printSize === "large" ? (
+            <span className="resource-field-fixed">Polaroid · Selfbooth — in tờ 20 × 30 cm (máy DNP DS820 của phòng)</span>
+          ) : edit.printSize === "instax" ? (
+            <select name={key} value="instax" onChange={(event) => update(key, event.target.value)}>
+              <option value="instax">Instax Wide (gói cũ, máy Instax Link WIDE)</option>
+              <option value="large">Đổi sang tờ 20 × 30 cm · máy DNP DS820</option>
+            </select>
           ) : (
             <select
               name={key}
@@ -223,8 +232,8 @@ export function ResourceEditor({
         )}
         {catalog && key === "prints" && (
           <small className="field-hint">
-            {isInstax(edit)
-              ? "Tấm Instax Wide khách in từ điện thoại (mỗi khung của bộ là một tấm). Tối thiểu 1 tấm; in thêm tính theo giá in thêm Instax."
+            {isPolaroid(edit)
+              ? `${unit[0].toUpperCase()}${unit.slice(1)} khách in từ điện thoại (mỗi khung của bộ là một ${unit}). Tối thiểu 1; in thêm tính theo giá in thêm phòng Polaroid.`
               : isStrip(edit)
               ? `Tờ 10 × 15 = ${piecesLabel(edit, includedSheets(edit))} cho khách. Tối thiểu 1 tờ (khách thấy “2 tờ nhỏ”).`
               : "Tờ 10 × 15. Tối thiểu 2 tờ. Khách chọn thêm ở máy chụp tính theo giá in thêm."}
@@ -253,8 +262,8 @@ export function ResourceEditor({
               <h2>{title}</h2>
               {catalog && (
                 <p>
-                  {isInstax(edit)
-                    ? "Gói phòng Polaroid như Selfbooth: giá, số phút chụp (bấm dây không giới hạn) và số tấm Instax Wide. Bán ở quầy — nhân viên tạo mã chụp."
+                  {isPolaroid(edit)
+                    ? `Gói phòng Polaroid như Selfbooth: giá, số phút chụp (bấm dây không giới hạn) và số ${unit}. Bán ở quầy — nhân viên tạo mã chụp.`
                     : "Mỗi gói là một thẻ ở màn “Chọn khổ ảnh” của máy chụp: khổ ảnh, giá và số tờ in đi kèm."}
                 </p>
               )}
@@ -280,15 +289,15 @@ export function ResourceEditor({
                 className="catalog-editor-preview"
                 aria-label="Xem trước gói chụp"
               >
-                <span className="catalog-preview-label">{isInstax(edit) ? "GÓI POLAROID · BÁN Ở QUẦY" : "THẺ TRÊN MÁY CHỤP"}</span>
+                <span className="catalog-preview-label">{isPolaroid(edit) ? "GÓI POLAROID · BÁN Ở QUẦY" : "THẺ TRÊN MÁY CHỤP"}</span>
                 {/* Cùng kiểu thẻ ở màn “Chọn khổ ảnh” của máy chụp (KioskPackages); gói Polaroid bán ở quầy. */}
                 <div className="kiosk-size-preview">
                   <div className={`kiosk-size ${printSizeOf(edit)}`}>
-                    <span className="kiosk-size-art" aria-hidden="true"><i />{!isInstax(edit) && <i />}</span>
+                    <span className="kiosk-size-art" aria-hidden="true"><i />{!isPolaroid(edit) && <i />}</span>
                     <strong>{edit.name || "Tên gói chụp"}</strong>
                     <small>
-                      {isInstax(edit)
-                        ? `${Number(edit.duration) || 0} phút · kèm ${Math.max(INSTAX_SHEETS, Number(edit.prints) || 0)} tấm Instax`
+                      {isPolaroid(edit)
+                        ? `${Number(edit.duration) || 0} phút · kèm ${pieces} ${unit}`
                         : `${Number(edit.shots) || 0} lần chụp · kèm ${piecesLabel(edit, includedSheets(edit))}`}
                     </small>
                     <b>{money(Number(edit.price) || 0)}</b>
@@ -306,13 +315,13 @@ export function ResourceEditor({
                   </li>
                   <li>
                     <Printer size={17} aria-hidden="true" />
-                    {isInstax(edit)
-                      ? `${Math.max(INSTAX_SHEETS, Number(edit.prints) || 0)} tấm Instax · máy Instax cạnh máy chụp`
+                    {isPolaroid(edit)
+                      ? `${pieces} ${unit} · ${polaroidPrinter(edit.printSize)}`
                       : `${includedSheets(edit)} tờ in 10 × 15 cm${isStrip(edit) ? ` · cắt đôi = ${piecesLabel(edit, includedSheets(edit))}` : ""}`}
                   </li>
                   <li>
                     <InfinityIcon size={17} aria-hidden="true" />
-                    {isInstax(edit)
+                    {isPolaroid(edit)
                       ? "Bấm dây không giới hạn · QR: chọn ảnh, bộ khung, ghép & in trên điện thoại"
                       : `${Number(edit.shots) || 0} lần chụp · chọn ${Number(edit.selectCount) || 4} ảnh ghép khung`}
                   </li>

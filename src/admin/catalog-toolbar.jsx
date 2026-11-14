@@ -14,7 +14,7 @@ const TEXTS = {
   polaroid: {
     noun: "gói Polaroid",
     title: "Gói chụp phòng Polaroid · Selfbooth",
-    note: "Như Selfbooth: mỗi gói có giá, số phút chụp (bấm dây không giới hạn) và số tấm Instax Wide. Nhân viên chọn gói khi tạo mã chụp ở quầy.",
+    note: "Như Selfbooth: mỗi gói có giá, số phút chụp (bấm dây không giới hạn) và số tờ 20 × 30 (máy DNP DS820). Nhân viên chọn gói khi tạo mã chụp ở quầy.",
     add: "Thêm gói Polaroid",
     search: "Tìm tên gói, mô tả…",
   },

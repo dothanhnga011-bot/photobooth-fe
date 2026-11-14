@@ -1,9 +1,11 @@
 import { FOLDER_KEY } from "./constants.js";
 import { isMac } from "./folder.js";
 
-// One source for the room's camera, folder and staff instructions.
+// One source for the room's camera, folder and staff instructions. Từ 14/11 phòng Polaroid / Selfbooth cũng chụp
+// bằng Fujifilm X-T3 (X Acquire + dây bấm) như phòng Photobooth; hồ sơ Canon R100 cũ không còn dùng.
 export function cameraProfile(kind) {
-  const canon = kind === "polaroid";
+  const canon = false;
+  const selfbooth = kind === "polaroid";
   const folder = isMac ? `Pictures/PhotoBooth/${canon ? "Canon" : "Fujifilm"}`
     : `C:\\PhotoBooth\\${canon ? "Canon" : "Fujifilm"}`;
   const common = [
@@ -47,6 +49,8 @@ export function cameraProfile(kind) {
       "FUJIFILM X Acquire đang kết nối máy ảnh; không có chương trình khác đang giữ USB.",
       `Thư mục tải JPEG của X Acquire trùng thư mục đã chọn ở kiosk (${folder}).`,
     ],
-    note: "Phòng Photobooth dùng Fujifilm và dây bấm RR-100 tương thích. X-S10/X-S20 cần đầu chuyển remote đúng chân. Thử cả dây bấm, flash và ảnh vào album trước khi đón khách.",
+    note: selfbooth
+      ? "Phòng Polaroid / Selfbooth dùng Fujifilm X-T3 và dây bấm RR-100 tương thích, như phòng Photobooth. Khách bấm dây không giới hạn trong thời gian của gói; hết giờ máy chụp hiện QR để khách chọn ảnh, bộ khung và gửi in 20 × 30 (máy DNP DS820). Thử cả dây bấm, flash và ảnh vào album trước khi đón khách."
+      : "Phòng Photobooth dùng Fujifilm và dây bấm RR-100 tương thích. X-S10/X-S20 cần đầu chuyển remote đúng chân. Thử cả dây bấm, flash và ảnh vào album trước khi đón khách.",
   };
 }

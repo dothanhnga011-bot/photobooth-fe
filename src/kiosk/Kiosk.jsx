@@ -73,7 +73,7 @@ import { noteServerTime, serverNow } from "./server-clock.js";
 import { KioskSelect, useShotBitmaps } from "./KioskSelect.jsx";
 import { NO_DECOR, filterChoices, filterStepsFor, photoFilterId } from "./decor.js";
 import { KioskCode, KioskPackages, KioskPayChoice, KioskPayment, KioskPrintCount } from "./KioskSale.jsx";
-import { extraPriceFor, isInstax, minSheets, saleTotal } from "./print-count.js";
+import { extraPriceFor, isInstax, isPolaroid, minSheets, saleTotal } from "./print-count.js";
 
 // Các chỗ báo lỗi mạng ở màn chụp: mỗi lần mất kết nối chỉ báo một lần, có mạng lại thì xoá.
 const NET_SLOTS = ["poll", "sync", "start", "finish"];
@@ -185,7 +185,7 @@ export function Kiosk() {
   const phase = phaseOf(session);
   // Booking metadata also identifies Canon sessions before the room ping returns.
   const manualCapture = roomInfo?.kind === "polaroid" ||
-    session?.booking.source === "polaroid" || session?.booking.printSize === "instax";
+    session?.booking.source === "polaroid" || isPolaroid(session?.booking);
   const key = "photo-capture-" + device.slice(-24);
   const shown = useRef({});
   const mirrorRef = useRef(mirror);
@@ -582,7 +582,7 @@ export function Kiosk() {
       ...opened,
       mode: "remote",
       phase: "ready",
-      readyEndsAt: roomInfo?.kind === "polaroid" || opened.booking.source === "polaroid" || opened.booking.printSize === "instax"
+      readyEndsAt: roomInfo?.kind === "polaroid" || opened.booking.source === "polaroid" || isPolaroid(opened.booking)
         ? undefined : Date.now() + READY_SECONDS * 1000,
     }), "zoom");
     shown.current = {};
@@ -729,8 +729,8 @@ export function Kiosk() {
     if (["method", "code", "package", "print", "pay"].includes(step)) transition(() => setStep("start"), "fade");
   }, [roomKind, sale?.pack, sale?.bills?.length]);
   const cashReady = Boolean(roomInfo?.cashCheckoutReady);
-  // Phòng photobooth bán tờ bé / tờ to (DNP); layout khổ Instax là của phòng Polaroid.
-  const boothPackages = useMemo(() => roomPackages.filter((p) => !isInstax(p)), [roomPackages]);
+  // Phòng photobooth bán tờ bé / tờ to (DNP RX1); gói 20 × 30 / Instax là của phòng Polaroid.
+  const boothPackages = useMemo(() => roomPackages.filter((p) => !isPolaroid(p)), [roomPackages]);
   // ─── Chụp ────────────────────────────────────────────────────────────────
   // Hình trực tiếp mở khi chuẩn bị chụp, tắt khi chuyển sang chọn ảnh.
   useEffect(() => {
@@ -769,9 +769,9 @@ export function Kiosk() {
   }, [session?.captureToken, phase, manualCapture]);
   // Quay video tua nhanh trong lúc chụp (hình trực tiếp HDMI, hoặc webcam khi thử máy). Webcam máy
   // tính quay ở chế độ nhẹ (VP8 phần mềm, 720p): H.264 phần cứng với webcam laptop đã làm sập tab
-  // Chrome (STATUS_BREAKPOINT). Phòng Polaroid (khổ Instax) không quay: khách nhận ảnh gốc qua QR.
+  // Chrome (STATUS_BREAKPOINT). Phòng Polaroid (khổ 20 × 30 / Instax) không quay: khách nhận ảnh gốc qua QR.
   useEffect(() => {
-    if (phase === "shoot" && ready && stream.current && session?.booking.printSize !== "instax")
+    if (phase === "shoot" && ready && stream.current && !isPolaroid(session?.booking))
       recorder.current.start(stream.current, { light: webcamRef.current });
   }, [phase, ready, webcamTest]);
   // Đồng hồ các bước chuẩn bị / chọn ảnh / chọn khung: kiểm tra 4 lần mỗi giây nhưng chỉ vẽ lại khi
@@ -984,9 +984,9 @@ export function Kiosk() {
         transition(() => showDone(live.booking, live.accessToken, { expired }), "zoom");
         return;
       }
-      // Phòng Selfbooth (Polaroid, khổ Instax): không chọn ảnh ở máy chụp. Hết giờ (hoặc khách bấm Chụp xong) là
+      // Phòng Selfbooth (Polaroid, khổ 20 × 30 máy DS820 / Instax cũ): không chọn ảnh ở máy chụp. Hết giờ (hoặc khách bấm Chụp xong) là
       // hiện mã QR: khách thả tim, làm đẹp, ghép khung và gửi in trên điện thoại.
-      if (live.booking.printSize === "instax") {
+      if (isPolaroid(live.booking)) {
         transition(() => showDone(live.booking, live.accessToken, { expired, studio: true }), "zoom");
         if (expired) toast.info("Đã hết thời gian chụp — quét mã QR để chọn ảnh nhé.");
         return;
@@ -1344,7 +1344,7 @@ export function Kiosk() {
     const id = await cameraPhotoId(file, path);
     if (localShots.current.has(id) || (s.captureOrder || []).includes(id) ||
       s.booking.photos.some((p) => p.clientKey === id)) return true;
-    const quota = s.booking.source === "polaroid" || isInstax(s.booking) ? Infinity : Number(s.booking.shots) || Infinity;
+    const quota = s.booking.source === "polaroid" || isPolaroid(s.booking) ? Infinity : Number(s.booking.shots) || Infinity;
     if (shotsOf(s).length + readingRef.current >= quota) return true;
     trackReading(1);
     try {

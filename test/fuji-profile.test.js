@@ -13,17 +13,17 @@ test("Canon and Fujifilm RAW files are diagnosed while JPEG remains the capture 
   assert.match(RAW_ONLY_MESSAGE, /RAF/);
 });
 
-test("each room gets its camera application, instructions and an isolated folder permission", () => {
-  const fuji = cameraProfile("photobooth"), canon = cameraProfile("polaroid");
-  assert.equal(fuji.folderKey, "camera-folder-fujifilm");
-  assert.notEqual(canon.folderKey, fuji.folderKey);
-  assert.match(canon.label, /R100/);
-  assert.match(canon.app, /EOS Utility/);
-  assert.match(canon.folder, /Canon/);
-  assert.match(canon.steps.join(" "), /RS-60E3/);
-  assert.match(canon.steps.join(" "), /Remote shooting/);
-  assert.ok(!canon.steps.join(" ").includes("X Acquire"));
-  assert.match(fuji.steps.join(" "), /X Acquire/);
+test("both rooms shoot with a Fujifilm X-T3 through X Acquire (the Selfbooth room since 14/11)", () => {
+  const booth = cameraProfile("photobooth"), selfbooth = cameraProfile("polaroid");
+  for (const profile of [booth, selfbooth]) {
+    assert.equal(profile.folderKey, "camera-folder-fujifilm");
+    assert.match(profile.label, /X-T3/);
+    assert.match(profile.app, /X Acquire/);
+    assert.match(profile.folder, /Fujifilm/);
+    assert.match(profile.steps.join(" "), /X Acquire/);
+    assert.ok(!profile.steps.join(" ").includes("EOS Utility"));
+  }
+  assert.match(selfbooth.note, /DS820/);
 });
 test("USB streaming cameras cannot replace an HDMI capture card", () => {
   assert.equal(liveUsable({ label: "EOS Webcam Utility" }), false);
