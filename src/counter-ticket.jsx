@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Copy, X } from "lucide-react";
 import { api, money } from "./api";
 import { includedSheets, isStrip, piecesLabel } from "./kiosk/print-count.js";
-import { polaroidLayout } from "./polaroid-layouts.js";
 import { Button, ErrorBox, useStudio, useToast } from "./studio";
 import { FieldError, chosen, useValidation } from "./validate";
 import { ordersChanged } from "./admin/nav-badges";
@@ -26,14 +25,14 @@ const roomKind = (room) => (room.kind === "polaroid" ? "polaroid" : "photobooth"
 
 export function CounterTicket({ onClose, onCreated, initialDraft = null, assignedBranch = "" }) {
   const { packages = [], rooms = [], settings = {} } = useStudio();
-  // Gói photobooth và layout Polaroid đang bán (layout Polaroid chỉ 1 ảnh / 3 phút hoặc 2 ảnh / 5 phút).
-  const counterPackages = packages.filter((p) => p.active !== false && (!isPolaroid(p) || polaroidLayout(p.selectCount)));
+  // Gói photobooth và gói Polaroid (tính theo phút như Selfbooth) đang bán.
+  const counterPackages = packages.filter((p) => p.active !== false);
   // Mã lấy chi nhánh từ phòng trên máy chủ; nhân viên chỉ chọn máy phù hợp với gói.
   const roomsFor = (pack) => rooms.filter((r) => r.active !== false &&
     roomKind(r) === (isPolaroid(pack) ? "polaroid" : "photobooth") &&
     (!assignedBranch || r.branch === assignedBranch) &&
     (!pack?.branches?.length || pack.branches.includes(r.branch)));
-  // Mặc định gói photobooth (bán nhiều nhất); chi nhánh chỉ có phòng Polaroid thì mặc định layout Polaroid.
+  // Mặc định gói photobooth (bán nhiều nhất); chi nhánh chỉ có phòng Polaroid thì mặc định gói Polaroid.
   const firstPackage = counterPackages.find((p) => !isPolaroid(p) && roomsFor(p).length)
     || counterPackages.find((p) => roomsFor(p).length) || counterPackages[0];
   const [form, setForm] = useState({
@@ -80,7 +79,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
   const pack = packages.find((p) => p._id === form.package);
   const eligibleRooms = roomsFor(pack);
   const selectedRoom = eligibleRooms.find((room) => room._id === form.room) || eligibleRooms[0];
-  const layout = isPolaroid(pack) ? polaroidLayout(pack.selectCount) : null;
+  const layout = isPolaroid(pack) ? pack : null;
   const change = (key, value) => {
     setForm((f) => {
       const next = { ...f, [key]: value };
@@ -272,7 +271,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
                       <optgroup key={group} label={group}>
                         {list.map((p) => (
                           <option key={p._id} value={p._id}>
-                            {isPolaroid(p) ? `${polaroidLayout(p.selectCount).label} · ${p.name}` : p.name} — {money(p.price)}
+                            {isPolaroid(p) ? `${p.name} · ${p.duration} phút` : p.name} — {money(p.price)}
                           </option>
                         ))}
                       </optgroup>
@@ -283,7 +282,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
               {pack && (
                 <p className="muted">
                   {layout
-                    ? `Phòng Polaroid · chọn ${layout.selectCount} ảnh · ${layout.duration} phút chụp, bấm dây không giới hạn · in 1 tấm Instax`
+                    ? `Phòng Polaroid (Selfbooth) · ${layout.duration} phút chụp, bấm dây không giới hạn · in ${Math.max(1, Number(layout.prints) || 1)} tấm Instax · khách chọn ảnh & bộ khung trên điện thoại`
                     : `${pack.shots || "—"} lần chụp · ${printsText(pack)}`}
                 </p>
               )}

@@ -5,8 +5,7 @@ import { Button, ErrorBox, useStudio } from "../studio";
 import { FieldError } from "../validate";
 import { definitions, DEFAULT_STAFF_PERMISSIONS, PERMISSION_GROUPS, ROOM_KINDS } from "./config";
 import { includedSheets, INSTAX_SHEETS, isInstax, isStrip, piecesLabel, printSizeOf } from "../kiosk/print-count.js";
-import { LayoutArt, LayoutCard } from "../kiosk/KioskPolaroid.jsx";
-import { LAYOUT_COUNTS, polaroidLayout, polaroidPackage } from "../polaroid-layouts.js";
+import { polaroidPackage } from "../polaroid-layouts.js";
 
 // Loại phòng quyết định màn đầu tiên khách thấy sau “Chạm để bắt đầu”.
 const ALL_PERMISSIONS = PERMISSION_GROUPS.flatMap(([, items]) => items.map(([key]) => key));
@@ -53,22 +52,6 @@ function PermissionsField({ value, onChange }) {
   );
 }
 
-// Polaroid: hai gói cố định theo số ảnh khách chọn, chụp không giới hạn.
-function LayoutPicker({ value, onChange }) {
-  const current = Number(value) || 1;
-  return (
-    <div className="layout-picker" role="radiogroup" aria-label="Số ảnh trong layout">
-      {LAYOUT_COUNTS.map((n) => (
-        <label key={n} className={`layout-pick${n === current ? " is-selected" : ""}`}>
-          <input type="radio" name="selectCount" value={n} checked={n === current} onChange={() => onChange(n)} />
-          <LayoutArt count={n} />
-          {polaroidLayout(n).label} · chọn {n} ảnh · {polaroidLayout(n).duration} phút
-        </label>
-      ))}
-    </div>
-  );
-}
-
 // Chi nhánh áp dụng bảng giá: để trống = cấu hình chung cho mọi chi nhánh.
 function BranchesField({ value = [], onChange }) {
   const { rooms = [] } = useStudio();
@@ -107,7 +90,7 @@ export function ResourceEditor({
   const catalog = resource === "packages";
   const title =
     resource === "packages"
-      ? `${edit._id ? "Chỉnh sửa" : "Thêm"} ${isInstax(edit) ? "layout Polaroid" : "gói chụp"}`
+      ? `${edit._id ? "Chỉnh sửa" : "Thêm"} ${isInstax(edit) ? "gói Polaroid" : "gói chụp"}`
       : edit._id
         ? "Chỉnh sửa"
         : "Thêm mới";
@@ -116,24 +99,18 @@ export function ResourceEditor({
     onChange(catalog ? polaroidPackage(next) : next);
     form.clear(key);
   };
-  // Gói khổ Instax là layout của phòng Polaroid: đặt tên các ô theo layout.
+  // Gói khổ Instax của phòng Polaroid tính theo thời gian như Selfbooth: tên, giá, số phút, số tấm Instax.
   const POLAROID_LABELS = {
-    name: "Tên layout (thẻ trên màn Chọn layout)",
-    price: "Giá layout (VND)",
-    selectCount: "Layout (số ảnh trên thẻ Instax Wide)",
+    name: "Tên gói (vd. chụp đơn, chụp đôi)",
+    price: "Giá gói (VND)",
+    duration: "Thời gian chụp (phút) · bấm dây không giới hạn",
+    prints: "Số tấm Instax Wide kèm gói",
   };
   const field = ([key, baseLabel, type = "text"]) => {
     const label = catalog && edit.printSize === "instax" ? POLAROID_LABELS[key] || baseLabel : baseLabel;
     if (type === "permissions" && edit.role !== "staff") return null;
-    // Layout Polaroid luôn in 1 tấm, không có số lần bấm dây.
-    if (catalog && isInstax(edit) && ["prints", "shots"].includes(key)) return null;
-    if (catalog && isInstax(edit) && key === "duration") return (
-      <div key={key} className="form-field resource-field resource-field-duration">
-        <span>{label}</span>
-        <span className="resource-field-fixed">{polaroidLayout(edit.selectCount)?.duration ?? "—"} phút · bấm dây không giới hạn</span>
-        <small className="field-hint">Ảnh nhỏ: chọn 1 ảnh / 3 phút. Ảnh to: chọn 2 ảnh / 5 phút.</small>
-      </div>
-    );
+    // Gói Polaroid chụp không giới hạn; khách chọn ảnh và bộ khung trên điện thoại (không có số ảnh chọn).
+    if (catalog && isInstax(edit) && ["shots", "selectCount"].includes(key)) return null;
     // Loại phòng: chỉ chọn lúc thêm phòng mới.
     if (type === "roomKind") {
       if (edit._id) return null;
@@ -165,8 +142,7 @@ export function ResourceEditor({
           {label}
         </label>
       );
-    const layoutPick = catalog && key === "selectCount" && isInstax(edit);
-    const Field = ["branches", "permissions"].includes(type) || layoutPick ? "div" : "label";
+    const Field = ["branches", "permissions"].includes(type) ? "div" : "label";
     return (
       <Field
         key={key}
@@ -181,9 +157,9 @@ export function ResourceEditor({
             onChange={(event) => update(key, event.target.value)}
           />
         ) : type === "printSize" ? (
-          // Gói phòng Photobooth chỉ đổi giữa khổ to / khổ nhỏ; layout Polaroid luôn là thẻ Instax Wide.
+          // Gói phòng Photobooth chỉ đổi giữa khổ to / khổ nhỏ; gói Polaroid luôn in thẻ Instax Wide.
           isInstax(edit) ? (
-            <span className="resource-field-fixed">Polaroid · thẻ Instax Wide ảnh ngang (phòng Polaroid, máy Instax Link WIDE)</span>
+            <span className="resource-field-fixed">Polaroid · Selfbooth — in thẻ Instax Wide (máy Instax Link WIDE cạnh máy chụp)</span>
           ) : (
             <select
               name={key}
@@ -194,8 +170,6 @@ export function ResourceEditor({
               <option value="strip">Khổ nhỏ · 1 tờ 10 × 15 cắt đôi thành 2 tờ nhỏ (máy DNP)</option>
             </select>
           )
-        ) : layoutPick ? (
-          <LayoutPicker value={edit[key]} onChange={(value) => update(key, value)} />
         ) : type === "flip" ? (
           <select
             value={edit[key] || "device"}
@@ -249,7 +223,9 @@ export function ResourceEditor({
         )}
         {catalog && key === "prints" && (
           <small className="field-hint">
-            {isStrip(edit)
+            {isInstax(edit)
+              ? "Tấm Instax Wide khách in từ điện thoại (mỗi khung của bộ là một tấm). Tối thiểu 1 tấm; in thêm tính theo giá in thêm Instax."
+              : isStrip(edit)
               ? `Tờ 10 × 15 = ${piecesLabel(edit, includedSheets(edit))} cho khách. Tối thiểu 1 tờ (khách thấy “2 tờ nhỏ”).`
               : "Tờ 10 × 15. Tối thiểu 2 tờ. Khách chọn thêm ở máy chụp tính theo giá in thêm."}
           </small>
@@ -278,7 +254,7 @@ export function ResourceEditor({
               {catalog && (
                 <p>
                   {isInstax(edit)
-                    ? "Mỗi layout là một thẻ ở màn “Chọn layout” của phòng Polaroid: số ảnh, giá và thời gian chụp. Mỗi layout in 1 tấm Instax Wide."
+                    ? "Gói phòng Polaroid như Selfbooth: giá, số phút chụp (bấm dây không giới hạn) và số tấm Instax Wide. Bán ở quầy — nhân viên tạo mã chụp."
                     : "Mỗi gói là một thẻ ở màn “Chọn khổ ảnh” của máy chụp: khổ ảnh, giá và số tờ in đi kèm."}
                 </p>
               )}
@@ -304,24 +280,21 @@ export function ResourceEditor({
                 className="catalog-editor-preview"
                 aria-label="Xem trước gói chụp"
               >
-                <span className="catalog-preview-label">{isInstax(edit) ? "THẺ LAYOUT POLAROID" : "THẺ TRÊN MÁY CHỤP"}</span>
-                {/* Cùng kiểu thẻ ở màn “Chọn khổ ảnh” của máy chụp (KioskPackages). */}
-                {isInstax(edit) ? (
-                  // Thẻ layout Polaroid (khách mua ở quầy, nhân viên tạo mã chụp).
-                  <div className="kiosk-layout-preview">
-                    <LayoutCard as="div" pack={{ ...edit, name: edit.name || "Tên layout", price: Number(edit.price) || 0 }} />
+                <span className="catalog-preview-label">{isInstax(edit) ? "GÓI POLAROID · BÁN Ở QUẦY" : "THẺ TRÊN MÁY CHỤP"}</span>
+                {/* Cùng kiểu thẻ ở màn “Chọn khổ ảnh” của máy chụp (KioskPackages); gói Polaroid bán ở quầy. */}
+                <div className="kiosk-size-preview">
+                  <div className={`kiosk-size ${printSizeOf(edit)}`}>
+                    <span className="kiosk-size-art" aria-hidden="true"><i />{!isInstax(edit) && <i />}</span>
+                    <strong>{edit.name || "Tên gói chụp"}</strong>
+                    <small>
+                      {isInstax(edit)
+                        ? `${Number(edit.duration) || 0} phút · kèm ${Math.max(INSTAX_SHEETS, Number(edit.prints) || 0)} tấm Instax`
+                        : `${Number(edit.shots) || 0} lần chụp · kèm ${piecesLabel(edit, includedSheets(edit))}`}
+                    </small>
+                    <b>{money(Number(edit.price) || 0)}</b>
+                    {edit.description && <small>{edit.description}</small>}
                   </div>
-                ) : (
-                  <div className="kiosk-size-preview">
-                    <div className={`kiosk-size ${printSizeOf(edit)}`}>
-                      <span className="kiosk-size-art" aria-hidden="true"><i /><i /></span>
-                      <strong>{edit.name || "Tên gói chụp"}</strong>
-                      <small>{Number(edit.shots) || 0} lần chụp · kèm {piecesLabel(edit, includedSheets(edit))}</small>
-                      <b>{money(Number(edit.price) || 0)}</b>
-                      {edit.description && <small>{edit.description}</small>}
-                    </div>
-                  </div>
-                )}
+                </div>
                 <ul>
                   <li>
                     <Package size={17} aria-hidden="true" />
@@ -329,18 +302,18 @@ export function ResourceEditor({
                   </li>
                   <li>
                     <Clock3 size={17} aria-hidden="true" />
-                    {isInstax(edit) ? polaroidLayout(edit.selectCount)?.duration ?? "—" : Number(edit.duration) || 0} phút chụp
+                    {Number(edit.duration) || 0} phút chụp
                   </li>
                   <li>
                     <Printer size={17} aria-hidden="true" />
                     {isInstax(edit)
-                      ? `${piecesLabel(edit, INSTAX_SHEETS)} · máy Instax cạnh máy chụp`
+                      ? `${Math.max(INSTAX_SHEETS, Number(edit.prints) || 0)} tấm Instax · máy Instax cạnh máy chụp`
                       : `${includedSheets(edit)} tờ in 10 × 15 cm${isStrip(edit) ? ` · cắt đôi = ${piecesLabel(edit, includedSheets(edit))}` : ""}`}
                   </li>
                   <li>
                     <InfinityIcon size={17} aria-hidden="true" />
                     {isInstax(edit)
-                      ? `Chọn ${Number(edit.selectCount) || 1} ảnh · bấm dây không giới hạn · QR nhận ảnh gốc`
+                      ? "Bấm dây không giới hạn · QR: chọn ảnh, bộ khung, ghép & in trên điện thoại"
                       : `${Number(edit.shots) || 0} lần chụp · chọn ${Number(edit.selectCount) || 4} ảnh ghép khung`}
                   </li>
                 </ul>

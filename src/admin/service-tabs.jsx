@@ -2,10 +2,10 @@ import { useState } from "react";
 import { Camera, RectangleHorizontal } from "lucide-react";
 
 // Hai loại hình chụp của tiệm: phòng Photobooth (khổ nhỏ / khổ to, in máy DNP) và phòng Polaroid
-// (layout trên thẻ Instax Wide). Khổ ảnh & bảng giá và Chủ đề tách theo loại để chỉnh riêng từng loại.
+// (như Selfbooth, in thẻ Instax Wide). Khổ ảnh & bảng giá tách theo loại để chỉnh riêng từng loại.
 export const SERVICES = [
   ["photobooth", "Photobooth", "Khổ nhỏ, khổ to · in máy DNP", Camera],
-  ["polaroid", "Polaroid", "Layout Instax Wide · in máy Instax Link WIDE", RectangleHorizontal],
+  ["polaroid", "Polaroid", "Gói theo phút như Selfbooth · in máy Instax Link WIDE", RectangleHorizontal],
 ];
 // Loại hình của khung / gói theo khổ in.
 export const serviceOf = (printSize) => (printSize === "instax" ? "polaroid" : "photobooth");

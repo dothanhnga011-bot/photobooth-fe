@@ -1,28 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { LAYOUT_COUNTS, layoutSlots, polaroidLayout, polaroidPackage } from "../src/polaroid-layouts.js";
+import { layoutSlots, polaroidPackage } from "../src/polaroid-layouts.js";
 
 const inside = (s) => s.x >= 0 && s.y >= 0 && s.x + s.w <= 1 && s.y + s.h <= 1;
 const overlap = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
-test("Polaroid offers unlimited shots with 1 pick in 3 minutes or 2 picks in 5 minutes, preserving prices", () => {
-  for (const count of [1, 2]) {
-    const old = { name: "Custom", printSize: "instax", selectCount: count, duration: 20, shots: 8, prints: 3, price: 125000 };
-    const normalized = polaroidPackage(old);
-    assert.equal(normalized.duration, count === 1 ? 3 : 5);
-    assert.equal(normalized.selectCount, count);
-    assert.equal(normalized.shots, 0);
-    assert.equal(normalized.prints, 1);
-    assert.equal(normalized.price, old.price);
-    assert.equal(old.shots, 8, "does not mutate the input");
-  }
-  assert.equal(polaroidLayout(4), null);
+test("Polaroid packages are timed like Selfbooth: unlimited shots, the package's minutes, prints and price stay", () => {
+  const old = { name: "Chụp đôi", printSize: "instax", selectCount: 2, duration: 12, shots: 8, prints: 2, price: 150000 };
+  const normalized = polaroidPackage(old);
+  assert.deepEqual([normalized.duration, normalized.prints, normalized.price, normalized.shots], [12, 2, 150000, 0]);
+  assert.equal(old.shots, 8, "does not mutate the input");
   const booth = { printSize: "full", selectCount: 4, duration: 15, shots: 12 };
   assert.equal(polaroidPackage(booth), booth);
 });
 
 test("every sample layout has one slot per photo, inside the card, never overlapping", () => {
-  for (const n of LAYOUT_COUNTS) {
+  for (const n of [1, 2, 3, 4, 6]) {
     const slots = layoutSlots(n);
     assert.equal(slots.length, n, `${n} ảnh`);
     assert.ok(slots.every(inside), `${n} ảnh: ô nằm trong thẻ`);

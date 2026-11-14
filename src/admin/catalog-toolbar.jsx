@@ -1,7 +1,8 @@
 import { Package, Plus, Search, X } from "lucide-react";
 import { Button } from "../studio";
 
-// Chữ theo loại hình đang xem: phòng Photobooth bán gói khổ nhỏ / khổ to, phòng Polaroid bán layout.
+// Chữ theo loại hình đang xem: phòng Photobooth bán gói khổ nhỏ / khổ to, phòng Polaroid bán gói tính
+// theo phút như Selfbooth.
 const TEXTS = {
   photobooth: {
     noun: "gói chụp",
@@ -11,15 +12,15 @@ const TEXTS = {
     search: "Tìm tên gói, mô tả…",
   },
   polaroid: {
-    noun: "layout",
-    title: "Layout phòng Polaroid",
-    note: "Mỗi layout đang bán là một thẻ ở màn “Chọn layout”: số ảnh trên thẻ Instax Wide, giá, số lần chụp tối đa.",
-    add: "Thêm layout",
-    search: "Tìm tên layout, mô tả…",
+    noun: "gói Polaroid",
+    title: "Gói chụp phòng Polaroid · Selfbooth",
+    note: "Như Selfbooth: mỗi gói có giá, số phút chụp (bấm dây không giới hạn) và số tấm Instax Wide. Nhân viên chọn gói khi tạo mã chụp ở quầy.",
+    add: "Thêm gói Polaroid",
+    search: "Tìm tên gói, mô tả…",
   },
 };
 
-// actions: nút thêm của từng loại (vd. "Tạo 6 layout mẫu" ở tab Polaroid).
+// actions: nút thêm của từng loại (vd. "Tạo 2 khung thử" ở tab Polaroid).
 export function CatalogToolbar({
   service = "photobooth",
   items,

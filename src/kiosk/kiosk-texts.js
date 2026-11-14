@@ -25,10 +25,9 @@ export const KIOSK_TEXT_GROUPS = [
     ["pay.title", "Tiêu đề màn đút tiền", "Đút tiền để bắt đầu chụp"],
   ]],
   ["Phòng Polaroid", [
-    // Như Selfbooth: khách trả tiền ở quầy, nhân viên đưa mã (layout đã có trong mã), nhập mã là vào chụp.
+    // Như Selfbooth: khách trả tiền ở quầy, nhân viên đưa mã (gói đã có trong mã), nhập mã là vào chụp.
     ["polaroid.codeTitle", "Tiêu đề nhập mã", "Nhập mã chụp"],
-    ["polaroid.codeSubtitle", "Dòng dưới tiêu đề nhập mã", "Mã 6 số nhân viên đưa khi bạn thanh toán ở quầy. Layout và thời gian chụp đã có sẵn trong mã."],
-    ["layout.photos", "Số ảnh của layout ({n} = số ảnh)", "{n} ảnh"],
+    ["polaroid.codeSubtitle", "Dòng dưới tiêu đề nhập mã", "Mã 6 số nhân viên đưa khi bạn thanh toán ở quầy. Gói và thời gian chụp đã có sẵn trong mã."],
     ["done.polaroidTitle", "Tiêu đề màn QR", "Quét QR để tải toàn bộ ảnh gốc."],
     ["done.studioTitle", "Tiêu đề màn QR (chọn ảnh trên điện thoại)", "Quét mã QR để chọn ảnh, làm đẹp và in nhé!"],
   ]],
@@ -37,7 +36,7 @@ export const KIOSK_TEXT_DEFAULTS = Object.fromEntries(
   KIOSK_TEXT_GROUPS.flatMap(([, rows]) => rows.map(([key, , text]) => [key, text])),
 );
 
-// Chữ đã điền số: kioskText(texts, "layout.photos", { n: 4 }) → "4 ảnh".
+// Chữ đã điền số: kioskText(texts, "select.title", { s: 90 }) → "Bạn có 90s để chọn ảnh & trang trí".
 export const kioskText = (custom = {}, key, vars = {}) =>
   String(custom?.[key] || KIOSK_TEXT_DEFAULTS[key] || key).replace(/\{(\w+)\}/g, (match, name) =>
     vars[name] === undefined ? match : String(vars[name]));

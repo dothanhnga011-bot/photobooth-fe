@@ -5,19 +5,12 @@ export const WIDE_FRAME = { w: 1800, h: 1200 };
 const MARGIN_X = 42;
 const MARGIN_Y = 70;
 const GAP = 22;
-// Layout mẫu: 1, 2, 3 ảnh xếp ngang; 4 ảnh 2 × 2; 5 ảnh = 2 ảnh to bên trái + 3 ảnh bé bên phải;
-// 6 ảnh 3 × 2.
-// Hai gói Polaroid: ảnh nhỏ chọn 1 ảnh trong 3 phút; ảnh to chọn 2 ảnh trong 5 phút.
-export const LAYOUT_COUNTS = [1, 2];
-const POLAROID_LAYOUTS = {
-  1: { label: "Ảnh nhỏ", selectCount: 1, duration: 3 },
-  2: { label: "Ảnh to", selectCount: 2, duration: 5 },
-};
-export const polaroidLayout = (count) => POLAROID_LAYOUTS[Number(count)] || null;
-// Apply the current offer to legacy packages without rewriting paid bookings or prices.
+// Layout mẫu (khung thử): 1, 2, 3 ảnh xếp ngang; 4 ảnh 2 × 2; 5 ảnh = 2 ảnh to bên trái + 3 ảnh bé bên
+// phải; 6 ảnh 3 × 2.
+// Gói Polaroid (khổ Instax) tính theo thời gian như Selfbooth (14/11 chủ tiệm bỏ 2 layout 1 ảnh / 2 ảnh):
+// giá, số phút chụp, số tấm Instax; bấm dây không giới hạn. Máy chủ kiểm tra lại (ít nhất 1 tấm).
 export function polaroidPackage(pack) {
-  const layout = pack?.printSize === "instax" && polaroidLayout(pack.selectCount);
-  return layout ? { ...pack, duration: layout.duration, shots: 0, prints: 1 } : pack;
+  return pack?.printSize === "instax" ? { ...pack, shots: 0 } : pack;
 }
 
 function grid(cols, rows, box) {

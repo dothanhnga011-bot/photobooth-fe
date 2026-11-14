@@ -37,9 +37,12 @@ export const priceVND = custom(
   "Giá tối thiểu 1.000 đ (để 0 nếu miễn phí) — kiểm tra có gõ thiếu số 0 không.",
 );
 
-// Layout Polaroid (khổ Instax) không có ô số tấm in: luôn in 1 tấm.
+// Gói Polaroid (khổ Instax) không có số lần chụp / số ảnh chọn (chụp không giới hạn, chọn trên điện thoại);
+// số tấm Instax có luật riêng (ít nhất 1).
 const exceptLayouts = (rules) =>
   rules.map((rule) => (v, label, all) => (all.printSize === "instax" ? "" : rule(v, label, all)));
+const onlyInstax = (rules) =>
+  rules.map((rule) => (v, label, all) => (all.printSize === "instax" ? rule(v, label, all) : ""));
 
 export const RESOURCE_RULES = {
   rooms: {
@@ -52,12 +55,10 @@ export const RESOURCE_RULES = {
     price: ["Giá", required, intRange(0, 100000000), priceVND],
     duration: ["Thời gian chụp", required, intRange(1, 30)],
     shots: ["Số lần chụp", ...exceptLayouts([required, intRange(1, 40)])],
-    selectCount: ["Số ảnh khách chọn để ghép", required, intRange(1, 12), custom(
-      (v, all) => all.printSize !== "instax" || [1, 2].includes(Number(v)),
-      "Polaroid chỉ chọn 1 ảnh (3 phút) hoặc 2 ảnh (5 phút).",
-    )],
+    selectCount: ["Số ảnh khách chọn để ghép", ...exceptLayouts([required, intRange(1, 12)])],
     prints: [
       "Số tờ in",
+      ...onlyInstax([required, intRange(1, 20)]),
       ...exceptLayouts([
         required,
         intRange(0, 20),
@@ -159,7 +160,7 @@ export const NAV_DESCRIPTIONS = {
 // kết / QR. Đầu ca nhân viên mở máy chụp từng phòng.
 export const ROOM_KINDS = [
   ["photobooth", "Photobooth", "Khách chọn Nhập mã (đã chuyển khoản ở quầy) hoặc Tiền mặt (chọn loại tờ, số lượng rồi đút tiền). Chụp xong chọn ảnh, khung rồi in ở máy DNP."],
-  ["polaroid", "Polaroid", "Ảnh nhỏ: chọn 1 ảnh / 3 phút. Ảnh to: chọn 2 ảnh / 5 phút. Khách bấm dây Canon R100 không giới hạn trong lượt chụp → chọn ảnh & khung. Trả tiền ở quầy, in ở máy Instax Link WIDE (ảnh ngang)."],
+  ["polaroid", "Polaroid", "Như Selfbooth: khách trả tiền ở quầy theo gói (số phút, số tấm), nhập mã rồi bấm dây không giới hạn. Hết giờ quét QR: chọn ảnh, bộ khung, ghép ảnh và gửi in trên điện thoại — in ở máy Instax Link WIDE."],
 ];
 export const ROOM_KIND_NAMES = { photobooth: "Phòng Photobooth", polaroid: "Phòng Polaroid" };
 

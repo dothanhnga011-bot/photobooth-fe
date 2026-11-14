@@ -16,7 +16,6 @@ import {
   Monitor,
   Printer,
   RotateCcw,
-  Sparkles,
   Frame,
   Trash2,
 } from "lucide-react";
@@ -36,8 +35,8 @@ import { CatalogToolbar } from "./catalog-toolbar";
 import { PackageCatalog } from "./package-catalog";
 import { ResourceEditor } from "./resource-editor";
 import { ServiceTabs, serviceOf, useServiceTab } from "./service-tabs";
-import { LAYOUT_COUNTS, polaroidPackage } from "../polaroid-layouts.js";
-import { createSampleLayouts, createTestFrames, SAMPLE_PRICE, TEST_FRAMES } from "./polaroid-presets";
+import { polaroidPackage } from "../polaroid-layouts.js";
+import { createTestFrames, SAMPLE_PRICE, TEST_FRAMES } from "./polaroid-presets";
 import { instaxLow, instaxOk, roomPrinterReady } from "./printer-issues";
 
 const searchable = (value) =>
@@ -208,8 +207,8 @@ export function ResourceManager({ resource, notify, me }) {
     setEdit(resource === "packages" ? polaroidPackage(item) : item);
   };
   const fields = definitions[resource];
-  // Gói mới theo khổ ảnh: khổ nhỏ kèm 1 tờ (cắt đôi = 2 tờ nhỏ), khổ to kèm 2 tờ; layout Polaroid
-  // (khổ Instax) mặc định 1 ảnh / 3 phút, 100.000 đ, chụp không giới hạn, in 1 tấm.
+  // Gói mới theo khổ ảnh: khổ nhỏ kèm 1 tờ (cắt đôi = 2 tờ nhỏ), khổ to kèm 2 tờ; gói Polaroid (khổ
+  // Instax, như "chụp đơn" của Selfbooth) mặc định 7 phút, 100.000 đ, chụp không giới hạn, 1 tấm.
   function newItem(printSize = "full") {
     openEditor(
       Object.fromEntries([
@@ -217,7 +216,7 @@ export function ResourceManager({ resource, notify, me }) {
           key,
           type === "number"
             ? key === "duration"
-              ? printSize === "instax" ? 3 : 15
+              ? printSize === "instax" ? 7 : 15
               : key === "shots"
                 ? printSize === "instax" ? 0 : 12
                 : key === "selectCount"
@@ -277,28 +276,6 @@ export function ResourceManager({ resource, notify, me }) {
       );
     } catch (e) {
       setError(e.message);
-      toast.error(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  // Tab Polaroid: tạo 2 gói 1 ảnh / 3 phút và 2 ảnh / 5 phút kèm khung trắng Instax Wide; layout /
-  // khung đã có cùng số ảnh thì giữ nguyên.
-  async function createSamples() {
-    if (!canManage || busy) return;
-    if (!confirm(`Tạo layout mẫu ${LAYOUT_COUNTS.join(" và ")} ảnh (${SAMPLE_PRICE.toLocaleString("vi-VN")} đ, chụp không giới hạn, in 1 tấm) kèm khung trắng Instax Wide?
-Ảnh nhỏ: chọn 1 ảnh / 3 phút. Ảnh to: chọn 2 ảnh / 5 phút. Layout hoặc khung đã có cùng số ảnh được giữ nguyên. Sửa giá ở từng layout.`)) return;
-    setBusy(true);
-    try {
-      const made = await createSampleLayouts(items);
-      await load();
-      reloadCatalog?.();
-      notify(made.layouts.length || made.frames.length
-        ? `Đã tạo ${made.layouts.length} layout và ${made.frames.length} khung trắng mẫu.`
-        : "Đã có đủ layout và khung cho 1 ảnh và 2 ảnh — không tạo thêm.");
-    } catch (e) {
-      // Có thể đã tạo được một phần: tải lại để thấy đúng danh sách.
-      await load();
       toast.error(e.message);
     } finally {
       setBusy(false);
@@ -436,16 +413,10 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
           onStatusChange={setStatus}
           onCreate={() => newItem(service === "polaroid" ? "instax" : "full")}
           actions={service === "polaroid" && canManage && (
-            <>
-              <Button className="outline" disabled={busy || loading} onClick={createSamples}>
-                <Sparkles size={16} aria-hidden="true" />
-                {busy ? "Đang tạo…" : "Tạo 2 layout mẫu"}
-              </Button>
-              <Button className="outline" disabled={busy || loading} onClick={createTrialFrames}>
-                <Frame size={16} aria-hidden="true" />
-                {busy ? "Đang tạo…" : "Tạo 2 khung thử"}
-              </Button>
-            </>
+            <Button className="outline" disabled={busy || loading} onClick={createTrialFrames}>
+              <Frame size={16} aria-hidden="true" />
+              {busy ? "Đang tạo…" : "Tạo 2 khung thử"}
+            </Button>
           )}
           loading={loading}
         />

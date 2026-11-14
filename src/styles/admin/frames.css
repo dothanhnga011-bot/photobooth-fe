@@ -625,16 +625,94 @@
     font-size: 12px;
     line-height: 1.5;
   }
-  .admin-shell .theme-old {
+  .admin-shell .theme-kind {
     display: inline-block;
     margin-left: 8px;
     padding: 1px 8px;
     border-radius: 999px;
-    background: #f6ecdf;
-    color: #8a5a2b;
+    background: #f1e4ef;
+    color: #7a3f6c;
     font-size: 11px;
     font-style: normal;
     font-weight: 600;
+  }
+  .admin-shell .theme-kind-choice {
+    display: grid;
+    gap: 6px;
+    margin: 4px 0 0;
+    padding: 0;
+    border: 0;
+  }
+  .admin-shell .theme-kind-choice legend {
+    margin-bottom: 4px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  /* ── Khung ảnh → Chép khung từ Selfbooth ── */
+  .admin-shell .selfbooth-import {
+    width: min(920px, calc(100vw - 32px));
+    max-height: calc(100dvh - 48px);
+    overflow: auto;
+  }
+  .admin-shell .selfbooth-import-groups {
+    display: grid;
+    gap: 16px;
+    margin: 12px 0;
+  }
+  .admin-shell .selfbooth-import-groups fieldset {
+    margin: 0;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+  .admin-shell .selfbooth-import-groups legend {
+    padding: 0 6px;
+    font-weight: 700;
+  }
+  .admin-shell .selfbooth-import-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+  }
+  .admin-shell .selfbooth-import-card {
+    position: relative;
+    display: grid;
+    gap: 4px;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+  }
+  .admin-shell .selfbooth-import-card:has(input:checked) {
+    border-color: var(--mellow-cocoa, #522e22);
+    box-shadow: 0 0 0 2px rgba(82, 46, 34, 0.18);
+  }
+  .admin-shell .selfbooth-import-card.is-copied {
+    cursor: default;
+    opacity: 0.6;
+  }
+  .admin-shell .selfbooth-import-card input {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    width: 20px;
+    height: 20px;
+  }
+  .admin-shell .selfbooth-import-card img {
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    object-fit: contain;
+    border-radius: 4px;
+    background: #f5efe8;
+  }
+  .admin-shell .selfbooth-import-card strong {
+    font-size: 13px;
+  }
+  .admin-shell .selfbooth-import-card small {
+    color: var(--muted);
+    font-size: 12px;
   }
 }
 

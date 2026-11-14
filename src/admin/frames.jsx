@@ -5,6 +5,7 @@ import {
   ArrowUp,
   CalendarDays,
   ChevronDown,
+  CloudDownload,
   Copy,
   ImagePlus,
   Pencil,
@@ -21,11 +22,9 @@ import { Button, ErrorBox, useStudio, useToast } from "../studio";
 import { compareFrameOrder } from "../frame-catalog-data";
 import { detectSlots, frameCapacity, isPhotoRegion, printDate } from "../frame-utils";
 import { serviceOf } from "./service-tabs";
-import { LayoutArt } from "../kiosk/KioskPolaroid.jsx";
-import { LAYOUT_COUNTS } from "../polaroid-layouts.js";
-import { layoutRegions, whiteFrame } from "./polaroid-presets";
+import { SelfboothImport } from "./selfbooth-import.jsx";
 
-// Khung phòng Polaroid (khổ Instax) không thuộc chủ đề nào: khách chọn layout rồi chọn khung.
+// Khung phòng Polaroid (khổ Instax) gom theo chủ đề như Selfbooth: khách chọn cả bộ trên điện thoại.
 const isInstaxFrame = (frame) => frame.printSize === "instax";
 
 const PAGE_SIZE = 12;
@@ -59,6 +58,7 @@ export function FramesManager({ notify, initialTheme = "all" }) {
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState(null);
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const load = () =>
@@ -139,6 +139,19 @@ export function FramesManager({ notify, initialTheme = "all" }) {
   return (
     <div className="frames-manager">
       <ErrorBox error={error} />
+      {importing && (
+        <SelfboothImport
+          onClose={() => setImporting(false)}
+          onDone={async ({ created = [], skipped = [] }) => {
+            setImporting(false);
+            await load();
+            reloadCatalog?.();
+            notify(created.length
+              ? `Đã chép ${created.length} khung từ Selfbooth: ${created.join(", ")}.`
+              : `Các khung đã chọn đều đã chép trước đó${skipped.length ? `: ${skipped.join(", ")}` : ""}.`);
+          }}
+        />
+      )}
       <div className="frames-toolbar">
         <label>
           Chủ đề:
@@ -157,6 +170,9 @@ export function FramesManager({ notify, initialTheme = "all" }) {
             <option value="instax">Size Instax</option>
           </select>
         </label>
+        <Button className="outline" onClick={() => setImporting(true)}>
+          <CloudDownload size={16} aria-hidden="true" /> Chép khung từ Selfbooth
+        </Button>
         <div className="frames-add">
           <Button onClick={() => setAdding(!adding)} aria-expanded={adding}>
             <Plus size={16} aria-hidden="true" /> Thêm mới frame <ChevronDown size={15} aria-hidden="true" />
@@ -166,8 +182,7 @@ export function FramesManager({ notify, initialTheme = "all" }) {
               {Object.entries(SIZES).map(([key, label]) => (
                 <button key={key} type="button" role="menuitem" onClick={() => {
                   setAdding(false);
-                  setEditing(newFrame(key, key === "instax" ? ""
-                    : theme !== "all" && theme !== "none" && (themeKinds[theme] || "photobooth") === serviceOf(key)
+                  setEditing(newFrame(key, theme !== "all" && theme !== "none" && (themeKinds[theme] || "photobooth") === serviceOf(key)
                       ? theme
                       : themes.find((name) => (themeKinds[name] || "photobooth") === serviceOf(key)) || "", frames || []));
                 }}>
@@ -196,7 +211,7 @@ export function FramesManager({ notify, initialTheme = "all" }) {
             </button>
             <dl>
               <div><dt>Kích thước</dt><dd>{SIZES[frame.printSize || "full"]}</dd></div>
-              <div><dt>Chủ đề</dt><dd>{isInstaxFrame(frame) ? "Phòng Polaroid" : frame.themeName?.trim() || "Khung lẻ"}</dd></div>
+              <div><dt>Chủ đề</dt><dd>{frame.themeName?.trim() || "Khung lẻ"}</dd></div>
               <div><dt>Ảnh ghép</dt><dd>{frameCapacity(frame)} ảnh</dd></div>
             </dl>
             <div className="frames-card-actions">
@@ -374,15 +389,6 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
   const imageSrc = frame.image?.startsWith("data:") ? frame.image : assetUrl(frame.image);
   const instax = isInstaxFrame(frame);
   const sameKind = themes.filter((name) => (themeKinds[name] || "photobooth") === serviceOf(frame.printSize));
-  // Khung Polaroid: chọn layout là ô ảnh đặt sẵn đúng vị trí (giữ QR / ngày in nếu có); chưa có ảnh khung
-  // thì dùng luôn khung trắng mẫu (đổi sang PNG của tiệm bằng "Đổi ảnh khung").
-  const applyLayout = (count) => {
-    set({
-      slots: [...layoutRegions(count), ...slots.filter((s) => !isPhotoRegion(s))],
-      ...(!frame.image && { image: whiteFrame(count), sheet: false }),
-    });
-    setSelected(-1);
-  };
   const themeOptions = [...new Set([...sameKind, frame.themeName].filter((name) => name && name !== "__new"))];
 
   async function pickFile(file) {
@@ -461,7 +467,7 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
   }, [selected, slots]);
 
   async function save() {
-    const themeName = instax ? "" : (frame.themeName === "__new" ? newTheme : frame.themeName || "").trim();
+    const themeName = (frame.themeName === "__new" ? newTheme : frame.themeName || "").trim();
     if (frame.themeName === "__new" && !themeName) return toast.error("Vui lòng nhập tên chủ đề mới.");
     if (!frame.image) return toast.error("Vui lòng tải ảnh khung lên.");
     if (!capacity) return toast.error("Khung cần ít nhất 1 vùng ảnh — bấm “Thêm vùng ảnh”.");
@@ -469,9 +475,8 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
     const mismatch = await frameRatioError(imageSrc, frame.printSize).catch(() => "");
     if (mismatch) return toast.error(mismatch);
     const count = frames.filter((f) => (f.themeName?.trim() || "") === themeName && f.printSize === frame.printSize).length;
-    const name = frame.name.trim() || (instax
-      ? `Khung ${capacity} ảnh · ${String(count + (frame._id ? 0 : 1)).padStart(2, "0")}`
-      : `${themeName || "Khung"} · ${SIZES[frame.printSize]} ${String(count + (frame._id ? 0 : 1)).padStart(2, "0")}`);
+    const name = frame.name.trim() ||
+      `${themeName || "Khung"} · ${SIZES[frame.printSize]} ${String(count + (frame._id ? 0 : 1)).padStart(2, "0")}`;
     setBusy(true);
     setError("");
     try {
@@ -500,7 +505,6 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
       <ErrorBox error={error} />
       <div className="frame-editor-layout">
         <aside className="frame-editor-form">
-          {!instax && (
           <label>
             <span>* Chủ đề</span>
             <select value={frame.themeName || ""} onChange={(e) => set({ themeName: e.target.value })}>
@@ -508,32 +512,17 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
               {themeOptions.map((name) => <option key={name} value={name}>{name}</option>)}
               <option value="__new">+ Chủ đề mới…</option>
             </select>
+            {instax && <small>Phòng Polaroid (Selfbooth): khách chọn cả bộ khung cùng chủ đề trên điện thoại.</small>}
           </label>
-          )}
-          {!instax && frame.themeName === "__new" && (
+          {frame.themeName === "__new" && (
             <label>
               <span>Tên chủ đề mới</span>
               <input autoFocus maxLength={100} value={newTheme} onChange={(e) => setNewTheme(e.target.value)} />
             </label>
           )}
-          {instax && (
-            <div className="frame-polaroid-layout">
-              <span>* Layout Polaroid</span>
-              <div className="layout-picker" role="radiogroup" aria-label="Layout Polaroid">
-                {LAYOUT_COUNTS.map((n) => (
-                  <label key={n} className={`layout-pick${capacity === n ? " is-selected" : ""}`}>
-                    <input type="radio" name="frame-layout" value={n} checked={capacity === n} onChange={() => applyLayout(n)} />
-                    <LayoutArt count={n} />
-                    {n === 1 ? "1 ảnh to" : `${n} ảnh dọc chia đôi`}
-                  </label>
-                ))}
-              </div>
-              <small>Ô ảnh đặt sẵn theo layout. Chưa tải khung thì dùng khung trắng mẫu; muốn khung riêng thì thiết kế trên Canva (1800 × 1200, ô ảnh trong suốt) rồi bấm “Đổi ảnh khung”.</small>
-            </div>
-          )}
           <label>
             <span>Tên khung</span>
-            <input maxLength={200} placeholder={instax ? "Để trống: tự đặt theo layout" : "Để trống: tự đặt theo chủ đề"} value={frame.name} onChange={(e) => set({ name: e.target.value })} />
+            <input maxLength={200} placeholder="Để trống: tự đặt theo chủ đề" value={frame.name} onChange={(e) => set({ name: e.target.value })} />
           </label>
           <label>
             <span>Kích thước</span>
@@ -627,7 +616,8 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
                     <div
                       key={index}
                       className={`frame-region kind-${region.kind || "photo"} ${selected === index ? "selected" : ""} ${isPhotoRegion(region) && slots.findIndex((s) => isPhotoRegion(s) && s.photo === region.photo) !== index ? "is-copy" : ""}`}
-                      style={{ left: `${region.x * 100}%`, top: `${region.y * 100}%`, width: `${region.w * 100}%`, height: `${region.h * 100}%` }}
+                      style={{ left: `${region.x * 100}%`, top: `${region.y * 100}%`, width: `${region.w * 100}%`, height: `${region.h * 100}%`,
+                        ...(region.angle ? { transform: `rotate(${region.angle}deg)` } : {}) }}
                       onPointerDown={(event) => begin(event, index, "move")}
                       onPointerMove={moveTo}
                       onPointerUp={end}

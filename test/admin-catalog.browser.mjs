@@ -248,6 +248,17 @@ before(async () => {
         send(data.themes, 201);
         return;
       }
+      // Khung ảnh → Chép khung từ Selfbooth: danh sách khung của web Selfbooth và lệnh chép.
+      if (path === "/api/admin/selfbooth-frames" && entry.method === "GET") {
+        send({ source: "https://selfbooth.example", frames: data.selfbooth || [] });
+        return;
+      }
+      if (path === "/api/admin/selfbooth-frames" && entry.method === "POST") {
+        const chosen = (data.selfbooth || []).filter((f) => entry.body.ids.includes(f.id));
+        chosen.forEach((f) => { f.copied = true; });
+        send({ created: chosen.map((f) => f.name), skipped: [] }, 201);
+        return;
+      }
       const move = path.match(/^\/api\/admin\/frames\/([^/]+)\/move$/);
       if (move && entry.method === "POST") {
         const frame = data.frames.find((item) => item._id === move[1]);
@@ -567,99 +578,94 @@ test("Polaroid trial frames: two Mellow Instax Wide frames (1 and 2 photos, prin
   assert.deepEqual(pageErrors, []);
 });
 
-test("Polaroid sample packages offer 1 pick in 3 minutes or 2 picks in 5 minutes without a shot limit", async () => {
+test("Polaroid packages are timed like Selfbooth: minutes and Instax sheets, unlimited shots, no layouts", async () => {
   await mount("packages");
   await page.getByRole("tab", { name: /Polaroid/ }).click();
-  const layouts = page.getByRole("region", { name: "Layout Polaroid" });
-  assert.match(await layouts.innerText(), /Chưa có layout Polaroid/);
+  const group = page.getByRole("region", { name: "Gói Polaroid · Selfbooth" });
+  assert.match(await group.innerText(), /Chưa có gói Polaroid/);
   assert.equal(await page.getByRole("region", { name: "Khổ to" }).count(), 0);
   assert.match(await page.locator(".extra-price-panel").innerText(), /mỗi tấm Instax Wide/i);
-  page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Tạo 2 layout mẫu" }).click();
-  await layouts.locator(".package-card").nth(1).waitFor();
-  const made = mutations();
-  // Không còn chủ đề cho phòng Polaroid: chỉ khung và layout.
-  assert.deepEqual(made.map((m) => `${m.method} ${m.path}`), [
-    ...Array(2).fill("POST /api/admin/frames"),
-    ...Array(2).fill("POST /api/admin/packages"),
-  ]);
-  const frames = made.slice(0, 2).map((m) => m.body);
-  assert.deepEqual(frames.map((f) => [f.printSize, f.themeName, f.slots.length, f.slots.at(-1).photo]),
-    [["instax", "", 1, 1], ["instax", "", 2, 2]]);
-  // 2 ảnh dọc chia đôi: hai ô đứng cạnh nhau, mỗi ô cao hơn rộng.
-  const [left, right] = frames[1].slots;
-  assert.ok(left.x < right.x && Math.abs(left.y - right.y) < 0.001);
-  assert.ok(left.h * 1200 > left.w * 1800, "each half is a portrait photo on the 1800 × 1200 card");
-  assert.ok(frames.every((f) => f.image.startsWith("data:image/png;base64,")));
-  // Khung trắng là thẻ Instax Wide nằm ngang 1800 × 1200.
-  const size = await page.evaluate((src) => new Promise((resolve) => {
-    const image = new Image();
-    image.onload = () => resolve([image.naturalWidth, image.naturalHeight]);
-    image.src = src;
-  }), frames[1].image);
-  assert.deepEqual(size, [1800, 1200]);
-  const packs = made.slice(2).map((m) => m.body);
-  assert.deepEqual(packs.map((p) => [p.printSize, p.selectCount, p.duration, p.price, p.prints, p.shots]),
-    [["instax", 1, 3, 100000, 1, 0], ["instax", 2, 5, 100000, 1, 0]]);
-  assert.match(await layouts.locator(".package-card").nth(1).innerText(), /bấm dây không giới hạn/);
-  assert.deepEqual(await notifications(), ["Đã tạo 2 layout và 2 khung trắng mẫu."]);
-  await mkdir(screenshotDirectory, { recursive: true });
-  await page.screenshot({ path: join(screenshotDirectory, "packages-polaroid.png"), fullPage: true });
-  // Bấm lại: đã đủ layout và khung, không tạo thêm.
-  requests = [];
-  page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Tạo 2 layout mẫu" }).click();
-  await page.waitForFunction(() => window.notifications.length === 2);
-  assert.deepEqual(mutations(), []);
-  // Layout mới: chỉ hai gói, không có ô giới hạn ảnh hay thời lượng tùy ý.
-  await page.getByRole("button", { name: "Thêm layout" }).first().click();
+  // 2 layout cũ (1 ảnh · 3 phút, 2 ảnh · 5 phút) đã bỏ.
+  assert.equal(await page.getByRole("button", { name: "Tạo 2 layout mẫu" }).count(), 0);
+  await group.getByRole("button", { name: "Thêm gói Polaroid" }).click();
   const dialog = page.getByRole("dialog");
   assert.equal(await dialog.locator('select[name="printSize"]').count(), 0);
-  assert.equal(await dialog.locator('input[name="prints"]').count(), 0);
   assert.equal(await dialog.locator('input[name="shots"]').count(), 0);
-  assert.equal(await dialog.locator('input[name="duration"]').count(), 0);
-  assert.match(await dialog.locator('.resource-field-duration').innerText(), /3 phút/);
-  assert.equal(await dialog.locator('input[name="countdownSeconds"]').count(), 0);
+  assert.equal(await dialog.locator('input[name="selectCount"]').count(), 0);
+  assert.equal(await dialog.getByRole("radio").count(), 0, "no layout picker");
+  assert.equal(await dialog.locator('input[name="duration"]').inputValue(), "7");
+  assert.equal(await dialog.locator('input[name="prints"]').inputValue(), "1");
   assert.equal(await dialog.locator('input[name="price"]').inputValue(), "100000");
-  assert.deepEqual(await dialog.getByRole("radio").evaluateAll((radios) => radios
-    .filter((r) => r.name === "selectCount").map((r) => r.value)), ["1", "2"]);
-  await dialog.getByRole("radio", { name: /Ảnh to · chọn 2 ảnh · 5 phút/ }).check({ force: true });
-  assert.match(await dialog.locator('.resource-field-duration').innerText(), /5 phút/);
-  assert.equal(await dialog.locator(".kiosk-layout-preview .layout-art i").count(), 2);
-  assert.match(await dialog.locator(".kiosk-layout-preview").innerText(), /Bấm dây không giới hạn/i);
+  await dialog.locator('input[name="name"]').fill("Chụp đôi");
+  await dialog.locator('input[name="duration"]').fill("12");
+  // Ít nhất 1 tấm Instax: 0 tấm không gửi lên máy chủ.
+  await dialog.locator('input[name="prints"]').fill("0");
+  await dialog.getByRole("button", { name: "Lưu thay đổi", exact: true }).click();
+  await dialog.locator('[aria-invalid="true"][name="prints"]').waitFor();
+  assert.deepEqual(mutations(), []);
+  await dialog.locator('input[name="prints"]').fill("2");
+  assert.match(await dialog.locator(".kiosk-size-preview").innerText(), /12 phút · kèm 2 tấm Instax/);
+  assert.match(await dialog.locator(".catalog-editor-preview").innerText(), /Bấm dây không giới hạn/);
+  await mkdir(screenshotDirectory, { recursive: true });
   await page.screenshot({ path: join(screenshotDirectory, "packages-polaroid-editor.png") });
-  await dialog.locator('input[name="name"]').fill("Layout thử");
   await dialog.getByRole("button", { name: "Lưu thay đổi", exact: true }).click();
   await dialog.waitFor({ state: "hidden" });
   assert.deepEqual(
-    mutations().map((m) => [m.method, m.body.printSize, m.body.selectCount, m.body.duration, m.body.prints, m.body.shots]),
-    [["POST", "instax", 2, 5, 1, 0]],
+    mutations().map((m) => [m.method, m.body.printSize, m.body.duration, m.body.prints, m.body.shots, m.body.price]),
+    [["POST", "instax", 12, 2, 0, 100000]],
   );
+  const card = group.locator(".package-card").filter({ hasText: "Chụp đôi" });
+  assert.match(await card.innerText(), /12\s*phút/);
+  assert.match(await card.innerText(), /2\s*tấm/);
+  await page.screenshot({ path: join(screenshotDirectory, "packages-polaroid.png"), fullPage: true });
   // Tab Photobooth vẫn chỉ có gói 10 × 15.
   await page.getByRole("tab", { name: /Photobooth/ }).click();
   await expectCount("packages", 3);
   assertClean();
 });
 
-test("a Polaroid frame needs no theme: pick 1 big photo or 2 side by side and the white frame is ready", async () => {
-  await mount("frames");
+test("an Instax frame joins a Polaroid (Selfbooth) theme like any frame; no layout picker", async () => {
+  await mount("frames", {
+    themes: [
+      ...structuredClone(themeFixtures),
+      { name: "Kawaii", kind: "polaroid", active: true, frames: 0, activeFrames: 0, slots: 0, sizes: [], previews: [] },
+    ],
+  });
   await page.getByRole("button", { name: /Thêm mới frame/ }).click();
   await page.getByRole("menuitem", { name: /Size Instax/ }).click();
-  // Không có ô chủ đề / số lần chụp cho khung Polaroid.
-  assert.equal(await page.getByText("* Chủ đề").count(), 0);
-  assert.equal(await page.getByText("* Số lượng ảnh được chụp").count(), 0);
-  const layout = page.getByRole("radiogroup", { name: "Layout Polaroid" });
-  assert.deepEqual(await layout.getByRole("radio").evaluateAll((radios) => radios.map((r) => r.value)), ["1", "2"]);
-  await layout.getByText("2 ảnh dọc chia đôi").click();
-  await page.locator(".frame-board img").waitFor();
-  assert.equal(await page.locator(".frame-region.kind-photo").count(), 2);
-  await page.getByRole("button", { name: "Hoàn thành" }).click();
+  assert.equal(await page.getByRole("radiogroup", { name: "Layout Polaroid" }).count(), 0);
+  const theme = page.getByLabel("* Chủ đề");
+  // Chỉ chủ đề của phòng Polaroid; chủ đề Photobooth (Hoa, Mùa hè) không gán được cho khung Instax.
+  assert.deepEqual(await theme.locator("option").allTextContents(), ["Khung lẻ (không chủ đề)", "Kawaii", "+ Chủ đề mới…"]);
+  assert.equal(await theme.inputValue(), "Kawaii");
+  await page.getByText(/khách chọn cả bộ khung cùng chủ đề trên điện thoại/).waitFor();
+  assertClean();
+});
+
+test("Khung ảnh copies frames from the Selfbooth site: pick by theme, already copied ones stay off", async () => {
+  await mount("frames", { selfbooth: [
+    { id: "sb-1", name: "khung 1", themeName: "khung 1", printSize: "full", slots: 18, angled: true, preview: frameImage("#e9d7c4", "1"), copied: false },
+    { id: "sb-2", name: "khung 1 II", themeName: "khung 1", printSize: "full", slots: 20, angled: false, preview: frameImage("#d9c1ab", "2"), copied: false },
+    { id: "sb-3", name: "khung 3", themeName: "khung 3", printSize: "full", slots: 21, angled: true, preview: frameImage("#f0d9d9", "3"), copied: true },
+  ] });
+  await page.getByRole("button", { name: "Chép khung từ Selfbooth" }).click();
+  const dialog = page.getByRole("dialog", { name: "Chép khung từ Selfbooth" });
+  await dialog.getByText("khung 1 II").waitFor();
+  assert.deepEqual(await dialog.locator("legend").allTextContents(), ["khung 1", "khung 3"]);
+  assert.match(await dialog.innerText(), /18 ô ảnh · có ô nghiêng/);
+  const copied = dialog.getByLabel("Chép khung khung 3");
+  assert.equal(await copied.isDisabled(), true, "a frame copied before cannot be copied again");
+  // Mặc định chọn sẵn mọi khung chưa chép; bỏ chọn một khung.
+  await dialog.getByLabel("Chép khung khung 1 II").uncheck();
+  await mkdir(screenshotDirectory, { recursive: true });
+  await page.screenshot({ path: join(screenshotDirectory, "frames-selfbooth-import.png") });
+  await dialog.getByRole("button", { name: "Chép 1 khung" }).click();
+  await dialog.waitFor({ state: "hidden" });
+  assert.deepEqual(mutations().map((m) => [m.method, m.path, m.body]), [
+    ["POST", "/api/admin/selfbooth-frames", { ids: ["sb-1"] }],
+  ]);
   await page.waitForFunction(() => window.notifications.length === 1);
-  const saved = mutations().at(-1);
-  assert.equal(saved.method, "POST");
-  assert.deepEqual([saved.body.printSize, saved.body.themeName, saved.body.slots.length], ["instax", "", 2]);
-  assert.match(saved.body.name, /^Khung 2 ảnh/);
-  assert.ok(saved.body.image.startsWith("data:image/png;base64,"));
+  assert.deepEqual(await notifications(), ["Đã chép 1 khung từ Selfbooth: khung 1."]);
   assertClean();
 });
 
@@ -1023,22 +1029,29 @@ test("catalogs and editors fit desktop and mobile widths with review screenshots
   console.log(`Catalog review screenshots: ${screenshotDirectory}`);
 });
 
-test("themes are for the Photobooth room only; an old Polaroid theme is labelled so it can be removed", async () => {
+test("themes serve both rooms: a Polaroid (Selfbooth) theme is labelled and a new theme picks its room", async () => {
   await mount("themes", {
     themes: [
       ...structuredClone(themeFixtures),
-      { name: "Layout trắng", kind: "polaroid", active: true, frames: 0, activeFrames: 0, slots: 0, sizes: [], previews: [] },
+      { name: "Kawaii", kind: "polaroid", active: true, frames: 0, activeFrames: 0, slots: 0, sizes: [], previews: [] },
     ],
   });
   // Không còn tab Photobooth / Polaroid.
   assert.equal(await page.getByRole("tab").count(), 0);
-  await page.getByRole("heading", { name: "Chủ đề phòng Photobooth" }).waitFor();
-  await page.locator(".themes-table tbody tr", { hasText: "Layout trắng" }).getByText("Polaroid cũ · không còn dùng").waitFor();
+  await page.getByRole("heading", { name: "Chủ đề khung ảnh" }).waitFor();
+  await page.locator(".themes-table tbody tr", { hasText: "Kawaii" }).getByText("Phòng Polaroid · Selfbooth").waitFor();
+  assert.equal(await page.getByText("Polaroid cũ · không còn dùng").count(), 0);
   await page.getByRole("button", { name: "Thêm mới chủ đề" }).click();
   await page.getByLabel("Tên chủ đề").fill("Giáng sinh");
   await page.getByRole("button", { name: "Lưu" }).click();
   await page.locator(".themes-table tbody tr", { hasText: "Giáng sinh" }).waitFor();
   assert.deepEqual(mutations().at(-1).body, { name: "Giáng sinh", kind: "photobooth" });
+  await page.getByRole("button", { name: "Thêm mới chủ đề" }).click();
+  await page.getByLabel("Tên chủ đề").fill("Selfbooth Tết");
+  await page.getByLabel(/Polaroid · Selfbooth — khung Instax/).check();
+  await page.getByRole("button", { name: "Lưu" }).click();
+  await page.locator(".themes-table tbody tr", { hasText: "Selfbooth Tết" }).waitFor();
+  assert.deepEqual(mutations().at(-1).body, { name: "Selfbooth Tết", kind: "polaroid" });
   assert.deepEqual(unexpected, []);
   assert.deepEqual(pageErrors, []);
 });

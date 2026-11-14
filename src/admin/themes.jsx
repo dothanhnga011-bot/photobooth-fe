@@ -9,8 +9,11 @@ const SIZES = { full: "10 × 15 cm", strip: "5 × 15 cm", instax: "Instax Wide" 
 const searchable = (value) =>
   String(value || "").normalize("NFD").replace(/\p{Diacritic}/gu, "").replace(/đ/gi, "d").toLowerCase();
 
-function NameDialog({ title, initial = "", busy, onClose, onSave }) {
+// askKind: thêm chủ đề mới thì chọn phòng dùng chủ đề (Photobooth: khung 10 × 15; Polaroid · Selfbooth:
+// khung Instax). Đổi tên thì giữ loại.
+function NameDialog({ title, initial = "", busy, onClose, onSave, askKind = false }) {
   const [name, setName] = useState(initial);
+  const [kind, setKind] = useState("photobooth");
   return (
     <div className="modal-backdrop">
       <section className="modal theme-name-dialog" role="dialog" aria-modal="true" aria-label={title}>
@@ -21,7 +24,7 @@ function NameDialog({ title, initial = "", busy, onClose, onSave }) {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            onSave(name.trim());
+            onSave(name.trim(), kind);
           }}
         >
           <label>
@@ -29,6 +32,19 @@ function NameDialog({ title, initial = "", busy, onClose, onSave }) {
             <input autoFocus maxLength={100} value={name} placeholder="VD: Kawaii, Limited, Giáng sinh…"
               onChange={(e) => setName(e.target.value)} />
           </label>
+          {askKind && (
+            <fieldset className="theme-kind-choice">
+              <legend>Dùng cho phòng</legend>
+              <label className="checkbox">
+                <input type="radio" name="theme-kind" checked={kind === "photobooth"} onChange={() => setKind("photobooth")} />
+                Photobooth — khung 10 × 15 (máy DNP)
+              </label>
+              <label className="checkbox">
+                <input type="radio" name="theme-kind" checked={kind === "polaroid"} onChange={() => setKind("polaroid")} />
+                Polaroid · Selfbooth — khung Instax (khách chọn bộ khung trên điện thoại)
+              </label>
+            </fieldset>
+          )}
 
           <div className="resource-editor-footer">
             <span />
@@ -43,9 +59,8 @@ function NameDialog({ title, initial = "", busy, onClose, onSave }) {
   );
 }
 
-// Thiết lập → Chủ đề (như Snapbox /setting/theme): mỗi chủ đề là một bộ khung 10 × 15 của phòng
-// Photobooth. Phòng Polaroid không dùng chủ đề: khung Instax thêm thẳng ở Khung ảnh (chọn layout). Chủ
-// đề Polaroid tạo trước đây vẫn hiện (có nhãn) để tiệm xoá.
+// Thiết lập → Chủ đề (như Snapbox /setting/theme): mỗi chủ đề là một bộ khung. Phòng Photobooth: khung
+// 10 × 15; phòng Polaroid (Selfbooth, từ 14/11): khung Instax — khách chọn cả bộ trên điện thoại.
 export function ThemesManager({ notify, onOpenFrames }) {
   const toast = useToast();
   const { reload } = useStudio();
@@ -97,12 +112,12 @@ export function ThemesManager({ notify, onOpenFrames }) {
     if (!window.confirm(`Bạn có muốn xoá chủ đề “${theme.name}”? ${theme.frames ? `${theme.frames} khung trong chủ đề sẽ thành khung lẻ (không bị xoá).` : ""}`)) return;
     run(() => api(`/admin/themes/${encodeURIComponent(theme.name)}`, { method: "DELETE" }), `Đã xoá chủ đề “${theme.name}”.`);
   };
-  async function saveName(name) {
+  async function saveName(name, kind = "photobooth") {
     if (!name) return;
     const ok = dialog.theme
       ? await run(() => api("/admin/themes", { method: "PUT", body: { name: dialog.theme.name, newName: name } }),
         `Đã đổi tên chủ đề thành “${name}”.`)
-      : await run(() => api("/admin/themes", { method: "POST", body: { name, kind: "photobooth" } }),
+      : await run(() => api("/admin/themes", { method: "POST", body: { name, kind } }),
         `Đã thêm chủ đề “${name}”.`);
     if (ok) setDialog(null);
   }
@@ -114,10 +129,10 @@ export function ThemesManager({ notify, onOpenFrames }) {
         <div className="catalog-intro">
           <span className="catalog-intro-icon"><Layers size={24} aria-hidden="true" /></span>
           <div className="catalog-intro-copy">
-            <h3>Chủ đề phòng Photobooth</h3>
+            <h3>Chủ đề khung ảnh</h3>
             <p>
-              Khung cùng chủ đề được ghép thành một bộ. Thêm khung vào chủ đề ở mục Khung ảnh (khung size lớn /
-              size nhỏ 10 × 15). Phòng Polaroid không dùng chủ đề: thêm khung Instax thẳng ở mục Khung ảnh.
+              Khung cùng chủ đề được ghép thành một bộ. Phòng Photobooth dùng khung 10 × 15; phòng Polaroid (Selfbooth)
+              dùng khung Instax — khách chọn cả bộ trên điện thoại. Thêm khung vào chủ đề ở mục Khung ảnh.
             </p>
           </div>
           <div className="inline-actions">
@@ -178,7 +193,7 @@ export function ThemesManager({ notify, onOpenFrames }) {
                       <div>
                         <strong>
                           {theme.name}
-                          {kindOf(theme) === "polaroid" && <em className="theme-old">Polaroid cũ · không còn dùng</em>}
+                          {kindOf(theme) === "polaroid" && <em className="theme-kind">Phòng Polaroid · Selfbooth</em>}
                         </strong>
                         <small>Thứ tự: {index + 1} · bấm để sửa khung</small>
                       </div>
@@ -230,6 +245,7 @@ export function ThemesManager({ notify, onOpenFrames }) {
         <NameDialog
           title={dialog.theme ? `Đổi tên chủ đề “${dialog.theme.name}”` : "Thêm mới chủ đề"}
           initial={dialog.theme?.name}
+          askKind={!dialog.theme}
           busy={busy}
           onClose={() => setDialog(null)}
           onSave={saveName}

@@ -8,17 +8,16 @@ import {
   Printer,
 } from "lucide-react";
 import { money } from "../api";
-import { LayoutArt } from "../kiosk/KioskPolaroid.jsx";
 import { includedSheets, INSTAX_SHEETS, isInstax, isStrip, piecesLabel, printSizeOf } from "../kiosk/print-count.js";
 import { polaroidPackage } from "../polaroid-layouts.js";
 
-// Khổ ảnh khách thấy ở màn “Chọn khổ ảnh” (phòng Photobooth) / “Chọn layout” (phòng Polaroid) của
-// máy chụp; mỗi gói đang bật là một thẻ.
+// Khổ ảnh khách thấy ở màn “Chọn khổ ảnh” (phòng Photobooth) của máy chụp; gói Polaroid bán ở quầy
+// (nhân viên tạo mã chụp). Mỗi gói đang bật là một thẻ.
 // [khổ, tên nhóm, tên ngắn trong nút / lời nhắn, mô tả]
 const SIZE_GROUPS = [
   ["strip", "Khổ nhỏ", "gói khổ nhỏ", "1 tờ 10 × 15 cm cắt đôi thành 2 tờ nhỏ (5 × 15 cm) · khách in tối thiểu 2 tờ nhỏ"],
   ["full", "Khổ to", "gói khổ to", "Ảnh 10 × 15 cm nguyên tờ · khách in tối thiểu 2 tờ"],
-  ["instax", "Layout Polaroid", "layout", "Ảnh nhỏ: chọn 1 ảnh / 3 phút. Ảnh to: chọn 2 ảnh / 5 phút. Bấm dây Canon R100 không giới hạn, in Instax Link WIDE, trả tiền ở quầy."],
+  ["instax", "Gói Polaroid · Selfbooth", "gói Polaroid", "Như Selfbooth: giá theo số phút chụp, bấm dây không giới hạn, kèm số tấm Instax Wide. Khách chọn ảnh, bộ khung và gửi in trên điện thoại; trả tiền ở quầy."],
 ];
 const ART = { strip: 2, full: 2, instax: 1 };
 
@@ -58,7 +57,7 @@ export function PackageCatalog({
               </span>
               <div>
                 <h3>
-                  {title} <small>{active} {size === "instax" ? "layout" : "gói"} đang bán</small>
+                  {title} <small>{active} gói đang bán</small>
                 </h3>
                 <p>{note}</p>
               </div>
@@ -78,7 +77,7 @@ export function PackageCatalog({
             ) : (
               <p className="package-size-empty">
                 {size === "instax"
-                  ? "Chưa có layout Polaroid — bấm “Tạo 2 layout mẫu” ở trên hoặc “Thêm layout”. Phòng Polaroid hiện các layout đang bán ở màn Chọn layout."
+                  ? "Chưa có gói Polaroid — bấm “Thêm gói Polaroid” (vd. chụp đơn 7 phút · 1 tấm, chụp đôi 12 phút · 2 tấm). Nhân viên chọn gói khi tạo mã chụp ở quầy."
                   : `Chưa có ${short} — máy chụp chỉ hiện khổ ảnh có gói đang bán.`}
               </p>
             )}
@@ -99,15 +98,9 @@ function PackageCards({ items, onEdit, onDeactivate }) {
           >
             <div className="package-card-heading">
               <div className="package-card-topline">
-                {isInstax(item) ? (
-                  <span className="package-card-layout">
-                    <LayoutArt count={item.selectCount} />
-                  </span>
-                ) : (
-                  <span className="package-card-icon" aria-hidden="true">
-                    <Camera size={23} strokeWidth={1.6} />
-                  </span>
-                )}
+                <span className="package-card-icon" aria-hidden="true">
+                  <Camera size={23} strokeWidth={1.6} />
+                </span>
                 <span
                   className={`package-card-status ${item.active ? "is-active" : "is-inactive"}`}
                 >
@@ -122,7 +115,7 @@ function PackageCards({ items, onEdit, onDeactivate }) {
             </div>
 
             <div className="package-card-price">
-              <span>{isInstax(item) ? "Giá layout" : "Giá gói"}</span>
+              <span>Giá gói</span>
               <strong>{money(item.price)}</strong>
             </div>
 
@@ -142,7 +135,7 @@ function PackageCards({ items, onEdit, onDeactivate }) {
                   {isInstax(item) ? "Tấm Instax Wide" : "Tờ in 10 × 15"}
                 </dt>
                 <dd>
-                  <strong>{isInstax(item) ? INSTAX_SHEETS : item.prints ?? 0}</strong> {isInstax(item) ? "tấm" : "tờ"}
+                  <strong>{isInstax(item) ? Math.max(INSTAX_SHEETS, Number(item.prints) || 0) : item.prints ?? 0}</strong> {isInstax(item) ? "tấm" : "tờ"}
                   {isStrip(item) && <small> = {piecesLabel(item, includedSheets(item))}</small>}
                 </dd>
               </div>
@@ -151,7 +144,7 @@ function PackageCards({ items, onEdit, onDeactivate }) {
             <p className="package-card-included">
               <Images size={17} aria-hidden="true" />
               {isInstax(item)
-                ? `Chọn ${item.selectCount || 1} ảnh · bấm dây không giới hạn · Instax Wide`
+                ? "Bấm dây không giới hạn · chọn ảnh & bộ khung trên điện thoại · Instax Wide"
                 : `${item.shots || 12} lần chụp · chọn ${item.selectCount || 4} ảnh · ${isStrip(item) ? "khổ nhỏ (cắt đôi)" : "khổ to 10 × 15"}`}
             </p>
             <p className="package-card-branches">
@@ -164,7 +157,7 @@ function PackageCards({ items, onEdit, onDeactivate }) {
                 className="package-card-action package-card-edit"
                 onClick={() => onEdit(item)}
                 aria-label={`Chỉnh sửa ${item.name || item.code}`}
-                title={`Chỉnh sửa ${isInstax(item) ? "layout" : "gói"} ${item.name || item.code}`}
+                title={`Chỉnh sửa gói ${item.name || item.code}`}
               >
                 <Pencil size={16} aria-hidden="true" />
                 Chỉnh sửa
@@ -175,7 +168,7 @@ function PackageCards({ items, onEdit, onDeactivate }) {
                   className="package-card-action package-card-deactivate"
                   onClick={() => onDeactivate(item)}
                   aria-label={`Ngừng sử dụng ${item.name || item.code}`}
-                  title={`Ngừng sử dụng ${isInstax(item) ? "layout" : "gói"} ${item.name || item.code}`}
+                  title={`Ngừng sử dụng gói ${item.name || item.code}`}
                 >
                   <Power size={16} aria-hidden="true" />
                   Ngừng
