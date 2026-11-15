@@ -199,7 +199,7 @@ export function KioskSettings({
             }}
           />
           {roomInfo?.kind === "polaroid"
-            ? "Âm thanh máy chụp: phát tiếng màn trập khi nhận ảnh từ dây bấm. Polaroid không đếm ngược từng tấm."
+            ? "Âm thanh máy chụp: phát tiếng màn trập khi nhận ảnh từ dây bấm. Phòng Selfbooth không đếm ngược từng tấm."
             : 'Âm thanh máy chụp: phát tiếng bíp đếm ngược 3, 2, 1 và tiếng màn trập "tách" khi chụp ảnh.'}
         </label>
         <KioskDevices zoom={zoom} setZoom={setZoom} roomInfo={roomInfo} toast={toast} />

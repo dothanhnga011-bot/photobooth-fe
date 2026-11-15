@@ -545,7 +545,7 @@ test("packages are grouped by photo size; a small-size package starts with one s
 
 test("Polaroid trial frames: two Mellow 20 × 30 frames (1 and 2 photos, print date) are made once for testing the Selfbooth room", async () => {
   await mount("packages");
-  await page.getByRole("tab", { name: /Polaroid/ }).click();
+  await page.getByRole("tab", { name: /Selfbooth/ }).click();
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Tạo 2 khung thử" }).click();
   await page.waitForFunction(() => window.notifications.length === 1);
@@ -581,14 +581,14 @@ test("Polaroid trial frames: two Mellow 20 × 30 frames (1 and 2 photos, print d
 
 test("Polaroid packages are timed like Selfbooth: minutes and 20 × 30 sheets, unlimited shots, no layouts", async () => {
   await mount("packages");
-  await page.getByRole("tab", { name: /Polaroid/ }).click();
-  const group = page.getByRole("region", { name: "Gói Polaroid · Selfbooth" });
-  assert.match(await group.innerText(), /Chưa có gói Polaroid/);
+  await page.getByRole("tab", { name: /Selfbooth/ }).click();
+  const group = page.getByRole("region", { name: "Gói Selfbooth", exact: true });
+  assert.match(await group.innerText(), /Chưa có gói Selfbooth/);
   assert.equal(await page.getByRole("region", { name: "Khổ to" }).count(), 0);
   assert.match(await page.locator(".extra-price-panel").innerText(), /mỗi tờ 20 × 30/i);
   // 2 layout cũ (1 ảnh · 3 phút, 2 ảnh · 5 phút) đã bỏ.
   assert.equal(await page.getByRole("button", { name: "Tạo 2 layout mẫu" }).count(), 0);
-  await group.getByRole("button", { name: "Thêm gói Polaroid" }).click();
+  await group.getByRole("button", { name: "Thêm gói Selfbooth" }).click();
   const dialog = page.getByRole("dialog");
   assert.equal(await dialog.locator('select[name="printSize"]').count(), 0);
   assert.equal(await dialog.locator('input[name="shots"]').count(), 0);
@@ -1048,7 +1048,7 @@ test("themes serve both rooms: a Polaroid (Selfbooth) theme is labelled and a ne
   // Không còn tab Photobooth / Polaroid.
   assert.equal(await page.getByRole("tab").count(), 0);
   await page.getByRole("heading", { name: "Chủ đề khung ảnh" }).waitFor();
-  await page.locator(".themes-table tbody tr", { hasText: "Kawaii" }).getByText("Phòng Polaroid · Selfbooth").waitFor();
+  await page.locator(".themes-table tbody tr", { hasText: "Kawaii" }).getByText("Phòng Selfbooth").waitFor();
   assert.equal(await page.getByText("Polaroid cũ · không còn dùng").count(), 0);
   await page.getByRole("button", { name: "Thêm mới chủ đề" }).click();
   await page.getByLabel("Tên chủ đề").fill("Giáng sinh");
@@ -1057,7 +1057,7 @@ test("themes serve both rooms: a Polaroid (Selfbooth) theme is labelled and a ne
   assert.deepEqual(mutations().at(-1).body, { name: "Giáng sinh", kind: "photobooth" });
   await page.getByRole("button", { name: "Thêm mới chủ đề" }).click();
   await page.getByLabel("Tên chủ đề").fill("Selfbooth Tết");
-  await page.getByLabel(/Polaroid · Selfbooth — khung 20 × 30/).check();
+  await page.getByLabel(/Selfbooth — khung 20 × 30/).check();
   await page.getByRole("button", { name: "Lưu" }).click();
   await page.locator(".themes-table tbody tr", { hasText: "Selfbooth Tết" }).waitFor();
   assert.deepEqual(mutations().at(-1).body, { name: "Selfbooth Tết", kind: "polaroid" });

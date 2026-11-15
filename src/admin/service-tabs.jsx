@@ -6,7 +6,7 @@ import { isPolaroidSize } from "../print-sizes.js";
 // (như Selfbooth, in tờ 20 × 30 máy DNP DS820 từ 14/11). Khổ ảnh & bảng giá tách theo loại để chỉnh riêng từng loại.
 export const SERVICES = [
   ["photobooth", "Photobooth", "Khổ nhỏ, khổ to · in máy DNP", Camera],
-  ["polaroid", "Polaroid", "Gói theo phút như Selfbooth · in tờ 20 × 30 máy DNP DS820", RectangleHorizontal],
+  ["polaroid", "Selfbooth", "Gói theo phút · in tờ 20 × 30 máy DNP DS820", RectangleHorizontal],
 ];
 // Loại hình của khung / gói theo khổ in.
 export const serviceOf = (printSize) => (isPolaroidSize(printSize) ? "polaroid" : "photobooth");

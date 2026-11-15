@@ -91,7 +91,7 @@ export function ResourceEditor({
   const catalog = resource === "packages";
   const title =
     resource === "packages"
-      ? `${edit._id ? "Chỉnh sửa" : "Thêm"} ${isPolaroid(edit) ? "gói Polaroid" : "gói chụp"}`
+      ? `${edit._id ? "Chỉnh sửa" : "Thêm"} ${isPolaroid(edit) ? "gói Selfbooth" : "gói chụp"}`
       : edit._id
         ? "Chỉnh sửa"
         : "Thêm mới";
@@ -163,7 +163,7 @@ export function ResourceEditor({
           // Gói phòng Photobooth chỉ đổi giữa khổ to / khổ nhỏ; gói Polaroid in tờ 20 × 30 máy DS820 (gói Instax
           // cũ đổi được sang 20 × 30, không đổi ngược lại).
           edit.printSize === "large" ? (
-            <span className="resource-field-fixed">Polaroid · Selfbooth — in tờ 20 × 30 cm (máy DNP DS820 của phòng)</span>
+            <span className="resource-field-fixed">Selfbooth — in tờ 20 × 30 cm (máy DNP DS820 của phòng)</span>
           ) : edit.printSize === "instax" ? (
             <select name={key} value="instax" onChange={(event) => update(key, event.target.value)}>
               <option value="instax">Instax Wide (gói cũ, máy Instax Link WIDE)</option>
@@ -233,7 +233,7 @@ export function ResourceEditor({
         {catalog && key === "prints" && (
           <small className="field-hint">
             {isPolaroid(edit)
-              ? `${unit[0].toUpperCase()}${unit.slice(1)} khách in từ điện thoại (mỗi khung của bộ là một ${unit}). Tối thiểu 1; in thêm tính theo giá in thêm phòng Polaroid.`
+              ? `${unit[0].toUpperCase()}${unit.slice(1)} khách in từ điện thoại (mỗi khung của bộ là một ${unit}). Tối thiểu 1; in thêm tính theo giá in thêm phòng Selfbooth.`
               : isStrip(edit)
               ? `Tờ 10 × 15 = ${piecesLabel(edit, includedSheets(edit))} cho khách. Tối thiểu 1 tờ (khách thấy “2 tờ nhỏ”).`
               : "Tờ 10 × 15. Tối thiểu 2 tờ. Khách chọn thêm ở máy chụp tính theo giá in thêm."}
@@ -263,7 +263,7 @@ export function ResourceEditor({
               {catalog && (
                 <p>
                   {isPolaroid(edit)
-                    ? `Gói phòng Polaroid như Selfbooth: giá, số phút chụp (bấm dây không giới hạn) và số ${unit}. Bán ở quầy — nhân viên tạo mã chụp.`
+                    ? `Gói phòng Selfbooth: giá, số phút chụp (bấm dây không giới hạn) và số ${unit}. Bán ở quầy — nhân viên tạo mã chụp.`
                     : "Mỗi gói là một thẻ ở màn “Chọn khổ ảnh” của máy chụp: khổ ảnh, giá và số tờ in đi kèm."}
                 </p>
               )}
@@ -289,7 +289,7 @@ export function ResourceEditor({
                 className="catalog-editor-preview"
                 aria-label="Xem trước gói chụp"
               >
-                <span className="catalog-preview-label">{isPolaroid(edit) ? "GÓI POLAROID · BÁN Ở QUẦY" : "THẺ TRÊN MÁY CHỤP"}</span>
+                <span className="catalog-preview-label">{isPolaroid(edit) ? "GÓI SELFBOOTH · BÁN Ở QUẦY" : "THẺ TRÊN MÁY CHỤP"}</span>
                 {/* Cùng kiểu thẻ ở màn “Chọn khổ ảnh” của máy chụp (KioskPackages); gói Polaroid bán ở quầy. */}
                 <div className="kiosk-size-preview">
                   <div className={`kiosk-size ${printSizeOf(edit)}`}>

@@ -111,7 +111,7 @@ test("the counter sells timed Polaroid packages as codes for the Polaroid room (
     const pack = page.getByRole("combobox",{name:/^Gói chụp/});
     // Hai nhóm gói; mọi gói Polaroid đang bán đều hiện, kèm số phút.
     assert.deepEqual(await pack.locator("optgroup").evaluateAll(groups => groups.map(g => g.label)),
-      ["Photobooth","Polaroid (nhập mã ở phòng Polaroid)"]);
+      ["Photobooth","Selfbooth (nhập mã ở phòng Selfbooth)"]);
     const layouts = await pack.locator("optgroup").nth(1).locator("option").allTextContents();
     assert.equal(layouts.length, 2);
     assert.match(layouts[0], /^Chụp đôi · 12 phút — 150\.000/);
@@ -121,7 +121,7 @@ test("the counter sells timed Polaroid packages as codes for the Polaroid room (
     await requoted;
     // Đổi gói tự chọn phòng Polaroid, không cần chọn chi nhánh.
     await page.getByText('Máy / phòng chụp: Polaroid',{exact:true}).waitFor();
-    await page.getByText("Phòng Polaroid (Selfbooth) · 12 phút chụp, bấm dây không giới hạn · in 2 tờ 20 × 30 · khách chọn ảnh & bộ khung trên điện thoại").waitFor();
+    await page.getByText("Phòng Selfbooth · 12 phút chụp, bấm dây không giới hạn · in 2 tờ 20 × 30 · khách chọn ảnh & bộ khung trên điện thoại").waitFor();
     await page.getByRole("button",{name:"Tạo phiếu chụp",exact:true}).click();
     await page.getByRole("heading",{name:"Chờ xác nhận đã thu"}).waitFor();
     const draft = requests.find(r=>r.path.endsWith("/draft")).body;

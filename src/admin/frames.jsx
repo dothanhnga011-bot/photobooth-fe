@@ -37,7 +37,7 @@ const NEW_SIZES = ["full", "strip", "large"];
 const SIZE_NOTES = {
   full: "In nguyên tờ 10 × 15 cm",
   strip: "2 dải 5 × 15 cm trên một tờ, máy in cắt đôi",
-  large: "Phòng Polaroid / Selfbooth: tờ 20 × 30 cm máy DNP DS820",
+  large: "Phòng Selfbooth: tờ 20 × 30 cm máy DNP DS820",
   instax: "Thẻ Instax Wide, ảnh ngang 3 : 2 (máy Instax Link WIDE)",
 };
 const FRAME_TITLES = { full: "size lớn", strip: "size nhỏ", large: "20 × 30", instax: "Instax Wide" };
@@ -521,7 +521,7 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
               {themeOptions.map((name) => <option key={name} value={name}>{name}</option>)}
               <option value="__new">+ Chủ đề mới…</option>
             </select>
-            {instax && <small>Phòng Polaroid (Selfbooth): khách chọn cả bộ khung cùng chủ đề trên điện thoại.</small>}
+            {instax && <small>Phòng Selfbooth: khách chọn cả bộ khung cùng chủ đề trên điện thoại.</small>}
           </label>
           {frame.themeName === "__new" && (
             <label>
@@ -538,7 +538,7 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
             <select value={frame.printSize} onChange={(e) => set({ printSize: e.target.value })}>
               <option value="full">Size lớn — in nguyên tờ 10 × 15</option>
               <option value="strip">Size nhỏ — 2 dải trên một tờ, cắt đôi</option>
-              <option value="large">Size 20 × 30 — phòng Polaroid / Selfbooth, máy DNP DS820</option>
+              <option value="large">Size 20 × 30 — phòng Selfbooth, máy DNP DS820</option>
               {frame.printSize === "instax" && <option value="instax">Size Instax (cũ) — thẻ Instax Wide</option>}
             </select>
           </label>

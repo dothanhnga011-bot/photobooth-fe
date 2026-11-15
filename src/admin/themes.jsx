@@ -41,7 +41,7 @@ function NameDialog({ title, initial = "", busy, onClose, onSave, askKind = fals
               </label>
               <label className="checkbox">
                 <input type="radio" name="theme-kind" checked={kind === "polaroid"} onChange={() => setKind("polaroid")} />
-                Polaroid · Selfbooth — khung 20 × 30 (khách chọn bộ khung trên điện thoại)
+                Selfbooth — khung 20 × 30 (khách chọn bộ khung trên điện thoại)
               </label>
             </fieldset>
           )}
@@ -131,7 +131,7 @@ export function ThemesManager({ notify, onOpenFrames }) {
           <div className="catalog-intro-copy">
             <h3>Chủ đề khung ảnh</h3>
             <p>
-              Khung cùng chủ đề được ghép thành một bộ. Phòng Photobooth dùng khung 10 × 15; phòng Polaroid (Selfbooth)
+              Khung cùng chủ đề được ghép thành một bộ. Phòng Photobooth dùng khung 10 × 15; phòng Selfbooth
               dùng khung 20 × 30 (máy DNP DS820) — khách chọn cả bộ trên điện thoại. Thêm khung vào chủ đề ở mục Khung ảnh.
             </p>
           </div>
@@ -193,7 +193,7 @@ export function ThemesManager({ notify, onOpenFrames }) {
                       <div>
                         <strong>
                           {theme.name}
-                          {kindOf(theme) === "polaroid" && <em className="theme-kind">Phòng Polaroid · Selfbooth</em>}
+                          {kindOf(theme) === "polaroid" && <em className="theme-kind">Phòng Selfbooth</em>}
                         </strong>
                         <small>Thứ tự: {index + 1} · bấm để sửa khung</small>
                       </div>

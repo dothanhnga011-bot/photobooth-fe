@@ -74,7 +74,7 @@ export function ds820Installer({ script, api, token, room }) {
   return [
     "@echo off",
     "setlocal DisableDelayedExpansion",
-    "rem NXC Photobooth - cai chuong trinh in tu dong cho may DNP DS820 cua phong Polaroid / Selfbooth.",
+    "rem NXC Photobooth - cai chuong trinh in tu dong cho may DNP DS820 cua phong Selfbooth.",
     "rem Chay 1 lan tren may tinh cam may DS820. In to 20x30 cm khach gui tu dien thoai.",
     'set "NXC_PRINT_INSTALLER=%~f0"',
     'set "NXC_PRINT_DIR=%LOCALAPPDATA%\\NXC-Printer-DS820"',

@@ -41,7 +41,7 @@ export function PriceEditor({ price, onSaved, instax = false, startOpen = !price
     try {
       await api("/admin/settings/extra-print-price", { method: "PUT", body: { [field]: amount } });
       await onSaved();
-      toast.success(`Đã lưu giá in thêm${instax ? " phòng Polaroid" : ""}: ${money(amount)} / ${unit}.`);
+      toast.success(`Đã lưu giá in thêm${instax ? " phòng Selfbooth" : ""}: ${money(amount)} / ${unit}.`);
       setEditing(false);
     } catch (e) {
       setError(e.message);
@@ -52,7 +52,7 @@ export function PriceEditor({ price, onSaved, instax = false, startOpen = !price
   if (!editing)
     return (
       <p className="extra-price-line">
-        Giá in thêm{instax ? " phòng Polaroid" : ""}:{" "}
+        Giá in thêm{instax ? " phòng Selfbooth" : ""}:{" "}
         {set ? <strong>{money(price)} / {unit}</strong> : <strong className="is-unset">Chưa đặt</strong>}{" "}
         <button type="button" className="link-button" onClick={() => setEditing(true)}>
           {set ? "Sửa giá" : "Đặt giá"}

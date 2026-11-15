@@ -63,7 +63,7 @@ export function QuickKiosk({ toast }) {
                 <button key={room._id} type="button" role="menuitem" disabled={busy === room._id} onClick={() => launch(room)}>
                   <strong>{room.name}</strong>
                   <small>
-                    {room.kind === "polaroid" ? "Polaroid · Selfbooth" : "Photobooth"}
+                    {room.kind === "polaroid" ? "Selfbooth" : "Photobooth"}
                     {room.branch ? ` · ${room.branch}` : ""}
                     {busy === room._id ? " · đang mở…" : ""}
                   </small>

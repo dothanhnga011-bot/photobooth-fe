@@ -124,7 +124,7 @@ export function ManualAlbum({ booking, onClose, onPrinted }) {
         <label>Số bộ in<select aria-label="Số bộ in" value={copies} disabled={locked} onChange={(event) => setCopies(Number(event.target.value))}>{Array.from({ length: 20 }, (_, i) => i + 1).map((value) => <option key={value} value={value}>{value}</option>)}</select></label></>}
       <div className="order-print-actions"><Button className="outline" disabled={busy} onClick={onClose}>Quay lại</Button>{sheet && <a className="button outline" href={sheet} download={`NXC-${booking.code}-in.${polaroid ? "jpg" : "png"}`}>Tải file in</a>}<Button disabled={!sheet || rendering || busy || polaroid} onClick={printLocal}>{busy ? "Đang xử lý…" : archivePending ? "Lưu kết quả in" : "In qua RX1 & lưu file"}</Button></div>
       {booking.printSize === "instax" && <p>Khổ Instax: tải file và in bằng phần mềm dành cho máy Instax.</p>}
-      {booking.printSize === "large" && <p>Tờ 20 × 30 (JPEG 2400 × 3600): tải file và in ở máy DNP DS820 của phòng Polaroid, hoặc để khách bấm Gửi in trên điện thoại.</p>}
+      {booking.printSize === "large" && <p>Tờ 20 × 30 (JPEG 2400 × 3600): tải file và in ở máy DNP DS820 của phòng Selfbooth, hoặc để khách bấm Gửi in trên điện thoại.</p>}
     </section>
   </div>;
 }

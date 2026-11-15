@@ -183,7 +183,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
               {ticket.roomName ? (
                 <strong>{ticket.roomName}</strong>
               ) : (
-                isPolaroid(ticket) ? "phòng Polaroid đang trống" : "phòng Photobooth đang trống"
+                isPolaroid(ticket) ? "phòng Selfbooth đang trống" : "phòng Photobooth đang trống"
               )}{" "}
               và nhập mã này trên màn hình máy chụp.
             </p>
@@ -252,7 +252,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
               <p>
                 Chọn gói và tạo phiếu trước. Mã 6 số chỉ xuất hiện sau khi xác nhận đã thu tiền.
               </p>
-              {!eligibleRooms.length && <ErrorBox error={`Chưa có phòng ${layout ? "Polaroid" : "photobooth"} đang hoạt động phù hợp với gói này.`} />}
+              {!eligibleRooms.length && <ErrorBox error={`Chưa có phòng ${layout ? "Selfbooth" : "photobooth"} đang hoạt động phù hợp với gói này.`} />}
               <label>
                 Gói chụp
                 <select
@@ -264,7 +264,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
                 >
                   <option value="">Chọn gói</option>
                   {[["Photobooth", counterPackages.filter((p) => !isPolaroid(p))],
-                    ["Polaroid (nhập mã ở phòng Polaroid)", counterPackages.filter(isPolaroid)]]
+                    ["Selfbooth (nhập mã ở phòng Selfbooth)", counterPackages.filter(isPolaroid)]]
                     .filter(([, list]) => list.length)
                     .map(([group, list]) => (
                       <optgroup key={group} label={group}>
@@ -281,7 +281,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
               {pack && (
                 <p className="muted">
                   {layout
-                    ? `Phòng Polaroid (Selfbooth) · ${layout.duration} phút chụp, bấm dây không giới hạn · in ${Math.max(1, Number(layout.prints) || 1)} ${pieceUnit(layout)} · khách chọn ảnh & bộ khung trên điện thoại`
+                    ? `Phòng Selfbooth · ${layout.duration} phút chụp, bấm dây không giới hạn · in ${Math.max(1, Number(layout.prints) || 1)} ${pieceUnit(layout)} · khách chọn ảnh & bộ khung trên điện thoại`
                     : `${pack.shots || "—"} lần chụp · ${printsText(pack)}`}
                 </p>
               )}

@@ -24,7 +24,7 @@ const fixture = `
     { _id: 'pack-polaroid-1', name: '1 ảnh to', printSize: 'instax', price: 100000, prints: 1, shots: 8, countdownSeconds: 10, selectCount: 1 },
   ];
   // Chữ trên máy chụp tiệm đã sửa (Thiết lập → Chữ trên máy chụp).
-  const kioskTexts = { 'polaroid.codeTitle': 'Nhập mã Polaroid' };
+  const kioskTexts = { 'polaroid.codeTitle': 'Nhập mã Selfbooth' };
   createRoot(document.getElementById('root')).render(React.createElement(MemoryRouter,
     { initialEntries: ['/kiosk?device=fixture-device'] },
     React.createElement(StudioContext.Provider,
@@ -187,7 +187,7 @@ const staleSale = (bills = []) => ({
 test("a polaroid room drops a cash sale left from the photobooth flow and opens the code screen", async () => {
   const { page, errors } = await openKiosk({ _id: "room-1", flip: "device", kind: "polaroid" }, {}, { sale: staleSale() });
   try {
-    await page.getByRole("heading", { name: "Nhập mã Polaroid" }).waitFor();
+    await page.getByRole("heading", { name: "Nhập mã Selfbooth" }).waitFor();
     assert.equal(await page.getByRole("heading", { name: "Đút tiền để bắt đầu chụp" }).count(), 0);
     assert.equal(await page.evaluate(() => localStorage.getItem("kiosk-sale")), null, "the stale sale is gone");
     assert.deepEqual(errors, []);
@@ -223,7 +223,7 @@ test("polaroid (Selfbooth) room: touch → enter the code bought at the counter 
   });
   try {
     // Không chọn layout, không chọn cách thanh toán: vào thẳng màn nhập mã (chữ tiệm đã sửa).
-    await page.getByRole("heading", { name: "Nhập mã Polaroid" }).waitFor();
+    await page.getByRole("heading", { name: "Nhập mã Selfbooth" }).waitFor();
     assert.equal(await page.getByRole("heading", { name: "Chọn cách thanh toán" }).count(), 0);
     assert.equal(await page.getByRole("heading", { name: "Chọn layout" }).count(), 0);
     assert.match(await page.locator(".flow-head p").innerText(), /thanh toán ở quầy/);
@@ -246,7 +246,7 @@ test("polaroid (Selfbooth) room: touch → enter the code bought at the counter 
     // Quay lại: về màn chờ (phòng Polaroid không có màn chọn cách thanh toán).
     await page.getByRole("button", { name: "Quay lại" }).click();
     await page.getByRole("button", { name: "Chạm để bắt đầu" }).click();
-    await page.getByRole("heading", { name: "Nhập mã Polaroid" }).waitFor();
+    await page.getByRole("heading", { name: "Nhập mã Selfbooth" }).waitFor();
     await page.getByRole("textbox", { name: "Mã chụp" }).fill("123456");
     await page.getByRole("button", { name: /Bắt đầu chụp/ }).click();
     await page.getByText("Mã này dành cho phòng Photobooth").first().waitFor();
@@ -279,7 +279,7 @@ test("the shoot timer shows the package's time even when the booth PC clock is 3
     "/kiosk/state": (route) => route.fulfill({ json: { booking: startedBooking(), serverTime: Date.now() + skew } }),
   });
   try {
-    await page.getByRole("heading", { name: "Nhập mã Polaroid" }).waitFor();
+    await page.getByRole("heading", { name: "Nhập mã Selfbooth" }).waitFor();
     await page.getByRole("textbox", { name: "Mã chụp" }).fill("654321");
     await page.getByRole("button", { name: /Bắt đầu chụp/ }).click();
     await page.locator(".shoot-screen.phase-shoot").waitFor();

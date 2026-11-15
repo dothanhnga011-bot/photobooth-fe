@@ -52,7 +52,7 @@ export function SelfboothImport({ onClose, onDone }) {
           <button type="button" className="icon-button" aria-label="Đóng" onClick={onClose} disabled={busy}><X /></button>
         </div>
         <p className="muted">
-          Khung chép sang dùng cho phòng Polaroid (in tờ 20 × 30 ở máy DNP DS820, như web Selfbooth), giữ nguyên ảnh,
+          Khung chép sang dùng cho phòng Selfbooth (in tờ 20 × 30 ở máy DNP DS820, như web Selfbooth), giữ nguyên ảnh,
           chủ đề và các ô ảnh. Khung đã chép trước đây khổ Instax được chọn sẵn: bấm chép để đổi sang 20 × 30. Sau khi chép vẫn sửa / tắt được ở Khung ảnh.
         </p>
         <ErrorBox error={error} />

@@ -93,7 +93,7 @@ function PrinterStatus({ printers }) {
       </h3>
       {!printers.length && (
         <p className="is-warn">
-          Chưa có máy in nào báo về. Bấm “Cài máy chụp” ở dòng phòng → “File cài máy in (Windows)” (phòng Polaroid:
+          Chưa có máy in nào báo về. Bấm “Cài máy chụp” ở dòng phòng → “File cài máy in (Windows)” (phòng Selfbooth:
           “File cài máy in DS820”), chạy trên máy tính cắm máy DNP và làm hết các bước (cửa sổ cài đặt có thể nằm sau cửa sổ đen).
           Mục này tự cập nhật, không cần tải lại trang.
         </p>
@@ -131,8 +131,8 @@ function PrinterStatus({ printers }) {
       })}
       <small className="muted">
         Phòng Photobooth in ở máy DNP cắm vào mini PC của phòng (tờ to in nguyên tờ, tờ nhỏ máy tự cắt đôi);
-        phòng Polaroid / Selfbooth in tờ 20 × 30 ở máy DNP DS820 của phòng. Máy DS820 chưa sẵn sàng (hết giấy, mất
-        kết nối) thì lệnh in Polaroid chờ trong hàng và tự in khi máy in kết nối lại.
+        phòng Selfbooth in tờ 20 × 30 ở máy DNP DS820 của phòng. Máy DS820 chưa sẵn sàng (hết giấy, mất
+        kết nối) thì lệnh in Selfbooth chờ trong hàng và tự in khi máy in kết nối lại.
         In lỗi (hết giấy, mất kết nối) sẽ báo ngay trên trang quản trị.
       </small>
     </section>
@@ -402,7 +402,7 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
           id="rooms-kiosk"
           title="cài máy chụp cho phòng"
           steps={[
-            "Bấm “Cài máy chụp” ở dòng phòng → mở liên kết (hoặc quét QR) trên máy tính trong phòng bằng Chrome / Edge. Loại phòng (Photobooth / Polaroid) chọn lúc thêm phòng.",
+            "Bấm “Cài máy chụp” ở dòng phòng → mở liên kết (hoặc quét QR) trên máy tính trong phòng bằng Chrome / Edge. Loại phòng (Photobooth / Selfbooth) chọn lúc thêm phòng.",
             "Trên máy chụp: mở “Cài đặt máy chụp (nhân viên)”, làm theo hướng dẫn kết nối máy ảnh.",
             "Muốn bật máy tính là tự mở máy chụp: trong hộp “Cài máy chụp” tải “File cài cho Windows / Mac”, chạy 1 lần trên máy trong phòng.",
             "Phòng Photobooth: cũng trong hộp đó tải “File cài máy in” và chạy 1 lần trên mini PC cắm máy DNP — khách bấm “In ảnh” là máy tự in (tờ nhỏ tự cắt đôi).",
@@ -474,7 +474,7 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
             <div className="extra-price-pair">
               {service === "polaroid" ? (
                 <div className="extra-price-item">
-                  <small>Phòng Polaroid · mỗi tờ 20 × 30</small>
+                  <small>Phòng Selfbooth · mỗi tờ 20 × 30</small>
                   <PriceEditor instax price={settings.extraInstaxPrice} startOpen={false} onSaved={() => reloadCatalog?.()} />
                 </div>
               ) : (
@@ -820,7 +820,7 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
                   <Printer size={16} aria-hidden="true" /> Máy in DNP DS820 của phòng này
                 </h3>
                 <p>
-                  Như Selfbooth: khách chọn ảnh, bộ khung và bấm <b>Gửi in</b> trên điện thoại, máy <b>DNP DS820</b> tự in
+                  Khách chọn ảnh, bộ khung và bấm <b>Gửi in</b> trên điện thoại, máy <b>DNP DS820</b> tự in
                   tờ <b>20 × 30 cm</b>. Tải file cài về <b>máy tính cắm máy DS820</b> rồi chạy một lần (không cần quyền quản trị).
                 </p>
                 <div className="kiosk-autostart-actions">

@@ -32,7 +32,7 @@ export function cameraProfile(kind) {
       "EOS Utility đã kết nối và đang ở Remote shooting, lưu vào Computer hoặc Computer and camera.",
       `Destination Folder của EOS Utility trùng thư mục đã chọn ở kiosk (${folder}).`,
     ],
-    note: "Phòng Polaroid dùng Canon R100 và dây bấm RS-60E3, không đếm ngược từng tấm. USB chuyển JPEG, thẻ ghi hình HDMI cung cấp hình trực tiếp. Đồng hồ trên kiosk chỉ giới hạn thời gian của lượt chụp; hết giờ không tự chụp. Thử cả dây bấm, flash và ảnh vào album trước khi đón khách.",
+    note: "Phòng Selfbooth dùng Canon R100 và dây bấm RS-60E3, không đếm ngược từng tấm. USB chuyển JPEG, thẻ ghi hình HDMI cung cấp hình trực tiếp. Đồng hồ trên kiosk chỉ giới hạn thời gian của lượt chụp; hết giờ không tự chụp. Thử cả dây bấm, flash và ảnh vào album trước khi đón khách.",
   } : {
     id: "fujifilm", label: "Fujifilm X-T3 / X-S10 / X-S20", app: "FUJIFILM X Acquire",
     folder, folderKey: FOLDER_KEY,
@@ -50,7 +50,7 @@ export function cameraProfile(kind) {
       `Thư mục tải JPEG của X Acquire trùng thư mục đã chọn ở kiosk (${folder}).`,
     ],
     note: selfbooth
-      ? "Phòng Polaroid / Selfbooth dùng Fujifilm X-T3 và dây bấm RR-100 tương thích, như phòng Photobooth. Khách bấm dây không giới hạn trong thời gian của gói; hết giờ máy chụp hiện QR để khách chọn ảnh, bộ khung và gửi in 20 × 30 (máy DNP DS820). Thử cả dây bấm, flash và ảnh vào album trước khi đón khách."
+      ? "Phòng Selfbooth dùng Fujifilm X-T3 và dây bấm RR-100 tương thích, như phòng Photobooth. Khách bấm dây không giới hạn trong thời gian của gói; hết giờ máy chụp hiện QR để khách chọn ảnh, bộ khung và gửi in 20 × 30 (máy DNP DS820). Thử cả dây bấm, flash và ảnh vào album trước khi đón khách."
       : "Phòng Photobooth dùng Fujifilm và dây bấm RR-100 tương thích. X-S10/X-S20 cần đầu chuyển remote đúng chân. Thử cả dây bấm, flash và ảnh vào album trước khi đón khách.",
   };
 }

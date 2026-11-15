@@ -12,10 +12,10 @@ const TEXTS = {
     search: "Tìm tên gói, mô tả…",
   },
   polaroid: {
-    noun: "gói Polaroid",
-    title: "Gói chụp phòng Polaroid · Selfbooth",
-    note: "Như Selfbooth: mỗi gói có giá, số phút chụp (bấm dây không giới hạn) và số tờ 20 × 30 (máy DNP DS820). Nhân viên chọn gói khi tạo mã chụp ở quầy.",
-    add: "Thêm gói Polaroid",
+    noun: "gói Selfbooth",
+    title: "Gói chụp phòng Selfbooth",
+    note: "Mỗi gói có giá, số phút chụp (bấm dây không giới hạn) và số tờ 20 × 30 (máy DNP DS820). Nhân viên chọn gói khi tạo mã chụp ở quầy.",
+    add: "Thêm gói Selfbooth",
     search: "Tìm tên gói, mô tả…",
   },
 };

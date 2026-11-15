@@ -24,7 +24,7 @@ export const KIOSK_TEXT_GROUPS = [
     ["print.next", "Nút sang trả tiền", "Thanh toán tiền mặt"],
     ["pay.title", "Tiêu đề màn đút tiền", "Đút tiền để bắt đầu chụp"],
   ]],
-  ["Phòng Polaroid", [
+  ["Phòng Selfbooth", [
     // Như Selfbooth: khách trả tiền ở quầy, nhân viên đưa mã (gói đã có trong mã), nhập mã là vào chụp.
     ["polaroid.codeTitle", "Tiêu đề nhập mã", "Nhập mã chụp"],
     ["polaroid.codeSubtitle", "Dòng dưới tiêu đề nhập mã", "Mã 6 số nhân viên đưa khi bạn thanh toán ở quầy. Gói và thời gian chụp đã có sẵn trong mã."],

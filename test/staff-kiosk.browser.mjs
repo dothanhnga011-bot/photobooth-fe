@@ -820,19 +820,19 @@ test("a new room picks its kind (photobooth / polaroid) right in the add form", 
   await openRooms();
   await page.getByRole("button", { name: "Thêm mới", exact: true }).click();
   const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Tên máy / phòng", { exact: true }).fill("Phòng Polaroid");
+  await dialog.getByLabel("Tên máy / phòng", { exact: true }).fill("Phòng Selfbooth");
   assert.equal(await dialog.getByLabel("Chi nhánh / địa chỉ", { exact: true }).count(), 0);
   const kinds = dialog.getByRole("radiogroup", { name: "Loại phòng" });
   assert.equal(await kinds.getByRole("radio", { name: /Photobooth/ }).isChecked(), true);
-  await kinds.getByRole("radio", { name: /Polaroid/ }).check();
+  await kinds.getByRole("radio", { name: /Selfbooth/ }).check();
   await dialog.getByRole("button", { name: /Lưu|Thêm/ }).last().click();
   await dialog.waitFor({ state: "hidden" });
   const created = requests.find((entry) => entry.method === "POST" && entry.path === "/api/admin/rooms");
   assert.equal(created.body.kind, "polaroid");
   assert.equal('branch' in created.body, false, 'new machines get the shop default on the server');
-  await roomRow("Phòng Polaroid").getByText(/Phòng Polaroid ·/).waitFor();
+  await roomRow("Phòng Selfbooth").getByText(/Phòng Selfbooth ·/).waitFor();
   // Hộp sửa phòng đã có không hiện loại phòng (chỉ chọn lúc thêm).
-  await page.getByRole("button", { name: "Chỉnh sửa Phòng Polaroid", exact: true }).click();
+  await page.getByRole("button", { name: "Chỉnh sửa Phòng Selfbooth", exact: true }).click();
   assert.equal(await page.getByRole("dialog").getByRole("radiogroup", { name: "Loại phòng" }).count(), 0);
   assertClean();
 });

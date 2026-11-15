@@ -18,8 +18,8 @@ import { polaroidPackage } from "../polaroid-layouts.js";
 const SIZE_GROUPS = [
   ["strip", "Khổ nhỏ", "gói khổ nhỏ", "1 tờ 10 × 15 cm cắt đôi thành 2 tờ nhỏ (5 × 15 cm) · khách in tối thiểu 2 tờ nhỏ"],
   ["full", "Khổ to", "gói khổ to", "Ảnh 10 × 15 cm nguyên tờ · khách in tối thiểu 2 tờ"],
-  ["large", "Gói Polaroid · Selfbooth", "gói Polaroid", "Như Selfbooth: giá theo số phút chụp, bấm dây không giới hạn, kèm số tờ 20 × 30 (máy DNP DS820). Khách chọn ảnh, bộ khung và gửi in trên điện thoại; trả tiền ở quầy."],
-  ["instax", "Gói Polaroid cũ · Instax", "gói Instax", "Gói tạo trước 14/11, in thẻ Instax Wide. Mở gói và đổi khổ sang tờ 20 × 30 để in máy DS820. Khách chọn ảnh, bộ khung và gửi in trên điện thoại; trả tiền ở quầy."],
+  ["large", "Gói Selfbooth", "gói Selfbooth", "Giá theo số phút chụp, bấm dây không giới hạn, kèm số tờ 20 × 30 (máy DNP DS820). Khách chọn ảnh, bộ khung và gửi in trên điện thoại; trả tiền ở quầy."],
+  ["instax", "Gói Selfbooth cũ · Instax", "gói Instax", "Gói tạo trước 14/11, in thẻ Instax Wide. Mở gói và đổi khổ sang tờ 20 × 30 để in máy DS820. Khách chọn ảnh, bộ khung và gửi in trên điện thoại; trả tiền ở quầy."],
 ];
 const ART = { strip: 2, full: 2, large: 1, instax: 1 };
 
@@ -80,7 +80,7 @@ export function PackageCatalog({
             ) : (
               <p className="package-size-empty">
                 {size === "large"
-                  ? "Chưa có gói Polaroid — bấm “Thêm gói Polaroid” (vd. chụp đơn 7 phút · 1 tờ, chụp đôi 12 phút · 2 tờ). Nhân viên chọn gói khi tạo mã chụp ở quầy."
+                  ? "Chưa có gói Selfbooth — bấm “Thêm gói Selfbooth” (vd. chụp đơn 7 phút · 1 tờ, chụp đôi 12 phút · 2 tờ). Nhân viên chọn gói khi tạo mã chụp ở quầy."
                   : `Chưa có ${short} — máy chụp chỉ hiện khổ ảnh có gói đang bán.`}
               </p>
             )}

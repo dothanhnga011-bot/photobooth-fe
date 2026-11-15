@@ -153,7 +153,7 @@ export const NAV_DESCRIPTIONS = {
   stickers: "Nhãn dán khách dán lên khung ở màn chọn ảnh của máy chụp.",
   filters: "Màu ảnh khách chọn ở màn chọn ảnh của máy chụp: bộ lọc có sẵn và filter riêng của tiệm.",
   "rx1-output": "Chỉnh độ tối và độ nét bản in RX1; lưu trên web để các máy in tự nhận.",
-  "kiosk-texts": "Thời gian khách chọn ảnh và chữ trên màn hình máy chụp: phòng photobooth, phòng Polaroid và các màn chung.",
+  "kiosk-texts": "Thời gian khách chọn ảnh và chữ trên màn hình máy chụp: phòng photobooth, phòng Selfbooth và các màn chung.",
   users: "Tài khoản nhân viên, chi nhánh phụ trách và phân quyền truy cập.",
 };
 
@@ -161,9 +161,9 @@ export const NAV_DESCRIPTIONS = {
 // kết / QR. Đầu ca nhân viên mở máy chụp từng phòng.
 export const ROOM_KINDS = [
   ["photobooth", "Photobooth", "Khách chọn Nhập mã (đã chuyển khoản ở quầy) hoặc Tiền mặt (chọn loại tờ, số lượng rồi đút tiền). Chụp xong chọn ảnh, khung rồi in ở máy DNP."],
-  ["polaroid", "Polaroid", "Như Selfbooth: khách trả tiền ở quầy theo gói (số phút, số tờ), nhập mã rồi bấm dây không giới hạn (máy ảnh Fujifilm X-T3). Hết giờ quét QR: chọn ảnh, bộ khung, ghép ảnh và gửi in trên điện thoại — in tờ 20 × 30 ở máy DNP DS820."],
+  ["polaroid", "Selfbooth", "Khách trả tiền ở quầy theo gói (số phút, số tờ), nhập mã rồi bấm dây không giới hạn (máy ảnh Fujifilm X-T3). Hết giờ quét QR: chọn ảnh, bộ khung, ghép ảnh và gửi in trên điện thoại — in tờ 20 × 30 ở máy DNP DS820."],
 ];
-export const ROOM_KIND_NAMES = { photobooth: "Phòng Photobooth", polaroid: "Phòng Polaroid" };
+export const ROOM_KIND_NAMES = { photobooth: "Phòng Photobooth", polaroid: "Phòng Selfbooth" };
 
 export const definitions = {
   rooms: [
