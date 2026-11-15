@@ -263,7 +263,7 @@ test("polaroid (Selfbooth) shoot, landscape: the Mellow layout of the PTB room, 
   assert.ok(m.end.minHeight >= 64, `nút Chụp xong cao ${m.end.minHeight} px`);
 });
 
-test("PTB shoot, landscape: the photo column is twice as wide and a new photo shows over the live view for 1.5 s", async () => {
+test("PTB shoot, landscape: the photo column is twice as wide; a new photo goes to the column, never over the live view", async () => {
   const m = await portrait("ptb-shoot", { rail: ".shoot-rail", thumbs: ".shoot-thumbs img", live: ".shoot-stage video", stage: ".shoot-stage" },
     { width: 1920, height: 1080 });
   assert.equal(m.pageScrolls, false);
@@ -279,14 +279,18 @@ test("PTB shoot, landscape: the photo column is twice as wide and a new photo sh
   try {
     await page.goto(`${base}/?screen=ptb-shoot`);
     await page.waitForFunction(() => [...document.querySelectorAll("video")].every((v) => v.style.visibility === "visible"));
-    assert.equal(await page.locator(".shoot-review").count(), 0, "photos already taken are not replayed");
+    const before = await page.locator(".shoot-thumbs img").count();
     await page.evaluate(() => window.addShot());
-    await page.locator(".shoot-review.is-shown").waitFor({ timeout: 2000 });
-    assert.equal(await page.locator(".shoot-review-no").innerText(), "Ảnh 4");
-    const shownAt = Date.now();
-    await page.locator(".shoot-review").waitFor({ state: "detached", timeout: 4000 });
-    const shownMs = Date.now() - shownAt;
-    assert.ok(shownMs >= 1200 && shownMs <= 2300, `ảnh hiện ${shownMs} ms`);
+    // 15/11 chủ tiệm bỏ màn xem lại 1,5 giây: ảnh mới chỉ vào cột ảnh, hình trực tiếp không bị che.
+    await page.waitForFunction((n) => document.querySelectorAll(".shoot-thumbs img").length > n, before, { timeout: 4000 });
+    await page.waitForTimeout(600);
+    const covered = await page.evaluate(() => {
+      const stage = document.querySelector(".shoot-stage").getBoundingClientRect();
+      const top = document.elementFromPoint(stage.x + stage.width / 2, stage.y + stage.height / 2);
+      return top?.tagName === "VIDEO" || top?.closest?.(".camera-preview") ? "" : top?.outerHTML.slice(0, 120);
+    });
+    assert.equal(covered, "", "the live view stays visible after a new photo");
+    assert.equal(await page.locator(".shoot-stage figure, .shoot-stage img").count(), 0, "no photo is shown over the live view");
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });

@@ -62,25 +62,6 @@ function Latest({ shot, number, receiving }) {
     </figure>
   );
 }
-// Ảnh vừa chụp hiện đè lên hình trực tiếp REVIEW_MS cho khách xem lại, rồi trở về hình trực tiếp chụp
-// tiếp. Tính giờ từ lúc ảnh hiện thật (đã tải); ảnh không tải được trong 4 giây thì bỏ qua.
-const REVIEW_MS = 1500;
-function Review({ shot, number, onDone }) {
-  const src = useObjectUrl(shot.preview);
-  const [shown, setShown] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(onDone, shown ? REVIEW_MS : 4000);
-    return () => clearTimeout(timer);
-  }, [shown]);
-  if (!src) return null;
-  return (
-    <figure className={`shoot-review${shown ? " is-shown" : ""}`} role="status" aria-label={`Ảnh ${number} vừa chụp`}>
-      <img src={src} alt="" onLoad={() => setShown(true)} onError={onDone} />
-      <b className="shoot-review-no">Ảnh {number}</b>
-    </figure>
-  );
-}
-
 const clock = (s) =>
   `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
@@ -116,17 +97,8 @@ export function KioskShoot({
   const portrait = usePortrait();
   const enough = taken >= Math.max(1, minShots);
   const showLatest = portrait;
-  // Phòng PTB trên màn ngang: ảnh vừa chụp đè lên hình trực tiếp 1,5 giây (màn đứng và phòng Polaroid đã
-  // có ô ảnh vừa chụp phóng to). Ảnh có sẵn lúc mở màn (tải lại trang) không hiện lại.
-  const reviewing = !showLatest;
-  const newest = shots[shots.length - 1];
-  const seenShot = useRef(newest?.key);
-  const [review, setReview] = useState(null);
-  useEffect(() => {
-    if (!newest || newest.key === seenShot.current) return;
-    seenShot.current = newest.key;
-    if (reviewing && phase === "shoot" && !ending) setReview({ shot: newest, number: shots.length });
-  }, [newest?.key]);
+  // Ảnh vừa chụp không đè lên hình trực tiếp (15/11 chủ tiệm bỏ màn xem lại 1,5 giây ở phòng PTB): khách
+  // thấy ảnh mới ở đầu cột ảnh bên phải, hình trực tiếp luôn hiện để chụp tiếp ngay.
   const shooting = phase === "shoot" && !ending;
   const full = Boolean(quota) && taken >= quota;
   const testing = Boolean(webcam?.on && ready);
@@ -184,9 +156,6 @@ export function KioskShoot({
         {/* Thấy đủ khung hình (không cắt hai bên) ở mọi bố cục: hình trực tiếp nhỏ đi một chút để cột ảnh
             vừa chụp bên phải to gấp đôi. */}
         <CameraPreview videoRef={videoRef} zoom={zoom} canvas={canvasPreview} fit="contain" mirror={mirror} />
-        {review && !ending && (
-          <Review key={review.shot.key} shot={review.shot} number={review.number} onDone={() => setReview(null)} />
-        )}
         {!ready && (
           <div className="shoot-no-camera" role="status">
             <span className="shoot-no-camera-icon" aria-hidden="true">
