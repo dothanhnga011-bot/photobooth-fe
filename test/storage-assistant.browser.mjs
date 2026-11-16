@@ -1512,6 +1512,58 @@ test("R2 warnings use their own budget at 80/90 percent while MongoDB remains be
   }
 });
 
+// R2 tính tiền theo GB-tháng (trung bình dung lượng đỉnh mỗi ngày), không theo số đang lưu (16/11: trang báo
+// 61,9 / 10 GB = 618 % trong khi Cloudflare chỉ tính 9,96 GB-tháng).
+function withBilling(data, billing = {}) {
+  data.r2.billing = {
+    period: { start: "2026-11-01", end: "2026-11-30", days: 30, today: 16 },
+    periodDays: 30, freeGBMonths: 10, pricePerGBMonth: 0.015, limitGBMonths: 10,
+    monthToDate: 9.96, projected: 38.85, monthToDateCostUSD: 0, projectedCostUSD: 0.43,
+    usagePercent: 99.6, projectedPercent: 388.5, level: "warning",
+    measuredDays: 16, missingDays: 0, firstMeasured: "2026-11-01", source: "cloudflare",
+    cloudflare: { configured: true }, daily: [],
+    ...billing,
+  };
+  return data;
+}
+
+test("R2 is judged by GB-months billed this month, not by the size stored right now", async () => {
+  await mountAdmin({ data: withBilling(r2Summary(61.9)) });
+  await page.locator(".storage-warning-warning[role=alert]").waitFor();
+  const banner = await warning().innerText();
+  assert.match(banner, /Kho ảnh R2 dự kiến vượt mức miễn phí tháng này/);
+  assert.match(banner, /Đã tính 9,96 \/ 10 GB-tháng \(99,6%\)/);
+  assert.match(banner, /Nếu giữ 61,9 GB đến 30\/11: 38,85 GB-tháng ≈ 0,43 USD/);
+  assert.doesNotMatch(banner, /619|618/);
+  await assistantCTA().click();
+  const card = page.locator(".storage-r2");
+  await card.getByText("Dự kiến cuối tháng").waitFor();
+  assert.match(await card.locator(".storage-state").innerText(), /99,6% miễn phí tháng này/);
+  assert.equal(await card.locator(".storage-r2-used strong").innerText(), "9,96 GB-tháng");
+  assert.equal(await card.locator(".storage-r2-remaining strong").innerText(), "38,85 GB-tháng");
+  assert.match(await card.innerText(), /Đang lưu lúc này: 61,9 GB · 120 file/);
+  assert.match(await card.innerText(), /Số đo lấy từ Cloudflare, giống trang Billing/);
+  assert.match(await card.innerText(), /sau đó 0,015 USD \/ GB-tháng/);
+  assert.equal(await page.getByRole("progressbar", { name: "Phần trăm GB-tháng R2 đã tính tháng này" }).count(), 1);
+  if (process.env.STORAGE_SCREENSHOTS)
+    await card.screenshot({ path: join(process.env.STORAGE_SCREENSHOTS, "assistant-r2-billing.png") });
+  assertClean();
+
+  // Chưa có token Cloudflare: máy chủ đo từ 16/11, 15 ngày đầu tháng chưa có số — nói rõ, không hù cảnh báo.
+  const quiet = () => withBilling(r2Summary(3), {
+    monthToDate: 0.1, projected: 1.5, projectedCostUSD: 0, usagePercent: 1, level: "normal",
+    measuredDays: 1, missingDays: 15, firstMeasured: "2026-11-16", source: "recorded", cloudflare: { configured: false },
+  });
+  await mountAdmin({ data: quiet() });
+  assert.equal(await warning().count(), 0);
+  await mount({ data: quiet() });
+  await page.locator(".storage-r2").getByText(/15 ngày đầu tháng chưa có số đo/).waitFor();
+  assert.match(await page.locator(".storage-r2").innerText(), /Máy chủ tự đo mỗi giờ từ 16\/11/);
+  assert.match(await page.locator(".storage-r2-remaining").innerText(), /Trong mức miễn phí/);
+  assertClean();
+  assert.deepEqual(mutations(), []);
+});
+
 test("admins see the configured R2 and MongoDB limits without adjustment controls or storage mutations", async () => {
   await mount({ data: r2Summary() });
   await assertReadOnlyLimits();

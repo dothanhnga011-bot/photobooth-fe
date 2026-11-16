@@ -351,6 +351,28 @@
     line-height: 1.65;
   }
 
+  /* R2 tính tiền theo GB-tháng: dung lượng đang lưu và nguồn số đo nằm dưới thanh GB-tháng. */
+  .admin-shell .storage-assistant .storage-r2-now,
+  .admin-shell .storage-assistant .storage-r2-source {
+    max-width: 70ch;
+    margin: 14px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+  }
+  .admin-shell .storage-assistant .storage-r2-now svg {
+    display: inline;
+    margin-right: 4px;
+    vertical-align: -3px;
+  }
+  .admin-shell .storage-assistant .storage-r2-now b {
+    color: var(--ink, inherit);
+  }
+  .admin-shell .storage-assistant .storage-r2-source.is-warn {
+    color: var(--storage-warning-ink, #8a5a12);
+  }
+
   .admin-shell .storage-assistant .storage-expired-counts {
     display: flex;
     flex-wrap: wrap;
