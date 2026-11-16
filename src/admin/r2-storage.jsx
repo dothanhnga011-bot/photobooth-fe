@@ -1,4 +1,4 @@
-import { AlertTriangle, CalendarClock, Cloud, HardDrive, Image, Receipt } from "lucide-react";
+import { AlertTriangle, Cloud, Gauge, HardDrive, Image, Receipt } from "lucide-react";
 import { AssistantAvatar } from "./assistant-avatar";
 import { formatDateTime } from "../api";
 import { Button, ErrorBox } from "../studio";
@@ -29,7 +29,6 @@ const billingKnown = (r2) =>
   r2?.available &&
   knownSize(r2.usedBytes) &&
   Number.isFinite(r2.billing?.monthToDate) &&
-  Number.isFinite(r2.billing?.projected) &&
   Number.isFinite(r2.billing?.limitGBMonths) &&
   ["normal", "warning", "critical"].includes(r2.billing?.level);
 export const r2StorageLevel = (r2) =>
@@ -43,12 +42,14 @@ export const r2StorageLevel = (r2) =>
           ? "warning"
           : "normal";
 
-// "Nếu giữ 61,9 GB đến 30/11: 38,85 GB-tháng ≈ 0,43 USD"
-const projectionText = (r2) => {
-  const b = r2.billing;
-  return `Nếu giữ ${gb(r2.usedBytes)} GB đến ${dayMonth(b.period.end)}: ${number.format(b.projected)} GB-tháng${
-    b.projectedCostUSD > 0 ? ` ≈ ${usd(b.projectedCostUSD)}` : " (trong mức miễn phí)"}.`;
-};
+// Tiền R2 đã tính tới hôm nay (16/11 chủ tiệm muốn biết "tính tiền hiện tại là bao nhiêu" và bỏ phần dự kiến cuối
+// tháng). Cloudflare tính bằng USD; tiền đồng chỉ để dễ hình dung, theo tỉ giá ước tính.
+const VND_PER_USD = 26_000;
+const vnd = (amount) => `${new Intl.NumberFormat("vi-VN").format(Math.round((amount * VND_PER_USD) / 100) * 100)} đ`;
+const money = (amount) => (amount <= 0 ? "0 USD" : amount < 0.005 ? "dưới 0,01 USD" : usd(amount));
+// "0,04 USD (≈ 1.000 đ)" / "0 USD (còn trong mức miễn phí)"
+const costText = (b) =>
+  b.monthToDateCostUSD > 0 ? `${money(b.monthToDateCostUSD)} (≈ ${vnd(b.monthToDateCostUSD)})` : "0 USD (còn trong mức miễn phí)";
 
 export function R2StorageWarning({ onOpenStorage }) {
   const { summary, loadError } = useStorageMonitor();
@@ -75,14 +76,14 @@ export function R2StorageWarning({ onOpenStorage }) {
             : billing
               ? level === "critical"
                 ? "Kho ảnh R2 đã vượt mức miễn phí tháng này"
-                : "Kho ảnh R2 dự kiến vượt mức miễn phí tháng này"
+                : "Kho ảnh R2 sắp hết mức miễn phí tháng này"
               : "Kho ảnh R2 gần mức cảnh báo"}
         </strong>
         <p>
           {!high
             ? r2.error || "Chưa có số liệu dung lượng từ kho ảnh."
             : billing
-              ? `Đã tính ${number.format(r2.billing.monthToDate)} / ${number.format(r2.billing.limitGBMonths)} GB-tháng (${number.format(r2.billing.usagePercent)}%). ${projectionText(r2)}`
+              ? `Đã tính ${number.format(r2.billing.monthToDate)} / ${number.format(r2.billing.limitGBMonths)} GB-tháng (${number.format(r2.billing.usagePercent)}%) · tiền R2 tháng này: ${costText(r2.billing)}.`
               : `R2 đang lưu ${gb(r2.usedBytes)} / ${number.format(r2.quota.limitGB)} GB (${number.format(r2.quota.usagePercent)}%).`}
         </p>
         <small>
@@ -103,31 +104,31 @@ export function R2StorageWarning({ onOpenStorage }) {
   );
 }
 
-// Số GB-tháng R2 tính tiền tháng này, dự kiến cuối tháng và dung lượng đang lưu.
+// Số GB-tháng R2 đã tính tháng này, tiền tương ứng tới hôm nay và dung lượng đang lưu.
 function R2Billing({ r2, level }) {
   const b = r2.billing;
   const month = Number(b.period.start.slice(5, 7));
   const cloudflare = b.source === "cloudflare";
+  const price = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 4 }).format(b.pricePerGBMonth);
   return (
     <>
       <div className="storage-r2-metrics">
         <article className="storage-r2-used">
           <span>
-            <Receipt size={16} aria-hidden="true" /> Tính phí tháng {month} (đến hôm nay)
+            <Gauge size={16} aria-hidden="true" /> Đã tính tháng {month} (đến hôm nay)
           </span>
           <strong>{number.format(b.monthToDate)} GB-tháng</strong>
-          <small>
-            Miễn phí {number.format(b.freeGBMonths)} GB-tháng
-            {b.monthToDateCostUSD > 0 ? ` · đã vượt ≈ ${usd(b.monthToDateCostUSD)}` : ""}
-          </small>
+          <small>Miễn phí {number.format(b.freeGBMonths)} GB-tháng mỗi tháng</small>
         </article>
         <article className="storage-r2-remaining">
           <span>
-            <CalendarClock size={16} aria-hidden="true" /> Dự kiến cuối tháng
+            <Receipt size={16} aria-hidden="true" /> Tiền R2 tháng {month} (đến hôm nay)
           </span>
-          <strong>{number.format(b.projected)} GB-tháng</strong>
+          <strong>{money(b.monthToDateCostUSD)}</strong>
           <small>
-            {b.projectedCostUSD > 0 ? `≈ ${usd(b.projectedCostUSD)} nếu giữ ${gb(r2.usedBytes)} GB` : "Trong mức miễn phí"}
+            {b.monthToDateCostUSD > 0
+              ? `≈ ${vnd(b.monthToDateCostUSD)} · vượt ${number.format(b.monthToDate - b.freeGBMonths)} GB-tháng × ${price} USD`
+              : "Còn trong mức miễn phí"}
           </small>
         </article>
       </div>
@@ -138,7 +139,7 @@ function R2Billing({ r2, level }) {
         ariaLabel="Phần trăm GB-tháng R2 đã tính tháng này"
       >
         R2 tính tiền theo GB-tháng: dung lượng đỉnh mỗi ngày cộng lại ÷ 30. Miễn phí {number.format(b.freeGBMonths)} GB-tháng,
-        sau đó {new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 4 }).format(b.pricePerGBMonth)} USD / GB-tháng.
+        sau đó {price} USD / GB-tháng. Tiền đồng quy đổi theo tỉ giá ước tính {new Intl.NumberFormat("vi-VN").format(VND_PER_USD)} đ / USD.
       </StorageCapacity>
       <p className="storage-r2-now">
         <Image size={16} aria-hidden="true" /> Đang lưu lúc này: <b>{storageSize(r2.usedBytes)}</b>
@@ -247,8 +248,8 @@ export function R2Storage({ children = null }) {
         <p className={`storage-r2-advice storage-level-${level}`} role="alert">
           {billing
             ? level === "critical"
-              ? `Đã vượt ${number.format(r2.billing.limitGBMonths)} GB-tháng miễn phí. ${projectionText(r2)} Dọn file hết hạn bên dưới để giảm.`
-              : `${projectionText(r2)} Dọn file hết hạn bên dưới để giảm.`
+              ? `Đã vượt ${number.format(r2.billing.limitGBMonths)} GB-tháng miễn phí: tiền R2 tháng này ${costText(r2.billing)}. Dọn file hết hạn bên dưới để giảm.`
+              : `Đã dùng ${number.format(r2.billing.usagePercent)}% mức miễn phí tháng này. Dọn file hết hạn bên dưới để giảm.`
             : r2.quota.usagePercent >= 100
               ? "Đã chạm hoặc vượt mức theo dõi. Nên dọn file hết hạn bên dưới."
               : "Kho ảnh gần mức theo dõi. Bạn có thể dọn file hết hạn bên dưới."}

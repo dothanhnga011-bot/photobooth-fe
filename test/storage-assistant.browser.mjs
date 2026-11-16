@@ -1528,25 +1528,40 @@ function withBilling(data, billing = {}) {
 }
 
 test("R2 is judged by GB-months billed this month, not by the size stored right now", async () => {
+  // 9,96 / 10 GB-tháng: còn trong mức miễn phí (0 USD) nhưng đã quá 80 % → nhắc màu vàng.
   await mountAdmin({ data: withBilling(r2Summary(61.9)) });
   await page.locator(".storage-warning-warning[role=alert]").waitFor();
   const banner = await warning().innerText();
-  assert.match(banner, /Kho ảnh R2 dự kiến vượt mức miễn phí tháng này/);
-  assert.match(banner, /Đã tính 9,96 \/ 10 GB-tháng \(99,6%\)/);
-  assert.match(banner, /Nếu giữ 61,9 GB đến 30\/11: 38,85 GB-tháng ≈ 0,43 USD/);
-  assert.doesNotMatch(banner, /619|618/);
+  assert.match(banner, /Kho ảnh R2 sắp hết mức miễn phí tháng này/);
+  assert.match(banner, /Đã tính 9,96 \/ 10 GB-tháng \(99,6%\) · tiền R2 tháng này: 0 USD \(còn trong mức miễn phí\)/);
+  // 16/11 chủ tiệm bỏ phần dự kiến cuối tháng.
+  assert.doesNotMatch(banner, /619|618|Nếu giữ|Dự kiến|38,85/);
   await assistantCTA().click();
   const card = page.locator(".storage-r2");
-  await card.getByText("Dự kiến cuối tháng").waitFor();
+  await card.getByText("Tiền R2 tháng 11 (đến hôm nay)").waitFor();
   assert.match(await card.locator(".storage-state").innerText(), /99,6% miễn phí tháng này/);
   assert.equal(await card.locator(".storage-r2-used strong").innerText(), "9,96 GB-tháng");
-  assert.equal(await card.locator(".storage-r2-remaining strong").innerText(), "38,85 GB-tháng");
+  assert.equal(await card.locator(".storage-r2-remaining strong").innerText(), "0 USD");
+  assert.match(await card.locator(".storage-r2-remaining").innerText(), /Còn trong mức miễn phí/);
+  assert.doesNotMatch(await card.innerText(), /Dự kiến cuối tháng|38,85/);
   assert.match(await card.innerText(), /Đang lưu lúc này: 61,9 GB · 120 file/);
   assert.match(await card.innerText(), /Số đo lấy từ Cloudflare, giống trang Billing/);
   assert.match(await card.innerText(), /sau đó 0,015 USD \/ GB-tháng/);
   assert.equal(await page.getByRole("progressbar", { name: "Phần trăm GB-tháng R2 đã tính tháng này" }).count(), 1);
+  assertClean();
+
+  // Đã vượt (như trang thật 16/11: 12,66 GB-tháng): tiền R2 tới hôm nay, có quy ra tiền đồng.
+  await mountAdmin({ data: withBilling(r2Summary(60.28), { monthToDate: 12.66, monthToDateCostUSD: 0.0399, usagePercent: 126.6, level: "critical" }) });
+  await page.locator(".storage-warning-critical[role=alert]").waitFor();
+  assert.match(await warning().innerText(), /Kho ảnh R2 đã vượt mức miễn phí tháng này/);
+  assert.match(await warning().innerText(), /tiền R2 tháng này: 0,04 USD \(≈ 1\.000 đ\)/);
+  await assistantCTA().click();
+  const over = page.locator(".storage-r2");
+  await over.getByText("Tiền R2 tháng 11 (đến hôm nay)").waitFor();
+  assert.equal(await over.locator(".storage-r2-remaining strong").innerText(), "0,04 USD");
+  assert.match(await over.locator(".storage-r2-remaining").innerText(), /≈ 1\.000 đ · vượt 2,66 GB-tháng × 0,015 USD/);
   if (process.env.STORAGE_SCREENSHOTS)
-    await card.screenshot({ path: join(process.env.STORAGE_SCREENSHOTS, "assistant-r2-billing.png") });
+    await over.screenshot({ path: join(process.env.STORAGE_SCREENSHOTS, "assistant-r2-billing.png") });
   assertClean();
 
   // Chưa có token Cloudflare: máy chủ đo từ 16/11, 15 ngày đầu tháng chưa có số — nói rõ, không hù cảnh báo.
@@ -1559,7 +1574,7 @@ test("R2 is judged by GB-months billed this month, not by the size stored right 
   await mount({ data: quiet() });
   await page.locator(".storage-r2").getByText(/15 ngày đầu tháng chưa có số đo/).waitFor();
   assert.match(await page.locator(".storage-r2").innerText(), /Máy chủ tự đo mỗi giờ từ 16\/11/);
-  assert.match(await page.locator(".storage-r2-remaining").innerText(), /Trong mức miễn phí/);
+  assert.match(await page.locator(".storage-r2-remaining").innerText(), /Còn trong mức miễn phí/);
   assertClean();
   assert.deepEqual(mutations(), []);
 });
