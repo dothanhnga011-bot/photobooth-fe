@@ -1517,7 +1517,7 @@ test("R2 warnings use their own budget at 80/90 percent while MongoDB remains be
 function withBilling(data, billing = {}) {
   data.r2.billing = {
     period: { start: "2026-11-01", end: "2026-11-30", days: 30, today: 16 },
-    periodDays: 30, freeGBMonths: 10, pricePerGBMonth: 0.015, limitGBMonths: 10,
+    periodDays: 30, freeGBMonths: 10, pricePerGBMonth: 0.015, limitGBMonths: 10, vndPerUsd: 26400,
     monthToDate: 9.96, projected: 38.85, monthToDateCostUSD: 0, projectedCostUSD: 0.43,
     usagePercent: 99.6, projectedPercent: 388.5, level: "warning",
     measuredDays: 16, missingDays: 0, firstMeasured: "2026-11-01", source: "cloudflare",
@@ -1533,7 +1533,7 @@ test("R2 is judged by GB-months billed this month, not by the size stored right 
   await page.locator(".storage-warning-warning[role=alert]").waitFor();
   const banner = await warning().innerText();
   assert.match(banner, /Kho ảnh R2 sắp hết mức miễn phí tháng này/);
-  assert.match(banner, /Đã tính 9,96 \/ 10 GB-tháng \(99,6%\) · tiền R2 tháng này: 0 USD \(còn trong mức miễn phí\)/);
+  assert.match(banner, /Đã tính 9,96 \/ 10 GB-tháng \(99,6%\) · tiền R2 tháng này: 0 đ \(còn trong mức miễn phí\)/);
   // 16/11 chủ tiệm bỏ phần dự kiến cuối tháng.
   assert.doesNotMatch(banner, /619|618|Nếu giữ|Dự kiến|38,85/);
   await assistantCTA().click();
@@ -1541,25 +1541,26 @@ test("R2 is judged by GB-months billed this month, not by the size stored right 
   await card.getByText("Tiền R2 tháng 11 (đến hôm nay)").waitFor();
   assert.match(await card.locator(".storage-state").innerText(), /99,6% miễn phí tháng này/);
   assert.equal(await card.locator(".storage-r2-used strong").innerText(), "9,96 GB-tháng");
-  assert.equal(await card.locator(".storage-r2-remaining strong").innerText(), "0 USD");
+  assert.equal(await card.locator(".storage-r2-remaining strong").innerText(), "0 đ");
   assert.match(await card.locator(".storage-r2-remaining").innerText(), /Còn trong mức miễn phí/);
   assert.doesNotMatch(await card.innerText(), /Dự kiến cuối tháng|38,85/);
   assert.match(await card.innerText(), /Đang lưu lúc này: 61,9 GB · 120 file/);
   assert.match(await card.innerText(), /Số đo lấy từ Cloudflare, giống trang Billing/);
-  assert.match(await card.innerText(), /sau đó 0,015 USD \/ GB-tháng/);
+  assert.match(await card.innerText(), /sau đó khoảng 396 đ \/ GB-tháng \(0,015 USD\)\. Tiền đồng quy đổi theo tỉ giá ước tính 26\.400 đ \/ USD/);
   assert.equal(await page.getByRole("progressbar", { name: "Phần trăm GB-tháng R2 đã tính tháng này" }).count(), 1);
   assertClean();
 
-  // Đã vượt (như trang thật 16/11: 12,66 GB-tháng): tiền R2 tới hôm nay, có quy ra tiền đồng.
+  // Đã vượt (như trang thật 16/11: 12,66 GB-tháng): tiền R2 tới hôm nay quy ra tiền đồng (0,0399 USD × 26.400 ≈ 1.050 đ);
+  // USD chỉ còn ở dòng nhỏ để đối chiếu hoá đơn Cloudflare.
   await mountAdmin({ data: withBilling(r2Summary(60.28), { monthToDate: 12.66, monthToDateCostUSD: 0.0399, usagePercent: 126.6, level: "critical" }) });
   await page.locator(".storage-warning-critical[role=alert]").waitFor();
   assert.match(await warning().innerText(), /Kho ảnh R2 đã vượt mức miễn phí tháng này/);
-  assert.match(await warning().innerText(), /tiền R2 tháng này: 0,04 USD \(≈ 1\.000 đ\)/);
+  assert.match(await warning().innerText(), /tiền R2 tháng này: ≈ 1\.050 đ\./);
   await assistantCTA().click();
   const over = page.locator(".storage-r2");
   await over.getByText("Tiền R2 tháng 11 (đến hôm nay)").waitFor();
-  assert.equal(await over.locator(".storage-r2-remaining strong").innerText(), "0,04 USD");
-  assert.match(await over.locator(".storage-r2-remaining").innerText(), /≈ 1\.000 đ · vượt 2,66 GB-tháng × 0,015 USD/);
+  assert.equal(await over.locator(".storage-r2-remaining strong").innerText(), "≈ 1.050 đ");
+  assert.match(await over.locator(".storage-r2-remaining").innerText(), /Vượt 2,66 GB-tháng × 396 đ · Cloudflare tính 0,04 USD/);
   if (process.env.STORAGE_SCREENSHOTS)
     await over.screenshot({ path: join(process.env.STORAGE_SCREENSHOTS, "assistant-r2-billing.png") });
   assertClean();

@@ -12,7 +12,9 @@ import {
 
 const number = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 });
 const gb = (bytes) => number.format(bytes / 1_000_000_000);
-const usd = (amount) => `${new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)} USD`;
+const usd = (amount) => (amount > 0 && amount < 0.005
+  ? "dưới 0,01 USD"
+  : `${new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)} USD`);
 // "2026-11-15" → "15/11"
 const dayMonth = (date) => date.slice(8, 10) + "/" + date.slice(5, 7);
 const quotaKnown = (r2) =>
@@ -42,14 +44,21 @@ export const r2StorageLevel = (r2) =>
           ? "warning"
           : "normal";
 
-// Tiền R2 đã tính tới hôm nay (16/11 chủ tiệm muốn biết "tính tiền hiện tại là bao nhiêu" và bỏ phần dự kiến cuối
-// tháng). Cloudflare tính bằng USD; tiền đồng chỉ để dễ hình dung, theo tỉ giá ước tính.
-const VND_PER_USD = 26_000;
-const vnd = (amount) => `${new Intl.NumberFormat("vi-VN").format(Math.round((amount * VND_PER_USD) / 100) * 100)} đ`;
-const money = (amount) => (amount <= 0 ? "0 USD" : amount < 0.005 ? "dưới 0,01 USD" : usd(amount));
-// "0,04 USD (≈ 1.000 đ)" / "0 USD (còn trong mức miễn phí)"
+// Tiền R2 đã tính tới hôm nay, quy ra tiền đồng (16/11 chủ tiệm: "tính tiền hiện tại là bao nhiêu", bỏ phần dự kiến
+// cuối tháng, "đổi luôn USD sang tiền Việt"). Cloudflare tính bằng USD; tỉ giá ước tính do máy chủ gửi (USD_VND_RATE),
+// máy chủ cũ chưa gửi thì dùng 26.400 đ. USD chỉ còn ở dòng nhỏ để đối chiếu với hoá đơn Cloudflare.
+const DEFAULT_VND_PER_USD = 26_400;
+const rateOf = (b) => (Number(b?.vndPerUsd) > 0 ? Number(b.vndPerUsd) : DEFAULT_VND_PER_USD);
+const dong = (value) => `${new Intl.NumberFormat("vi-VN").format(value)} đ`;
+// Làm tròn 10 đ: số tiền R2 thường chỉ vài nghìn đồng.
+const vnd = (amount, b) => {
+  if (!(amount > 0)) return "0 đ";
+  const value = Math.round((amount * rateOf(b)) / 10) * 10;
+  return value < 10 ? "dưới 10 đ" : `≈ ${dong(value)}`;
+};
+// "≈ 1.050 đ" / "0 đ (còn trong mức miễn phí)"
 const costText = (b) =>
-  b.monthToDateCostUSD > 0 ? `${money(b.monthToDateCostUSD)} (≈ ${vnd(b.monthToDateCostUSD)})` : "0 USD (còn trong mức miễn phí)";
+  b.monthToDateCostUSD > 0 ? vnd(b.monthToDateCostUSD, b) : "0 đ (còn trong mức miễn phí)";
 
 export function R2StorageWarning({ onOpenStorage }) {
   const { summary, loadError } = useStorageMonitor();
@@ -110,6 +119,8 @@ function R2Billing({ r2, level }) {
   const month = Number(b.period.start.slice(5, 7));
   const cloudflare = b.source === "cloudflare";
   const price = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 4 }).format(b.pricePerGBMonth);
+  // Giá một GB-tháng quy ra đồng: 0,015 USD × 26.400 = 396 đ.
+  const priceVnd = dong(Math.round(b.pricePerGBMonth * rateOf(b)));
   return (
     <>
       <div className="storage-r2-metrics">
@@ -124,10 +135,10 @@ function R2Billing({ r2, level }) {
           <span>
             <Receipt size={16} aria-hidden="true" /> Tiền R2 tháng {month} (đến hôm nay)
           </span>
-          <strong>{money(b.monthToDateCostUSD)}</strong>
+          <strong>{vnd(b.monthToDateCostUSD, b)}</strong>
           <small>
             {b.monthToDateCostUSD > 0
-              ? `≈ ${vnd(b.monthToDateCostUSD)} · vượt ${number.format(b.monthToDate - b.freeGBMonths)} GB-tháng × ${price} USD`
+              ? `Vượt ${number.format(b.monthToDate - b.freeGBMonths)} GB-tháng × ${priceVnd} · Cloudflare tính ${usd(b.monthToDateCostUSD)}`
               : "Còn trong mức miễn phí"}
           </small>
         </article>
@@ -139,7 +150,7 @@ function R2Billing({ r2, level }) {
         ariaLabel="Phần trăm GB-tháng R2 đã tính tháng này"
       >
         R2 tính tiền theo GB-tháng: dung lượng đỉnh mỗi ngày cộng lại ÷ 30. Miễn phí {number.format(b.freeGBMonths)} GB-tháng,
-        sau đó {price} USD / GB-tháng. Tiền đồng quy đổi theo tỉ giá ước tính {new Intl.NumberFormat("vi-VN").format(VND_PER_USD)} đ / USD.
+        sau đó khoảng {priceVnd} / GB-tháng ({price} USD). Tiền đồng quy đổi theo tỉ giá ước tính {dong(rateOf(b))} / USD.
       </StorageCapacity>
       <p className="storage-r2-now">
         <Image size={16} aria-hidden="true" /> Đang lưu lúc này: <b>{storageSize(r2.usedBytes)}</b>
