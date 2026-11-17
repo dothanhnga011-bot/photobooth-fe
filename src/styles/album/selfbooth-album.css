@@ -993,26 +993,6 @@
   }
 
   /* ── Chỉnh ảnh (làm đẹp) ───────────────────────────────────────────────── */
-  .sb-album .sb-editor {
-    position: fixed;
-    inset: 0;
-    z-index: 60;
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr) auto auto auto auto;
-    gap: 10px;
-    padding: 12px max(16px, calc((100vw - 760px) / 2)) calc(14px + env(safe-area-inset-bottom, 0px));
-    overflow: auto;
-    background: var(--cream);
-  }
-  .sb-album .sb-editor header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .sb-album .sb-editor header h2 {
-    flex: 1;
-    font-size: 26px;
-  }
   .sb-album .sb-icon {
     display: grid;
     place-items: center;
@@ -1028,106 +1008,6 @@
   }
   .sb-album .sb-icon.sb-heart[aria-pressed="true"] {
     color: var(--heart);
-  }
-  .sb-album .sb-editor-view {
-    position: relative;
-    display: grid;
-    place-items: center;
-    min-height: 220px;
-    padding: 12px;
-    border-radius: 2px;
-    background: var(--stone);
-  }
-  .sb-album .sb-editor-view canvas {
-    max-width: 100%;
-    max-height: 52vh;
-    box-shadow: var(--mat-shadow);
-  }
-  .sb-album .sb-editor-note {
-    position: absolute;
-    bottom: 10px;
-    margin: 0;
-    padding: 6px 10px;
-    border-radius: 3px;
-    background: rgb(246 239 229 / 0.94);
-    color: var(--ink);
-    font-size: 12.5px;
-  }
-  .sb-album .sb-editor-tabs {
-    display: flex;
-    gap: 6px;
-    overflow-x: auto;
-  }
-  .sb-album .sb-editor-tabs button {
-    flex: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 38px;
-    padding: 6px 12px;
-    border: 1px solid var(--line);
-    border-radius: 3px;
-    background: var(--paper);
-    color: var(--muted);
-    font: inherit;
-    font-size: 13px;
-    cursor: pointer;
-  }
-  .sb-album .sb-editor-tabs button[aria-selected="true"] {
-    border-color: var(--wine);
-    background: var(--hover);
-    color: var(--ink);
-  }
-  .sb-album .sb-editor-tabs b {
-    padding: 0 5px;
-    border-radius: 2px;
-    background: var(--heart);
-    color: #fff;
-    font-size: 11px;
-  }
-  .sb-album .sb-editor-slider {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    gap: 12px;
-    color: var(--body);
-    font-size: 13px;
-  }
-  .sb-album .sb-editor-slider input {
-    accent-color: var(--wine);
-  }
-  .sb-album .sb-editor-filters {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-  }
-  .sb-album .sb-editor-filters button {
-    flex: none;
-    display: grid;
-    gap: 4px;
-    width: 72px;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: var(--body);
-    font: inherit;
-    font-size: 11.5px;
-    cursor: pointer;
-  }
-  .sb-album .sb-editor-filters img {
-    width: 72px;
-    height: 72px;
-    object-fit: cover;
-    border-radius: 2px;
-  }
-  .sb-album .sb-editor-filters button[aria-checked="true"] img {
-    outline: 1.5px solid var(--wine);
-    outline-offset: 2px;
-  }
-  .sb-album .sb-editor-foot {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
   }
 
   /* ── Chặn luật album cũ / giao diện Mellow (polaroid nghiêng, chữ viết tay, kẻ đậm) ─────────────── */

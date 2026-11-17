@@ -127,6 +127,18 @@ test("smoothing preserves sharp dark edges instead of mixing them into nearby sk
     assert.ok(Math.abs(result[i] - sample.data[i]) <= 1);
 });
 
+test('smoothing reduces a red skin blemish even when its luminance matches the surrounding skin',()=>{
+  const sample=fixture([180,130,100]);
+  const x=20,y=15,o=(y*sample.width+x)*4;
+  sample.data.set([210,118,83,255],o);
+  const result=render(sample,{smooth:100});
+  const light=bytes=>.299*bytes[o]+.587*bytes[o+1]+.114*bytes[o+2];
+  assert.ok(result[o]<sample.data[o]-3,'redness is reduced by colour-aware smoothing');
+  assert.ok(Math.abs(light(result)-light(sample.data))<1.5,'brightness and texture are retained');
+  assert.equal(result[o+3],255);
+  assert.deepEqual(result.slice(0,4),sample.data.slice(0,4),'flat skin far from the spot is unchanged');
+});
+
 test("combined edits leave pixels outside the mask and every alpha channel unchanged", () => {
   const sample = fixture([174, 115, 82]);
   const mask = new Float32Array(sample.mask.length);

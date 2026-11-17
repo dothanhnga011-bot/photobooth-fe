@@ -1,6 +1,6 @@
-// Chỉnh sửa chân dung (tương tự Beautify của Xingtu): làm mịn da, trắng da,
-// má hồng và thon gọn mặt V-line. Vị trí khuôn mặt lấy từ MediaPipe Face Landmarker
-// (478 điểm), chỉ tải khi khách dùng chỉnh da hoặc khuôn mặt.
+// Chỉnh chân dung theo vùng da, mắt, mũi, miệng và trang điểm.
+// Vị trí khuôn mặt lấy từ MediaPipe Face Landmarker
+// (478 điểm), tải khi khách mở trình làm đẹp.
 
 import wasmLoaderUrl from "@mediapipe/tasks-vision/vision_wasm_internal.js?url";
 import wasmBinaryUrl from "@mediapipe/tasks-vision/vision_wasm_internal.wasm?url";
@@ -12,6 +12,7 @@ export {
   DEFAULT_ADJUST, COLOR_FILTERS, FILTER_CSS, ADJUST_LABELS,
   isNeutral, applyBeauty,
 } from "./beauty-render.js";
+export { BEAUTY_GROUPS, BEAUTY_PRESETS, needsFaces, normalizeAdjust } from './beauty-settings.js';
 
 let landmarker;
 export function loadFaceLandmarker() {
@@ -43,33 +44,15 @@ export function loadFaceLandmarker() {
   return landmarker;
 }
 
-// The face model is ~7 MB to download (the 11.7 MB wasm compresses to ~3.2 MB, the 3.8 MB model
-// does not compress). Fetched only when a guest first moved a skin/face slider, they waited
-// seconds before seeing anything. The editor warms the HTTP cache in the background once the
-// photo is on screen, so that first slider move only compiles. Skipped when the device asks to
-// save data or is on 2G; nothing is compiled or run here.
-let warming;
-export function warmFaceModel() {
-  if (warming || landmarker) return warming;
-  const connection = globalThis.navigator?.connection;
-  if (connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType || "")) return undefined;
-  const fill = async (url) => {
-    const response = await fetch(url, { priority: "low" });
-    const reader = response.body?.getReader();
-    if (!reader) return response.arrayBuffer();
-    while (!(await reader.read()).done); // read to the end so the cache keeps it; keep nothing
-  };
-  warming = (async () => {
-    const { FilesetResolver } = await import("@mediapipe/tasks-vision");
-    const simd = await FilesetResolver.isSimdSupported();
-    await Promise.all([simd ? wasmLoaderUrl : noSimdLoaderUrl, simd ? wasmBinaryUrl : noSimdBinaryUrl, modelUrl]
-      .map(fill));
-  })().catch(() => { warming = undefined; });
-  return warming;
-}
-
 // Trả về danh sách khuôn mặt, mỗi mặt là mảng điểm {x, y} theo pixel.
 export async function detectFaces(source) {
-  const model = await loadFaceLandmarker();
-  return detectFaceLandmarks(source, model);
+  const pending = loadFaceLandmarker();
+  const model = await pending;
+  try { return await detectFaceLandmarks(source, model); }
+  catch (cause) {
+    // Runtime failures can leave the WASM graph unusable. Retry must create a
+    // fresh model instead of repeatedly reusing the same broken instance.
+    if (landmarker === pending) { landmarker = undefined; try { model.close(); } catch {} }
+    throw Object.assign(new Error('Bộ nhận diện vừa gặp lỗi. Bấm Nhận diện lại để thử lại.', { cause }), { code: 'FACE_DETECTION_UNAVAILABLE' });
+  }
 }

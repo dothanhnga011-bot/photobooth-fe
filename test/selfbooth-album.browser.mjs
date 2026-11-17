@@ -108,7 +108,8 @@ before(async () => {
   server = createServer(async (req, res) => {
     const path = new URL(req.url, 'http://localhost').pathname;
     const type = path.endsWith('.css') ? 'text/css' : path.endsWith('.webp') ? 'image/webp'
-      : path.endsWith('.jpg') ? 'image/jpeg' : path.endsWith('.woff2') ? 'font/woff2' : 'application/javascript';
+      : path.endsWith('.jpg') ? 'image/jpeg' : path.endsWith('.woff2') ? 'font/woff2'
+        : path.endsWith('.wasm') ? 'application/wasm' : path.endsWith('.task') ? 'application/octet-stream' : 'application/javascript';
     if (assets.has(path)) {
       res.setHeader("Content-Type", type);
       return res.end(assets.get(path));
@@ -228,13 +229,16 @@ test("album like Selfbooth: 01 Ảnh → 02 Chủ đề → 03 Ghép ảnh → 0
     // Chạm ảnh 4 để chỉnh: bộ lọc đen trắng.
     await page.getByRole("button", { name: "Xem & chỉnh ảnh 04" }).click();
     const editor = page.getByRole("dialog", { name: "Chỉnh ảnh 04" });
-    for (const label of ["Mịn da", "Trắng da", "Thon mặt (V-Line)", "Má hồng"]) await editor.getByRole("tab", { name: label }).waitFor();
+    for (const label of ['Mịn da','Sáng da','Thon mặt','Mắt to','Tròng mắt','Thu gọn mũi','Thu gọn miệng','Giảm quầng thâm','Son môi','Má hồng'])
+      await editor.getByRole('slider',{name:label,exact:true}).waitFor();
+    await editor.getByRole('tab',{name:'Màu ảnh',exact:true}).click();
     await editor.getByRole("radio", { name: "Đen trắng" }).click();
     await editor.getByRole("button", { name: /Xong/ }).click();
     let saved = await stored(page);
     assert.deepEqual(saved.hearts, ["p4", "p2", "p1"]);
     assert.equal(saved.adjusts.p4.filter, "mono");
     await page.getByTitle("Đã chỉnh sửa").waitFor();
+    await page.getByRole('img',{name:'Ảnh 04 đã chỉnh',exact:true}).waitFor();
     // 02 Chủ đề: bộ "Hoa" có 2 khung × 2 ô.
     await page.getByRole("button", { name: /Chọn chủ đề/ }).click();
     await page.getByRole("heading", { name: "Chọn bộ chủ đề" }).waitFor();

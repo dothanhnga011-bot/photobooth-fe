@@ -113,6 +113,15 @@ before(async () => {
       face[129] = { x: 157, y: 242 };
       face[280] = { x: 242, y: 248 };
       face[358] = { x: 203, y: 242 };
+      face[4] = { x: 180, y: 246 };
+      for(const [start,cx] of [[468,125],[473,235]]) {
+        face[start]={x:cx,y:202};
+        for(let i=1;i<=4;i++) {
+          const angle=(i-1)*Math.PI/2;
+          face[start+i]={x:cx+6*Math.cos(angle),y:202+6*Math.sin(angle)};
+        }
+      }
+      ellipse([78,95,88,178,87,14,317,402,318,324,308,415,310,311,312,13,82,81,80,191],180,292,24,4);
       for (const point of face) {
         point.x += offsetX;
         point.y += offsetY;
@@ -170,6 +179,37 @@ before(async () => {
 after(async () => {
   await browser?.close();
   await server?.close();
+});
+
+test('each added control changes its local region, leaves distant background and transparency intact, and resets to zero', async()=>{
+  const results=await page.evaluate(()=>{
+    const {render,changed}=window.portraitTest;
+    return ['eyeSize','irisSize','nose','mouth','darkCircles','lips'].map(key=>{
+      const sample=render({[key]:100});
+      return {key,change:changed(sample),background:changed(sample,[0,0,40,480]),neutral:changed(render({[key]:0})),withoutFace:changed(render({[key]:100},0,0,false))};
+    });
+  });
+  for(const row of results) {
+    assert.ok(row.change.pixels>0,`${row.key} must have a visible pixel effect`);
+    assert.equal(row.background.pixels,0,row.key);
+    assert.equal(row.change.alphaChanged,0,row.key);
+    assert.equal(row.neutral.pixels,0,row.key);
+    assert.equal(row.withoutFace.pixels,0,row.key);
+  }
+});
+
+test('lip tint excludes the inner mouth and teeth; iris changes keep the eyelids and cheek still',async()=>{
+  const result=await page.evaluate(()=>{
+    const {render,changed}=window.portraitTest;
+    const lip=render({lips:100}),iris=render({irisSize:100});
+    return {mouth:changed(lip,[170,290,190,294]),lip:changed(lip,[165,282,195,286]),
+      eyes:changed(iris,[115,198,135,206]),cheek:changed(iris,[95,235,150,265]),outsideEye:changed(iris,[112,212,138,220])};
+  });
+  assert.equal(result.mouth.pixels,0,'do not color the inside of the mouth');
+  assert.ok(result.lip.pixels>0);
+  assert.ok(result.eyes.pixels>0);
+  assert.equal(result.cheek.pixels,0);
+  assert.equal(result.outsideEye.pixels,0);
 });
 
 test("neutral settings preserve the original pixels and canvas size", async () => {

@@ -1,5 +1,6 @@
 import { prepareCameraImage } from "./kiosk/camera-image.js";
 import { resampleImage } from "./kiosk/lanczos.js";
+import { applyBeauty } from './beauty-render.js';
 
 self.onmessage = async ({ data: { id, task, ...options } }) => {
   try {
@@ -16,6 +17,17 @@ self.onmessage = async ({ data: { id, task, ...options } }) => {
         self.postMessage({ id, result }, [result.data.buffer]);
       } finally {
         bitmap.close();
+      }
+    } else if (task === 'beauty') {
+      const { bitmap, faces, adjust } = options;
+      let output;
+      try {
+        output = applyBeauty(bitmap, faces, adjust);
+        const result = output.transferToImageBitmap();
+        self.postMessage({ id, result }, [result]);
+      } finally {
+        bitmap.close();
+        if (output) output.width = output.height = 0;
       }
     } else throw new Error("Unknown image task");
   } catch (error) {

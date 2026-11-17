@@ -7,7 +7,7 @@
 // định 250 giây); hết giờ thì tự gửi in những gì đang chọn (chưa chọn bộ khung: bộ đầu tiên, ghép tự động).
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  PiArrowCounterClockwiseBold, PiArrowLeftBold, PiArrowRightBold, PiCheckBold, PiCheckCircleDuotone,
+  PiArrowLeftBold, PiArrowRightBold, PiCheckBold, PiCheckCircleDuotone,
   PiCheckSquareBold, PiClockBold, PiDownloadSimpleBold, PiHeartBold, PiHeartDuotone, PiHeartFill, PiImagesDuotone,
   PiMagnifyingGlassBold, PiMinusBold, PiPlusBold, PiPrinterBold, PiPrinterDuotone, PiSelectionAllBold,
   PiShuffleBold, PiSparkleFill, PiSquareBold, PiStackDuotone, PiTicketBold, PiTimerBold, PiTrashBold,
@@ -16,7 +16,7 @@ import {
 import { RefreshCw } from "lucide-react";
 import { api, assetUrl, formatDateTime, getApiUrl } from "../../api";
 import { Button, ErrorBox, useStudio, useToast } from "../../studio";
-import { ADJUST_LABELS, COLOR_FILTERS, DEFAULT_ADJUST, FILTER_CSS, isNeutral, warmFaceModel } from "../../beauty.js";
+import { DEFAULT_ADJUST, FILTER_CSS, isNeutral } from "../../beauty.js";
 import { renderPrintFrame } from "../../kiosk/compose.js";
 import { photoAt } from "../../kiosk/decor.js";
 import {
@@ -31,7 +31,10 @@ import { printPackUpload } from "../print-upload.js";
 import { polaroidPrinter, polaroidUnit } from "../../print-sizes.js";
 import { mergeUploadedPhotos, uploadPhotos } from "../upload-photos.js";
 import { downloadEach } from "../save-to-phone.js";
-import { createStudioMedia, needsFaces } from "../studio-media.js";
+import { createStudioMedia } from "../studio-media.js";
+import { createCanvasCache } from '../../canvas-cache.js';
+
+import { BeautyEditor } from './BeautyEditor.jsx';
 
 const STEPS = [
   ["Ảnh", PiImagesDuotone],
@@ -77,118 +80,52 @@ function useSaved(key, initial) {
 }
 
 // Ảnh nhỏ đã làm đẹp (cạnh dài `edge` px) cho ô ghép / dải ảnh: ảnh xem trước cỡ lớn chỉ giữ trong lúc thu nhỏ.
-function useSmallEdits(media, adjustOf, edge = 420) {
-  const cache = useRef(new Map());
+function useSmallEdits(media, adjustOf, edge = 720) {
+  const cache = useMemo(() => createCanvasCache({ maxPixels: 8_000_000, maxEntries: 24 }), [media, edge]);
   useEffect(() => () => {
-    for (const canvas of cache.current.values()) if (canvas instanceof HTMLCanvasElement) canvas.width = canvas.height = 0;
-    cache.current.clear();
-  }, [media]);
+    for (const key of [...cache.keys()]) cache.delete(key);
+  }, [cache]);
   return async (photo) => {
-    const key = `${photo.id}:${JSON.stringify(adjustOf(photo.id))}`;
-    if (!cache.current.has(key)) {
-      const pending = media.edited(photo, adjustOf(photo.id), "preview").then((big) => {
+    const adjust = adjustOf(photo.id);
+    const key = `${photo.id}:${JSON.stringify(adjust)}`;
+    return cache.remember(key, async () => {
+      const big = await media.edited(photo, adjust, 'preview');
+      try {
         const scale = Math.min(1, edge / Math.max(big.width, big.height));
         const small = document.createElement("canvas");
         small.width = Math.max(1, Math.round(big.width * scale));
         small.height = Math.max(1, Math.round(big.height * scale));
         small.getContext("2d").drawImage(big, 0, 0, small.width, small.height);
-        big.width = big.height = 0;
-        cache.current.set(key, small);
         return small;
-      }, (error) => { cache.current.delete(key); throw error; });
-      cache.current.set(key, pending);
-      if (cache.current.size > 48) {
-        const [oldest, canvas] = cache.current.entries().next().value;
-        if (canvas instanceof HTMLCanvasElement) canvas.width = canvas.height = 0;
-        cache.current.delete(oldest);
-      }
-    }
-    return cache.current.get(key);
+      } finally { big.width = big.height = 0; }
+    });
   };
 }
 
-// ─── Làm đẹp một ảnh (mịn da, trắng da, thon mặt, má hồng, bộ lọc màu) ───────────────────────────────
-function Editor({ token, media, photo, adjust, onChange, onClose, onFavorite, onDelete, disabled }) {
-  const view = useRef(null);
-  const [status, setStatus] = useState("loading");
-  const [tab, setTab] = useState("smooth");
-  const a = { ...DEFAULT_ADJUST, ...adjust };
-  const turn = useRef(0);
-  useEffect(() => { warmFaceModel(); }, []);
-  useEffect(() => {
-    const mine = ++turn.current;
-    const run = async () => {
-      if (needsFaces(a)) setStatus("faces");
-      try {
-        const canvas = await media.edited(photo, a, "preview", { isCurrent: () => mine === turn.current });
-        if (mine !== turn.current || !view.current) { canvas.width = canvas.height = 0; return; }
-        view.current.width = canvas.width;
-        view.current.height = canvas.height;
-        view.current.getContext("2d").drawImage(canvas, 0, 0);
-        canvas.width = canvas.height = 0;
-        const faces = needsFaces(a) ? await media.facesOf(photo) : null;
-        if (mine === turn.current) setStatus(faces && !faces.length ? "noface" : "ready");
-      } catch (error) {
-        if (mine === turn.current) setStatus(error.code === "FACE_DETECTION_UNAVAILABLE" ? "nomodel" : "error");
-      }
-    };
-    const timer = setTimeout(run, 80);
-    return () => { turn.current++; clearTimeout(timer); };
-  }, [media, photo.id, JSON.stringify(a)]);
-  return (
-    <div className="sb-editor" role="dialog" aria-modal="true" aria-label={`Chỉnh ảnh ${pad(photo.number)}`}>
-      <header>
-        <button type="button" className="sb-icon" onClick={onClose} aria-label="Đóng"><PiArrowLeftBold aria-hidden="true" /></button>
-        <h2>Ảnh #{pad(photo.number)}</h2>
-        <button type="button" className="sb-icon sb-heart" aria-pressed={photo.favorite} disabled={disabled}
-          aria-label={photo.favorite ? "Bỏ tim" : "Thả tim"} onClick={() => onFavorite(photo)}>
-          {photo.favorite ? <PiHeartFill /> : <PiHeartBold />}
-        </button>
-        <button type="button" className="sb-icon" disabled={disabled} aria-label="Xoá ảnh" onClick={() => onDelete([photo.id])}>
-          <PiTrashBold />
-        </button>
-      </header>
-      <div className="sb-editor-view">
-        <canvas ref={view} aria-label="Ảnh xem trước" />
-        {status === "loading" && <p className="sb-editor-note" role="status">Đang mở ảnh…</p>}
-        {status === "faces" && <p className="sb-editor-note" role="status">Đang nhận diện khuôn mặt…</p>}
-        {status === "noface" && <p className="sb-editor-note">Không thấy khuôn mặt rõ — vẫn đổi được bộ lọc màu.</p>}
-        {status === "nomodel" && <p className="sb-editor-note">Chưa tải được bộ làm đẹp — kiểm tra mạng rồi thử lại.</p>}
-        {status === "error" && <p className="sb-editor-note">Không mở được ảnh — thử lại sau ít giây.</p>}
-      </div>
-      <div className="sb-editor-tabs" role="tablist" aria-label="Làm đẹp">
-        {Object.entries(ADJUST_LABELS).map(([key, label]) => (
-          <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)}>
-            {label}{a[key] > 0 && <b>{a[key]}</b>}
-          </button>
-        ))}
-      </div>
-      <label className="sb-editor-slider">
-        <span>{ADJUST_LABELS[tab]}</span>
-        <input type="range" min={0} max={100} step={5} value={a[tab]} aria-label={ADJUST_LABELS[tab]} disabled={disabled}
-          onChange={(e) => onChange({ ...a, [tab]: Number(e.target.value) })} />
-      </label>
-      <div className="sb-editor-filters" role="radiogroup" aria-label="Bộ lọc màu">
-        {Object.entries(COLOR_FILTERS).map(([key, label]) => (
-          <button key={key} type="button" role="radio" aria-checked={a.filter === key} disabled={disabled}
-            onClick={() => onChange({ ...a, filter: key })}>
-            <PhotoThumb photo={photo} token={token} alt="" style={{ filter: FILTER_CSS[key] || "none" }} />
-            <span>{label}</span>
-          </button>
-        ))}
-      </div>
-      <div className="sb-editor-foot">
-        <Button className="outline" disabled={disabled || isNeutral(a)} onClick={() => onChange(DEFAULT_ADJUST)}>
-          <PiArrowCounterClockwiseBold aria-hidden="true" /> Ảnh gốc
-        </Button>
-        <Button onClick={onClose}><PiCheckBold aria-hidden="true" /> Xong</Button>
-      </div>
-    </div>
-  );
+// ─── 01 Ảnh: thư viện ảnh ───────────────────────────────────────────────────────────────────────────────
+function EditedThumb({ token, photo, adjust, small, suspended, alt, loading }) {
+  const canvas=useRef(null),make=useRef(small);
+  make.current=small;
+  const [ready,setReady]=useState(false);
+  const neutral=isNeutral(adjust),key=JSON.stringify(adjust);
+  useEffect(()=>{
+    if(suspended)return;
+    let alive=true;
+    setReady(false);
+    if(!neutral)make.current(photo).then(image=>{
+      const c=canvas.current;
+      if(!alive || !c || !image.width)return;
+      c.width=image.width;c.height=image.height;c.getContext('2d').drawImage(image,0,0);setReady(true);
+    }).catch(()=>{});
+    return ()=>{alive=false};
+  },[photo.id,key,suspended]);
+  return <>
+    {!ready && <PhotoThumb photo={photo} token={token} alt={alt} loading={loading} decoding="async" style={{filter:FILTER_CSS[adjust.filter]||'none'}}/>}
+    <canvas ref={canvas} className="sb-edited-thumb" role="img" aria-label={`${alt} đã chỉnh`} style={{display:ready?'block':'none'}}/>
+  </>;
 }
 
-// ─── 01 Ảnh: thư viện ảnh ───────────────────────────────────────────────────────────────────────────────
-function Gallery({ token, photos, favorites, adjustOf, busy, frozen, uploadProgress, selectedPack, downloadingId,
+function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, frozen, uploadProgress, selectedPack, downloadingId,
   onFavorite, onDelete, onDownload, onEdit, onUpload, onNext }) {
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState(() => new Set());
@@ -236,8 +173,7 @@ function Gallery({ token, photos, favorites, adjustOf, busy, frozen, uploadProgr
             <figure key={p.id} className={`${p.favorite ? "is-fav" : ""} ${selected.has(p.id) ? "is-picked" : ""}`}>
               <button type="button" className="studio-photo" aria-label={selecting ? `Chọn ảnh ${number}` : `Xem & chỉnh ảnh ${number}`}
                 onClick={() => (selecting ? toggle(p.id) : onEdit(p))}>
-                <PhotoThumb photo={p} token={token} alt={`Ảnh ${number}`} loading={i < 4 ? "eager" : "lazy"}
-                  decoding="async" style={{ filter: FILTER_CSS[adjust.filter] || "none" }} />
+                <EditedThumb photo={p} token={token} adjust={adjust} small={small} suspended={suspended} alt={`Ảnh ${number}`} loading={i < 4 ? 'eager' : 'lazy'}/>
               </button>
               {!isNeutral(adjust) && <span className="photo-edited" title="Đã chỉnh sửa"><PiSparkleFill /></span>}
               <div className="tile-actions">
@@ -1029,7 +965,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
           )}
         </div>
       ) : step === 0 ? (
-        <Gallery token={token} photos={newestFirst} favorites={favorites.length} adjustOf={adjustOf} busy={busy} frozen={frozen}
+        <Gallery token={token} photos={newestFirst} favorites={favorites.length} adjustOf={adjustOf} small={small} suspended={Boolean(editing)} busy={busy} frozen={frozen}
           uploadProgress={uploadProgress} selectedPack={pack} downloadingId={downloadingId} onFavorite={toggleHeart}
           onDelete={removePhotos} onDownload={downloadOne} onEdit={(p) => setEditing(p.id)} onUpload={upload}
           onNext={() => go(1)} />
@@ -1052,7 +988,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
           onMore={() => { setShortage(false); go(0); }} onAutomatic={() => beginCompose(true)} onClose={() => setShortage(false)} />
       )}
       {editPhoto && (
-        <Editor token={token} media={media} photo={editPhoto} adjust={saved.adjusts[editPhoto.id]} disabled={frozen}
+        <BeautyEditor token={token} media={media} photo={editPhoto} adjust={saved.adjusts[editPhoto.id]} disabled={frozen}
           onChange={(adjust) => save((v) => ({ adjusts: { ...v.adjusts, [editPhoto.id]: adjust } }))}
           onFavorite={toggleHeart} onDelete={removePhotos} onClose={() => setEditing(null)} />
       )}

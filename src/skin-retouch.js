@@ -146,7 +146,7 @@ export function retouchSkin(data, width, height, mask, adjust, faceSize) {
   bottom = Math.min(height - 1, bottom + radius);
   const regionWidth = right - left + 1;
   const regionHeight = bottom - top + 1;
-  let moments;
+  let moments, chroma;
   if (smooth) {
     const input = new Float32Array(regionWidth * regionHeight * 2);
     for (let y = top; y <= bottom; y++)
@@ -161,6 +161,17 @@ export function retouchSkin(data, width, height, mask, adjust, faceSize) {
         input[index + 1] = luma * luma;
       }
     moments = localMoments(input, regionWidth, regionHeight, radius);
+    // Denoise skin colour as well as brightness: a red blemish can have the
+    // same luminance as the surrounding skin and survived luma-only smoothing.
+    for (let y = top; y <= bottom; y++)
+      for (let x = left; x <= right; x++) {
+        const o = (y * width + x) * 4;
+        const light = .299 * data[o] + .587 * data[o + 1] + .114 * data[o + 2];
+        const i = ((y - top) * regionWidth + x - left) * 2;
+        input[i] = data[o] - light;
+        input[i + 1] = data[o + 2] - light;
+      }
+    chroma = localMoments(input, regionWidth, regionHeight, radius);
   }
   for (let y = top; y <= bottom; y++)
     for (let x = left; x <= right; x++) {
@@ -188,6 +199,15 @@ export function retouchSkin(data, width, height, mask, adjust, faceSize) {
         );
         for (let channel = 0; channel < 3; channel++)
           data[offset + channel] += bounded;
+        const currentLight = .299 * data[offset] + .587 * data[offset + 1] + .114 * data[offset + 2];
+        const dr = clamp((chroma[index] - (data[offset] - currentLight)) * blend * .8, -12, 12);
+        const db = clamp((chroma[index + 1] - (data[offset + 2] - currentLight)) * blend * .8, -12, 12);
+        const dg = -(.299 * dr + .114 * db) / .587;
+        // The compensating green term keeps luminance/texture, instead of
+        // painting pale colour over pores or shifting the person's skin tone.
+        data[offset] += dr;
+        data[offset + 1] += dg;
+        data[offset + 2] += db;
       }
       if (whiten) {
         const r = toLinear[data[offset]],

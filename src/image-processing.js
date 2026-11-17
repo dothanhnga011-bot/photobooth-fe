@@ -1,5 +1,6 @@
 import { prepareCameraImage } from "./kiosk/camera-image.js";
 import { resampleImage } from "./kiosk/lanczos.js";
+import { applyBeauty } from './beauty-render.js';
 
 let worker;
 let unavailable = false;
@@ -89,4 +90,26 @@ export function resampleImageAsync(image, out, src) {
     const bitmap = await createImageBitmap(image);
     return { input: { bitmap, out, src }, transfer: [bitmap] };
   }, () => resampleImage(image, out, src, (w, h) => Object.assign(document.createElement("canvas"), { width: w, height: h })));
+}
+
+export async function applyBeautyAsync(image, faces, adjust, { isCurrent = () => true } = {}) {
+  const check = () => { if (!isCurrent()) throw new DOMException('Edit replaced', 'AbortError'); };
+  const result = await run('beauty', async () => {
+    check();
+    const bitmap = await createImageBitmap(image);
+    if (!isCurrent()) { bitmap.close(); check(); }
+    return { input: { bitmap, faces, adjust }, transfer: [bitmap] };
+  }, () => { check(); return applyBeauty(image, faces, adjust); });
+  try {
+    check();
+    if (result.getContext) return result;
+    // Existing composition code owns HTML canvases. Keep this contract while
+    // the expensive per-pixel work runs in the shared image worker.
+    const canvas = Object.assign(document.createElement('canvas'), { width: result.width, height: result.height });
+    canvas.getContext('2d').drawImage(result, 0, 0);
+    return canvas;
+  } catch (error) {
+    if (result.getContext) result.width = result.height = 0;
+    throw error;
+  } finally { result.close?.(); }
 }

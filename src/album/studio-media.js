@@ -1,9 +1,11 @@
 import { createCanvasCache } from '../canvas-cache.js';
-import { DEFAULT_ADJUST, applyBeauty, detectFaces } from '../beauty.js';
+import { detectFaces, normalizeAdjust } from '../beauty.js';
+import { needsFaces } from '../beauty-settings.js';
+import { applyBeautyAsync } from '../image-processing.js';
 import { fetchMediaBlob, storageLink } from '../media-delivery.js';
 import { photoUrl } from './photo-thumb.jsx';
 
-export const needsFaces = adjust => ['smooth', 'whiten', 'slim', 'blush'].some(key => Number(adjust?.[key]) > 0);
+export { needsFaces } from '../beauty-settings.js';
 
 // Owned by one album. Keep at most ~24 MB of cached preview pixels; print
 // bitmaps are decoded sequentially and closed immediately after retouching.
@@ -23,10 +25,11 @@ export function createStudioMedia(token) {
       return canvas;
     } finally { bitmap.close(); }
   });
-  const facesOf = photo => {
+  const facesOf = (photo, { retry = false } = {}) => {
     const key = String(photo.id);
+    if (retry) faces.delete(key);
     if (!faces.has(key)) {
-      const pending = preview(photo).then(detectFaces).catch(error => {
+      const pending = preview(photo).then(detectFaces).then(list => list.sort((a,b) => a[168].x-b[168].x)).catch(error => {
         if (faces.get(key) === pending) faces.delete(key);
         throw error;
       });
@@ -37,6 +40,7 @@ export function createStudioMedia(token) {
   };
   return {
     facesOf,
+    preview,
     async edited(photo, adjust, size = 'preview', { isCurrent = () => true } = {}) {
       if (size === 'print' && photo.originalPending)
         throw new Error('Ảnh gốc đang tải lên. Vui lòng chờ ảnh gốc sẵn sàng để giữ chất lượng bản in.');
@@ -50,7 +54,7 @@ export function createStudioMedia(token) {
           landmarks = (await facesOf(photo)).map(face => face.map(point => ({ ...point, x: point.x * sx, y: point.y * sy })));
         }
         if (!isCurrent()) throw new DOMException('Preview replaced', 'AbortError');
-        return applyBeauty(image, landmarks, { ...DEFAULT_ADJUST, ...adjust });
+        return await applyBeautyAsync(image, landmarks, normalizeAdjust(adjust), { isCurrent });
       } finally { if (size === 'print') image.close(); }
     },
     clear() {

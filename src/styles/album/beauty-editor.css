@@ -1,0 +1,113 @@
+/* One photo, one set of controls. Keep preview pixels separate from export. */
+@layer components {
+  .sb-album .sb-beauty-editor {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    grid-template: auto minmax(0, 1fr) auto / minmax(0, 1fr) minmax(340px, 420px);
+    gap: 18px 24px;
+    height: 100%;
+    height: 100dvh;
+    padding: 20px clamp(20px, 3vw, 48px) max(20px, env(safe-area-inset-bottom));
+    overflow: hidden;
+    background: var(--cream);
+  }
+  .sb-album .sb-beauty-head {
+    display: flex;
+    align-items: center;
+    grid-area: 1 / 1 / 2 / -1;
+    min-width: 0;
+    gap: 12px;
+  }
+  .sb-album .sb-beauty-head > div { flex: 1; min-width: 0; }
+  .sb-album .sb-beauty-editor .sb-beauty-head h2 { font-size: clamp(24px, 3vw, 36px); line-height: 1.1; }
+  .sb-album .sb-beauty-head h2 em { font-weight: 500; }
+  .sb-beauty-eyebrow { font-size: 10px; font-weight: 600; letter-spacing: .16em; color: var(--muted); }
+  .sb-beauty-number { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .sb-album .sb-beauty-editor .sb-icon { flex: none; width: 44px; height: 44px; }
+  .sb-album .sb-beauty-view {
+    position: relative;
+    display: grid;
+    place-items: center;
+    grid-area: 2 / 1 / 4 / 2;
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+    background: var(--stone);
+  }
+  .sb-album .sb-beauty-view canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    object-fit: contain;
+    box-shadow: none;
+  }
+  .sb-beauty-view-tools { position: absolute; inset: 10px 10px auto; display: flex; justify-content: space-between; gap: 8px; }
+  .sb-beauty-view-tools button {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    min-width: 44px; min-height: 44px; padding: 8px 12px;
+    border: 1px solid var(--line); border-radius: 24px;
+    background: rgb(246 239 229 / 95%); color: var(--ink); font: 500 12px var(--sans); cursor: pointer;
+  }
+  .sb-beauty-view-tools button[aria-pressed="true"] { background: var(--wine); color: var(--paper); border-color: var(--wine); }
+  .sb-beauty-view-tools svg { width: 17px; height: 17px; }
+  .sb-album .sb-beauty-editor button:disabled { cursor: default; opacity: .45; }
+  .sb-album .sb-beauty-editor :is(button,input):focus-visible { outline: 2px solid var(--wine); outline-offset: 3px; }
+  .sb-album .sb-beauty-editor .sb-editor-note, .sb-beauty-original-tag { position: absolute; bottom: 12px; margin: 0; padding: 6px 10px; border-radius: 3px; background: rgb(246 239 229 / 96%); color: var(--ink); font-size: 12px; }
+  .sb-beauty-original-tag { left: 50%; transform: translateX(-50%); white-space: nowrap; }
+  .sb-beauty-panel { grid-area: 2 / 2; display: flex; flex-direction: column; gap: 12px; min-height: 0; min-width: 0; padding: 16px; border: 1px solid var(--line); background: var(--paper); }
+  .sb-beauty-status { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; color: var(--muted); font-size: 11.5px; line-height: 1.5; }
+  .sb-beauty-status.is-warn { color: #875020; }
+  .sb-beauty-status button, .sb-beauty-error button { flex: none; min-height: 44px; padding: 0 8px; background: transparent; border: 1px solid currentColor; border-radius: 3px; color: inherit; font: inherit; cursor: pointer; }
+  .sb-beauty-error { flex: none; max-height: 72px; overflow: auto; margin: 0; color: #9a382c; font-size: 12px; line-height: 1.5; }
+  .sb-beauty-presets { flex: none; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 6px; }
+  .sb-beauty-presets button { min-height: 44px; padding: 8px 4px; border: 1px solid var(--line); border-radius: 3px; background: transparent; color: var(--ink); font: 500 12px var(--sans); cursor: pointer; }
+  .sb-beauty-presets button[aria-pressed="true"] { border-color: var(--wine); background: var(--hover); }
+  .sb-album .sb-beauty-editor .sb-editor-tabs { display: flex; flex: none; min-height: 44px; gap: 16px; overflow-x: auto; border-bottom: 1px solid var(--line); scrollbar-width: thin; }
+  .sb-album .sb-beauty-editor .sb-editor-tabs button { flex: none; min-height: 44px; padding: 4px 1px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; cursor: pointer; }
+  .sb-album .sb-beauty-editor .sb-editor-tabs button[aria-selected="true"] { border-bottom-color: var(--wine); color: var(--wine); }
+  .sb-beauty-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 2px 2px 12px; scrollbar-width: thin; }
+  .sb-beauty-control-caption { margin: 0 0 10px; color: var(--muted); font-size: 10.5px; line-height: 1.5; }
+  .sb-beauty-sliders { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px 20px; }
+  .sb-beauty-slider { display: grid; align-content: start; gap: 4px; min-width: 0; margin: 0; color: var(--body); font-size: 12.5px; }
+  .sb-beauty-slider > span { display: flex; align-items: start; justify-content: space-between; gap: 5px; min-height: 20px; line-height: 1.5; }
+  .sb-beauty-slider output { flex: none; min-width: 22px; color: var(--wine); text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .sb-album .sb-beauty-slider input {
+    appearance: none; width: 100%; height: 44px; margin: 0; padding: 0; border: 0; border-radius: 0; cursor: pointer; touch-action: pan-y;
+    background: linear-gradient(to right, var(--wine) 0 var(--level), var(--line) var(--level) 100%) center / 100% 4px no-repeat;
+  }
+  .sb-beauty-slider input::-webkit-slider-thumb { appearance: none; width: 20px; height: 20px; border: 4px solid var(--paper); border-radius: 50%; background: var(--wine); box-shadow: 0 0 0 1px var(--line-strong); }
+  .sb-beauty-slider input::-moz-range-thumb { width: 12px; height: 12px; border: 4px solid var(--paper); border-radius: 50%; background: var(--wine); box-shadow: 0 0 0 1px var(--line-strong); }
+  .sb-beauty-slider input:disabled { opacity: .4; cursor: default; }
+  .sb-beauty-hint { margin: 14px 0 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+  .sb-album .sb-beauty-editor .sb-editor-filters { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px 12px; padding: 4px; overflow: visible; }
+  .sb-album .sb-beauty-editor .sb-editor-filters button { display: grid; gap: 5px; width: 100%; min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
+  .sb-album .sb-beauty-editor .sb-editor-filters img { width: 100%; height: auto; aspect-ratio: 1; }
+  .sb-album .sb-beauty-editor .sb-editor-filters button[aria-checked="true"] img { outline: 2px solid var(--wine); outline-offset: 2px; }
+  .sb-album .sb-beauty-foot { display: flex; grid-area: 3 / 2; gap: 10px; }
+  .sb-album .sb-beauty-foot .button { flex: 1; min-height: 48px; padding-inline: 12px; font-size: 14px; }
+  .sb-album .studio-photo .sb-edited-thumb { width: 100%; height: 100%; object-fit: cover; }
+  @media (max-width: 760px) {
+    .sb-album .sb-beauty-editor { grid-template: auto minmax(130px,.95fr) minmax(245px,1fr) auto / minmax(0,1fr); gap: 8px; padding: 8px 10px max(8px,env(safe-area-inset-bottom)); }
+    .sb-album .sb-beauty-head { grid-area: 1 / 1; gap: 7px; }
+    .sb-beauty-eyebrow { display: none; }
+    .sb-album .sb-beauty-editor .sb-beauty-head h2 { font-size: 25px; }
+    .sb-album .sb-beauty-head h2 em { display: none; }
+    .sb-beauty-number { font-size: 12px; }
+    .sb-album .sb-beauty-view { grid-area: 2 / 1; }
+    .sb-beauty-panel { grid-area: 3 / 1; gap: 7px; padding: 8px 10px; }
+    .sb-beauty-status { min-height: 18px; font-size: 10.5px; }
+    .sb-beauty-sliders { gap: 8px 18px; }
+    .sb-beauty-view-tools { inset: 6px 6px auto; }
+    .sb-beauty-view-tools button { padding: 6px 10px; }
+    .sb-album .sb-beauty-foot { grid-area: 4 / 1; }
+  }
+  @media (max-height: 540px) and (min-width: 761px) {
+    .sb-album .sb-beauty-editor { padding-block: 8px; gap: 8px 16px; }
+    .sb-beauty-panel { padding: 8px 12px; gap: 6px; }
+  }
+}

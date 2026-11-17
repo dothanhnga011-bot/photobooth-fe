@@ -6,13 +6,12 @@ import {
   skinColorWeight,
 } from "./skin-retouch.js";
 
-export const DEFAULT_ADJUST = {
-  smooth: 0,
-  whiten: 0,
-  blush: 0,
-  slim: 0,
-  filter: "original",
-};
+import { normalizeAdjust, isNeutral } from './beauty-settings.js';
+import { FACE_OVAL, LEFT_EYE, RIGHT_EYE, LEFT_BROW, RIGHT_BROW, LIPS, faceWidth, tracePath } from './face-regions.js';
+import { warpFaces } from './face-warp.js';
+import { applyMakeup } from './face-makeup.js';
+export { DEFAULT_ADJUST, ADJUST_LABELS, isNeutral } from './beauty-settings.js';
+
 export const COLOR_FILTERS = {
   original: "Gốc",
   soft: "Dịu",
@@ -51,13 +50,6 @@ const FILTER_STEPS = {
     ["contrast", 0.9],
   ],
 };
-export const ADJUST_LABELS = {
-  smooth: "Mịn da",
-  whiten: "Trắng da",
-  slim: "Thon mặt (V-Line)",
-  blush: "Má hồng",
-};
-
 // Công thức giống CSS filter (Filter Effects spec), áp dụng trực tiếp lên pixel.
 function colorFilter(data, steps) {
   for (let o = 0; o < data.length; o += 4) {
@@ -106,165 +98,6 @@ function colorFilter(data, steps) {
     data[o + 2] = b;
   }
 }
-export const isNeutral = (a) =>
-  !a ||
-  (Object.keys(ADJUST_LABELS).every((k) => !a[k]) &&
-    (!a.filter || a.filter === "original"));
-
-// Chỉ số điểm mốc trên lưới 478 điểm của MediaPipe.
-const FACE_OVAL = [
-  10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378,
-  400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21,
-  54, 103, 67, 109,
-];
-const LEFT_EYE = [
-  33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246,
-];
-const RIGHT_EYE = [
-  263, 249, 390, 373, 374, 380, 381, 382, 362, 398, 384, 385, 386, 387, 388,
-  466,
-];
-const LEFT_BROW = [70, 63, 105, 66, 107, 55, 65, 52, 53, 46];
-const RIGHT_BROW = [300, 293, 334, 296, 336, 285, 295, 282, 283, 276];
-const LIPS = [
-  61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37,
-  39, 40, 185,
-];
-// Đường viền hàm hai bên, kèm trọng số đẩy vào trong (hàm dưới đẩy nhiều hơn).
-const JAW = [
-  [132, 361, 0.018],
-  [58, 288, 0.028],
-  [172, 397, 0.038],
-  [136, 365, 0.045],
-  [150, 379, 0.045],
-  [149, 378, 0.036],
-  [176, 400, 0.024],
-];
-
-const faceWidth = (f) => Math.hypot(f[454].x - f[234].x, f[454].y - f[234].y);
-
-function tracePath(ctx, face, indices, scale = 1) {
-  const cx = indices.reduce((n, i) => n + face[i].x, 0) / indices.length;
-  const cy = indices.reduce((n, i) => n + face[i].y, 0) / indices.length;
-  ctx.beginPath();
-  indices.forEach((i, k) => {
-    const x = cx + (face[i].x - cx) * scale,
-      y = cy + (face[i].y - cy) * scale;
-    if (k) ctx.lineTo(x, y);
-    else ctx.moveTo(x, y);
-  });
-  ctx.closePath();
-}
-
-// Gộp các điểm kéo hàm thành một trường dịch chuyển rồi lấy mẫu ảnh gốc một lần.
-// Chuẩn hóa vùng giao nhau để nhiều điểm gần nhau không cộng dồn làm méo mặt.
-function warpJaw(data, w, h, controls, r) {
-  const maximumMove = Math.max(...controls.map((p) => Math.hypot(p.dx, p.dy)));
-  const pad = Math.ceil(maximumMove) + 1;
-  const x0 = Math.max(
-      0,
-      Math.floor(Math.min(...controls.map((p) => p.x)) - r - pad),
-    ),
-    x1 = Math.min(
-      w - 1,
-      Math.ceil(Math.max(...controls.map((p) => p.x)) + r + pad),
-    );
-  const y0 = Math.max(
-      0,
-      Math.floor(Math.min(...controls.map((p) => p.y)) - r - pad),
-    ),
-    y1 = Math.min(
-      h - 1,
-      Math.ceil(Math.max(...controls.map((p) => p.y)) + r + pad),
-    );
-  // Viền hàm có thể nằm ngoài ảnh cận mặt: bỏ vùng không giao với bitmap.
-  if (x1 < x0 || y1 < y0) return;
-  const bw = x1 - x0 + 1;
-  const copy = new Uint8ClampedArray((y1 - y0 + 1) * bw * 4);
-  for (let y = y0; y <= y1; y++)
-    copy.set(
-      data.subarray((y * w + x0) * 4, (y * w + x1 + 1) * 4),
-      (y - y0) * bw * 4,
-    );
-  const sample = (x, y, c) => copy[((y - y0) * bw + (x - x0)) * 4 + c];
-  const weights = new Float32Array(bw),
-    displacementX = new Float32Array(bw),
-    displacementY = new Float32Array(bw);
-  const r2 = r * r;
-  for (let y = y0; y <= y1; y++) {
-    weights.fill(0);
-    displacementX.fill(0);
-    displacementY.fill(0);
-    for (const p of controls) {
-      const dy2 = (y - p.y) ** 2;
-      if (dy2 >= r2) continue;
-      const halfWidth = Math.sqrt(r2 - dy2);
-      const start = Math.max(x0, Math.ceil(p.x - halfWidth)),
-        end = Math.min(x1, Math.floor(p.x + halfWidth));
-      for (let x = start; x <= end; x++) {
-        // Kernel bằng 0 và có độ dốc bằng 0 ở biên, tránh nếp gợn quanh vùng kéo.
-        const weight = Math.max(0, 1 - ((x - p.x) ** 2 + dy2) / r2) ** 2;
-        const index = x - x0;
-        weights[index] += weight;
-        displacementX[index] += p.dx * weight;
-        displacementY[index] += p.dy * weight;
-      }
-    }
-    for (let x = x0; x <= x1; x++) {
-      const index = x - x0;
-      if (!weights[index]) continue;
-      const divisor = Math.max(1, weights[index]);
-      const ux = Math.min(x1, Math.max(x0, x - displacementX[index] / divisor)),
-        uy = Math.min(y1, Math.max(y0, y - displacementY[index] / divisor));
-      const ix = Math.floor(ux),
-        iy = Math.floor(uy);
-      const nextX = Math.min(x1, ix + 1),
-        nextY = Math.min(y1, iy + 1);
-      const fx = ux - ix,
-        fy = uy - iy;
-      const o = (y * w + x) * 4;
-      for (let c = 0; c < 3; c++)
-        data[o + c] =
-          (sample(ix, iy, c) * (1 - fx) + sample(nextX, iy, c) * fx) *
-            (1 - fy) +
-          (sample(ix, nextY, c) * (1 - fx) + sample(nextX, nextY, c) * fx) * fy;
-    }
-  }
-}
-
-function slimFaces(data, w, h, faces, amount) {
-  amount = Math.max(0, Math.min(1, amount));
-  for (const f of faces) {
-    const fw = faceWidth(f);
-    if (!Number.isFinite(fw) || fw <= 0) continue;
-    // Trục giữa mặt: từ sống mũi (168) xuống cằm (152).
-    const ax = f[168].x,
-      ay = f[168].y,
-      bx = f[152].x,
-      by = f[152].y;
-    const len2 = (bx - ax) ** 2 + (by - ay) ** 2 || 1;
-    const controls = [];
-    for (const [left, right, weight] of JAW)
-      for (const i of [left, right]) {
-        const p = f[i];
-        const t = ((p.x - ax) * (bx - ax) + (p.y - ay) * (by - ay)) / len2;
-        const qx = ax + t * (bx - ax),
-          qy = ay + t * (by - ay);
-        const dist = Math.hypot(qx - p.x, qy - p.y) || 1;
-        const move = Math.min(dist * 0.5, fw * weight * amount * 1.6);
-        if (move > 0)
-          controls.push({
-            x: p.x,
-            y: p.y,
-            dx: ((qx - p.x) / dist) * move,
-            dy: ((qy - p.y) / dist) * move,
-          });
-      }
-    if (controls.length) warpJaw(data, w, h, controls, fw * 0.22);
-  }
-}
-
-// Mặt nạ da 0–1: màu da (YCbCr) giao với vùng mặt, trừ mắt, lông mày, môi.
 function skinMask(data, w, h, faces) {
   if (!faces.length) return new Float32Array(w * h);
   let region = null;
@@ -313,17 +146,17 @@ export function applyBeauty(source, faces, adjust) {
   const out = createImageCanvas(w, h);
   const ctx = out.getContext("2d", { willReadFrequently: true });
   ctx.drawImage(source, 0, 0, w, h);
-  const a = { ...DEFAULT_ADJUST, ...adjust };
+  const a = normalizeAdjust(adjust);
   if (isNeutral(a)) return out;
   faces = faces || [];
-  if (faces.length && (a.slim > 0 || a.smooth > 0 || a.whiten > 0)) {
+  if (faces.length && (a.smooth > 0 || a.whiten > 0 || a.darkCircles > 0 || a.lips > 0)) {
     const img = ctx.getImageData(0, 0, w, h);
     const data = img.data;
-    if (a.slim > 0) slimFaces(data, w, h, faces, a.slim / 100);
     if (a.smooth > 0 || a.whiten > 0) {
       const mask = skinMask(data, w, h, faces);
       retouchSkin(data, w, h, mask, a, faceWidth(faces[0]));
     }
+    applyMakeup(data, w, h, faces, a);
     ctx.putImageData(img, 0, 0);
   }
   if (a.blush > 0 && faces.length) {
@@ -352,6 +185,11 @@ export function applyBeauty(source, faces, adjust) {
       }
       ctx.restore();
     }
+  }
+  if (faces.length && ['slim', 'eyeSize', 'irisSize', 'nose', 'mouth'].some(key => a[key] > 0)) {
+    const img = ctx.getImageData(0, 0, w, h);
+    warpFaces(img.data, w, h, faces, a);
+    ctx.putImageData(img, 0, 0);
   }
   if (FILTER_STEPS[a.filter]) {
     // Colour filters are per-pixel operations. Bounded row buffers preserve
