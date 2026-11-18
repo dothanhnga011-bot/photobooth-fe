@@ -10,8 +10,13 @@ import { whenUplinkIdle } from "./uplink.js";
 // cleaned of private metadata, then commits the photo with only its small preview. Whenever that
 // is not possible (older server, storage not allowing the upload yet, a file still being written)
 // the photo is sent the usual way, so nothing is ever lost.
-const DIRECT_PAUSE_MS = 10 * 60000;
+// Selfbooth's short recovery: retry direct storage after 30s, then 60s/120s
+// after repeated failures. Photo and video retain independent backoffs.
+const DIRECT_PAUSE_MS = 30000;
 const directOffUntil = { photo: 0, video: 0 };
+const directFailures = { photo: 0, video: 0 };
+const pauseDirect = kind => { directOffUntil[kind] = Date.now() + DIRECT_PAUSE_MS * 2 ** Math.min(directFailures[kind]++, 2); };
+const directSucceeded = kind => { directOffUntil[kind] = directFailures[kind] = 0; };
 const backgroundUploads = createUploadPool(2);
 const backgroundUpload = (task) => backgroundUploads.run(async () => {
   await whenUplinkIdle();
@@ -27,6 +32,7 @@ let storedVideos = new WeakMap();
 
 export const resetDirectUploads = () => {
   directOffUntil.photo = directOffUntil.video = 0;
+  directFailures.photo = directFailures.video = 0;
   storedUploads.clear(); storedOriginals.clear(); storedVideos = new WeakMap();
 };
 
@@ -39,13 +45,17 @@ const isStorageUrl = (src) => {
 
 // path: "/kiosk/photo" during the session, "/albums/<token>/photos" afterwards.
 export async function savePhoto(path, image, options = {}) {
-  const viaServer = () => api(path, photoUpload(image, options));
+  const replyHeaders = options.onlyNewPhoto ? { 'X-Photo-Reply': 'delta' } : {};
+  const viaServer = () => {
+    const request = photoUpload(image, options);
+    return api(path, { ...request, headers: { ...request.headers, ...replyHeaders } });
+  };
   const { clientKey, captureToken, preview } = options;
-  if (!(image instanceof Blob) || !(preview instanceof Blob) || !preview.size || !clientKey ||
-      Date.now() < directOffUntil.photo)
+  if (!(image instanceof Blob) || !(preview instanceof Blob) || !preview.size || !clientKey)
     return viaServer();
   let stored = storedUploads.get(clientKey);
   if (!stored) {
+    if (Date.now() < directOffUntil.photo) return viaServer();
     let file;
     try {
       file = await cleanCameraJpeg(image);
@@ -56,9 +66,11 @@ export async function savePhoto(path, image, options = {}) {
     try {
       ticket = await api(`${path}/upload-url`, {
         method: "POST",
+        headers: replyHeaders,
         body: { clientKey, size: file.size, ...(captureToken && { captureToken }) },
       });
-    } catch {
+    } catch (error) {
+      if (error.status >= 400 && error.status < 500 && error.status !== 404) throw error;
       return viaServer(); // older server, other storage, or the session just ended
     }
     // Saved already (an earlier reply was lost): trust it only if this very photo is there.
@@ -67,10 +79,11 @@ export async function savePhoto(path, image, options = {}) {
     if (!isStorageUrl(ticket?.upload?.url) || typeof ticket.upload.stored !== "string") return viaServer();
     try {
       await putToStorage(ticket.upload.url, file);
+      directSucceeded('photo');
     } catch {
       // Storage not reachable from this page (e.g. its CORS rules do not allow uploads yet):
       // use the server for a while instead of failing every photo first.
-      directOffUntil.photo = Date.now() + DIRECT_PAUSE_MS;
+      pauseDirect('photo');
       return viaServer();
     }
     stored = ticket.upload.stored;
@@ -83,6 +96,7 @@ export async function savePhoto(path, image, options = {}) {
       retry: 1,
       body: preview,
       headers: {
+        ...replyHeaders,
         "X-Photo-Key": clientKey,
         "X-Photo-Stored": stored,
         ...(captureToken && { "X-Capture-Token": captureToken }),
@@ -114,6 +128,7 @@ export function savePreview(path, row, { captureToken } = {}) {
     headers: {
       "X-Photo-Key": row.id,
       "X-Photo-Original": "later",
+      "X-Photo-Reply": "delta",
       ...(captureToken && { "X-Capture-Token": captureToken }),
       ...(row.mirrored !== undefined && { "X-Photo-Mirrored": row.mirrored ? "1" : "0" }),
     },
@@ -149,8 +164,9 @@ export async function saveOriginal(token, row) {
     if (!isStorageUrl(ticket?.upload?.url) || typeof ticket.upload.stored !== "string") return viaServer();
     try {
       await backgroundUpload(() => putToStorage(ticket.upload.url, body, { timeout: 600000 }));
+      directSucceeded('photo');
     } catch {
-      directOffUntil.photo = Date.now() + DIRECT_PAUSE_MS;
+      pauseDirect('photo');
       return viaServer();
     }
     stored = ticket.upload.stored;
@@ -193,8 +209,9 @@ export async function saveVideo(video, captureToken) {
     if (!isStorageUrl(ticket?.upload?.url) || typeof ticket.upload.stored !== "string") return viaServer();
     try {
       await backgroundUpload(() => putToStorage(ticket.upload.url, video, { contentType: video.type, timeout: 600000 }));
+      directSucceeded('video');
     } catch {
-      directOffUntil.video = Date.now() + DIRECT_PAUSE_MS;
+      pauseDirect('video');
       return viaServer();
     }
     stored = ticket.upload.stored;

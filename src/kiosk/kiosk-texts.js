@@ -5,7 +5,9 @@ export const KIOSK_TEXT_GROUPS = [
   ["Chung", [
     ["start.tap", "Nút trên màn chờ", "Chạm để bắt đầu"],
     ["select.title", "Tiêu đề màn chọn ảnh ({s} = số giây còn lại)", "Bạn có {s}s để chọn ảnh & trang trí"],
-    ["select.frameHint", "Hướng dẫn đổi frame trên màn chọn ảnh", "Bấm mũi tên hoặc mục “Khung” để xem tất cả frame nhaa"],
+    ["select.frameTitle", "Tiêu đề màn chọn khung ({s} = số giây còn lại)", "Bạn có {s}s để chọn khung ảnh"],
+    ["select.photoHint", "Hướng dẫn chọn ảnh sau khi chọn khung", "Chọn ảnh bên phải để ghép vào khung. Chạm ảnh trên khung để bỏ chọn."],
+    ["select.frameSubtitle", "Hướng dẫn màn chọn khung", "Chọn khung bạn thích rồi bấm Tiếp tục để chọn ảnh và trang trí."],
     ["done.title", "Tiêu đề màn QR", "Quét QR để tải ảnh & video."],
   ]],
   ["Phòng photobooth", [

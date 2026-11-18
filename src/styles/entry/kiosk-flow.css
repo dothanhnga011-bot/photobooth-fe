@@ -1,6 +1,6 @@
 /*
-  Luồng máy chụp mới: chọn gói → đút tiền → chọn cách chụp → chụp toàn màn hình → chọn ảnh →
-  chọn khung → QR + ảnh ghép + video. Hệ màu Mellow như màn chờ của máy chụp.
+  PTB: nhập mã / trả tiền → chụp → chọn khung → chọn ảnh và trang trí → QR + ảnh ghép + video.
+  Hệ màu Mellow như màn chờ của máy chụp.
 */
 @layer components {
   /* ── Màn chụp toàn màn hình: không chữ trên hình, cột phải có đồng hồ + ảnh vừa chụp ── */

@@ -13,7 +13,7 @@ export function createStudioMedia(token) {
   const previews = createCanvasCache({ maxPixels: 6_000_000, maxEntries: 3 });
   const faces = new Map();
   const load = async (photo, size) => createImageBitmap(await fetchMediaBlob(photoUrl(token, photo.id, size), {
-    link: storageLink(photo, size) || undefined,
+    link: storageLink(photo, size || 'original') || undefined,
   }));
   const preview = photo => previews.remember(String(photo.id), async () => {
     const bitmap = await load(photo, 'preview');
@@ -41,12 +41,35 @@ export function createStudioMedia(token) {
   return {
     facesOf,
     preview,
-    async edited(photo, adjust, size = 'preview', { isCurrent = () => true } = {}) {
-      if (size === 'print' && photo.originalPending)
+    async edited(photo, adjust, size = 'preview', { edge = 1600, isCurrent = () => true } = {}) {
+      if (['print', 'download'].includes(size) && photo.originalPending)
         throw new Error('Ảnh gốc đang tải lên. Vui lòng chờ ảnh gốc sẵn sàng để giữ chất lượng bản in.');
-      const image = size === 'print' ? await load(photo, 'print') : await preview(photo);
+      let image = ['print', 'download'].includes(size) ? await load(photo, size === 'download' ? false : 'print') : await preview(photo);
+      let small, full;
       try {
         if (!isCurrent()) throw new DOMException('Preview replaced', 'AbortError');
+        if (size === 'download') {
+          // Edited phone downloads use camera pixels, not the 3000px print
+          // source. Follow the preview's mirror choice and cap at 20MP.
+          const bitmap = image, scale = Math.min(1, Math.sqrt(20_000_000 / (bitmap.width * bitmap.height)));
+          full = document.createElement('canvas');
+          full.width = Math.max(1, Math.floor(bitmap.width * scale));
+          full.height = Math.max(1, Math.floor(bitmap.height * scale));
+          const ctx = full.getContext('2d'); ctx.imageSmoothingQuality = 'high';
+          if (photo.mirrored) { ctx.translate(full.width, 0); ctx.scale(-1, 1); }
+          ctx.drawImage(bitmap, 0, 0, full.width, full.height);
+          bitmap.close(); image = full;
+        }
+        // Like Selfbooth: lighter interactive pixels while dragging, then the
+        // original 1600px preview on release. Print pixels never use this path.
+        if (size === 'preview' && edge < Math.max(image.width, image.height)) {
+          const scale = Math.min(1, Math.max(320, edge) / Math.max(image.width, image.height));
+          small = document.createElement('canvas');
+          small.width = Math.max(1, Math.round(image.width * scale));
+          small.height = Math.max(1, Math.round(image.height * scale));
+          const ctx = small.getContext('2d'); ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(image, 0, 0, small.width, small.height); image = small;
+        }
         let landmarks = [];
         if (needsFaces(adjust)) {
           const reference = await preview(photo);
@@ -55,7 +78,11 @@ export function createStudioMedia(token) {
         }
         if (!isCurrent()) throw new DOMException('Preview replaced', 'AbortError');
         return await applyBeautyAsync(image, landmarks, normalizeAdjust(adjust), { isCurrent });
-      } finally { if (size === 'print') image.close(); }
+      } finally {
+        if (size === 'print') image.close();
+        if (size === 'download') { image.close?.(); if (full) full.width = full.height = 0; }
+        if (small) small.width = small.height = 0;
+      }
     },
     clear() {
       for (const key of [...previews.keys()]) previews.delete(key);

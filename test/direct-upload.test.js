@@ -65,6 +65,56 @@ test("the camera original goes straight to storage and the server only gets the 
   assert.equal(commit.headers["X-Photo-Preview-Length"], undefined);
 });
 
+test('direct storage recovers after 30s, backs off on repeated failures and resets after a success', async t => {
+  let now = 1_900_000_000_000, reachable = false;
+  t.mock.method(Date, 'now', () => now);
+  const calls = network({
+    ticket: json({ upload: { url: STORAGE, stored: 'stored-token' } }),
+    storage: () => new Response(null, { status: reachable ? 200 : 503 }),
+    commit: json({ photos: [] }),
+  });
+  let key = 0;
+  const send = () => saveOriginal('album', { id: `backoff-photo-${++key}`, image });
+  const puts = () => calls.filter(call => call.kind === 'storage').length;
+  await send(); assert.equal(puts(), 1);
+  now += 29999; await send(); assert.equal(puts(), 1);
+  now++; await send(); assert.equal(puts(), 2);
+  now += 59999; await send(); assert.equal(puts(), 2);
+  now++; reachable = true; await send(); assert.equal(puts(), 3);
+  await send(); assert.equal(puts(), 4, 'a successful PUT resumes direct uploads immediately');
+  reachable = false; await send(); assert.equal(puts(), 5);
+  now += 30000; reachable = true; await send(); assert.equal(puts(), 6, 'a success resets the backoff to 30s');
+  assert.ok(calls.filter(call => call.kind === 'storage').every(call => call.init.body.size === cleaned.length));
+});
+
+test('a paused new upload does not resend an original already stored by another request', async () => {
+  let firstReply = false, storageWorks = true;
+  const calls = network({
+    ticket: json({ upload: { url: STORAGE, stored: 'stored-token' } }),
+    storage: () => new Response(null, { status: storageWorks ? 200 : 503 }),
+    commit: call => {
+      if (call.init.headers['X-Photo-Key'] === options.clientKey && call.init.headers['X-Photo-Stored'] && !firstReply)
+        return Response.json({ message: 'Unavailable' }, { status: 503 });
+      return Response.json({ photos: [] });
+    },
+  });
+  await assert.rejects(savePhoto('/kiosk/photo', image, options));
+  storageWorks = false;
+  await savePhoto('/kiosk/photo', image, { ...options, clientKey: 'another-failed-photo' });
+  firstReply = true;
+  const from = calls.length;
+  await savePhoto('/kiosk/photo', image, { ...options, onlyNewPhoto: true });
+  assert.deepEqual(calls.slice(from).map(call => call.kind), ['commit']);
+  assert.equal(calls.at(-1).init.body, preview);
+  assert.equal(calls.at(-1).init.headers['X-Photo-Reply'], 'delta');
+});
+
+test('rejected upload permission does not trigger another full camera-file POST', async () => {
+  const calls = network({ ticket: json({ message: 'Phiên không hợp lệ' }, 403) });
+  await assert.rejects(savePhoto('/kiosk/photo', image, options), error => error.status === 403);
+  assert.deepEqual(calls.map(call => call.kind), ['ticket']);
+});
+
 test("storage that refuses uploads sends photos through the server for a while", async () => {
   const calls = network({
     ticket: json({ upload: { url: STORAGE, stored: "stored-token" } }),

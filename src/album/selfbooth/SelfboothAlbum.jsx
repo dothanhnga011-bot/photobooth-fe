@@ -711,7 +711,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
         upload: async (file) => {
           const clientKey = crypto.randomUUID();
           const preview = file.type === "image/jpeg" ? await prepareCameraImageAsync(file, false).catch(() => undefined) : undefined;
-          return savePhoto(`/albums/${token}/photos`, file, { name: file.name, clientKey, preview });
+          return savePhoto(`/albums/${token}/photos`, file, { name: file.name, clientKey, preview, onlyNewPhoto: true });
         },
         onSaved: (response) => {
           const next = mergeUploadedPhotos(bookingRef.current, response);
@@ -737,10 +737,12 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
       if (isNeutral(adjust))
         await downloadEach([{ url: `${photoUrl(token, photo.id)}?download=1`, link: storageLink(photo, "download"), name, type: "image/jpeg" }]);
       else {
-        // Ảnh đã làm đẹp: lưu đúng bản đã chỉnh, cỡ in.
-        const canvas = await media.edited(photo, adjust, "print");
-        const blob = await new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("máy không đủ bộ nhớ"))), "image/jpeg", 0.95));
-        canvas.width = canvas.height = 0;
+        // Render the guest JPEG from camera pixels, at up to 20MP, independently
+        // of both the interactive preview and the 3000px print source.
+        const canvas = await media.edited(photo, adjust, "download");
+        let blob;
+        try { blob = await new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("máy không đủ bộ nhớ"))), "image/jpeg", 0.95)); }
+        finally { canvas.width = canvas.height = 0; }
         const url = URL.createObjectURL(blob);
         download(url, name);
         setTimeout(() => URL.revokeObjectURL(url), 4000);
@@ -988,8 +990,14 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
           onMore={() => { setShortage(false); go(0); }} onAutomatic={() => beginCompose(true)} onClose={() => setShortage(false)} />
       )}
       {editPhoto && (
-        <BeautyEditor token={token} media={media} photo={editPhoto} adjust={saved.adjusts[editPhoto.id]} disabled={frozen}
+        <BeautyEditor token={token} media={media} photo={editPhoto} photos={newestFirst} adjust={saved.adjusts[editPhoto.id]} disabled={frozen}
           onChange={(adjust) => save((v) => ({ adjusts: { ...v.adjusts, [editPhoto.id]: adjust } }))}
+          onNavigate={setEditing} onDownload={downloadOne} downloading={Boolean(downloadingId)}
+          onApplyAll={(adjust) => {
+            if (frozen) return;
+            save((v) => ({ adjusts: { ...v.adjusts, ...Object.fromEntries(photos.map(p => [p.id, { ...adjust }])) } }));
+            toast.success(`Đã áp dụng chỉnh sửa cho ${photos.length} ảnh.`);
+          }}
           onFavorite={toggleHeart} onDelete={removePhotos} onClose={() => setEditing(null)} />
       )}
     </section>

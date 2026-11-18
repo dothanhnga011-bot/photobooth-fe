@@ -2,13 +2,19 @@ import { isConnectivityError } from "../network.js";
 import { serverNow } from "./server-clock.js";
 
 // Keep a slow request in flight instead of starting it again on each timer tick.
-// Callers share the running promise; missed ticks do not queue stale callbacks.
-export function createSingleFlight() {
-  let running = null;
+// Callers share the running promise. Queue pumps can opt into one coalesced
+// trailing pass so a newly durable photo cannot lose its wake at the tail.
+export function createSingleFlight({ trailing = false } = {}) {
+  let running = null, again = false;
   return {
     run(action) {
-      if (running) return running;
-      const task = Promise.resolve().then(action);
+      if (running) { again ||= trailing; return running; }
+      const task = Promise.resolve().then(async () => {
+        let result;
+        do { again = false; result = await action(); } while (again);
+        if (running === settled) running = null;
+        return result;
+      });
       const settled = task.finally(() => {
         if (running === settled) running = null;
       });

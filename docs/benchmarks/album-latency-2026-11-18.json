@@ -1,0 +1,119 @@
+{
+  "studyDate": "2026-11-18",
+  "recordedAt": "2026-11-18T03:42:48.401Z",
+  "baseline": "37da869dafa59dfe6318be0c20f0a514674d7996",
+  "currentCaptureSha256": "bf827de8bdd4d1a7c529e5fca9de1c5018cc81d24ba9b69fdc78c3121ea0727d",
+  "fixture": {
+    "cameraBytes": 15853307,
+    "cameraSha256": "7fd75ffe1e08782686c8aac0afc249f0b25138c5d40d21bbcd6bd75758ee33cb",
+    "cameraPixels": 25958400,
+    "previewBytes": 849145,
+    "previewSha256": "c0889c2f65160134c3eaa6917ef29e678ed1cc73724847d5dec7c9e668309675",
+    "thumbnailSha256": "11dbcffce2fe90452d148e8e66307d25a04e23bbefdb61e6aff3dce86dde2043"
+  },
+  "count": 12,
+  "rounds": 2,
+  "busyMs": 3000,
+  "method": "Actual HEAD/current appendCapture, synthetic camera-derived preview, 2 concurrent local HTTP requests, MongoMemoryServer only, real R2 writes/reads. One full-image slot with a controlled 3000 ms storage/encode wait and memory headroom. Excludes production Render/Atlas latency, phone rendering, and original transfer throughput.",
+  "results": [
+    {
+      "variant": "old",
+      "scene": "idle",
+      "index": 1,
+      "firstMs": 392.6084000000001,
+      "allMs": 6230.2421,
+      "photos": 12,
+      "checksumVerified": true
+    },
+    {
+      "variant": "new",
+      "scene": "idle",
+      "index": 1,
+      "firstMs": 383.58930000000146,
+      "allMs": 5328.782499999999,
+      "photos": 12,
+      "checksumVerified": true
+    },
+    {
+      "variant": "new",
+      "scene": "idle",
+      "index": 2,
+      "firstMs": 731.1584000000003,
+      "allMs": 6468.267599999999,
+      "photos": 12,
+      "checksumVerified": true
+    },
+    {
+      "variant": "old",
+      "scene": "idle",
+      "index": 2,
+      "firstMs": 367.7570999999989,
+      "allMs": 5843.196599999999,
+      "photos": 12,
+      "checksumVerified": true
+    },
+    {
+      "variant": "old",
+      "scene": "busy",
+      "index": 1,
+      "firstMs": 3371.6901,
+      "allMs": 9009.625200000002,
+      "photos": 12,
+      "checksumVerified": true
+    },
+    {
+      "variant": "new",
+      "scene": "busy",
+      "index": 1,
+      "firstMs": 395.44460000000254,
+      "allMs": 6085.407899999998,
+      "photos": 12,
+      "checksumVerified": true
+    },
+    {
+      "variant": "new",
+      "scene": "busy",
+      "index": 2,
+      "firstMs": 429.02500000000146,
+      "allMs": 4988.046300000002,
+      "photos": 12,
+      "checksumVerified": true
+    },
+    {
+      "variant": "old",
+      "scene": "busy",
+      "index": 2,
+      "firstMs": 3336.8113999999987,
+      "allMs": 8903.889900000002,
+      "photos": 12,
+      "checksumVerified": true
+    }
+  ],
+  "summary": {
+    "idle": {
+      "old": {
+        "firstMs": 380.1827499999995,
+        "allMs": 6036.719349999999
+      },
+      "new": {
+        "firstMs": 557.3738500000009,
+        "allMs": 5898.525049999999
+      }
+    },
+    "busy": {
+      "old": {
+        "firstMs": 3354.2507499999992,
+        "allMs": 8956.757550000002
+      },
+      "new": {
+        "firstMs": 412.234800000002,
+        "allMs": 5536.7271
+      }
+    }
+  },
+  "cleanup": {
+    "objects": 196,
+    "namespace": "bench-album-latency-bf734636-508b-4a5e-b307-561f0b88c072",
+    "remaining": 0
+  }
+}

@@ -53,5 +53,6 @@
 @import "./styles/admin/frames.css";
 @import "./styles/entry/kiosk-flow.css";
 @import "./styles/entry/kiosk-portrait.css";
+@import "./styles/entry/kiosk-frames.css";
 @import "./styles/entry/kiosk-classic.css";
 @import "./styles/admin/sidebar.css";

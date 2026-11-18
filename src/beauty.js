@@ -12,7 +12,7 @@ export {
   DEFAULT_ADJUST, COLOR_FILTERS, FILTER_CSS, ADJUST_LABELS,
   isNeutral, applyBeauty,
 } from "./beauty-render.js";
-export { BEAUTY_GROUPS, BEAUTY_PRESETS, needsFaces, normalizeAdjust } from './beauty-settings.js';
+export { BEAUTY_PRESETS, needsFaces, normalizeAdjust } from './beauty-settings.js';
 
 let landmarker;
 export function loadFaceLandmarker() {

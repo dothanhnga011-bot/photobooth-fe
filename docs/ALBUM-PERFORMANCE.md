@@ -4,6 +4,10 @@ Không có thời gian cố định từ lúc chụp xong đến khi toàn bộ 
 
 ## Các thay đổi
 
+- Bổ sung theo dự án Selfbooth của chủ tiệm: [chi tiết phần được chọn và phần giữ nguyên](./SELFBOOTH-ADAPTATION.md). Xác nhận upload có thể chỉ trả ảnh vừa gửi, đường R2 tự phục hồi sau 30/60/120 giây, ảnh đã lên kho không bị gửi lại khi file khác gặp lỗi. Phép đo 103 ảnh giảm JSON xác nhận từ 22.577 xuống 659 byte, không phải giảm dung lượng ảnh gốc.
+
+- Ngày 18/11: ảnh xem trước có một lượt lưu nhỏ riêng để không đợi ảnh lớn khi còn RAM; ảnh gốc không bỏ lỡ tín hiệu gửi tiếp, và một preview lỗi không chặn các ảnh gốc đã sẵn sàng. Backend bỏ một lần đọc thừa lúc gắn ảnh gốc và chọn đúng ảnh khi tự kết thúc phiên quá giờ. [Phép đo trước/sau và giới hạn kết luận](./ALBUM-LATENCY-2026-11-18.md): trong ca có tác vụ giữ hàng chung 3 giây, 12 preview được xác nhận từ 8,96 xuống 5,54 giây; máy chủ rảnh gần tương đương. Không giảm chất lượng hoặc thay giới hạn hai file lớn đang truyền.
+
 - Màn chọn ảnh giải mã tối đa ba ảnh xem trước cùng lúc, gom cập nhật vào một lần vẽ màn hình. Danh sách phiên được cập nhật vẫn dùng lại bitmap đã đọc; chuyển khách/rời bước chọn ảnh sẽ hủy lượt tải cũ và đóng bitmap đến muộn. Không đổi kích thước hoặc màu của ảnh xem trước.
 - Kéo/phóng ảnh, đổi màu hoặc đổi khung được ghép ở nhịp vẽ màn hình. Bản xem trước đã lỗi thời dừng trước bước cấp canvas/áp màu sau khi tài nguyên tải xong; khung/QR mới luôn kích hoạt ghép lại. Kiểm tra trình duyệt với tám lần đổi trong lúc khung đang tải chỉ cấp một canvas cho bản cuối, vẫn giữ kích thước xem trước cũ.
 - URL Blob của ảnh/video gắn với đúng nguồn đang hiển thị, được thu hồi khi thay nguồn, đổi khách hoặc đóng trang. Video ghép xong sau khi chuyển sang khách mới vẫn được tải lên album cũ, nhưng không tạo thêm URL xem trước không còn ai sử dụng.

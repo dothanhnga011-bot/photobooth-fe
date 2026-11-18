@@ -32,7 +32,7 @@ import { sendDirectPrint } from "./direct-print.js";
 import { slotMapping } from "./lanczos.js";
 import { resampleImageAsync } from "../image-processing.js";
 
-// Ghép khung và in ngay tại máy chụp (khách chọn ảnh → chọn khung → lấy ảnh ở khay in).
+// Khách chọn khung → chọn ảnh và trang trí → in ngay tại máy chụp.
 // Một "tấm" (shot): { key, preview: Blob | URL, image?: Blob gốc chưa lật, mirrored, serverId? }.
 
 const PRINT_EDGE = 3000;

@@ -57,7 +57,7 @@ const FRAME = { _id: "frame-decor", name: "Khung thử", printSize: "full", acti
 const STICKER = { _id: "sticker-blue", name: "Tim xanh", image: dataUrl(stickerImage), thumb: dataUrl(stickerImage) };
 const STAR = { _id: "sticker-star", name: "Sao vàng", image: dataUrl(png(40, 40, () => [240, 190, 40, 255])), thumb: "" };
 const SETTINGS = { enabledFilters: ["original", "mono"], customFilters: [],
-  kioskTexts: { "select.frameHint": "Bấm mũi tên để chọn frame tiếp theo nhé" } };
+  kioskTexts: { "select.frameSubtitle": "Chọn một khung bạn thích rồi tiếp tục nhé" } };
 
 let server, browser, base;
 const fixture = `
@@ -130,14 +130,15 @@ before(async () => {
 
 after(async () => { await browser?.close(); await new Promise((resolve) => server?.close(resolve)); });
 
-async function selectScreen({ query = "", shots = 3, prints = 1, viewport = { width: 1366, height: 768 }, holdPrint = false } = {}) {
+async function selectScreen({ query = "", shots = 3, prints = 1, viewport = { width: 1366, height: 768 }, holdPrint = false, phase = "select", seconds = 150 } = {}) {
   const page = await browser.newPage({ viewport });
-  const errors = [], uploads = { composite: null, print: null };
+  const errors = [], photoReads = [], uploads = { composite: null, print: null, printCalls: 0 };
   let releasePrint;
   const printerReady = new Promise((resolve) => { releasePrint = resolve; });
   page.on("pageerror", (e) => errors.push(e.message));
   await page.route('http://127.0.0.1:8789/**', async route => {
     if (new URL(route.request().url()).pathname === '/print') {
+      uploads.printCalls++;
       uploads.print = route.request().headers()['x-print-sheets'];
       if (holdPrint) await printerReady;
       return route.fulfill({ json: { sent: true, message: 'Fixture spool accepted' }, headers: { 'Access-Control-Allow-Origin': '*' } });
@@ -154,8 +155,9 @@ async function selectScreen({ query = "", shots = 3, prints = 1, viewport = { wi
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
-    if (/\/albums\/fixture-album\/photos\//.test(path))
-      return route.fulfill({ body: photoImage, contentType: "image/png" });
+    if (/\/albums\/fixture-album\/photos\//.test(path)) {
+      photoReads.push(path); return route.fulfill({ body: photoImage, contentType: "image/png" });
+    }
     if (path.endsWith("/kiosk/composite")) {
       uploads.composite = route.request().postDataBuffer();
       return route.fulfill({ json: { ok: true } });
@@ -169,17 +171,30 @@ async function selectScreen({ query = "", shots = 3, prints = 1, viewport = { wi
     await route.fulfill({ json: path.endsWith("/kiosk/ping") ? { room: { _id: "room", flip: "device", payment: "counter" } }
       : path.endsWith("/health") ? { ok: true } : { booking } });
   });
-  await page.addInitScript((booking) => {
+  await page.addInitScript(({booking,phase,seconds}) => {
     if (sessionStorage.getItem("photo-capture-fixture-device")) return;
     sessionStorage.setItem("photo-capture-fixture-device", JSON.stringify({
       captureToken: "fixture-capture", accessToken: "fixture-album", booking,
-      phase: "select", selected: [], selectEndsAt: Date.now() + 150000, mode: "remote",
+      phase, selected: [], selectEndsAt: Date.now() + seconds * 1000, mode: "remote",
     }));
-  }, booking);
+  }, {booking,phase,seconds});
   await page.goto(base + query);
-  return { page, errors, uploads, releasePrint };
+  return { page, errors, uploads, releasePrint, photoReads };
 }
 const saved = (page) => page.evaluate(() => JSON.parse(sessionStorage.getItem("photo-capture-fixture-device")));
+
+for (const seconds of [1, -1]) test(`expiry on the frame-only screen fills the chosen frame with actual photos and prints once (${seconds < 0 ? 'resumed after expiry' : 'live countdown'})`, async () => {
+  const {page,errors,uploads}=await selectScreen({phase:'frame-pick',seconds});
+  try {
+    await page.waitForFunction(()=>document.querySelector('.done-title'),null,{timeout:15000});
+    for(let i=0;i<150&&(!uploads.print||!uploads.composite);i++)await page.waitForTimeout(100);
+    assert.ok(uploads.print);assert.ok(uploads.composite);
+    assert.equal(uploads.printCalls,1);
+    const result=await samples(page,uploads.composite,[[.5,.26],[.5,.74]]);
+    for(const color of result.colors)assert.ok(color.every((value,i)=>Math.abs(value-RED[i])<24),'timeout must decode customer photos instead of printing empty slots');
+    assert.deepEqual(errors,[]);
+  } finally {await page.close()}
+});
 
 // Đọc màu một số điểm (tỉ lệ 0–1) của ảnh JPEG đã gửi lên.
 async function samples(page, jpeg, points) {
@@ -249,7 +264,7 @@ test("guests pick photos, a colour and a sticker; the print shows exactly that",
     await shots.nth(0).click();
     await shots.nth(1).click();
     // Chọn đủ ảnh: tự mở mục kế tiếp — Khung (mọi khung ghép sẵn ảnh vừa chọn).
-    await page.waitForFunction(() => document.querySelector("#select-tab-frames")?.getAttribute("aria-selected") === "true");
+    assert.equal(await page.getByRole("tab", {name:/Chọn ảnh/}).getAttribute("aria-selected"), "true");
     await tab("Màu ảnh").click();
     await page.getByRole("radiogroup", { name: "Màu ảnh" }).waitFor();
     const colors = page.getByRole("radiogroup", { name: "Màu ảnh" }).getByRole("radio");
@@ -306,27 +321,36 @@ test("guests pick photos, a colour and a sticker; the print shows exactly that",
   } finally { await page.close(); }
 });
 
-test("the frame hint uses admin text and arrow navigation still switches frames", async () => {
-  const { page, errors } = await selectScreen();
+test("blank frame selection uses the admin hint and back preserves the shared deadline", async () => {
+  const {page,errors}=await selectScreen();
   try {
-    await page.getByText(SETTINGS.kioskTexts["select.frameHint"], { exact: true }).waitFor();
-    await page.getByRole("button", { name: "Khung sau", exact: true }).click();
-    await page.getByText("Khung thứ hai · khung 2/2", { exact: true }).waitFor();
-    await page.getByRole("button", { name: "Khung trước", exact: true }).click();
-    assert.match(await page.locator(".select-frame-name").innerText(), /khung 1\/2/);
-    assert.deepEqual(errors, []);
-  } finally { await page.close(); }
+    const shots=page.getByRole("group",{name:"Ảnh đã chụp"}).getByRole("button");
+    await shots.nth(0).click();await shots.nth(1).click();
+    const before=await saved(page);
+    await page.getByRole("button",{name:"Đổi khung",exact:true}).click();
+    await page.getByText(SETTINGS.kioskTexts["select.frameSubtitle"],{exact:true}).waitFor();
+    const choices=page.getByRole("radiogroup",{name:"Chọn khung"}).getByRole("radio");
+    await choices.nth(1).click();
+    await page.getByRole("button",{name:"Tiếp tục",exact:true}).click();
+    await page.getByText("Khung thứ hai · khung 2/2",{exact:true}).waitFor();
+    const after=await saved(page);
+    assert.equal(after.frameIndex,1);assert.deepEqual(after.selected,before.selected);
+    assert.equal(after.selectEndsAt,before.selectEndsAt);
+    assert.deepEqual(after.decor,before.decor);assert.deepEqual(errors,[]);
+  } finally {await page.close()}
 });
 
-test("with a single frame (a Polaroid layout) the frame arrows are hidden: there is nothing to switch", async () => {
-  const { page, errors } = await selectScreen({ query: "?frames=1" });
+test("a single blank frame still has an explicit Continue step", async () => {
+  const {page,errors}=await selectScreen({query:"?frames=1",phase:"frame-pick"});
   try {
-    await page.locator(".select-frame-stage").waitFor();
-    const arrows = page.locator(".frame-arrow");
-    assert.equal(await arrows.count(), 2);
-    assert.deepEqual(await arrows.evaluateAll((list) => list.map((b) => getComputedStyle(b).visibility)), ["hidden", "hidden"]);
-    assert.deepEqual(errors, []);
-  } finally { await page.close(); }
+    assert.equal(await page.getByRole("radiogroup",{name:"Chọn khung"}).getByRole("radio").count(),1);
+    assert.equal(await page.getByRole("group",{name:"Ảnh đã chụp"}).count(),0);
+    await page.getByRole("button",{name:"Tiếp tục",exact:true}).click();
+    await page.getByRole("group",{name:"Ảnh đã chụp"}).waitFor();
+    assert.equal(await page.locator(".frame-arrow").count(),0);
+    assert.equal(await page.getByRole("tab",{name:"Khung",exact:true}).count(),0);
+    assert.deepEqual(errors,[]);
+  } finally {await page.close()}
 });
 
 test("one photo can fill several slots; tapping its slot on the frame removes it; Chọn lại starts over", async () => {
@@ -395,143 +419,95 @@ test("names and signatures: soft bundled fonts and a symbol palette, with the fo
   } finally { await page.close(); }
 });
 
-test("the Khung tab shows every frame with the guest's photos; tapping one switches the big preview", async () => {
-  const { page, errors } = await selectScreen({ viewport: { width: 1920, height: 1080 } });
+test("the first screen shows blank catalog frames only, then photos appear beside the chosen composition", async () => {
+  const {page,errors,photoReads}=await selectScreen({phase:"frame-pick",viewport:{width:1920,height:1080}});
   try {
-    const shots = page.getByRole("group", { name: "Ảnh đã chụp" }).getByRole("button");
-    await shots.nth(0).click();
-    await shots.nth(1).click();
-    await page.waitForFunction(() => document.querySelector("#select-tab-frames")?.getAttribute("aria-selected") === "true");
-    const choices = page.getByRole("radiogroup", { name: "Chọn khung" }).getByRole("radio");
-    assert.deepEqual(
-      await choices.evaluateAll((radios) => radios.map((r) => [r.getAttribute("aria-label"), r.getAttribute("aria-checked")])),
-      [["Khung thử · khung 1", "true"], ["Khung thứ hai · khung 2", "false"]],
-    );
-    await page.waitForFunction(() => document.querySelectorAll(".frame-choice.is-ready").length === 2);
-    const tiles = await page.evaluate(() => [...document.querySelectorAll(".frame-choice canvas")].map((c) => {
-      const ctx = c.getContext("2d");
-      const at = (x, y) => [...ctx.getImageData(Math.round(x * c.width), Math.round(y * c.height), 1, 1).data].slice(0, 3);
-      const box = c.getBoundingClientRect();
-      return { photo: at(0.5, 0.26), edge: at(0.02, 0.5), size: [c.width, c.height], shown: Math.round(box.width) };
+    const choices=page.getByRole("radiogroup",{name:"Chọn khung"}).getByRole("radio");
+    assert.equal(await choices.count(),2);
+    await page.waitForFunction(()=>[...document.querySelectorAll(".ptb-frame-art img")].every(img=>img.naturalWidth>0));
+    assert.equal(await page.locator("canvas").count(),0,"the frame step never composes customer photos");
+    assert.equal(photoReads.length,0,"frame selection does not fetch customer previews");
+    const colors=await page.locator(".ptb-frame-art img").evaluateAll(images=>images.map(img=>{
+      const c=document.createElement("canvas");c.width=img.naturalWidth;c.height=img.naturalHeight;
+      const ctx=c.getContext("2d");ctx.drawImage(img,0,0);
+      return [...ctx.getImageData(Math.round(c.width*.5),Math.round(c.height*.26),1,1).data].slice(0,3);
     }));
-    const close = (actual, expected, tolerance = 24) => actual.every((v, i) => Math.abs(v - expected[i]) <= tolerance);
-    // Mỗi ô là khung ghép sẵn ảnh khách (đỏ) ở cạnh dài 360 px; viền lấy từ ảnh khung xem nhanh nếu có.
-    assert.deepEqual(tiles.map((t) => t.size), [[240, 360], [240, 360]]);
-    assert.ok(tiles.every((t) => close(t.photo, RED)), JSON.stringify(tiles));
-    assert.ok(close(tiles[0].edge, PINK) && close(tiles[1].edge, GREEN), JSON.stringify(tiles));
-    assert.ok(tiles.every((t) => t.shown >= 140), `ô rộng ${tiles.map((t) => t.shown)}`);
-    const layout = await page.evaluate(() => ({
-      tabRows: new Set([...document.querySelectorAll(".select-tabs [role=tab]")].map((t) => Math.round(t.getBoundingClientRect().top))).size,
-      pageScrolls: document.documentElement.scrollHeight > innerHeight + 1,
-    }));
-    assert.deepEqual(layout, { tabRows: 1, pageScrolls: false });
-    await page.screenshot({ path: join(tmpdir(), "photobooth-fe-select-frames-1920.png") });
-
-    await choices.nth(1).click();
-    assert.equal(await choices.nth(1).getAttribute("aria-checked"), "true");
-    await page.getByText("Khung thứ hai · khung 2/2", { exact: true }).waitFor();
-    const session = await saved(page);
-    assert.equal(session.frameIndex, 1);
-    assert.equal(session.selected.length, 2, "đổi khung giữ nguyên ảnh đã chọn");
-    // Nút ‹ › vẫn đổi khung và ô đang chọn đi theo.
-    await page.getByRole("button", { name: "Khung trước", exact: true }).click();
-    assert.equal(await choices.nth(0).getAttribute("aria-checked"), "true");
-    // Màn 1366 × 768: 6 mục vẫn một hàng (bỏ biểu tượng) và mục Khung không làm trang cao hơn mục Chọn ảnh.
-    await page.setViewportSize({ width: 1366, height: 768 });
-    await page.waitForTimeout(300);
-    await page.screenshot({ path: join(tmpdir(), "photobooth-fe-select-frames-1366.png") });
-    const measure = () => page.evaluate(() => ({
-      tabRows: new Set([...document.querySelectorAll(".select-tabs [role=tab]")].map((t) => Math.round(t.getBoundingClientRect().top))).size,
-      height: document.documentElement.scrollHeight,
-    }));
-    const onFrames = await measure();
-    await page.getByRole("tab", { name: /Chọn ảnh/ }).click();
-    await page.getByRole("group", { name: "Ảnh đã chụp" }).waitFor();
-    assert.deepEqual(onFrames, await measure());
-    assert.equal(onFrames.tabRows, 1);
-    assert.deepEqual(errors, []);
-  } finally { await page.close(); }
-});
-
-test("16 frames in two themes fit the Khung panel on 1920 × 1080; a theme chip narrows the grid", async () => {
-  const { page, errors } = await selectScreen({ query: "/?frames=16", viewport: { width: 1920, height: 1080 } });
-  try {
-    const shots = page.getByRole("group", { name: "Ảnh đã chụp" }).getByRole("button");
-    await shots.nth(0).click();
-    await shots.nth(1).click();
-    await page.waitForFunction(() => document.querySelector("#select-tab-frames")?.getAttribute("aria-selected") === "true");
-    const chips = page.getByRole("group", { name: "Chủ đề khung" }).getByRole("button");
-    assert.deepEqual(await chips.allInnerTexts(), ["Tất cả", "LIMIT", "Noel"]);
-    const choices = page.getByRole("radiogroup", { name: "Chọn khung" }).getByRole("radio");
-    assert.equal(await choices.count(), 16);
-    // Ghép lần lượt từng ô: đủ 16 ô.
-    await page.waitForFunction(() => document.querySelectorAll(".frame-choice.is-ready").length === 16);
-    const layout = await page.evaluate(() => {
-      const grid = document.querySelector(".frame-choices").getBoundingClientRect();
-      const cells = [...document.querySelectorAll(".frame-choice")].map((c) => c.getBoundingClientRect());
-      return {
-        width: Math.round(Math.min(...cells.map((c) => c.width))),
-        visible: cells.filter((c) => c.top >= grid.top - 1 && c.bottom <= grid.bottom + 1).length,
-        pageScrolls: document.documentElement.scrollHeight > innerHeight + 1,
-      };
+    assert.deepEqual(colors,[[255,255,255],[255,255,255]],"photo slots stay blank");
+    await choices.nth(1).click();const deadline=(await saved(page)).selectEndsAt;
+    await page.reload();assert.equal((await saved(page)).phase,"frame-pick");
+    assert.equal(await choices.nth(1).getAttribute("aria-checked"),"true");
+    await page.screenshot({path:join(tmpdir(),"photobooth-fe-ptb-frames-first-1920.png")});
+    await page.getByRole("button",{name:"Tiếp tục",exact:true}).click();
+    const photos=page.getByRole("group",{name:"Ảnh đã chụp"});
+    await photos.waitFor();assert.equal(await photos.getByRole("button").count(),3);
+    await photos.getByRole("button").nth(0).click();await photos.getByRole("button").nth(1).click();
+    assert.equal(await page.getByRole("tab",{name:/Chọn ảnh/}).getAttribute("aria-selected"),"true");
+    await page.waitForFunction(()=>document.querySelector(".decor-canvas:not(.is-loading)"));
+    const layout=await page.evaluate(()=>{
+      const left=document.querySelector(".select-preview").getBoundingClientRect(),right=document.querySelector(".select-panel").getBoundingClientRect();
+      return {left:left.right<=right.left,scroll:document.documentElement.scrollHeight>innerHeight+1};
     });
-    assert.ok(layout.width >= 140, `ô rộng ${layout.width} px`);
-    assert.ok(layout.visible >= 12, `thấy ngay ${layout.visible}/16 khung`);
-    assert.equal(layout.pageScrolls, false);
-    await page.screenshot({ path: join(tmpdir(), "photobooth-fe-select-frames16-1920.png") });
-
-    await chips.nth(2).click();
-    assert.equal(await chips.nth(2).getAttribute("aria-pressed"), "true");
-    assert.equal(await choices.count(), 8);
-    assert.equal(await choices.first().getAttribute("aria-label"), "Noel · khung 9");
-    await choices.first().click();
-    await page.getByText("Noel · khung 9/16", { exact: true }).waitFor();
-    assert.equal((await saved(page)).frameIndex, 8);
-    assert.deepEqual(errors, []);
-  } finally { await page.close(); }
+    assert.deepEqual(layout,{left:true,scroll:false});
+    assert.equal((await saved(page)).selectEndsAt,deadline);
+    await page.screenshot({path:join(tmpdir(),"photobooth-fe-ptb-photos-second-1920.png")});
+    assert.deepEqual(errors,[]);
+  } finally {await page.close()}
 });
 
-test("portrait 1080 × 1920 touch screen: big preview on top, one row of tabs, 12 photos and 16 frames fit without scrolling", async () => {
-  const { page, errors } = await selectScreen({ query: "/?frames=16", shots: 12, viewport: { width: 1080, height: 1920 } });
+test("all 16 blank frames fit the full screen, with optional theme filtering", async () => {
+  const {page,errors}=await selectScreen({query:"/?frames=16",phase:"frame-pick",viewport:{width:1920,height:1080}});
   try {
-    const grid = page.getByRole("group", { name: "Ảnh đã chụp" });
-    await grid.getByRole("button").nth(11).locator("img").waitFor();
-    await page.waitForFunction(() => document.querySelector(".select-grid")?.classList.contains("is-fitted"));
-    await page.waitForFunction(() => document.querySelector(".decor-canvas:not(.is-loading)"));
-    const measure = (cellSelector, gridSelector) => page.evaluate(([cellSelector, gridSelector]) => {
-      const box = (el) => el.getBoundingClientRect();
-      const preview = box(document.querySelector(".decor-canvas"));
-      const tabs = [...document.querySelectorAll(".select-tabs [role=tab]")].map(box);
-      const area = box(document.querySelector(gridSelector));
-      const cells = [...document.querySelectorAll(cellSelector)].map(box);
-      return {
-        previewHeight: Math.round(preview.height),
-        previewAboveTabs: preview.bottom <= tabs[0].top,
-        tabRows: new Set(tabs.map((t) => Math.round(t.top))).size,
-        tabHeight: Math.round(tabs[0].height),
-        cellWidth: Math.round(Math.min(...cells.map((c) => c.width))),
-        allVisible: cells.every((c) => c.top >= area.top - 1 && c.bottom <= area.bottom + 1),
-        pageScrolls: document.documentElement.scrollHeight > innerHeight + 1,
-      };
-    }, [cellSelector, gridSelector]);
-    const photos = await measure(".select-shot", ".select-grid");
-    await page.screenshot({ path: join(tmpdir(), "photobooth-fe-portrait-photos.png") });
-    assert.ok(photos.previewHeight >= 600, `khung xem trước cao ${photos.previewHeight} px`);
-    assert.ok(photos.cellWidth >= 220, `ảnh rộng ${photos.cellWidth} px`);
-    assert.ok(photos.tabHeight >= 72, `mục cao ${photos.tabHeight} px`);
-    assert.deepEqual({ ...photos, previewHeight: 0, cellWidth: 0, tabHeight: 0 },
-      { previewHeight: 0, previewAboveTabs: true, tabRows: 1, tabHeight: 0, cellWidth: 0, allVisible: true, pageScrolls: false });
+    await page.waitForFunction(()=>document.querySelector(".ptb-frames-grid.is-fitted"));
+    const choices=page.getByRole("radiogroup",{name:"Chọn khung"}).getByRole("radio");
+    assert.equal(await choices.count(),16);
+    for (const viewport of [{width:1366,height:768},{width:1920,height:1080}]) {
+      await page.setViewportSize(viewport);
+      await page.waitForTimeout(200);
+      const layout=await page.evaluate(()=>{
+        const grid=document.querySelector(".ptb-frames-grid").getBoundingClientRect();
+        const cells=[...document.querySelectorAll(".ptb-frame-choice")].map(c=>c.getBoundingClientRect());
+        return {all:cells.every(c=>c.top>=grid.top-1&&c.bottom<=grid.bottom+1),minimum:Math.min(...cells.map(c=>c.width)),scroll:document.documentElement.scrollHeight>innerHeight+1};
+      });
+      assert.equal(layout.all,true,`all frames fit at ${viewport.width}`);
+      assert.ok(layout.minimum>=120);assert.equal(layout.scroll,false);
+      await page.screenshot({path:join(tmpdir(),`photobooth-fe-ptb-frames16-${viewport.width}.png`)});
+    }
+    const chips=page.getByRole("group",{name:"Chủ đề khung"}).getByRole("button");
+    assert.deepEqual(await chips.allInnerTexts(),["Tất cả","LIMIT","Noel"]);
+    await chips.nth(2).click();assert.equal(await choices.count(),8);
+    await choices.first().click();assert.equal((await saved(page)).frameIndex,8);
+    await chips.first().click();assert.equal(await choices.count(),16);
+    await page.screenshot({path:join(tmpdir(),"photobooth-fe-ptb-frames16-1920.png")});
+    assert.deepEqual(errors,[]);
+  } finally {await page.close()}
+});
 
-    await grid.getByRole("button").nth(0).click();
-    await grid.getByRole("button").nth(1).click();
-    await page.waitForFunction(() => document.querySelectorAll(".frame-choice.is-ready").length === 16);
-    const frames = await measure(".frame-choice", ".frame-choices");
-    await page.screenshot({ path: join(tmpdir(), "photobooth-fe-portrait-frames.png") });
-    assert.ok(frames.cellWidth >= 140, `khung rộng ${frames.cellWidth} px`);
-    assert.equal(frames.allVisible, true, "thấy cả 16 khung");
-    assert.equal(frames.pageScrolls, false);
-    assert.deepEqual(errors, []);
-  } finally { await page.close(); }
+test("portrait keeps all 12 photos in the editor and all 16 frames in the separate frame step", async () => {
+  const {page,errors}=await selectScreen({query:"/?frames=16",shots:12,viewport:{width:1080,height:1920}});
+  try {
+    await page.waitForFunction(()=>document.querySelector(".select-grid.is-fitted"));
+    await page.waitForFunction(()=>document.querySelector(".decor-canvas:not(.is-loading)"));
+    const layout=await page.evaluate(()=>{
+      const image=document.querySelector(".decor-canvas").getBoundingClientRect();
+      const panel=document.querySelector(".select-panel").getBoundingClientRect();
+      const grid=document.querySelector(".select-grid").getBoundingClientRect();
+      const cells=[...document.querySelectorAll(".select-shot")].map(c=>c.getBoundingClientRect());
+      const tabs=[...document.querySelectorAll(".select-tabs [role=tab]")].map(t=>t.getBoundingClientRect());
+      return {above:image.bottom<=panel.top+1,rows:new Set(tabs.map(t=>Math.round(t.top))).size,
+        photos:cells.every(c=>c.top>=grid.top-1&&c.bottom<=grid.bottom+1),scroll:document.documentElement.scrollHeight>innerHeight+1};
+    });
+    assert.deepEqual(layout,{above:true,rows:1,photos:true,scroll:false});
+    await page.screenshot({path:join(tmpdir(),"photobooth-fe-ptb-photos-second-portrait.png")});
+    await page.getByRole("button",{name:"Đổi khung",exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector(".ptb-frames-grid.is-fitted"));
+    const allVisible=await page.evaluate(()=>{
+      const grid=document.querySelector(".ptb-frames-grid").getBoundingClientRect();
+      return [...document.querySelectorAll(".ptb-frame-choice")].every(c=>{const r=c.getBoundingClientRect();return r.top>=grid.top-1&&r.bottom<=grid.bottom+1});
+    });
+    assert.equal(allVisible,true);
+    await page.screenshot({path:join(tmpdir(),"photobooth-fe-ptb-frames-first-portrait.png")});
+    assert.deepEqual(errors,[]);
+  } finally {await page.close()}
 });
 
 test("PROBE tabs", async () => {
@@ -733,7 +709,7 @@ test("without any shop sticker the kiosk hides the sticker tab (no built-in emoj
     await page.getByRole("heading", { name: /để chọn ảnh & trang trí/ }).waitFor();
     assert.deepEqual(
       await page.getByRole("tab").evaluateAll((tabs) => tabs.map((t) => t.textContent.replace(/\d+\/\d+/, "").trim())),
-      ["Chọn ảnh", "Khung", "Chỉnh ảnh", "Màu ảnh", "Thêm chữ"],
+      ["Chọn ảnh", "Chỉnh ảnh", "Màu ảnh", "Thêm chữ"],
     );
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
@@ -746,7 +722,7 @@ test("a photo is dragged on the frame and shrunk below 100%; the print shows the
     await shots.nth(0).click();
     await shots.nth(1).click();
     // Chọn đủ ảnh: mục Khung tự mở; sang Chỉnh ảnh để kéo ảnh trên khung.
-    await page.waitForFunction(() => document.querySelector("#select-tab-frames")?.getAttribute("aria-selected") === "true");
+    assert.equal(await page.getByRole("tab", {name:/Chọn ảnh/}).getAttribute("aria-selected"), "true");
     await page.getByRole("tab", { name: /Chỉnh ảnh/ }).click();
     await page.waitForFunction(() => document.querySelector(".decor-canvas:not(.is-loading)"));
     const box = await page.getByRole("img", { name: /Khung ảnh xem trước/ }).boundingBox();

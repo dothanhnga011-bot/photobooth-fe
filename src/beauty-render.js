@@ -7,7 +7,7 @@ import {
 } from "./skin-retouch.js";
 
 import { normalizeAdjust, isNeutral } from './beauty-settings.js';
-import { FACE_OVAL, LEFT_EYE, RIGHT_EYE, LEFT_BROW, RIGHT_BROW, LIPS, faceWidth, tracePath } from './face-regions.js';
+import { FACE_OVAL, LEFT_EYE, RIGHT_EYE, LEFT_BROW, RIGHT_BROW, LIPS, faceWidth, faceCrop, tracePath } from './face-regions.js';
 import { warpFaces } from './face-warp.js';
 import { applyMakeup } from './face-makeup.js';
 export { DEFAULT_ADJUST, ADJUST_LABELS, isNeutral } from './beauty-settings.js';
@@ -139,16 +139,7 @@ function skinMask(data, w, h, faces) {
   return region;
 }
 
-// Áp dụng chỉnh sửa lên ảnh nguồn; trả về canvas mới cùng kích thước.
-export function applyBeauty(source, faces, adjust) {
-  const w = source.width,
-    h = source.height;
-  const out = createImageCanvas(w, h);
-  const ctx = out.getContext("2d", { willReadFrequently: true });
-  ctx.drawImage(source, 0, 0, w, h);
-  const a = normalizeAdjust(adjust);
-  if (isNeutral(a)) return out;
-  faces = faces || [];
+function retouchFace(ctx, w, h, faces, a) {
   if (faces.length && (a.smooth > 0 || a.whiten > 0 || a.darkCircles > 0 || a.lips > 0)) {
     const img = ctx.getImageData(0, 0, w, h);
     const data = img.data;
@@ -190,6 +181,27 @@ export function applyBeauty(source, faces, adjust) {
     const img = ctx.getImageData(0, 0, w, h);
     warpFaces(img.data, w, h, faces, a);
     ctx.putImageData(img, 0, 0);
+  }
+}
+
+// Source pixels stay full-size. Process one face tile at a time, including
+// its own skin/feature scale, and retain the existing combined single warp.
+export function applyBeauty(source, faces, adjust) {
+  const w = source.width, h = source.height, out = createImageCanvas(w, h);
+  const ctx = out.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(source, 0, 0, w, h);
+  const a = normalizeAdjust(adjust);
+  if (isNeutral(a)) return out;
+  if (Object.keys(a).some(key => key !== 'filter' && a[key] > 0)) for (const face of faces || []) {
+    const crop = faceCrop(face, w, h);
+    if (!crop) continue;
+    const tile = createImageCanvas(crop.width, crop.height), local = tile.getContext('2d', { willReadFrequently: true });
+    try {
+      local.drawImage(out, crop.x, crop.y, crop.width, crop.height, 0, 0, crop.width, crop.height);
+      const shifted = face.map(p => ({ ...p, x: p.x - crop.x, y: p.y - crop.y }));
+      retouchFace(local, crop.width, crop.height, [shifted], a);
+      ctx.drawImage(tile, crop.x, crop.y);
+    } finally { tile.width = tile.height = 0; }
   }
   if (FILTER_STEPS[a.filter]) {
     // Colour filters are per-pixel operations. Bounded row buffers preserve

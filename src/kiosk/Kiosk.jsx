@@ -49,6 +49,7 @@ import { buildTimelapse, createClipRecorder } from "./clip-recorder.js";
 import {
   compositeJpeg,
   composePreview,
+  previewBitmap,
   frameCandidates,
   preloadFrameTiles,
   frameNeed,
@@ -71,6 +72,7 @@ import { KioskSettings } from "./KioskSettings.jsx";
 import { KioskShoot, useObjectUrl } from "./KioskShoot.jsx";
 import { noteServerTime, serverNow } from "./server-clock.js";
 import { KioskSelect, useShotBitmaps } from "./KioskSelect.jsx";
+import { KioskFrames } from './KioskFrames.jsx';
 import { NO_DECOR, filterChoices, filterStepsFor, photoFilterId } from "./decor.js";
 import { KioskCode, KioskPackages, KioskPayChoice, KioskPayment, KioskPrintCount } from "./KioskSale.jsx";
 import { extraPriceFor, isInstax, isPolaroid, minSheets, saleTotal } from "./print-count.js";
@@ -80,9 +82,10 @@ const NET_SLOTS = ["poll", "sync", "start", "finish"];
 const PING_MS = 60_000;
 // Thời gian chuẩn bị trước khi khách bấm dây, chọn ảnh & khung.
 const READY_SECONDS = 3;
-// Chọn ảnh, màu ảnh và nhãn dán trên cùng một màn: quản trị đặt thời gian ở Thiết lập → Chữ trên máy
+// Chọn khung trước, rồi chọn ảnh và trang trí: dùng chung thời gian quản trị đặt ở Thiết lập → Chữ trên máy
 // chụp (settings.selectSeconds, 30–900 giây); chưa đặt thì 250 giây.
 const SELECT_SECONDS = 250;
+const PICK_PHASES = ['frame-pick', 'select', 'frame'];
 const selectSecondsOf = (settings) => {
   const value = Number(settings?.selectSeconds);
   return Number.isInteger(value) && value >= 30 && value <= 900 ? value : SELECT_SECONDS;
@@ -168,7 +171,7 @@ export function Kiosk() {
     finishRetry = useRef({ at: 0, failures: 0, timer: null }),
     current = useRef(session),
     photoRequests = useRef(createSingleFlight()),
-    originalRequests = useRef(createSingleFlight()),
+    originalRequests = useRef(createSingleFlight({ trailing: true })),
     originalRetry = useRef(null),
     photoWake = useRef(null),
     stateRequests = useRef(createSingleFlight()),
@@ -777,7 +780,7 @@ export function Kiosk() {
   // Đồng hồ các bước chuẩn bị / chọn ảnh / chọn khung: kiểm tra 4 lần mỗi giây nhưng chỉ vẽ lại khi
   // số giây hiển thị đổi (vẽ lại cả màn hình liên tục tranh CPU với việc ghép video tua nhanh).
   useEffect(() => {
-    if (!["ready", "select", "frame"].includes(phase) || (manualCapture && phase === "ready")) return;
+    if (!["ready", ...PICK_PHASES].includes(phase) || (manualCapture && phase === "ready")) return;
     const timer = setInterval(() => {
       const s = current.current;
       setTick(`${secondsUntil(s?.readyEndsAt)}:${secondsUntil(s?.selectEndsAt || s?.frameEndsAt)}`);
@@ -797,8 +800,9 @@ export function Kiosk() {
     return originalRequests.current.run(async () => {
       clearTimeout(originalRetry.current);
       const retry = await flushOriginalPhotos({
-        // Pending previews of the active session go first; their acknowledgements wake this again.
-        isActive: () => alive.current && !pendingRef.current.length,
+        // The preview drain holds the uplink gate for its whole burst. A failed
+        // preview stays durable but must not block already acknowledged photos.
+        isActive: () => alive.current,
         beforeNext: whenUplinkIdle,
         // One extra original can prepare/send while two earlier commits are waiting.
         // direct-upload.js still caps the actual photo/video transfers at two.
@@ -828,7 +832,7 @@ export function Kiosk() {
     photoWake.current?.();
     return photoRequests.current.run(async () => {
       try {
-        await drainPendingPhotos({
+        await priority(() => drainPendingPhotos({
           isActive: () => alive.current && sameKioskSession(started, current.current) &&
             Boolean(kioskPhotoPath(current.current)),
           readPending: () => readPending(started.accessToken).then((rows) => rows.filter(isPreviewPending)),
@@ -858,7 +862,7 @@ export function Kiosk() {
             trackPending((list) => list.filter((p) => p.id !== row.id));
             sendOriginals();
           },
-        });
+        }));
         if (alive.current && sameKioskSession(started, current.current)) netRecovered();
       } catch (e) {
         if (!alive.current || !sameKioskSession(started, current.current)) return;
@@ -963,7 +967,7 @@ export function Kiosk() {
   const shots = useMemo(() => shotsOf(session), [session, pending]);
   const taken = shots.length;
   const shotQuota = manualCapture ? 0 : Number(session?.booking.shots) || 0;
-  // Hết chụp (đủ số tấm, hết giờ hoặc khách bấm xong): sang bước chọn ảnh ngay.
+  // PTB chọn khung trước; Selfbooth giữ bước QR để chọn ảnh trên điện thoại.
   async function endCapture(expired = false) {
     const s = current.current;
     if (!s || endingRef.current || phaseOf(s) !== "shoot") return;
@@ -993,11 +997,11 @@ export function Kiosk() {
       }
       transition(() => update({
         ...live,
-        phase: "select",
+        phase: "frame-pick",
         selected: [],
         selectEndsAt: Date.now() + selectSecondsOf(settings) * 1000,
       }), "zoom");
-      if (expired) toast.info("Đã hết thời gian chụp — mời bạn chọn ảnh.");
+      if (expired) toast.info("Đã hết thời gian chụp — mời bạn chọn khung ảnh.");
     } finally {
       endingRef.current = false;
       setEnding(false);
@@ -1005,7 +1009,7 @@ export function Kiosk() {
   }
   // Ảnh chưa gửi lên được giữ trên máy và tự gửi tiếp trong lúc khách chọn ảnh & khung.
   useEffect(() => {
-    if (!["select", "frame"].includes(phase)) return;
+    if (!PICK_PHASES.includes(phase)) return;
     sync();
     const timer = setInterval(sync, 5000);
     const unsubscribe = onNetworkRecovery(sync);
@@ -1028,9 +1032,9 @@ export function Kiosk() {
   const flowShots = ["select", "frame"].includes(phase) ? shots : [];
   const bitmaps = useShotBitmaps(flowShots, session?.accessToken);
   const frameIndex = Math.min(session?.frameIndex || 0, Math.max(0, frames.length - 1));
-  // Ảnh khung tải sẵn ngay khi vào chụp (không đợi chụp xong): khung xem trước đầu tiên và các ô của
-  // mục "Khung" hiện ngay ở màn chọn ảnh. Khoá theo danh sách khung, không theo từng tấm vừa chụp.
-  const preloadKey = ["ready", "shoot", "select", "frame"].includes(phase) ? frames.map((f) => f._id).join() : "";
+  // Nạp ảnh khung trong lúc chụp; màn khung riêng dùng trực tiếp ảnh danh mục.
+  // Khóa theo danh sách khung để không nạp lại sau mỗi tấm máy ảnh gửi về.
+  const preloadKey = ['ready', 'shoot', ...PICK_PHASES].includes(phase) ? frames.map((f) => f._id).join() : "";
   useEffect(() => {
     if (!preloadKey) return;
     const controller = new AbortController();
@@ -1063,8 +1067,8 @@ export function Kiosk() {
     if (slot >= 0 && slot < list.length) patch({ selected: list.filter((_, i) => i !== slot) });
   };
   const clearPicks = () => patch({ selected: [] });
-  // Chọn ảnh và khung trên cùng một màn ("frame" là bước cũ — lượt dở dang trước khi cập nhật).
-  const choosing = phase === "select" || phase === "frame";
+  // Existing select/frame sessions resume without losing their photos or decor.
+  const choosing = PICK_PHASES.includes(phase);
   const selectLeft = secondsUntil(session?.selectEndsAt || session?.frameEndsAt);
   // Hết giờ: tự chọn các tấm đầu cho đủ rồi in.
   useEffect(() => {
@@ -1078,7 +1082,7 @@ export function Kiosk() {
   // ở phía sau.
   async function confirmFrame() {
     const s = current.current;
-    if (!s || composing || !["select", "frame"].includes(phaseOf(s))) return;
+    if (!s || composing || !PICK_PHASES.includes(phaseOf(s))) return;
     // Chưa chọn đủ (hết giờ): thêm các tấm đầu tiên chưa chọn.
     const all = shotsOf(s);
     const frame = frames[Math.min(s.frameIndex || 0, Math.max(0, frames.length - 1))];
@@ -1104,24 +1108,32 @@ export function Kiosk() {
         await checkDirectPrinter();
       let composite = "";
       const albumLink = `${window.location.origin}/album/${s.accessToken}`;
-      const shown = chosenShots.filter((x) => bitmaps.has(x.key));
-      const images = shown.map((x) => bitmaps.get(x.key));
-      if (frame) {
-        const canvas = await composePreview(frame, images, "print", albumLink, { ...look, filters: shown.map(stepsOf), transforms: shown.map(transformOf) });
-        composite = canvas.toDataURL("image/jpeg", 0.92);
-        canvas.width = canvas.height = 0;
-      } else {
-        // Tiệm chưa bật khung nào: màn cuối hiện tấm đầu tiên khách chọn (chưa ghép).
-        notifyOnce("no-frame", "warning", "Chưa có khung ảnh nào đang bật — thêm khung ở Quản lý → Khung ảnh để ghép và in.", 15000);
-        if (images[0]) {
-          const canvas = document.createElement("canvas");
-          canvas.width = 700;
-          canvas.height = Math.round((700 * images[0].height) / images[0].width);
-          canvas.getContext("2d").drawImage(images[0], 0, 0, canvas.width, canvas.height);
-          composite = canvas.toDataURL("image/jpeg", 0.9);
-          canvas.width = canvas.height = 0;
+      const temporary = [];
+      try {
+        // A timeout on the blank-frame screen can precede preview decoding.
+        // Decode the chosen photos only; print/album sources remain unchanged.
+        const images = [];
+        for (const shot of chosenShots) {
+          const cached = bitmaps.get(shot.key);
+          const image = cached || await previewBitmap(shot, s.accessToken);
+          images.push(image); if (!cached) temporary.push(image);
         }
-      }
+        if (frame) {
+          const canvas = await composePreview(frame, images, "print", albumLink, look);
+          try { composite = canvas.toDataURL("image/jpeg", 0.92); }
+          finally { canvas.width = canvas.height = 0; }
+        } else {
+          notifyOnce("no-frame", "warning", "Chưa có khung ảnh nào đang bật — thêm khung ở Quản lý → Khung ảnh để ghép và in.", 15000);
+          if (images[0]) {
+            const canvas = document.createElement("canvas");
+            canvas.width = 700;
+            canvas.height = Math.round((700 * images[0].height) / images[0].width);
+            canvas.getContext("2d").drawImage(images[0], 0, 0, canvas.width, canvas.height);
+            composite = canvas.toDataURL("image/jpeg", 0.9);
+            canvas.width = canvas.height = 0;
+          }
+        }
+      } finally { temporary.forEach(image => image.close()); }
       const printsCount = Number(s.booking.prints) || 0;
       transition(() => showDone(s.booking, s.accessToken, { composite, framed: Boolean(frame), prints: printsCount }), "zoom");
       if (frame) {
@@ -1419,6 +1431,9 @@ export function Kiosk() {
         nextGuest={nextGuest}
       />
     );
+  if (session && phase === 'frame-pick')
+    return <KioskFrames frames={frames} needs={frames.map(needOf)} index={frameIndex} onPick={changeFrame}
+      secondsLeft={selectLeft} busy={composing} onContinue={() => patch({ phase: 'select' })} />;
   if (session && choosing)
     return (
       <KioskSelect
@@ -1431,9 +1446,8 @@ export function Kiosk() {
         onClear={clearPicks}
         secondsLeft={selectLeft}
         frames={frames}
-        needs={frames.map(needOf)}
         index={frameIndex}
-        setIndex={changeFrame}
+        onBack={() => patch({ phase: 'frame-pick' })}
         onConfirm={confirmFrame}
         busy={composing}
         prints={Number(session.booking.prints) || 0}

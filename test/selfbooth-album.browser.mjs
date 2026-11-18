@@ -231,7 +231,6 @@ test("album like Selfbooth: 01 Ảnh → 02 Chủ đề → 03 Ghép ảnh → 0
     const editor = page.getByRole("dialog", { name: "Chỉnh ảnh 04" });
     for (const label of ['Mịn da','Sáng da','Thon mặt','Mắt to','Tròng mắt','Thu gọn mũi','Thu gọn miệng','Giảm quầng thâm','Son môi','Má hồng'])
       await editor.getByRole('slider',{name:label,exact:true}).waitFor();
-    await editor.getByRole('tab',{name:'Màu ảnh',exact:true}).click();
     await editor.getByRole("radio", { name: "Đen trắng" }).click();
     await editor.getByRole("button", { name: /Xong/ }).click();
     let saved = await stored(page);

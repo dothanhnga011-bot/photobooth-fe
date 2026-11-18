@@ -1,0 +1,18 @@
+{
+  "date": "2026-11-18T03:38:41.182Z",
+  "baseline": "b6a62a1a00902c18bc59534e3047ff102a0690bc",
+  "method": "Actual queue functions; controlled final-read race, 25 ms simulated acknowledgement, real 30 s timer. Not an upload-speed benchmark.",
+  "pollMs": 30000,
+  "checksum": "9b90f6f538f64c3e5ac1f8b1f3bfa69666ffc3557d37f1c6d67660c795c11229",
+  "results": {
+    "old": {
+      "elapsedMs": 30040.8985,
+      "sent": 1
+    },
+    "new": {
+      "elapsedMs": 31.659899999998743,
+      "sent": 1
+    }
+  },
+  "savedMs": 30009.2386
+}

@@ -7,18 +7,10 @@ export const ADJUST_LABELS = {
 export const DEFAULT_ADJUST = Object.freeze({
   ...Object.fromEntries(Object.keys(ADJUST_LABELS).map(key => [key, 0])), filter: 'original',
 });
-export const BEAUTY_GROUPS = [
-  { id: 'all', label: 'Tất cả', keys: Object.keys(ADJUST_LABELS) },
-  { id: 'skin', label: 'Da', keys: ['smooth', 'whiten', 'darkCircles'] },
-  { id: 'shape', label: 'Khuôn mặt', keys: ['slim', 'nose', 'mouth'] },
-  { id: 'eyes', label: 'Mắt', keys: ['eyeSize', 'irisSize'] },
-  { id: 'makeup', label: 'Trang điểm', keys: ['lips', 'blush'] },
-  { id: 'color', label: 'Màu ảnh', keys: [] },
-];
 export const BEAUTY_PRESETS = [
-  { id: 'natural', label: 'Tự nhiên', values: { smooth: 30, whiten: 12, darkCircles: 20, lips: 8, blush: 8 } },
-  { id: 'fresh', label: 'Rạng rỡ', values: { smooth: 45, whiten: 24, slim: 12, eyeSize: 10, darkCircles: 35, lips: 18, blush: 16 } },
-  { id: 'rose', label: 'Hồng nhẹ', values: { smooth: 35, whiten: 14, darkCircles: 25, lips: 32, blush: 28 } },
+  { id: 'natural', label: 'Tự nhiên', values: { smooth: 30, whiten: 10, darkCircles: 18, blush: 5 } },
+  { id: 'clear', label: 'Trong trẻo', values: { smooth: 45, whiten: 18, slim: 6, eyeSize: 4, nose: 4, darkCircles: 28, lips: 7, blush: 10 } },
+  { id: 'radiant', label: 'Rạng rỡ', values: { smooth: 55, whiten: 22, slim: 10, eyeSize: 8, irisSize: 5, nose: 6, darkCircles: 35, lips: 12, blush: 15 } },
 ];
 
 export function normalizeAdjust(adjust) {

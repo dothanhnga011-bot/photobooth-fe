@@ -8,6 +8,19 @@ export const RIGHT_BROW = [300,293,334,296,336,285,295,282,283,276];
 export const LIPS = [61,146,91,181,84,17,314,405,321,375,291,409,270,269,267,0,37,39,40,185];
 export const INNER_LIPS = [78,95,88,178,87,14,317,402,318,324,308,415,310,311,312,13,82,81,80,191];
 export const faceWidth = f => Math.hypot(f[454].x-f[234].x,f[454].y-f[234].y);
+// Selfbooth's face-tile strategy, with room for this engine's combined warps.
+// Work at source resolution without allocating a full 20MP mask for each face.
+export function faceCrop(face, width, height) {
+  if (!Array.isArray(face) || face.length < 468 || !face.every(p => Number.isFinite(p.x) && Number.isFinite(p.y))) return null;
+  const fw = faceWidth(face);
+  if (!(fw > 3)) return null;
+  const margin = fw * .45 + 4, points = FACE_OVAL.map(i => face[i]);
+  const x = Math.max(0, Math.floor(Math.min(...points.map(p => p.x)) - margin));
+  const y = Math.max(0, Math.floor(Math.min(...points.map(p => p.y)) - margin));
+  const right = Math.min(width, Math.ceil(Math.max(...points.map(p => p.x)) + margin));
+  const bottom = Math.min(height, Math.ceil(Math.max(...points.map(p => p.y)) + margin));
+  return right > x && bottom > y ? { x, y, width: right - x, height: bottom - y } : null;
+}
 export const average = (face, indices) => ({
   x: indices.reduce((n,i)=>n+face[i].x,0)/indices.length,
   y: indices.reduce((n,i)=>n+face[i].y,0)/indices.length,

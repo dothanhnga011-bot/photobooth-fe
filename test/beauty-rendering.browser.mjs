@@ -181,6 +181,30 @@ after(async () => {
   await server?.close();
 });
 
+test('group retouching reads face tiles at each face scale, without allocating a full-photo pixel mask', async () => {
+  const result=await page.evaluate(()=>{
+    const {fixture,applyBeauty}=window.portraitTest,sample=fixture();
+    const source=document.createElement('canvas');source.width=2000;source.height=1600;
+    const ctx=source.getContext('2d');ctx.fillStyle='#b99a88';ctx.fillRect(0,0,source.width,source.height);
+    ctx.drawImage(sample.source,100,200);ctx.drawImage(sample.source,1400,800,180,240);
+    const faces=[sample.face.map(p=>({x:p.x+100,y:p.y+200})),sample.face.map(p=>({x:p.x*.5+1400,y:p.y*.5+800}))];
+    const native=CanvasRenderingContext2D.prototype.getImageData;let largest=0,output;
+    CanvasRenderingContext2D.prototype.getImageData=function(x,y,w,h,...args){largest=Math.max(largest,w*h);return native.call(this,x,y,w,h,...args)};
+    try{output=applyBeauty(source,faces,{smooth:80,whiten:35,lips:40,blush:40,slim:25})}
+    finally{CanvasRenderingContext2D.prototype.getImageData=native}
+    const out=output.getContext('2d');
+    const differs=(x,y,w,h)=>{
+      const before=ctx.getImageData(x,y,w,h).data,after=out.getImageData(x,y,w,h).data;
+      return after.some((value,i)=>value!==before[i]);
+    };
+    return {largest,pixels:source.width*source.height,size:[output.width,output.height],
+      first:differs(170,300,200,220),second:differs(1435,850,100,110),background:differs(0,0,40,1600)};
+  });
+  assert.deepEqual(result.size,[2000,1600]);
+  assert.ok(result.largest<result.pixels/4,'readbacks stay proportional to a face, not the full photograph');
+  assert.equal(result.first,true);assert.equal(result.second,true);assert.equal(result.background,false);
+});
+
 test('each added control changes its local region, leaves distant background and transparency intact, and resets to zero', async()=>{
   const results=await page.evaluate(()=>{
     const {render,changed}=window.portraitTest;

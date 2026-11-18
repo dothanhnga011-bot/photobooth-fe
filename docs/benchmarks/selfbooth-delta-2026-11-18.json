@@ -1,0 +1,13 @@
+{
+  "studyDate": "2026-11-18",
+  "method": "Actual API integration test against an isolated MongoMemoryServer. Same confirmed photo retried within a synthetic 103-photo album; full response versus opt-in X-Photo-Reply: delta. No production database, customer files or network throughput measurement.",
+  "source": "photobooth-be/test/photo-upload.test.js",
+  "albumPhotos": 103,
+  "fullResponsePhotos": 103,
+  "deltaResponsePhotos": 1,
+  "fullResponseBytes": 22577,
+  "deltaResponseBytes": 659,
+  "responseReductionPct": 97.08110023475218,
+  "originalImageBytesChanged": false,
+  "measuresEndToEndUploadSpeed": false
+}

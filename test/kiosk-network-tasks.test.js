@@ -5,10 +5,12 @@ import {
   canApplyKioskState,
   createSingleFlight,
   drainPendingPhotos,
+  flushOriginalPhotos,
   flushPendingPhotos,
   kioskPhotoPath,
   mergeKioskFinish,
 } from "../src/kiosk/network-tasks.js";
+import { priority, uplinkBusy, whenUplinkIdle } from "../src/kiosk/uplink.js";
 
 const deferred = () => {
   let resolve, reject;
@@ -19,6 +21,58 @@ const session = (token, photos = []) => ({
   accessToken: token,
   captureToken: `capture-${token}`,
   booking: { photos },
+});
+
+test('an original made durable during the final pending read wakes one trailing pass, with no second concurrent drain',async()=>{
+  const gate=createSingleFlight({trailing:true}),held=deferred(),entered=deferred();
+  let rows=[],calls=0,active=0,maximum=0;
+  const uploaded=[];
+  const action=async()=>{
+    active++;maximum=Math.max(maximum,active);calls++;
+    const snapshot=[...rows];
+    if(calls===1){entered.resolve();await held.promise}
+    for(const row of snapshot){uploaded.push(row);rows=rows.filter(value=>value!==row)}
+    active--;return calls;
+  };
+  const first=gate.run(action);await entered.promise;
+  rows.push('new-original');
+  for(let i=0;i<20;i++)assert.equal(gate.run(action),first);
+  held.resolve();assert.equal(await first,2);
+  assert.equal(maximum,1);assert.deepEqual(uploaded,['new-original']);assert.deepEqual(rows,[]);
+});
+
+test('the preview burst goes first; a rejected preview cannot starve acknowledged originals', async () => {
+  const first = deferred(), bad = deferred(), began = deferred();
+  let previews = [{ id: 'good' }, { id: 'bad' }], originals = [], pumping, started = 0;
+  const sent = [], gate = createSingleFlight({ trailing: true });
+  const send = () => (pumping = gate.run(() => flushOriginalPhotos({
+    isActive: () => true, beforeNext: whenUplinkIdle,
+    readPending: async () => [...originals],
+    upload: async row => { sent.push(row.id); },
+    removePending: async id => { originals = originals.filter(row => row.id !== id); },
+    savePending: async () => assert.fail('no failed original in this fixture'),
+  })));
+  const burst = priority(() => drainPendingPhotos({
+    isActive: () => true, readPending: async () => [...previews],
+    upload: row => { if (++started === 2) began.resolve(); return row.id === 'good' ? first.promise : bad.promise; },
+    onSaved: row => {
+      previews = previews.filter(item => item.id !== row.id);
+      originals.push({ ...row, stage: 'original' });
+      send();
+    },
+  }));
+  const rejected = assert.rejects(burst, /invalid preview/);
+  await began.promise;
+  first.resolve();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(uplinkBusy(), true);
+  assert.deepEqual(sent, [], 'no original starts between preview acknowledgements');
+  bad.reject(new Error('invalid preview'));
+  await rejected; await pumping;
+  assert.deepEqual(sent, ['good']);
+  assert.deepEqual(previews, [{ id: 'bad' }], 'the failed preview stays durable for retry');
+  assert.deepEqual(originals, []);
+  assert.equal(uplinkBusy(), false);
 });
 
 test("a delayed finish preserves later photo acknowledgements and attached originals while taking server quotas", () => {

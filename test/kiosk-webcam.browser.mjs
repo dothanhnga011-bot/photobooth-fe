@@ -195,7 +195,7 @@ test("without any camera the shoot screen explains it and offers the computer we
   } finally { await b.close(); }
 });
 
-test("frame images load while the guest is still shooting, so the Khung tab is ready right after", async () => {
+test("frame images load while the guest is still shooting, ready for the frame-first screen", async () => {
   const b = await booth(fakeCamera, { webcam: true, query: "?frames=1" });
   try {
     await liveReady(b.page);
@@ -232,6 +232,9 @@ test("in webcam test mode the Space key counts down, takes a photo from the webc
       assert.ok(r.bitrate <= 5_000_000, `bitrate ${r.bitrate}`);
     }
     await b.page.getByRole("button", { name: "Chụp xong, chọn ảnh" }).click();
+    await b.page.getByRole('heading', { name: /để chọn khung ảnh/ }).waitFor({ timeout: 20000 });
+    assert.equal(await b.page.getByRole('group', { name: 'Ảnh đã chụp' }).count(), 0);
+    await b.page.getByRole('button', { name: 'Tiếp tục', exact: true }).click();
     await b.page.getByRole("heading", { name: /để chọn ảnh/ }).waitFor({ timeout: 20000 });
     // Thời gian chọn ảnh theo cài đặt của quản trị (45 giây), không phải 250 giây mặc định.
     assert.match(await b.page.getByRole("heading", { name: /để chọn ảnh/ }).innerText(), /Bạn có 4[2-5]s để chọn ảnh/);
