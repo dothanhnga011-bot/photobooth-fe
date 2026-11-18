@@ -343,53 +343,44 @@
       font-size: clamp(19px, 2.2vw, 24px);
     }
 
-    /* ── Màn chụp (đã chia đôi: hình trực tiếp trên, ảnh vừa chụp dưới): hàng dưới cùng to hơn —
-       đồng hồ đọc được từ chỗ khách đứng, dải ảnh và nút "Chụp xong" dễ chạm ── */
+    /* ── Màn chụp (ảnh vừa chụp toàn shoot-stage, rail hàng ngang dưới cùng): các giá trị
+       điều chỉnh cho màn 1080 × 1920 — đồng hồ, thumbnail và nút "Chụp xong" vừa tầm chạm ── */
     .shoot-screen.is-portrait .shoot-rail {
-      gap: 16px;
-      padding-bottom: 20px;
-    }
-    .shoot-screen.is-portrait .shoot-rail > :not(.shoot-latest) {
-      margin-inline: 20px;
+      gap: 12px;
+      padding: 12px 16px;
     }
     .shoot-screen.is-portrait .shoot-timer {
-      min-width: 230px;
-      padding: 16px 14px;
-      border-radius: 18px;
+      min-width: 130px;
+      padding: 10px 12px;
+      border-radius: 14px;
     }
     .shoot-screen.is-portrait .shoot-timer span {
-      font-size: 15px;
+      font-size: 11px;
     }
     .shoot-screen.is-portrait .shoot-timer strong {
-      font-size: clamp(48px, 5.6vw, 64px);
+      font-size: clamp(32px, 3.8vw, 48px);
     }
     .shoot-screen.is-portrait .shoot-timer small {
-      font-size: 16px;
+      font-size: 12px;
     }
     .shoot-screen.is-portrait .shoot-thumbs {
-      height: clamp(110px, 7.4vh, 150px);
+      height: clamp(70px, 8vh, 100px);
     }
     .shoot-screen.is-portrait .shoot-end {
-      min-width: 230px;
-      min-height: 96px;
-      padding: 0 28px;
-      border-radius: 20px;
-      font-size: 27px;
+      min-width: 140px;
+      min-height: clamp(64px, 7vh, 84px);
+      padding: 0 20px;
+      border-radius: 18px;
+      font-size: clamp(18px, 2.2vw, 24px);
     }
     .shoot-screen.is-portrait .shoot-end svg {
-      font-size: 32px;
+      font-size: 26px;
     }
     .shoot-screen.is-portrait .shoot-latest-no {
       top: 20px;
       left: 20px;
-      padding: 8px 18px;
-      font-size: 24px;
-    }
-    .shoot-screen.is-portrait .shoot-latest-empty {
-      font-size: 28px;
-    }
-    .shoot-screen.is-portrait .shoot-latest-empty svg {
-      font-size: 80px;
+      padding: 6px 16px;
+      font-size: 20px;
     }
 
     /* ── Chọn ảnh & trang trí: khung xem trước to ở trên (nút ‹ › sát hai bên khung), bên dưới hàng mục
