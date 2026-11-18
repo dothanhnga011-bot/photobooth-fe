@@ -413,7 +413,9 @@ export function Kiosk() {
       lock?.release().catch(() => {});
     };
   }, []);
-  const liveCamera = ["ready", "shoot"].includes(phase);
+  // Live view đã chuyển sang màn hình phụ cắm trực tiếp HDMI từ máy ảnh;
+  // tablet chỉ mở camera khi nhân viên bật chế độ thử máy bằng webcam.
+  const liveCamera = ["ready", "shoot"].includes(phase) && Boolean(webcamTest);
   const reopenRef = useRef(null);
   // Cắm / rút thiết bị: mở lại hình trực tiếp nếu đang thiếu — không mở chồng khi đang mở dở
   // (mở / tắt camera có thể làm trình duyệt báo đổi thiết bị lần nữa).
@@ -533,8 +535,10 @@ export function Kiosk() {
         setCameraIssue(problem);
         setReady(false);
         stream.current = null;
-        setError(CAMERA_ERROR);
-        notifyOnce('camera', 'warning', problem.message, 15000);
+        if (webcamRef.current) {
+          setError(CAMERA_ERROR);
+          notifyOnce('camera', 'warning', problem.message, 15000);
+        }
       }
       return false;
     } finally { if (media && stream.current !== media) media.getTracks().forEach(track => track.stop()); }
