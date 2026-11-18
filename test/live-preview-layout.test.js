@@ -66,3 +66,29 @@ test("portrait split screen: the whole visible camera frame fits the top half, i
   assert.equal(visibleClip(0.08), "inset(8.000% 8.000% 12.000% 8.000%)");
 });
 
+for (const [width, height] of [[1366, 768], [540, 480], [320, 420]]) {
+  test(`rotated HDMI fits and stays centred, including mirrored portrait at ${width}×${height}`, () => {
+    for (const rotation of [0, 90, 180, 270]) for (const mirror of [false, true]) {
+      const layout = livePreviewLayout(1920, 1080, width, height, .08, 'contain', rotation, mirror);
+      const region = visibleRegion(.08), scale = layout.width / 1920;
+      const radians = rotation * Math.PI / 180;
+      // Map the four clipped sensor corners through the actual CSS operation:
+      // rotation about the element centre, followed by a screen-horizontal flip.
+      const corners = [region.x, region.x + region.w].flatMap(x => [region.y, region.y + region.h].map(y => {
+        const dx = (x - .5) * layout.width, dy = (y - .5) * layout.height;
+        return {
+          x: layout.left + layout.width / 2 + (dx * Math.cos(radians) - dy * Math.sin(radians)) * (mirror ? -1 : 1),
+          y: layout.top + layout.height / 2 + dx * Math.sin(radians) + dy * Math.cos(radians),
+        };
+      }));
+      const left = Math.min(...corners.map(c => c.x)), right = Math.max(...corners.map(c => c.x));
+      const top = Math.min(...corners.map(c => c.y)), bottom = Math.max(...corners.map(c => c.y));
+      assert.ok(left >= -1e-6 && right <= width + 1e-6 && top >= -1e-6 && bottom <= height + 1e-6, `${rotation}°, mirror ${mirror}: no lost edge`);
+      assert.ok(Math.abs((left + right) / 2 - width / 2) < 1e-6);
+      assert.ok(Math.abs((top + bottom) / 2 - height / 2) < 1e-6);
+      assert.ok(Math.abs(layout.height / 1080 - scale) < 1e-6, 'no stretching');
+      assert.ok(Math.abs(right - left - width) < 1e-6 || Math.abs(bottom - top - height) < 1e-6, 'use the largest size that contains the whole visible frame');
+    }
+  });
+}
+

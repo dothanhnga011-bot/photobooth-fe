@@ -16,6 +16,7 @@ import { canPickFolder } from "./folder.js";
 import { cameraProfile } from "./camera-profile.js";
 import { FolderCheck } from "./FolderCheck.jsx";
 import { LiveCameraCheck } from './LiveCameraCheck.jsx';
+import { PREVIEW_ORIENTATIONS } from './preview-orientation.js';
 import { KioskDevices } from "./KioskDevices.jsx";
 import { isAudioEnabled, setAudioEnabled } from "./kiosk-audio.js";
 import { useState } from "react";
@@ -32,6 +33,8 @@ export function KioskSettings({
   mirror,
   setMirror,
   mirrorLocked = false,
+  rotation = 0,
+  setRotation = () => {},
   zoom,
   setZoom,
   roomInfo,
@@ -142,7 +145,17 @@ export function KioskSettings({
             ))}
           </select>
         </label>
-        <LiveCameraCheck cameraId={cameraId} webcamTest={webcamTest} onDevices={setCameras} />
+        {roomInfo?.kind === 'polaroid' && <fieldset className="kiosk-orientation">
+          <legend>Xoay hình trực tiếp</legend>
+          <div className="kiosk-orientation-options" role="group" aria-label="Chiều hình trực tiếp">
+            {PREVIEW_ORIENTATIONS.map(([angle, name]) => <button key={angle} type="button" aria-pressed={rotation === angle}
+              onClick={() => { setRotation(angle); toast.success('Đã lưu chiều hình trực tiếp cho phòng này trên máy này.'); }}>{name}</button>)}
+          </div>
+          <small>Đặt máy ảnh ngang chọn “Ngang”; khi đặt dọc, chọn xoay trái hoặc phải cho hình đứng đúng chiều. Bấm “Kiểm tra hình trực tiếp” bên dưới để xem ngay.</small>
+          <small>Chỉ xoay hình HDMI. Ảnh vừa chụp và album theo chiều JPEG máy ảnh; không xoay thêm ảnh gốc.</small>
+        </fieldset>}
+        <LiveCameraCheck cameraId={cameraId} webcamTest={webcamTest} onDevices={setCameras}
+          rotation={rotation} mirror={mirror} zoom={zoom} canvasPreview={lowPower} />
         {cameras.some(isCameraUsbVideo) && (
           <p className="kiosk-check-result is-warn kiosk-webcam-note">
             {CAMERA_USB_MESSAGE}

@@ -1,4 +1,6 @@
-// Chỉ cắt vùng xem HDMI; ảnh JPEG nhận từ máy ảnh không đi qua bước này.
+import { previewRotation } from './preview-orientation.js';
+
+// Chỉ cắt/xoay vùng xem HDMI; ảnh JPEG nhận từ máy ảnh không đi qua bước này.
 // Máy ảnh xuất kèm thông số (thước phơi sáng, khung lưới) ở các mép hình HDMI: cắt bỏ các mép
 // đó. `zoom` (0–0,3) là phần cắt thêm ở mỗi cạnh do nhân viên chỉnh trong Cài đặt máy chụp.
 const TOP = 0.08;
@@ -23,7 +25,7 @@ export function visibleRegion(zoom = 0) {
 
 // fit "cover": phần hình còn thấy phủ kín khung xem (cắt bớt hai bên / trên dưới nếu khác tỉ lệ);
 // "contain": thấy đủ phần hình đó, khung xem có thể còn viền đen (màn đứng chia đôi).
-export function livePreviewLayout(sourceWidth, sourceHeight, width, height, zoom = 0, fit = "cover") {
+export function livePreviewLayout(sourceWidth, sourceHeight, width, height, zoom = 0, fit = "cover", rotation = 0, mirror = false) {
   if (
     ![sourceWidth, sourceHeight, width, height].every(
       (value) => Number.isFinite(value) && value > 0,
@@ -34,12 +36,22 @@ export function livePreviewLayout(sourceWidth, sourceHeight, width, height, zoom
   const region = visibleRegion(zoom);
   const visibleWidth = sourceWidth * region.w;
   const visibleHeight = sourceHeight * region.h;
-  const scale = (fit === "contain" ? Math.min : Math.max)(width / visibleWidth, height / visibleHeight);
+  const angle = previewRotation(rotation) / 90;
+  const cos = [1, 0, -1, 0][angle], sin = [0, 1, 0, -1][angle];
+  const turnedWidth = Math.abs(cos) * visibleWidth + Math.abs(sin) * visibleHeight;
+  const turnedHeight = Math.abs(sin) * visibleWidth + Math.abs(cos) * visibleHeight;
+  const scale = (fit === "contain" ? Math.min : Math.max)(width / turnedWidth, height / turnedHeight);
+  // The cropped HDMI centre differs from the sensor centre (unequal top/bottom
+  // HUD bands). Rotate that offset too, then mirror horizontally on the screen.
+  const dx = sourceWidth * (region.x + region.w / 2 - .5);
+  const dy = sourceHeight * (region.y + region.h / 2 - .5);
+  const offsetX = (dx * cos - dy * sin) * (mirror ? -1 : 1);
+  const offsetY = dx * sin + dy * cos;
   return {
     width: sourceWidth * scale,
     height: sourceHeight * scale,
-    left: (width - visibleWidth * scale) / 2 - sourceWidth * region.x * scale,
-    top: (height - visibleHeight * scale) / 2 - sourceHeight * region.y * scale,
+    left: (width - sourceWidth * scale) / 2 - offsetX * scale,
+    top: (height - sourceHeight * scale) / 2 - offsetY * scale,
   };
 }
 

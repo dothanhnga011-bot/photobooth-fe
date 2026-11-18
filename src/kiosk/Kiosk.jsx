@@ -45,6 +45,7 @@ import {
   sameKioskSession,
 } from "./network-tasks.js";
 import { readCrop } from "./live-preview-layout.js";
+import { drawLiveCapture, previewRotation, previewRotationKey, readPreviewRotation } from './preview-orientation.js';
 import { buildTimelapse, createClipRecorder } from "./clip-recorder.js";
 import {
   compositeJpeg,
@@ -118,6 +119,14 @@ export function Kiosk() {
   const { packages = [], frames: catalogFrames = [], settings = {}, stickers: shopStickers = [] } = useStudio();
   const device =
     params.get("device") || localStorage.getItem("harrod-device") || "";
+  const rotationKey = previewRotationKey(deviceRoom(device) || device.slice(-24));
+  const [liveRotation, setLiveRotation] = useState(() => readPreviewRotation(rotationKey));
+  useEffect(() => setLiveRotation(readPreviewRotation(rotationKey)), [rotationKey]);
+  const setRotation = value => {
+    const angle = previewRotation(value);
+    localStorage.setItem(rotationKey, String(angle));
+    setLiveRotation(angle);
+  };
   const [code, setCode] = useState(""),
     [step, setStep] = useState("start"),
     [session, setSession] = useState(null),
@@ -195,6 +204,8 @@ export function Kiosk() {
   mirrorRef.current = mirror;
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
+  const rotationRef = useRef(0);
+  rotationRef.current = manualCapture ? liveRotation : 0;
   const setSale = (next) => {
     setSaleState(next);
     if (next) localStorage.setItem(SALE_KEY, JSON.stringify(next));
@@ -709,11 +720,8 @@ export function Kiosk() {
   async function grabLiveFrame() {
     const v = video$.current;
     if (!v?.videoWidth || phaseOf(current.current) !== "shoot") throw new Error("Chưa có hình trực tiếp để chụp.");
-    const sw = v.videoWidth, sh = v.videoHeight;
     const canvas = document.createElement("canvas");
-    canvas.width = sw;
-    canvas.height = sh;
-    canvas.getContext("2d").drawImage(v, 0, 0, sw, sh);
+    drawLiveCapture(canvas, v, rotationRef.current);
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
     canvas.width = canvas.height = 0;
     if (!blob) throw new Error("Không chụp được khung hình.");
@@ -1482,6 +1490,7 @@ export function Kiosk() {
           webcam={{ on: webcamTest, label: liveLabel, count: snapCount, onSnap: snapWebcam, onToggle: setWebcamTest }}
           canvasPreview={lowPower}
           mirror={mirror}
+          rotation={manualCapture ? liveRotation : 0}
           minShots={shotQuota ? Math.min(selectCount, shotQuota) : selectCount}
         />
         {error && !(error === CAMERA_ERROR && !ready) && (
@@ -1600,6 +1609,8 @@ export function Kiosk() {
         mirror={mirror}
         setMirror={setMirror}
         mirrorLocked={remoteFlip !== "device"}
+        rotation={polaroid ? liveRotation : 0}
+        setRotation={setRotation}
         zoom={zoom}
         setZoom={setZoom}
         roomInfo={roomInfo}

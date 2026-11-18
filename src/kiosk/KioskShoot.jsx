@@ -92,6 +92,7 @@ export function KioskShoot({
   webcam = null,
   canvasPreview = false,
   mirror = false,
+  rotation = 0,
   minShots = 1,
 }) {
   const portrait = usePortrait();
@@ -155,7 +156,7 @@ export function KioskShoot({
       <div className="shoot-stage">
         {/* Thấy đủ khung hình (không cắt hai bên) ở mọi bố cục: hình trực tiếp nhỏ đi một chút để cột ảnh
             vừa chụp bên phải to gấp đôi. */}
-        <CameraPreview videoRef={videoRef} zoom={zoom} canvas={canvasPreview} fit="contain" mirror={mirror} />
+        <CameraPreview videoRef={videoRef} zoom={zoom} canvas={canvasPreview} fit="contain" mirror={mirror} rotation={rotation} />
         {!ready && (
           <div className="shoot-no-camera" role="status">
             <span className="shoot-no-camera-icon" aria-hidden="true">

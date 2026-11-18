@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '../studio';
 import { cameraProblem, openLiveVideo } from './camera.js';
+import { CameraPreview } from './CameraPreview.jsx';
 
 // Staff can verify HDMI before selling/using a code. Leaving the settings
 // screen or changing the chosen camera always releases the test stream.
-export function LiveCameraCheck({ cameraId, webcamTest, onDevices }) {
+export function LiveCameraCheck({ cameraId, webcamTest, onDevices, rotation = 0, mirror = false, zoom = 0, canvasPreview = false }) {
   const video = useRef(null), stream = useRef(null), turn = useRef(0);
   const [busy, setBusy] = useState(false), [live, setLive] = useState(false), [message, setMessage] = useState('');
   const stop = () => {
@@ -46,7 +47,9 @@ export function LiveCameraCheck({ cameraId, webcamTest, onDevices }) {
     <Button type="button" className="outline small" disabled={busy} onClick={check}>
       {busy ? 'Đang mở hình trực tiếp…' : live ? 'Tắt xem thử' : 'Kiểm tra hình trực tiếp'}
     </Button>
-    <video ref={video} className={live ? 'is-live' : ''} autoPlay playsInline muted aria-label="Hình trực tiếp thử máy" />
+    <div className={`kiosk-live-preview${rotation % 180 ? ' is-vertical' : ''}`} hidden={!live}>
+      <CameraPreview videoRef={video} fit="contain" rotation={rotation} mirror={mirror} zoom={zoom} canvas={canvasPreview} label="Hình trực tiếp thử máy" />
+    </div>
     {message && <p className={`kiosk-check-result ${live ? 'is-ok' : 'is-warn'}`} role="status">{message}</p>}
   </div>;
 }

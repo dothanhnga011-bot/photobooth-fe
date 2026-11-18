@@ -1,8 +1,15 @@
 @layer components {
   .kiosk-live-check { display: grid; gap: 12px; }
   .kiosk-live-check > .button { justify-self: start; }
-  .kiosk-live-check > video { display: none; width: min(100%, 640px); max-height: 320px; background: #211a16; border-radius: 10px; object-fit: contain; }
-  .kiosk-live-check > video.is-live { display: block; }
+  .kiosk-live-preview { position: relative; width: min(100%, 640px); height: 320px; overflow: hidden; border-radius: 10px; background: #211a16; }
+  .kiosk-live-preview.is-vertical { width: min(100%, 320px); height: 420px; }
+  .kiosk-orientation { display: grid; gap: 12px; min-width: 0; padding: 16px; border: 1px solid var(--booth-line,#6b5343); border-radius: 10px; }
+  .kiosk-orientation legend { padding-inline: 6px; font-weight: 600; }
+  .kiosk-orientation-options { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+  .kiosk-orientation-options button { min-height: 48px; padding: 10px 12px; border: 1px solid var(--booth-line,#6b5343); border-radius: 6px; color: inherit; background: transparent; cursor: pointer; }
+  .kiosk-orientation-options button[aria-pressed="true"] { background: #f5ece5; color: #3f2c25; border-color: #f5ece5; font-weight: 700; }
+  .kiosk-orientation-options button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+  .kiosk-orientation small { color: var(--booth-muted,#d5c4b6); line-height: 1.6; }
   .booth-folder-alert p {
     color: #f3dfa8;
   }

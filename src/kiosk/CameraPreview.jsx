@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { livePreviewLayout, visibleClip } from "./live-preview-layout.js";
+import { previewRotation } from './preview-orientation.js';
 
 // Lúc bấm chụp, máy ảnh đổi tín hiệu HDMI trong giây lát (hiện ảnh vừa chụp, đổi độ phân
 // giải): chỉ nhận kích thước nguồn mới khi nó giữ nguyên quá khoảng này, để hình không nhảy.
@@ -10,7 +11,7 @@ const SETTLE_MS = 1500;
 // khung hình vẫn đúng; vẽ bằng canvas đi đường khác nên vẫn thấy hình.
 // fit: "cover" (mặc định, phủ kín khung xem) hoặc "contain" (thấy đủ khung hình — màn đứng chia đôi).
 // mirror: lật như gương — cùng cài đặt với ảnh chụp và video, nên màn hình luôn giống ảnh nhận được.
-export function CameraPreview({ videoRef, zoom = 0, canvas = false, fit = "cover", mirror = false }) {
+export function CameraPreview({ videoRef, zoom = 0, canvas = false, fit = "cover", mirror = false, rotation = 0, label }) {
   const viewport = useRef(null);
   const screen = useRef(null);
 
@@ -26,6 +27,8 @@ export function CameraPreview({ videoRef, zoom = 0, canvas = false, fit = "cover
         frame.clientHeight,
         zoom,
         fit,
+        rotation,
+        mirror,
       );
       const shown = [camera, screen.current].filter(Boolean);
       if (!layout) {
@@ -36,6 +39,8 @@ export function CameraPreview({ videoRef, zoom = 0, canvas = false, fit = "cover
         for (const [property, value] of Object.entries(layout))
           element.style[property] = `${value}px`;
         element.style.clipPath = visibleClip(zoom);
+        // Rotate first, then mirror along the upright screen's horizontal axis.
+        element.style.transform = [mirror && 'scaleX(-1)', previewRotation(rotation) && `rotate(${previewRotation(rotation)}deg)`].filter(Boolean).join(' ');
         element.style.visibility = "visible";
       }
     };
@@ -75,7 +80,7 @@ export function CameraPreview({ videoRef, zoom = 0, canvas = false, fit = "cover
       camera.removeEventListener("loadedmetadata", reset);
       camera.removeEventListener("resize", sourceChanged);
     };
-  }, [videoRef, zoom, canvas, fit]);
+  }, [videoRef, zoom, canvas, fit, rotation, mirror]);
 
   // Chế độ máy yếu: chép khung hình mới nhất lên canvas, tối đa ~30 lần mỗi giây (nguồn HDMI 30 hình/giây).
   useEffect(() => {
@@ -98,7 +103,7 @@ export function CameraPreview({ videoRef, zoom = 0, canvas = false, fit = "cover
 
   return (
     <div ref={viewport} className={`camera-preview-viewport${canvas ? " is-canvas" : ""}${mirror ? " is-mirrored" : ""}`}>
-      <video ref={videoRef} autoPlay playsInline muted />
+      <video ref={videoRef} autoPlay playsInline muted aria-label={label} />
       {canvas && <canvas ref={screen} aria-hidden="true" />}
     </div>
   );

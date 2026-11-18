@@ -16,13 +16,17 @@ const fixture = `
   import { MemoryRouter } from 'react-router-dom';
   import { StudioContext, ToastProvider } from '/src/studio.jsx';
   import { Kiosk } from '/src/kiosk/Kiosk.jsx';
-  window.deliverCanonPhoto = async number => {
+  window.deliverCanonPhoto = async (number, orientation = 1) => {
     const folder = await navigator.storage.getDirectory();
     const file = await folder.getFileHandle('IMG_' + number + '.JPG', { create: true });
     const canvas = document.createElement('canvas'); canvas.width = 1200; canvas.height = 800;
     const ctx = canvas.getContext('2d'); ctx.fillStyle = number === 1 ? '#ed1923' : '#1e32e1'; ctx.fillRect(0, 0, 1200, 800);
     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', .95));
-    const write = await file.createWritable(); await write.write(blob); await write.close();
+    // Real JPEG with a portrait EXIF orientation, as a physically rotated camera
+    // sends it. HDMI rotation must not rotate this already-oriented preview again.
+    const exif = Uint8Array.from([255,225,0,34,69,120,105,102,0,0,73,73,42,0,8,0,0,0,1,0,18,1,3,0,1,0,0,0,orientation,0,0,0,0,0,0,0]);
+    const jpeg = orientation === 1 ? blob : new Blob([blob.slice(0,2),exif,blob.slice(2)],{type:'image/jpeg'});
+    const write = await file.createWritable(); await write.write(jpeg); await write.close();
   };
   import '/src/tailwind.css';
   if (new URLSearchParams(location.search).has('canon-folder')) {
@@ -124,7 +128,7 @@ async function liveReady(page) {
 // Ảnh PNG 2 × 3 px làm ảnh khung mẫu.
 const FRAME_PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAADCAYAAAC56t6BAAAAEUlEQVR4nGP4ULHgPwgzYDAA9FMSKzMCTzsAAAAASUVORK5CYII=", "base64");
 
-async function booth(launched, { webcam, room = { _id: "room", flip: "device" }, extra = {}, lowPower = false, viewport = { width: 1366, height: 768 }, query = "" }) {
+async function booth(launched, { webcam, room = { _id: "room", flip: "device" }, extra = {}, lowPower = false, rotation = 0, viewport = { width: 1366, height: 768 }, query = "" }) {
   const context = await launched.newContext({ viewport });
   if (launched === fakeCamera) await context.grantPermissions(["camera"]);
   const page = await context.newPage();
@@ -150,7 +154,7 @@ async function booth(launched, { webcam, room = { _id: "room", flip: "device" },
       : path.endsWith("/kiosk/photo") ? booking
       : path.endsWith("/kiosk/finish") ? { ...booking, status: "completed" } : { booking } });
   });
-  await page.addInitScript(({ booking, webcam, lowPower }) => {
+  await page.addInitScript(({ booking, webcam, lowPower, rotation }) => {
     // Ghi lại cách tạo bộ ghi video (thử máy bằng webcam: VP8 phần mềm, bitrate thấp — không H.264).
     window.__recorders = [];
     if (window.MediaRecorder) {
@@ -165,13 +169,75 @@ async function booth(launched, { webcam, room = { _id: "room", flip: "device" },
     if (sessionStorage.getItem("photo-capture-fixture-device")) return;
     localStorage.setItem("kiosk-webcam-test", webcam ? "1" : "0");
     localStorage.setItem("kiosk-low-power", lowPower ? "1" : "0");
+    localStorage.setItem('kiosk-live-rotation:fixture-device', String(rotation));
     sessionStorage.setItem("photo-capture-fixture-device", JSON.stringify({
       captureToken: "fixture-capture", accessToken: "fixture-album", booking, phase: "shoot", mode: "remote",
     }));
-  }, { booking, webcam, lowPower });
+  }, { booking, webcam, lowPower, rotation });
   await page.goto(base + (room.kind === 'polaroid' ? '?canon-folder=1' : query));
   return { page, errors, videos, frameImages, close: () => context.close() };
 }
+
+test('Selfbooth staff rotate the live preview, save across reload and keep JPEG EXIF independent', async () => {
+  const b = await booth(fakeCamera, {webcam:false,room:{_id:'room',kind:'polaroid',flip:'device'},viewport:{width:540,height:960}});
+  try {
+    const capture = await b.page.evaluate(()=>sessionStorage.getItem('photo-capture-fixture-device'));
+    await b.page.evaluate(()=>sessionStorage.setItem('photo-capture-fixture-device','null'));
+    await b.page.reload();
+    await b.page.getByText('Cài đặt máy chụp (nhân viên)',{exact:false}).click();
+    const choices = b.page.getByRole('group',{name:'Chiều hình trực tiếp'}).getByRole('button');
+    await choices.first().waitFor();
+    assert.equal(await choices.count(),4);
+    await b.page.getByRole('button',{name:'Kiểm tra hình trực tiếp',exact:true}).click();
+    await b.page.getByRole('button',{name:'Tắt xem thử',exact:true}).waitFor();
+    await b.page.evaluate(()=>{window.orientationTrack=document.querySelector('.kiosk-live-check video').srcObject.getVideoTracks()[0]});
+    for (const [index,angle] of [[1,270],[2,90],[3,180],[0,0],[2,90]]) {
+      await choices.nth(index).click();
+      assert.equal(await choices.nth(index).getAttribute('aria-pressed'),'true');
+      assert.equal(await b.page.evaluate(()=>localStorage.getItem('kiosk-live-rotation:fixture-device')),String(angle));
+      await b.page.waitForFunction(angle=>{
+        const v=document.querySelector('.kiosk-live-check video');
+        return v?.style.visibility==='visible' && (angle ? v.style.transform.includes('rotate('+angle+'deg)') : !v.style.transform.includes('rotate'));
+      },angle);
+      assert.equal(await b.page.evaluate(()=>window.orientationTrack===document.querySelector('.kiosk-live-check video').srcObject.getVideoTracks()[0]),true,'rotation does not reopen the camera');
+    }
+    const screenDir=join(tmpdir(),'photobooth-fe-kiosk-webcam');await mkdir(screenDir,{recursive:true});
+    await b.page.locator('.kiosk-orientation').scrollIntoViewIfNeeded();
+    await b.page.screenshot({path:join(screenDir,'selfbooth-orientation-settings.png')});
+    await b.page.reload();
+    await b.page.getByText('Cài đặt máy chụp (nhân viên)',{exact:false}).click();
+    assert.equal(await choices.nth(2).getAttribute('aria-pressed'),'true');
+    await b.page.evaluate(capture=>sessionStorage.setItem('photo-capture-fixture-device',capture),capture);
+    await b.page.reload();
+    await b.page.waitForFunction(()=>document.querySelector('.shoot-stage video')?.style.transform.includes('rotate(90deg)'));
+    // JPEG is also physically portrait: its EXIF is honoured exactly once.
+    await b.page.evaluate(()=>window.deliverCanonPhoto(81,6));
+    const latest=b.page.locator('.shoot-latest img');
+    await latest.waitFor({timeout:15000});
+    await b.page.waitForFunction(()=>document.querySelector('.shoot-latest img')?.naturalWidth>0);
+    const dimensions=await latest.evaluate(img=>[img.naturalWidth,img.naturalHeight,getComputedStyle(img).transform]);
+    assert.deepEqual(dimensions,[800,1200,'none'],'HDMI rotation must not turn the portrait JPEG back sideways');
+    await b.page.screenshot({path:join(screenDir,'selfbooth-live-portrait-rotated.png')});
+    assert.deepEqual(b.errors,[]);
+  } finally {await b.close()}
+});
+
+test('Selfbooth rotated low-power preview and webcam capture stay upright with swapped dimensions', async () => {
+  const b=await booth(fakeCamera,{webcam:true,room:{_id:'room',kind:'polaroid',flip:'device'},rotation:270,lowPower:true,viewport:{width:540,height:960}});
+  try {
+    await liveReady(b.page);
+    await b.page.waitForFunction(()=>{
+      const c=document.querySelector('.camera-preview-viewport canvas');
+      return c?.width>0&&c.style.visibility==='visible'&&c.style.transform.includes('rotate(270deg)');
+    });
+    const input=await b.page.locator('.shoot-stage video').evaluate(v=>[v.videoWidth,v.videoHeight]);
+    await b.page.keyboard.press('Space');
+    const latest=b.page.locator('.shoot-latest img');await latest.waitFor({timeout:15000});
+    await b.page.waitForFunction(()=>document.querySelector('.shoot-latest img')?.naturalWidth>0);
+    assert.deepEqual(await latest.evaluate(img=>[img.naturalWidth,img.naturalHeight]),[input[1],input[0]]);
+    assert.deepEqual(b.errors,[]);
+  } finally {await b.close()}
+});
 
 test("without any camera the shoot screen explains it and offers the computer webcam for a test", async () => {
   const b = await booth(browser, { webcam: false });
