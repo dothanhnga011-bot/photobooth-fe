@@ -413,9 +413,10 @@ export function Kiosk() {
       lock?.release().catch(() => {});
     };
   }, []);
-  // Live view đã chuyển sang màn hình phụ cắm trực tiếp HDMI từ máy ảnh;
-  // tablet chỉ mở camera khi nhân viên bật chế độ thử máy bằng webcam.
-  const liveCamera = ["ready", "shoot"].includes(phase) && Boolean(webcamTest);
+  // PTB keeps live view on the kiosk. Selfbooth uses a separate HDMI monitor
+  // and shows the latest JPEG here; webcam testing still needs a video element.
+  const showLive = !manualCapture || webcamTest;
+  const liveCamera = ["ready", "shoot"].includes(phase) && showLive;
   const reopenRef = useRef(null);
   // Cắm / rút thiết bị: mở lại hình trực tiếp nếu đang thiếu — không mở chồng khi đang mở dở
   // (mở / tắt camera có thể làm trình duyệt báo đổi thiết bị lần nữa).
@@ -701,7 +702,7 @@ export function Kiosk() {
     toast[on ? "info" : "success"](on
       ? "Đang thử máy bằng webcam máy tính: bấm phím Space trên bàn phím để chụp. Nhớ tắt khi đón khách."
       : "Đã tắt thử máy bằng webcam — máy chụp dùng máy ảnh như bình thường.");
-    if (liveCamera) openCamera();
+    if (liveCamera && (!manualCapture || on)) openCamera();
   }
   // Thử máy bằng webcam: đếm 3‑2‑1 rồi chụp một khung hình từ webcam, nhận như ảnh từ máy ảnh.
   async function snapWebcam() {
@@ -1474,6 +1475,7 @@ export function Kiosk() {
     return (
       <>
         <KioskShoot
+          showLive={showLive}
           videoRef={video$}
           zoom={zoom}
           ready={ready}

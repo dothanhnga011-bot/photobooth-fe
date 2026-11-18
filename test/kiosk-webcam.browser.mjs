@@ -155,6 +155,12 @@ async function booth(launched, { webcam, room = { _id: "room", flip: "device" },
       : path.endsWith("/kiosk/finish") ? { ...booking, status: "completed" } : { booking } });
   });
   await page.addInitScript(({ booking, webcam, lowPower, rotation }) => {
+    window.__cameraRequests = [];
+    const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = constraints => {
+      window.__cameraRequests.push(constraints);
+      return getUserMedia(constraints);
+    };
     // Ghi lại cách tạo bộ ghi video (thử máy bằng webcam: VP8 phần mềm, bitrate thấp — không H.264).
     window.__recorders = [];
     if (window.MediaRecorder) {
@@ -178,8 +184,8 @@ async function booth(launched, { webcam, room = { _id: "room", flip: "device" },
   return { page, errors, videos, frameImages, close: () => context.close() };
 }
 
-test('Selfbooth staff rotate the live preview, save across reload and keep JPEG EXIF independent', async () => {
-  const b = await booth(fakeCamera, {webcam:false,room:{_id:'room',kind:'polaroid',flip:'device'},viewport:{width:540,height:960}});
+test('Selfbooth settings preview rotates, but capture uses external HDMI and keeps JPEG EXIF independent', async () => {
+  const b = await booth(fakeCamera, {webcam:false,extra:{source:'polaroid',printSize:'20x30'},room:{_id:'room',kind:'polaroid',flip:'device'},viewport:{width:540,height:960}});
   try {
     const capture = await b.page.evaluate(()=>sessionStorage.getItem('photo-capture-fixture-device'));
     await b.page.evaluate(()=>sessionStorage.setItem('photo-capture-fixture-device','null'));
@@ -209,15 +215,35 @@ test('Selfbooth staff rotate the live preview, save across reload and keep JPEG 
     assert.equal(await choices.nth(2).getAttribute('aria-pressed'),'true');
     await b.page.evaluate(capture=>sessionStorage.setItem('photo-capture-fixture-device',capture),capture);
     await b.page.reload();
-    await b.page.waitForFunction(()=>document.querySelector('.shoot-stage video')?.style.transform.includes('rotate(90deg)'));
+    await b.page.locator('.shoot-screen.is-external-live').waitFor();
+    assert.equal(await b.page.locator('.shoot-stage video').count(),0);
+    assert.equal(await b.page.evaluate(()=>window.__cameraRequests.length),0,'external HDMI capture must not open the browser camera');
     // JPEG is also physically portrait: its EXIF is honoured exactly once.
     await b.page.evaluate(()=>window.deliverCanonPhoto(81,6));
-    const latest=b.page.locator('.shoot-latest img');
+    const latest=b.page.locator('.shoot-latest-full img');
     await latest.waitFor({timeout:15000});
-    await b.page.waitForFunction(()=>document.querySelector('.shoot-latest img')?.naturalWidth>0);
+    await b.page.waitForFunction(()=>document.querySelector('.shoot-latest-full img')?.naturalWidth>0);
     const dimensions=await latest.evaluate(img=>[img.naturalWidth,img.naturalHeight,getComputedStyle(img).transform]);
     assert.deepEqual(dimensions,[800,1200,'none'],'HDMI rotation must not turn the portrait JPEG back sideways');
-    await b.page.screenshot({path:join(screenDir,'selfbooth-live-portrait-rotated.png')});
+    await b.page.locator('.camera-flash').waitFor({state:'detached'});
+    await b.page.screenshot({path:join(screenDir,'selfbooth-external-live-jpeg.png')});
+    assert.deepEqual(b.errors,[]);
+  } finally {await b.close()}
+});
+
+for (const viewport of [{width:1920,height:1080},{width:540,height:960}]) test(`PTB opens live HDMI without webcam testing at ${viewport.width}×${viewport.height}`, async () => {
+  const b=await booth(fakeCamera,{webcam:false,room:{_id:'room',kind:'photobooth',flip:'device'},extra:{printSize:'full',source:'counter'},viewport});
+  try {
+    await b.page.locator('.shoot-screen.has-live:not(.no-live)').waitFor({timeout:15000});
+    const video=b.page.locator('.shoot-stage video');
+    await video.waitFor();
+    await b.page.waitForFunction(()=>document.querySelector('.shoot-stage video')?.style.visibility==='visible');
+    assert.ok(await b.page.evaluate(()=>window.__cameraRequests.length>0));
+    assert.equal(await video.evaluate(v=>v.srcObject.getVideoTracks()[0].readyState),'live');
+    assert.equal(await b.page.locator('.shoot-webcam-badge,.shoot-latest-full').count(),0);
+    assert.equal(await b.page.evaluate(()=>localStorage.getItem('kiosk-webcam-test')),'0');
+    const screenDir=join(tmpdir(),'photobooth-fe-kiosk-webcam');await mkdir(screenDir,{recursive:true});
+    await b.page.screenshot({path:join(screenDir,`ptb-restored-live-${viewport.width}.png`)});
     assert.deepEqual(b.errors,[]);
   } finally {await b.close()}
 });

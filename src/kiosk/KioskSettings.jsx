@@ -46,6 +46,7 @@ export function KioskSettings({
 }) {
   const usable = liveUsableFor({ webcam: webcamTest });
   const profile = cameraProfile(roomInfo?.kind);
+  const externalLive = roomInfo?.kind === 'polaroid' && !webcamTest;
   const [soundOn, setSoundOn] = useState(isAudioEnabled);
   return (
     <details className="kiosk-settings">
@@ -113,6 +114,10 @@ export function KioskSettings({
             </small>
           </details>
         </div>
+        {externalLive && <p className="kiosk-device-note">
+          Phòng Selfbooth xem hình trên màn HDMI riêng. Web chỉ hiện ảnh vừa chụp, đồng hồ và nút Chụp xong.
+          Phần kiểm tra camera bên dưới là tùy chọn; xoay hình trên web không xoay màn HDMI riêng.
+        </p>}
         <label>
           Hình trực tiếp từ máy ảnh
           <select
@@ -156,12 +161,12 @@ export function KioskSettings({
         </fieldset>}
         <LiveCameraCheck cameraId={cameraId} webcamTest={webcamTest} onDevices={setCameras}
           rotation={rotation} mirror={mirror} zoom={zoom} canvasPreview={lowPower} />
-        {cameras.some(isCameraUsbVideo) && (
+        {!externalLive && cameras.some(isCameraUsbVideo) && (
           <p className="kiosk-check-result is-warn kiosk-webcam-note">
             {CAMERA_USB_MESSAGE}
           </p>
         )}
-        {!webcamTest && cameras.some((c) => c.label) &&
+        {!externalLive && !webcamTest && cameras.some((c) => c.label) &&
           !cameras.some((c) => liveUsable(c) && cameraRank(c) < 9) && (
             <p className="kiosk-check-result is-warn kiosk-hdmi-note">
               {NO_HDMI_MESSAGE}

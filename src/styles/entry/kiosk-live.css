@@ -1,0 +1,48 @@
+/* PTB keeps its live view. Selfbooth's external-monitor layout is scoped
+   separately by .is-external-live and keeps the latest JPEG in the main stage. */
+@layer components {
+  .shoot-screen.has-live.is-portrait {
+    grid-template-columns: minmax(0,1fr);
+    grid-template-rows: minmax(0,1fr) minmax(0,1fr);
+  }
+  .shoot-screen.has-live.is-portrait .shoot-rail {
+    display: grid;
+    grid-template-columns: auto minmax(0,1fr) auto;
+    grid-template-rows: minmax(0,1fr) auto;
+    gap: 12px;
+    padding: 0 0 14px;
+  }
+  .shoot-screen.has-live.is-portrait .shoot-rail > :not(.shoot-latest) { margin-inline: 14px; }
+  .shoot-screen.has-live.is-portrait .shoot-latest {
+    position: relative;
+    grid-column: 1 / -1;
+    display: grid;
+    place-items: center;
+    min-height: 0;
+    margin: 0;
+    overflow: hidden;
+    background: #000;
+  }
+  .shoot-screen.has-live.is-portrait .shoot-latest img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+  .shoot-screen.has-live.is-portrait .shoot-latest-empty { display: grid; justify-items: center; gap: 10px; color: #cdb9a9; font-size: clamp(16px,2.4vh,24px); }
+  .shoot-screen.has-live.is-portrait .shoot-latest-empty svg { font-size: 54px; opacity: .7; }
+  .shoot-screen.has-live.is-portrait .shoot-latest-no { position: absolute; top: 14px; left: 14px; padding: 4px 12px; border-radius: 999px; background: rgb(33 23 19 / 78%); color: #fff; font-size: clamp(14px,1.8vh,18px); }
+  .shoot-screen.has-live.is-portrait .shoot-latest-pending { position: absolute; right: 14px; bottom: 14px; display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: rgb(255 250 243 / 92%); color: var(--mellow-ink,#3f2c25); font-size: 14px; font-weight: 600; }
+  .shoot-screen.has-live.is-portrait .shoot-timer { align-self: end; min-width: 150px; padding: 12px; }
+  .shoot-screen.has-live.is-portrait .shoot-thumbs { align-self: end; gap: 8px; height: clamp(72px,9vh,110px); }
+  .shoot-screen.has-live.is-portrait .shoot-end-wrap { align-self: end; }
+  @media (orientation: portrait) and (min-width: 700px) {
+    .shoot-screen.has-live.is-portrait .shoot-rail { gap: 16px; padding-bottom: 20px; }
+    .shoot-screen.has-live.is-portrait .shoot-rail > :not(.shoot-latest) { margin-inline: 20px; }
+    .shoot-screen.has-live.is-portrait .shoot-timer { min-width: 230px; padding: 16px 14px; border-radius: 18px; }
+    .shoot-screen.has-live.is-portrait .shoot-timer span { font-size: 15px; }
+    .shoot-screen.has-live.is-portrait .shoot-timer strong { font-size: clamp(48px,5.6vw,64px); }
+    .shoot-screen.has-live.is-portrait .shoot-timer small { font-size: 16px; }
+    .shoot-screen.has-live.is-portrait .shoot-thumbs { height: clamp(110px,7.4vh,150px); }
+    .shoot-screen.has-live.is-portrait .shoot-end { min-width: 230px; min-height: 96px; padding: 0 28px; border-radius: 20px; font-size: 27px; }
+    .shoot-screen.has-live.is-portrait .shoot-end svg { font-size: 32px; }
+    .shoot-screen.has-live.is-portrait .shoot-latest-no { top: 20px; left: 20px; padding: 8px 18px; font-size: 24px; }
+    .shoot-screen.has-live.is-portrait .shoot-latest-empty { font-size: 28px; }
+    .shoot-screen.has-live.is-portrait .shoot-latest-empty svg { font-size: 80px; }
+  }
+}

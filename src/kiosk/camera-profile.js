@@ -11,7 +11,9 @@ export function cameraProfile(kind) {
   const common = [
     "Lần đầu bấm “Chọn thư mục ảnh”, chọn đúng thư mục phần mềm máy ảnh đang lưu. Khi được hỏi quyền, chọn “Cho phép mỗi lần truy cập”.",
     "Bấm “Thử nhận ảnh từ máy ảnh”, rồi nhấn dây bấm. Xác nhận có JPEG mới trong thư mục và ảnh thử hiện trên kiosk trước khi đón khách.",
-    "Hình trực tiếp: nối micro-HDMI của máy ảnh vào thẻ ghi hình USB và chọn thẻ đó (vd. USB Video).",
+    selfbooth
+      ? "Hình trực tiếp: nối micro-HDMI của máy ảnh thẳng vào màn hình HDMI riêng. Web hiển thị ảnh JPEG vừa chụp; USB dữ liệu vẫn nối PC để nhận ảnh qua X Acquire. Không cần mở camera trên web khi chụp."
+      : "Hình trực tiếp: nối micro-HDMI của máy ảnh vào thẻ ghi hình USB và chọn thẻ đó (vd. USB Video).",
   ];
   return canon ? {
     id: "canon-r100", label: "Canon EOS R100", app: "Canon EOS Utility",

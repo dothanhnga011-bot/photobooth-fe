@@ -48,6 +48,7 @@ const fixture = `
   function Shoot() {
     const video = useRef(null);
     useEffect(() => {
+      if (!video.current) return;
       const c = document.createElement('canvas');
       c.width = 1920; c.height = 1080;
       const ctx = c.getContext('2d');
@@ -67,7 +68,7 @@ const fixture = `
       .map((colors, i) => ({ key: 'shot' + i, preview: picture(1500, 1000, colors) })));
     // Khách vừa bấm dây: một ảnh mới tới (test gọi window.addShot()).
     window.addShot = () => setShots((list) => [...list, { key: 'shot' + list.length, preview: picture(1500, 1000, ['#7ac98f', '#2f6a3d']) }]);
-    return <KioskShoot videoRef={video} zoom={0} ready phase="shoot" preCount={0} showCountdown={false}
+    return <KioskShoot showLive={screen !== 'polaroid-shoot'} videoRef={video} zoom={0} ready phase="shoot" preCount={0} showCountdown={false}
       sessionLeft={172} taken={shots.length} quota={0} shots={shots} flash={0} receiving={false} ending={false}
       onEnd={() => {}} onReopenCamera={() => {}} />;
   }
@@ -253,13 +254,14 @@ test("polaroid (Selfbooth) room: plain Mellow code card, big keypad", async () =
   assert.equal(wide.pageScrolls, false);
 });
 
-test("polaroid (Selfbooth) shoot, landscape: the Mellow layout of the PTB room, no border around the live view", async () => {
+test("Selfbooth with external HDMI, landscape: latest JPEG in the main stage, no browser live view", async () => {
   const m = await portrait("polaroid-shoot", {
-    stage: ".shoot-stage", rail: ".shoot-rail", thumbs: ".shoot-thumbs img", end: ".shoot-end", live: ".shoot-stage video",
+    stage: ".shoot-stage", latest: ".shoot-latest-full", rail: ".shoot-rail", thumbs: ".shoot-thumbs img", end: ".shoot-end", live: ".shoot-stage video",
   }, { width: 1920, height: 1080 });
   assert.equal(m.pageScrolls, false);
   assert.ok(m.rail.minWidth >= 440 && m.rail.minWidth <= 470, `cột ảnh rộng ${m.rail.minWidth} px`);
-  assert.ok(Math.abs(m.live.minWidth - m.stage.minWidth) <= 4, JSON.stringify({ live: m.live, stage: m.stage }));
+  assert.equal(m.live, null);
+  assert.ok(Math.abs(m.latest.minWidth - m.stage.minWidth) <= 4);
   assert.ok(m.end.minHeight >= 64, `nút Chụp xong cao ${m.end.minHeight} px`);
 });
 
@@ -295,10 +297,11 @@ test("PTB shoot, landscape: the photo column is twice as wide; a new photo goes 
   } finally { await page.close(); }
 });
 
-test("polaroid shoot, portrait: live view on top, the latest photo below", async () => {
-  const m = await portrait("polaroid-shoot", { latest: ".shoot-latest img", end: ".shoot-end", live: ".shoot-stage video" });
+test("Selfbooth with external HDMI, portrait: large latest JPEG and compact controls below", async () => {
+  const m = await portrait("polaroid-shoot", { stage: ".shoot-stage", latest: ".shoot-latest-full img", end: ".shoot-end", live: ".shoot-stage video" });
   assert.equal(m.pageScrolls, false);
-  assert.ok(m.live.minWidth >= 1070, JSON.stringify(m.live));
+  assert.equal(m.live, null);
+  assert.ok(m.stage.minHeight > 1500, JSON.stringify(m.stage));
   assert.ok(m.latest.minHeight >= 600, JSON.stringify(m.latest));
   assert.ok(m.end.minHeight >= 56, `nút Chụp xong cao ${m.end.minHeight} px`);
 });

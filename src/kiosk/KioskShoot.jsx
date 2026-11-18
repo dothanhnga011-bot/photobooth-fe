@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  PiArrowClockwiseBold,
   PiCheckBold,
   PiImagesDuotone,
+  PiVideoCameraSlashDuotone,
+  PiWebcamBold,
 } from "react-icons/pi";
+import { Button } from '../studio';
+import { CameraPreview } from './CameraPreview.jsx';
 import { playCountdownBeep, playShutterSound } from "./kiosk-audio.js";
 
 // Ảnh trên máy (Blob) hoặc trên máy chủ (URL).
@@ -24,7 +29,7 @@ function Thumb({ shot }) {
   const src = useObjectUrl(shot.preview);
   return src ? <img src={src} alt="" /> : <span className="shoot-thumb-empty" />;
 }
-// Màn hình đứng (kiosk màn dọc): ảnh vừa chụp hiện toàn màn shoot-stage.
+// Monitor orientation controls the PTB split, independently of camera rotation.
 function usePortrait() {
   const query = "(orientation: portrait)";
   const [portrait, setPortrait] = useState(() => globalThis.matchMedia?.(query).matches ?? false);
@@ -37,15 +42,15 @@ function usePortrait() {
   }, []);
   return portrait;
 }
-// Ảnh vừa chụp, hiện toàn màn shoot-stage (thay thế live view).
-function LatestFull({ shot, number, receiving }) {
+// Selfbooth shows the JPEG in the main stage; portrait PTB puts it below live view.
+function Latest({ shot, number, receiving, full = false }) {
   const src = useObjectUrl(shot?.preview);
   return (
-    <figure className="shoot-latest-full" aria-label="Ảnh vừa chụp">
+    <figure className={full ? 'shoot-latest-full' : 'shoot-latest'} aria-label="Ảnh vừa chụp">
       {src ? (
         <img key={src} src={src} alt={`Ảnh ${number} vừa chụp`} />
       ) : (
-        <span className="shoot-latest-full-empty">
+        <span className={full ? 'shoot-latest-full-empty' : 'shoot-latest-empty'}>
           <PiImagesDuotone aria-hidden="true" />
           Ảnh vừa chụp sẽ hiện ở đây
         </span>
@@ -62,11 +67,11 @@ function LatestFull({ shot, number, receiving }) {
 const clock = (s) =>
   `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
-// Màn chụp: ảnh vừa chụp toàn màn hình (shoot-stage), không có live view. Bên dưới (shoot-rail):
-// đồng hồ, dải ảnh thumbnail nhỏ, nút "Chụp xong". webcam: chế độ thử máy bằng webcam máy tính
-// (khi không có máy ảnh) — { on, label, count (đếm ngược), onSnap, onToggle }.
+// PTB: live view + captured photos. Selfbooth with its own HDMI monitor: latest
+// JPEG + timer and thumbnails. The explicit flag prevents room flows leaking.
 // minShots: số ảnh layout cần — chưa đủ thì chưa bấm "Chụp xong" được.
 export function KioskShoot({
+  showLive = true,
   videoRef,
   zoom,
   ready,
@@ -92,10 +97,10 @@ export function KioskShoot({
 }) {
   const portrait = usePortrait();
   const enough = taken >= Math.max(1, minShots);
-  // Không dùng live view — shoot-stage luôn hiện ảnh vừa chụp.
+  const showLatest = showLive && portrait;
   const shooting = phase === "shoot" && !ending;
   const full = Boolean(quota) && taken >= quota;
-  const testing = Boolean(webcam?.on);
+  const testing = Boolean(webcam?.on && ready);
   const centerCount =
     showCountdown && phase === "ready"
       ? preCount
@@ -144,10 +149,29 @@ export function KioskShoot({
     return () => clearTimeout(timer);
   }, [flash]);
   return (
-    <section className={`shoot-screen phase-${phase}${portrait ? " is-portrait" : ""}`}>
-      {/* Vùng chính: ảnh vừa chụp toàn màn, không có live view */}
+    <section className={`shoot-screen phase-${phase}${showLive ? ' has-live' : ' is-external-live'}${showLive && !ready ? ' no-live' : ''}${portrait ? " is-portrait" : ""}`}>
       <div className="shoot-stage">
-        <LatestFull shot={shots[shots.length - 1]} number={shots.length} receiving={receiving} />
+        {showLive ? <>
+          <CameraPreview videoRef={videoRef} zoom={zoom} canvas={canvasPreview} fit="contain" mirror={mirror} rotation={rotation} />
+          {!ready && <div className="shoot-no-camera" role="status">
+            <span className="shoot-no-camera-icon" aria-hidden="true"><PiVideoCameraSlashDuotone /></span>
+            <strong>Chưa có hình trực tiếp</strong>
+            <p>{cameraIssue?.message || 'Máy ảnh chưa gửi hình qua thẻ ghi hình HDMI. Ảnh gốc vẫn được nhận khi bấm dây chụp.'}</p>
+            <div className="shoot-no-camera-actions">
+              <Button className="small" disabled={cameraOpening} onClick={onReopenCamera}>
+                <PiArrowClockwiseBold aria-hidden="true" /> {cameraOpening ? 'Đang mở camera…' : 'Mở lại camera'}
+              </Button>
+              {webcam && !webcam.on && <Button className="outline small" onClick={() => webcam.onToggle(true)}>
+                <PiWebcamBold aria-hidden="true" /> Dùng webcam máy tính (thử máy)
+              </Button>}
+            </div>
+          </div>}
+          {webcam?.on && <div className="shoot-webcam-badge" role="status">
+            <PiWebcamBold aria-hidden="true" />
+            <span>Thử máy bằng webcam{webcam.label ? ` · ${webcam.label}` : ''} · phím Space để chụp</span>
+            <button type="button" onClick={() => webcam.onToggle(false)}>Tắt</button>
+          </div>}
+        </> : <Latest shot={shots[shots.length - 1]} number={shots.length} receiving={receiving} full />}
         {centerCount ? (
           <strong className="shoot-count" key={`${phase}-${webcam?.count ? "snap" : ""}${centerCount}`} role="timer" aria-live="assertive">
             {centerCount}
@@ -165,6 +189,7 @@ export function KioskShoot({
 
       {/* Rail phía dưới: đồng hồ, thumbnail nhỏ, nút Chụp xong */}
       <aside className="shoot-rail" aria-label="Thời gian và ảnh đã chụp">
+          {showLatest && <Latest shot={shots[shots.length - 1]} number={shots.length} receiving={receiving} />}
           {/* Còn dưới 1 phút: đồng hồ đỏ, nhấp nháy. */}
           <div className={`shoot-timer${phase === "shoot" && sessionLeft < 60 ? " is-urgent" : ""}`} role="timer">
             <span>THỜI GIAN CÒN LẠI</span>
