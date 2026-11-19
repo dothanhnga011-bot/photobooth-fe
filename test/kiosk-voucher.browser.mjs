@@ -154,7 +154,7 @@ test("photobooth room: touch → cash → sheet type → count → bill reader; 
     await page.getByRole("heading", { name: "Chọn cách thanh toán" }).waitFor();
     await page.getByRole("button", { name: /Tiền mặt/ }).click();
     await page.getByRole("heading", { name: "Chọn loại tờ" }).waitFor();
-    // Phòng photobooth chỉ bán tờ bé / tờ to; layout Instax là của phòng Polaroid.
+    // Phòng photobooth chỉ bán tờ bé / tờ to; gói 20 × 30 là của phòng Selfbooth.
     assert.equal(await page.getByRole("button", { name: /Polaroid/ }).count(), 0);
     await page.getByRole("button", { name: /Khung nhỏ/ }).click();
     await page.getByRole("button", { name: /Tiếp tục/ }).click();

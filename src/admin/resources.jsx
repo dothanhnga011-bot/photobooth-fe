@@ -441,7 +441,7 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
               {service === "polaroid" ? (
                 <div className="extra-price-item">
                   <small>Phòng Selfbooth · mỗi tờ 20 × 30</small>
-                  <PriceEditor instax price={settings.extraInstaxPrice} startOpen={false} onSaved={() => reloadCatalog?.()} />
+                  <PriceEditor selfbooth price={settings.extraSelfboothPrice} startOpen={false} onSaved={() => reloadCatalog?.()} />
                 </div>
               ) : (
                 <div className="extra-price-item">

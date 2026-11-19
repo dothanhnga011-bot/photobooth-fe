@@ -84,7 +84,7 @@ const release = (image) => {
 };
 
 // Khung cho gói: khổ lớn / khổ nhỏ hiện MỌI khung đúng khổ in của gói (số ảnh khách chọn theo số ô
-// của khung đang xem — frameNeed). Instax: layout theo số ảnh của gói (đúng số ô trước). Không có khung
+// của khung đang xem — frameNeed). Selfbooth: theo số ảnh của gói (đúng số ô trước). Không có khung
 // đúng khổ thì nới dần (đúng số ô mọi khổ → mọi khung, ảnh được lặp lại cho đủ ô). Xếp theo thứ tự chủ đề.
 export function frameCandidates(frames, { count, printSize, themeOrder = [] }) {
   const size = (f) => f.printSize || "full";
@@ -102,13 +102,13 @@ export function frameCandidates(frames, { count, printSize, themeOrder = [] }) {
   if (!polaroid && sameSize.length) return sameSize;
   const exact = sameSize.filter((f) => frameCapacity(f) === count);
   if (exact.length) return exact;
-  // Khổ Polaroid (20 × 30 / Instax) in ở máy riêng: dùng khung đúng khổ khác số ô trước khung 10 × 15.
+  // Tờ 20 × 30 của Selfbooth in ở máy riêng: dùng khung đúng khổ khác số ô trước khung 10 × 15.
   if (polaroid && sameSize.length) return sameSize;
   const sameCount = sorted.filter((f) => frameCapacity(f) === count);
   return sameCount.length ? sameCount : sorted;
 }
 
-// Số ảnh khách chọn cho khung đang xem: khổ lớn / nhỏ theo số ô của khung, Instax (và chưa có khung)
+// Số ảnh khách chọn cho khung đang xem: khổ lớn / nhỏ theo số ô của khung, Selfbooth (và chưa có khung)
 // theo gói; không quá số ảnh đã chụp.
 export function frameNeed(frame, { count, printSize, shots }) {
   const wanted = frame && !isPolaroidSize(printSize) ? frameCapacity(frame) || count : count;

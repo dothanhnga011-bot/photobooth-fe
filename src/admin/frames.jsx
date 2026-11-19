@@ -159,7 +159,7 @@ export function FramesManager({ notify, initialTheme = "all" }) {
       {importing && (
         <SelfboothImport
           onClose={() => setImporting(false)}
-          onDone={async ({ created = [], skipped = [], converted = [] }) => {
+          onDone={async ({ created = [], skipped = [] }) => {
             setImporting(false);
             await load();
             reloadCatalog?.();

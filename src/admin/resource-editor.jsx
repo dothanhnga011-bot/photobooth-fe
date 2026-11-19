@@ -4,7 +4,7 @@ import { money } from "../api";
 import { Button, ErrorBox, useStudio } from "../studio";
 import { FieldError } from "../validate";
 import { definitions, DEFAULT_STAFF_PERMISSIONS, PERMISSION_GROUPS, ROOM_KINDS } from "./config";
-import { includedSheets, INSTAX_SHEETS, isPolaroid, isStrip, piecesLabel, printSizeOf } from "../kiosk/print-count.js";
+import { includedSheets, SELFBOOTH_MIN_SHEETS, isPolaroid, isStrip, piecesLabel, printSizeOf } from "../kiosk/print-count.js";
 import { polaroidPrinter, polaroidUnit } from "../print-sizes.js";
 import { polaroidPackage } from "../polaroid-layouts.js";
 
@@ -102,7 +102,7 @@ export function ResourceEditor({
   };
   // Gói phòng Selfbooth tính theo thời gian như web Selfbooth: tên, giá, số phút, số tờ 20 × 30.
   const unit = polaroidUnit(edit.printSize);
-  const pieces = Math.max(INSTAX_SHEETS, Number(edit.prints) || 0);
+  const pieces = Math.max(SELFBOOTH_MIN_SHEETS, Number(edit.prints) || 0);
   const POLAROID_LABELS = {
     name: "Tên gói (vd. chụp đơn, chụp đôi)",
     price: "Giá gói (VND)",

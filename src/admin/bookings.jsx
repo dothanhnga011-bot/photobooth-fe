@@ -13,8 +13,8 @@ import { PrintOrderDialog } from "./print-order-dialog.jsx";
 import { QuickKiosk } from "./quick-kiosk.jsx";
 import { ordersChanged } from "./nav-badges";
 
-// Khổ in của đơn: DNP 10 × 15 (to / nhỏ cắt đôi), tờ 20 × 30 máy DS820 (phòng Polaroid) hoặc Instax Wide cũ.
-const SIZE_NAMES = { full: "Lớn", strip: "Nhỏ", large: "20 × 30", instax: "Instax" };
+// Khổ in của đơn: DNP 10 × 15 (to / nhỏ cắt đôi) hoặc tờ 20 × 30 máy DS820 (phòng Selfbooth).
+const SIZE_NAMES = { full: "Lớn", strip: "Nhỏ", large: "20 × 30" };
 
 const paymentLabel = (method) => method === "cash" ? "Tiền mặt" : method === "transfer" ? "Chuyển khoản" : "—";
 // Lượt chụp phòng Polaroid: khách trả tiền ở quầy sau khi chọn layout — nhân viên bấm "Đã thu".
@@ -249,7 +249,7 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
           </div>
           <dl className="order-details">
             <div><dt>Gói:</dt><dd>{booking.packageName || "—"}</dd></div><div><dt>Chủ đề:</dt><dd>{job?.frameName || booking.frameName || "—"}</dd></div>
-            <div><dt>Kích thước:</dt><dd>{SIZE_NAMES[booking.printSize] || SIZE_NAMES.full}</dd></div><div><dt>Số lượng:</dt><dd>{booking.printSheets || 0}/{booking.prints ?? 1} {booking.printSize === "instax" ? "tấm" : "tờ"}</dd></div>
+            <div><dt>Kích thước:</dt><dd>{SIZE_NAMES[booking.printSize] || SIZE_NAMES.full}</dd></div><div><dt>Số lượng:</dt><dd>{booking.printSheets || 0}/{booking.prints ?? 1} tờ</dd></div>
           </dl>
           {canSeeMoney && <dl className="order-pricing"><div><dt>Đơn giá:</dt><dd>{money((booking.total || 0) + (booking.discount || 0))}</dd></div>
             <div><dt>Giảm giá:</dt><dd>{money(booking.discount || 0)}</dd></div><div><dt>Tổng đơn:</dt><dd>{money(booking.total)}</dd></div></dl>}

@@ -20,11 +20,11 @@ const RULES = {
 };
 
 // Giá mỗi tờ in thêm: chỉ quản trị viên đặt/sửa, ngay tại đây (không còn trang Cài đặt studio).
-// instax (tên trường cũ extraInstaxPrice): giá in thêm của phòng Selfbooth (tờ 20 × 30 máy DS820) — có giá riêng, không theo tờ 10 × 15.
+// selfbooth: giá in thêm của phòng Selfbooth (tờ 20 × 30 máy DS820) — có giá riêng, không theo tờ 10 × 15.
 // price chưa có (undefined / null): tiệm chưa đặt giá. startOpen: mở sẵn ô nhập (hộp bán thêm ở quầy
 // mở ngay khi chưa có giá; trang bảng giá chỉ ghi "Chưa đặt").
-export function PriceEditor({ price, onSaved, instax = false, startOpen = !price }) {
-  const field = instax ? "extraInstaxPrice" : "extraPrintPrice";
+export function PriceEditor({ price, onSaved, selfbooth = false, startOpen = !price }) {
+  const field = selfbooth ? "extraSelfboothPrice" : "extraPrintPrice";
   const unit = "tờ";
   const set = price !== undefined && price !== null && price !== "";
   const toast = useToast();
@@ -41,7 +41,7 @@ export function PriceEditor({ price, onSaved, instax = false, startOpen = !price
     try {
       await api("/admin/settings/extra-print-price", { method: "PUT", body: { [field]: amount } });
       await onSaved();
-      toast.success(`Đã lưu giá in thêm${instax ? " phòng Selfbooth" : ""}: ${money(amount)} / ${unit}.`);
+      toast.success(`Đã lưu giá in thêm${selfbooth ? " phòng Selfbooth" : ""}: ${money(amount)} / ${unit}.`);
       setEditing(false);
     } catch (e) {
       setError(e.message);
@@ -52,7 +52,7 @@ export function PriceEditor({ price, onSaved, instax = false, startOpen = !price
   if (!editing)
     return (
       <p className="extra-price-line">
-        Giá in thêm{instax ? " phòng Selfbooth" : ""}:{" "}
+        Giá in thêm{selfbooth ? " phòng Selfbooth" : ""}:{" "}
         {set ? <strong>{money(price)} / {unit}</strong> : <strong className="is-unset">Chưa đặt</strong>}{" "}
         <button type="button" className="link-button" onClick={() => setEditing(true)}>
           {set ? "Sửa giá" : "Đặt giá"}
@@ -62,7 +62,7 @@ export function PriceEditor({ price, onSaved, instax = false, startOpen = !price
   return (
     <div className="extra-price-editor">
       <label>
-        Giá mỗi {instax ? "tờ 20 × 30" : "tờ"} in thêm (đ) — chỉ quản trị viên sửa
+        Giá mỗi {selfbooth ? "tờ 20 × 30" : "tờ"} in thêm (đ) — chỉ quản trị viên sửa
         <input
           name={field}
           type="number"
@@ -95,9 +95,9 @@ export function ExtraPrints({ booking, onClose, onSold, canEditPrice = false }) 
   const { settings = {}, reload } = useStudio();
   const toast = useToast();
   const v = useValidation();
-  const instax = isPolaroidSize(booking.printSize);
+  const selfbooth = isPolaroidSize(booking.printSize);
   const unit = "tờ";
-  const price = Number(instax ? settings.extraInstaxPrice : settings.extraPrintPrice) || 0;
+  const price = Number(selfbooth ? settings.extraSelfboothPrice : settings.extraPrintPrice) || 0;
   // Khách đã chọn thêm bản in trên kiosk: điền sẵn số tờ cần thu.
   const [form, setForm] = useState({
     sheets: String(Math.min(20, booking.requestedExtraPrints || 1)),
@@ -167,13 +167,13 @@ export function ExtraPrints({ booking, onClose, onSold, canEditPrice = false }) 
         <form className="transaction-form" onSubmit={sell} noValidate>
           <div className="transaction-fields">
             <p>
-              Vé đang có <strong>{booking.prints ?? 1} {instax ? polaroidUnit(booking.printSize) : "tờ in"}</strong> (khách đã
+              Vé đang có <strong>{booking.prints ?? 1} {selfbooth ? polaroidUnit(booking.printSize) : "tờ in"}</strong> (khách đã
               gửi {booking.printSheets || 0} {unit}). {unit === "tấm" ? "Tấm" : "Tờ"} mua thêm được cộng ngay vào
               vé — khách chỉ cần bấm “Gửi in” lại trên điện thoại.
             </p>
             <div className="extra-print-fields">
               <label>
-                {instax ? `Số ${polaroidUnit(booking.printSize)} in thêm` : "Số tờ in thêm (10 × 15 cm)"}
+                {selfbooth ? `Số ${polaroidUnit(booking.printSize)} in thêm` : "Số tờ in thêm (10 × 15 cm)"}
                 <input
                   name="sheets"
                   type="number"
@@ -200,7 +200,7 @@ export function ExtraPrints({ booking, onClose, onSold, canEditPrice = false }) 
               </label>
             </div>
             {canEditPrice ? (
-              <PriceEditor key={price} price={price} instax={instax} onSaved={() => reload?.()} />
+              <PriceEditor key={price} price={price} selfbooth={selfbooth} onSaved={() => reload?.()} />
             ) : (
               !price && (
                 <p className="soft-note">

@@ -1,5 +1,5 @@
 /*
- * Album phòng Selfbooth (Polaroid, khổ Instax) — giao diện "Phòng tranh sứ" của web Selfbooth (14/11 chủ tiệm
+ * Album phòng Selfbooth (tờ 20 × 30) — giao diện "Phòng tranh sứ" của web Selfbooth (14/11 chủ tiệm
  * yêu cầu album giống Selfbooth): nền sứ ấm, giấy trắng ngà, chỉ mảnh, tiêu đề serif Cormorant Garamond có chữ
  * nghiêng, các bước 01–04 gạch chân, ảnh treo trong viền mat (lưu / xoá / tim ở mép mat), thanh dưới là tấm giấy.
  * Mọi luật nằm dưới .sb-album nên album phòng Photobooth (AlbumViewer) không đổi.
@@ -949,7 +949,7 @@
     pointer-events: none;
   }
 
-  /* ── 04 Kết quả: tấm Instax trên bệ sứ ─────────────────────────────────── */
+  /* ── 04 Kết quả: tờ in trên bệ sứ ─────────────────────────────────── */
   .sb-album .print-quota {
     display: flex;
     gap: 10px;

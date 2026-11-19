@@ -108,7 +108,7 @@ function AlbumSession({ token }) {
     (b) => b.status === "cancelled" || b.mediaDeleted,
   );
   const ready = booking?.status === "completed" && !booking.mediaDeleted;
-  // Phòng Selfbooth (khổ 20 × 30 máy DS820 hoặc Instax cũ, có tờ in): khách chọn ảnh, làm đẹp, ghép khung và gửi in ngay trên điện thoại.
+  // Phòng Selfbooth (tờ 20 × 30 máy DS820, có tờ in): khách chọn ảnh, làm đẹp, ghép khung và gửi in ngay trên điện thoại.
   const studio = ready && isPolaroidSize(booking.printSize) && Number(booking.prints) > 0;
   const expires = formatDateTime(booking?.mediaExpiresAt);
   return (

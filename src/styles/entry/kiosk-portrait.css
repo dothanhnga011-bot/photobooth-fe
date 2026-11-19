@@ -187,11 +187,6 @@
     }
     .kiosk-size.full .kiosk-size-art i { width: 76px; }
     .kiosk-size.strip .kiosk-size-art i { width: 40px; }
-    .kiosk-size.instax .kiosk-size-art { padding: 12px 22px; }
-    .kiosk-size.instax .kiosk-size-art i {
-      width: 104px;
-      border-width: 10px 10px 36px;
-    }
     .kiosk-size strong {
       font-size: clamp(34px, 4.2vw, 46px);
     }

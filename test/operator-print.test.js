@@ -58,6 +58,6 @@ test("uncertain local acknowledgement keeps the same durable print ID on manual 
 
 test("unsupported paper and excessive copies fail before local output or archive writes", async () => {
   const dependencies = { send: async () => { throw new Error("Should not print"); } };
-  await assert.rejects(operatorPrint({ booking: booking("instax"), images, printSize: "instax" }, dependencies), /Instax/);
+  await assert.rejects(operatorPrint({ booking: booking("large"), images, printSize: "large" }, dependencies), /DS820/);
   await assert.rejects(operatorPrint({ booking: booking("limit"), images: [...images, ...images], copies: 11 }, dependencies), /20 tờ/);
 });

@@ -134,7 +134,7 @@ function adminPage(path) {
     case "/api/admin/themes":
     case "/api/admin/stickers":
     case "/api/admin/users":
-    // Quản lý máy: chưa có print agent Instax nào báo về.
+    // Quản lý máy: chưa có chương trình in nào báo về.
     case "/api/admin/print-jobs/printers":
       return [];
     case "/api/admin/screens":

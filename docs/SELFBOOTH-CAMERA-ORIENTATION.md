@@ -21,7 +21,7 @@ Xoay chỉ thay cách hiển thị hình xem thử trên web và màn chụp khi
 
 JPEG từ thư mục máy ảnh không nhận thêm phép xoay HDMI: preview đọc EXIF `imageOrientation: from-image`, ảnh gốc vẫn giữ nguyên byte và chất lượng. Vì vậy ảnh ngang và dọc có EXIF hợp lệ có thể nằm chung trong album. Nếu hình trực tiếp đứng đúng nhưng JPEG vẫn nằm nghiêng, cần kiểm tra chiều của chính file JPEG/phần mềm nhận ảnh; tăng hoặc đổi xoay HDMI không sửa file đó. Chế độ thử webcam không có JPEG từ máy ảnh nên khung chụp thử được xoay theo lựa chọn hiện tại.
 
-Không cần cài lại chương trình in hoặc giảm chất lượng ảnh/video để dùng cài đặt này. Mục xoay chỉ hiện ở phòng Selfbooth/Polaroid; phòng PTB giữ cách hiển thị hiện tại.
+Không cần cài lại chương trình in hoặc giảm chất lượng ảnh/video để dùng cài đặt này. Mục xoay chỉ hiện ở phòng Selfbooth; phòng PTB giữ cách hiển thị hiện tại.
 
 ## Kiểm tra
 

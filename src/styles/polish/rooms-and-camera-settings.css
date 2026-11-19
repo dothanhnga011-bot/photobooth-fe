@@ -190,7 +190,7 @@
   }
 }
 
-/* Quản lý máy: tình trạng máy in Instax cạnh máy chụp */
+/* Quản lý máy: tình trạng chương trình in / máy in DNP */
 .printer-status {
   display: grid;
   gap: 6px;

@@ -11,7 +11,7 @@ const RULES = {
   room: ["Máy / phòng chụp", chosen],
 };
 
-// Số tờ khách nhận: "2 tờ nhỏ (1 tờ 10 × 15 cắt đôi)" / "2 tờ 10 × 15 cm" / "2 tờ 20 × 30" / "2 tấm Instax".
+// Số tờ khách nhận: "2 tờ nhỏ (1 tờ 10 × 15 cắt đôi)" / "2 tờ 10 × 15 cm" / "2 tờ 20 × 30".
 const printsText = (pack) => {
   const sheets = includedSheets(pack);
   const pieces = piecesLabel(pack, sheets);
@@ -19,7 +19,7 @@ const printsText = (pack) => {
   return isPolaroid(pack) ? pieces : `${pieces} 10 × 15 cm`;
 };
 
-// Gói Polaroid (tờ 20 × 30 / Instax cũ): mã nhập ở phòng Polaroid; gói khác: mã nhập ở phòng photobooth.
+// Gói Selfbooth (tờ 20 × 30): mã nhập ở phòng Selfbooth; gói khác: mã nhập ở phòng photobooth.
 const roomKind = (room) => (room.kind === "polaroid" ? "polaroid" : "photobooth");
 
 export function CounterTicket({ onClose, onCreated, initialDraft = null, assignedBranch = "" }) {

@@ -12,11 +12,11 @@ const frame = (name, printSize, photos, themeName = "LIMIT") => ({
 });
 const big = [frame("Lớn 5 ô", "full", 5), frame("Lớn 4 ô", "full", 4), frame("Lớn 3 ô", "full", 3), frame("Lớn 6 ô", "full", 6)];
 const small = [frame("Nhỏ 4 ô", "strip", 4), frame("Nhỏ 3 ô", "strip", 3)];
-const instax = [frame("Instax 2", "instax", 2), frame("Instax 1", "instax", 1)];
+const large = [frame("20 × 30 2 ô", "large", 2), frame("20 × 30 1 ô", "large", 1)];
 const names = (list) => list.map((f) => f.name).sort();
 
 test("khổ lớn hiện mọi khung lớn, không chỉ khung đúng số ảnh của gói", () => {
-  const list = frameCandidates([...big, ...small, ...instax], { count: 4, printSize: "full" });
+  const list = frameCandidates([...big, ...small, ...large], { count: 4, printSize: "full" });
   assert.deepEqual(names(list), names(big));
 });
 
@@ -30,9 +30,9 @@ test("chưa có khung nhỏ: vẫn có khung để in (lùi về khung đúng s�
   assert.deepEqual(names(list), ["Lớn 4 ô"]);
 });
 
-test("Instax vẫn chọn layout theo số ảnh của gói", () => {
-  const list = frameCandidates([...big, ...instax], { count: 2, printSize: "instax" });
-  assert.deepEqual(names(list), ["Instax 2"]);
+test("Selfbooth ưu tiên khung 20 × 30 đúng số ảnh của gói", () => {
+  const list = frameCandidates([...big, ...large], { count: 2, printSize: "large" });
+  assert.deepEqual(names(list), ["20 × 30 2 ô"]);
 });
 
 test("số ảnh cần chọn theo số ô của khung đang xem, không quá số ảnh đã chụp", () => {
@@ -40,6 +40,6 @@ test("số ảnh cần chọn theo số ô của khung đang xem, không quá s�
   assert.equal(frameNeed(big[3], { count: 4, printSize: "full", shots: 12 }), 6);
   assert.equal(frameNeed(big[3], { count: 4, printSize: "full", shots: 4 }), 4);
   assert.equal(frameNeed(small[1], { count: 4, printSize: "strip", shots: 12 }), 3);
-  assert.equal(frameNeed(instax[0], { count: 1, printSize: "instax", shots: 8 }), 1);
+  assert.equal(frameNeed(large[0], { count: 1, printSize: "large", shots: 8 }), 1);
   assert.equal(frameNeed(undefined, { count: 4, printSize: "full", shots: 12 }), 4);
 });

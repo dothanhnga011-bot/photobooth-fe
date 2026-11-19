@@ -165,24 +165,16 @@ Một web, hai **loại phòng**. Đầu ca, nhân viên mở máy chụp từng
   - **Tiền mặt**: chọn loại tờ (tờ bé / tờ to) → chọn số lượng → màn đọc tiền. Mỗi tờ tiền máy nhận
     được cộng ngay trên màn hình; đủ tiền là vào màn chụp. Chưa lắp máy đọc tiền thì bật “Chế độ
     thử tiền mặt” trong hộp Cài máy chụp để thử bằng nút giả lập.
-- **Polaroid** (máy ảnh **Canon EOS R100 + EOS Utility + dây bấm RS-60E3**, hình trực tiếp qua HDMI, in ở máy **Instax Link WIDE** qua print
-  agent — xem README của `photobooth-be`): Nhân viên chọn gói và xác nhận thanh toán ở quầy → đưa mã 6 số →
-  Chạm để bắt đầu → **Nhập mã** → chụp (**Ảnh nhỏ: chọn 1 ảnh / 3 phút**;
-  **Ảnh to: chọn 2 ảnh / 5 phút**; bấm dây không giới hạn trong thời gian chụp) →
-  **khách bấm dây chụp**: EOS Utility lưu JPEG vào thư mục Canon, kiosk đọc ảnh chụp thật
-  → chọn ảnh & khung → in 1 tấm Instax → màn QR tải toàn bộ ảnh
-  gốc (không quay video). Kiosk không chọn layout hay thu tiền: mã đã chứa gói, còn hạn 2 giờ và chỉ dùng ở
-  đúng chi nhánh, đúng loại phòng. Giao diện nâu be với hoa văn vàng cổ kiểu Pháp; màn ngang dành 2/3 cho live view,
-  1/3 cho đồng hồ, ảnh vừa chụp, dải ảnh và nút Chụp xong. Layout là các gói khổ Instax ở Khổ ảnh & bảng giá → tab
-  **Polaroid**; luôn in 1 tấm. Nút **Tạo 2 layout mẫu** tạo 2 gói 100.000 đ kèm khung trắng.
-  Khung Instax là thẻ Instax Wide ngang 1800 × 1200, mỗi tấm in
-  1260 × 840.
-
-**Khung Polaroid không thuộc chủ đề:** ở Khung ảnh → Thêm mới frame → Size Instax, chọn layout (1 ảnh to / 2 ảnh
-dọc chia đôi): ô ảnh đặt sẵn đúng vị trí, chưa tải khung thì dùng ngay khung trắng mẫu, muốn khung riêng thì “Đổi
-ảnh khung” (PNG 1800 × 1200, ô ảnh trong suốt). Trang **Chủ đề** chỉ còn chủ đề của phòng Photobooth; chủ đề
-Polaroid tạo trước đây hiện nhãn “Polaroid cũ · không còn dùng” để xoá. Khổ ảnh & bảng giá vẫn có 2 nút chuyển
-**Photobooth / Polaroid** (gói khổ nhỏ / khổ to và giá in thêm tờ 10 × 15; layout và giá in thêm Instax).
+- **Selfbooth** (máy ảnh **Fujifilm X-T3** + FUJIFILM X Acquire + dây bấm, hình trực tiếp qua HDMI, in tờ **20 × 30** ở
+  máy **DNP DS820** qua chương trình in của phòng — xem README của `photobooth-be`): nhân viên chọn gói và xác nhận
+  thanh toán ở quầy → đưa mã 6 số → Chạm để bắt đầu → **Nhập mã** → **Bắt đầu chụp** → bấm dây không giới hạn trong
+  số phút của gói → hết giờ (hoặc **Chụp xong**) máy chụp hiện QR. Trên điện thoại khách đi đúng 4 bước như web
+  Selfbooth: **01 Ảnh → 02 Chủ đề → 03 Ghép ảnh → 04 Kết quả**, trong thời gian chọn ảnh của tiệm (mặc định 250 giây);
+  hết giờ máy tự in. Kiosk không chọn layout hay thu tiền: mã đã chứa gói, còn hạn 2 giờ và chỉ dùng ở đúng chi nhánh,
+  đúng loại phòng. Phòng Selfbooth không quay video; QR nhận toàn bộ ảnh gốc.
+  Gói ở Khổ ảnh & bảng giá → tab **Selfbooth** (kèm giá in thêm tờ 20 × 30). Khung: Khung ảnh → **Chép khung từ
+  Selfbooth** hoặc Thêm mới; ô ảnh chỉnh trong hộp ghép khung như bên Selfbooth (cả ô nghiêng).
+  Web chỉ in ra máy DNP. Khách muốn in máy khác thì tải ảnh từ album, AirDrop cho quầy và quầy tự in ngoài web.
 
 **Chỉnh ảnh trong khung** (màn chọn ảnh, mục **Chỉnh ảnh**): kéo ảnh trên khung để dời, chụm / mở hai ngón (hoặc
 nút Thu nhỏ / Phóng to) từ 50 % tới 300 % (`PHOTO_ZOOM`, `src/frame-utils.js`); dưới 100 % thấy cả ảnh, phần ô
@@ -198,8 +190,7 @@ mở lượt chụp (`/api/kiosk/sale`).
 
 ## Fujifilm X-T3 / X-S10 / X-S20: chụp bằng dây bấm
 
-Phần này dành cho **Photobooth**. Phòng **Polaroid/Canon R100** làm theo
-[hướng dẫn kết nối Canon R100](docs/CANON-R100-POLAROID.md).
+Phần này dành cho cả **Photobooth** và **Selfbooth** (Selfbooth dùng Fujifilm X-T3).
 Ảnh RX1 sáng gắt/ngả vàng: xem [kiểm tra màu in](docs/PRINT-COLOR-RX1.md).
 Admin sửa lời nhắc mũi tên ở **Thiết lập → Chữ trên máy chụp → Hướng dẫn đổi frame trên màn chọn ảnh**.
 

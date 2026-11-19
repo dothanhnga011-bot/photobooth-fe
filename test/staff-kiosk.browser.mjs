@@ -644,7 +644,6 @@ test("admin keeps inactive rooms, create/edit/deactivate controls, and room edit
   const printers = await page.getByRole("region", { name: "Máy in" }).innerText();
   assert.match(printers, /Chi nhánh Nguyễn Trãi · Chương trình in tự động đang chạy \(DNP\)/);
   assert.match(printers, /Phòng Selfbooth · Máy in DNP DS820 \(tờ 20 × 30\) sẵn sàng/);
-  assert.doesNotMatch(printers, /Instax/, "no Instax printer any more");
   assert.match(printers, /Phòng 01 · Máy in DNP Mất kết nối \(máy in tắt hoặc rút cáp USB\) · 1 tờ đang chờ in · tờ nhỏ in qua hàng in cắt đôi 2 inch/);
   assert.equal(
     await page.getByRole("button", { name: "Thêm mới", exact: true }).count(),

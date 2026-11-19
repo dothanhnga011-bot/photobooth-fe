@@ -1,4 +1,4 @@
-// Phòng Polaroid / Selfbooth in tờ 20 × 30 máy DNP DS820 (khổ "large", từ 14/11); gói / vé Instax cũ vẫn chạy.
+// Phòng Selfbooth in tờ 20 × 30 máy DNP DS820 (khổ "large").
 import assert from "node:assert/strict";
 import test from "node:test";
 import { isPolaroidSize, LARGE_SHEET, polaroidPrinter, polaroidUnit, POLAROID_SIZE } from "../src/print-sizes.js";
@@ -10,21 +10,20 @@ import { polaroidPackage } from "../src/polaroid-layouts.js";
 globalThis.indexedDB ??= { open: () => ({}) };
 const { frameCandidates, frameNeed } = await import("../src/kiosk/compose.js");
 
-test("the Polaroid room prints 20 × 30 sheets on the DS820; old Instax tickets still count as Polaroid", () => {
+test("the Selfbooth room prints 20 × 30 sheets on the DS820; only that size belongs to it", () => {
   assert.equal(POLAROID_SIZE, "large");
   assert.deepEqual(LARGE_SHEET, { w: 2400, h: 3600 });
-  assert.deepEqual(["full", "strip", "large", "instax"].map(isPolaroidSize), [false, false, true, true]);
+  assert.deepEqual(["full", "strip", "large", undefined].map(isPolaroidSize), [false, false, true, false]);
   assert.equal(polaroidUnit("large"), "tờ 20 × 30");
-  assert.equal(polaroidUnit("instax"), "tấm Instax");
   assert.match(polaroidPrinter("large"), /DS820/);
 });
 
-test("a 20 × 30 package is timed like Selfbooth: at least 1 sheet, the Polaroid extra price, counted in 20 × 30 sheets", () => {
+test("a 20 × 30 package is timed like Selfbooth: at least 1 sheet, the Selfbooth extra price, counted in 20 × 30 sheets", () => {
   const pack = { printSize: "large", prints: 0, duration: 7, shots: 9, price: 100000 };
   assert.equal(isPolaroid(pack), true);
   assert.equal(minSheets(pack), 1, "one 20 × 30 sheet, not the 10 × 15 minimum of 2");
   assert.equal(minSheets({ printSize: "full", prints: 0 }), 2);
-  assert.equal(extraPriceFor(pack, { extraInstaxPrice: 50000, extraPrintPrice: 20000 }), 50000);
+  assert.equal(extraPriceFor(pack, { extraSelfboothPrice: 50000, extraPrintPrice: 20000 }), 50000);
   assert.equal(pieceUnit(pack), "tờ 20 × 30");
   assert.equal(piecesLabel(pack, 2), "2 tờ 20 × 30");
   assert.equal(polaroidPackage(pack).shots, 0, "unlimited shots");

@@ -38,11 +38,11 @@ export const priceVND = custom(
   "Giá tối thiểu 1.000 đ (để 0 nếu miễn phí) — kiểm tra có gõ thiếu số 0 không.",
 );
 
-// Gói Polaroid (tờ 20 × 30 / Instax cũ) không có số lần chụp / số ảnh chọn (chụp không giới hạn, chọn trên
+// Gói Selfbooth (tờ 20 × 30) không có số lần chụp / số ảnh chọn (chụp không giới hạn, chọn trên
 // điện thoại); số tờ in có luật riêng (ít nhất 1).
 const exceptLayouts = (rules) =>
   rules.map((rule) => (v, label, all) => (isPolaroidSize(all.printSize) ? "" : rule(v, label, all)));
-const onlyInstax = (rules) =>
+const onlySelfbooth = (rules) =>
   rules.map((rule) => (v, label, all) => (isPolaroidSize(all.printSize) ? rule(v, label, all) : ""));
 
 export const RESOURCE_RULES = {
@@ -59,7 +59,7 @@ export const RESOURCE_RULES = {
     selectCount: ["Số ảnh khách chọn để ghép", ...exceptLayouts([required, intRange(1, 12)])],
     prints: [
       "Số tờ in",
-      ...onlyInstax([required, intRange(1, 20)]),
+      ...onlySelfbooth([required, intRange(1, 20)]),
       ...exceptLayouts([
         required,
         intRange(0, 20),

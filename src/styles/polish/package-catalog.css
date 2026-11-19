@@ -386,12 +386,6 @@
   }
   .admin-shell .package-size-art.is-full i { width: 15px; }
   .admin-shell .package-size-art.is-strip i { width: 8px; }
-  /* Thẻ Instax Wide nằm ngang: viền trắng, đáy dày hơn */
-  .admin-shell .package-size-art.is-instax i {
-    width: 52px;
-    border: 3px solid #fffaf3;
-    border-bottom-width: 7px;
-  }
   /* Tờ 20 × 30 (máy DS820) dọc, viền trắng mảnh */
   .admin-shell .package-size-art.is-large i {
     width: 24px;
@@ -470,7 +464,6 @@
   }
   .admin-shell .kiosk-size-preview .kiosk-size.full .kiosk-size-art i { width: 32px; }
   .admin-shell .kiosk-size-preview .kiosk-size.strip .kiosk-size-art i { width: 17px; }
-  .admin-shell .kiosk-size-preview .kiosk-size.instax .kiosk-size-art i { width: 46px; border-width: 4px 4px 14px; }
   .admin-shell .kiosk-size-preview .kiosk-size.large .kiosk-size-art i { width: 38px; border: 3px solid #fffaf3; }
   /* Hai nút chuyển loại hình chụp (Khổ ảnh & bảng giá, Chủ đề): Photobooth / Polaroid. */
   .admin-shell .service-tabs {
@@ -585,16 +578,6 @@
     color: var(--mellow-cocoa, #522e22);
     font-size: 13px;
     font-weight: 600;
-  }
-  /* Xem trước thẻ layout như màn "Chọn layout" của máy chụp. */
-  .admin-shell .kiosk-layout-preview {
-    display: grid;
-    margin: 22px 6px 4px;
-  }
-  .admin-shell .kiosk-layout-preview .kiosk-layout {
-    min-height: 0;
-    rotate: -1.5deg;
-    cursor: default;
   }
   /* Giá in thêm (cuối trang bảng giá): mỗi loại giấy một ô. */
   .admin-shell .extra-price-pair {

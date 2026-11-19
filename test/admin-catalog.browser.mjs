@@ -601,7 +601,6 @@ test("a Selfbooth 20 × 30 frame is composed like the Selfbooth admin: detect, r
     ],
   });
   await page.getByRole("button", { name: /Thêm mới frame/ }).click();
-  assert.equal(await page.getByRole("menuitem", { name: /Size Instax/ }).count(), 0, "Instax frames are not added any more");
   await page.getByRole("menuitem", { name: /Size 20 × 30/ }).click();
   const dialog = page.getByRole("dialog", { name: "Thêm khung ảnh" });
   await dialog.getByText("Đặt tên, gom chủ đề và kiểm tra các ô đặt ảnh.").waitFor();

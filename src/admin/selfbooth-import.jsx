@@ -4,8 +4,8 @@ import { api } from "../api";
 import { Button, ErrorBox } from "../studio";
 
 // Khung ảnh → "Chép khung từ Selfbooth": danh sách khung đang có trên web Selfbooth của tiệm, chọn khung
-// rồi chép sang làm khung tờ 20 × 30 (máy DNP DS820) của phòng Polaroid (giữ ảnh, chủ đề và các ô, cả ô nghiêng).
-// Khung đã chép rồi thì không chép lại; bản chép cũ khổ Instax (trước 14/11) được chọn sẵn để đổi sang 20 × 30.
+// rồi chép sang làm khung tờ 20 × 30 (máy DNP DS820) của phòng Selfbooth (giữ ảnh, chủ đề và các ô, cả ô nghiêng).
+// Khung đã chép rồi thì không chép lại.
 export function SelfboothImport({ onClose, onDone }) {
   const [list, setList] = useState(null);
   const [error, setError] = useState("");

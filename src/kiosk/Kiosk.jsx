@@ -731,7 +731,7 @@ export function Kiosk() {
     await importCameraPhoto(new File([blob], name, { type: "image/jpeg", lastModified: Date.now() }), `live/${name}`);
   }
   // Loại phòng (Quản lý máy → Cài máy chụp): photobooth (khách chọn Nhập mã / Tiền mặt, in DNP) hoặc
-  // Polaroid (như Selfbooth: khách trả tiền ở quầy, nhập mã có sẵn layout rồi chụp luôn, in Instax).
+  // Selfbooth: khách trả tiền ở quầy, nhập mã của gói rồi chụp luôn, in tờ 20 × 30.
   const polaroid = manualCapture;
   // Lượt mua dở (đã chọn gói / số tờ) chỉ có ở phòng photobooth. Phòng đã đổi sang Polaroid: bỏ lượt
   // mua dở chưa nhận tiền, về màn chờ. Đã nhận tiền thật thì giữ lại để nhân viên xử lý.
@@ -742,7 +742,7 @@ export function Kiosk() {
     if (["method", "code", "package", "print", "pay"].includes(step)) transition(() => setStep("start"), "fade");
   }, [roomKind, sale?.pack, sale?.bills?.length]);
   const cashReady = Boolean(roomInfo?.cashCheckoutReady);
-  // Phòng photobooth bán tờ bé / tờ to (DNP RX1); gói 20 × 30 / Instax là của phòng Polaroid.
+  // Phòng photobooth bán tờ bé / tờ to (DNP RX1); gói 20 × 30 là của phòng Selfbooth.
   const boothPackages = useMemo(() => roomPackages.filter((p) => !isPolaroid(p)), [roomPackages]);
   // ─── Chụp ────────────────────────────────────────────────────────────────
   // Hình trực tiếp mở khi chuẩn bị chụp, tắt khi chuyển sang chọn ảnh.
@@ -782,7 +782,7 @@ export function Kiosk() {
   }, [session?.captureToken, phase, manualCapture]);
   // Quay video tua nhanh trong lúc chụp (hình trực tiếp HDMI, hoặc webcam khi thử máy). Webcam máy
   // tính quay ở chế độ nhẹ (VP8 phần mềm, 720p): H.264 phần cứng với webcam laptop đã làm sập tab
-  // Chrome (STATUS_BREAKPOINT). Phòng Polaroid (khổ 20 × 30 / Instax) không quay: khách nhận ảnh gốc qua QR.
+  // Chrome (STATUS_BREAKPOINT). Phòng Selfbooth (tờ 20 × 30) không quay: khách nhận ảnh gốc qua QR.
   useEffect(() => {
     if (phase === "shoot" && ready && stream.current && !isPolaroid(session?.booking))
       recorder.current.start(stream.current, { light: webcamRef.current });
@@ -803,7 +803,7 @@ export function Kiosk() {
   }, [phase, preCount, manualCapture]);
 
   // Ảnh gốc 15 MB của máy ảnh: gửi sau ảnh xem trước, tối đa hai tệp nền (chung với video), khi không có việc
-  // khách đang chờ (ảnh xem trước, tờ in Instax, ảnh ghép — uplink.js). Lỗi mạng: thử lại sau 20 giây.
+  // khách đang chờ (ảnh xem trước, tờ in, ảnh ghép — uplink.js). Lỗi mạng: thử lại sau 20 giây.
   // Ảnh lỗi được giữ lại và thử sau, không chặn ảnh của khách khác. Chỉ bỏ ảnh / album không còn
   // (410), hoặc 404 sau 1 ngày; không thay thời điểm gốc khi thử lại.
   function sendOriginals() {
@@ -998,7 +998,7 @@ export function Kiosk() {
         transition(() => showDone(live.booking, live.accessToken, { expired }), "zoom");
         return;
       }
-      // Phòng Selfbooth (Polaroid, khổ 20 × 30 máy DS820 / Instax cũ): không chọn ảnh ở máy chụp. Hết giờ (hoặc khách bấm Chụp xong) là
+      // Phòng Selfbooth (tờ 20 × 30 máy DS820): không chọn ảnh ở máy chụp. Hết giờ (hoặc khách bấm Chụp xong) là
       // hiện mã QR: khách thả tim, làm đẹp, ghép khung và gửi in trên điện thoại.
       if (isPolaroid(live.booking)) {
         transition(() => showDone(live.booking, live.accessToken, { expired, studio: true }), "zoom");
@@ -1054,7 +1054,7 @@ export function Kiosk() {
       controller.abort();
     };
   }, [preloadKey]);
-  // Số ảnh cần chọn theo khung đang xem (khổ lớn / nhỏ: số ô của khung; Instax: theo gói).
+  // Số ảnh cần chọn theo khung đang xem (khổ lớn / nhỏ: số ô của khung; Selfbooth: theo gói).
   const needOf = (frame) => frameNeed(frame, {
     count: selectCount, printSize: session?.booking.printSize, shots: shots.length,
   });

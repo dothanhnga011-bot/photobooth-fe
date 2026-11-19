@@ -8,7 +8,7 @@ import {
   Printer,
 } from "lucide-react";
 import { money } from "../api";
-import { includedSheets, INSTAX_SHEETS, isPolaroid, isStrip, piecesLabel, pieceUnit, printSizeOf } from "../kiosk/print-count.js";
+import { includedSheets, SELFBOOTH_MIN_SHEETS, isPolaroid, isStrip, piecesLabel, pieceUnit, printSizeOf } from "../kiosk/print-count.js";
 import { polaroidPrinter } from "../print-sizes.js";
 import { polaroidPackage } from "../polaroid-layouts.js";
 
@@ -136,7 +136,7 @@ function PackageCards({ items, onEdit, onDeactivate }) {
                   {isPolaroid(item) ? "Tờ in 20 × 30" : "Tờ in 10 × 15"}
                 </dt>
                 <dd>
-                  <strong>{isPolaroid(item) ? Math.max(INSTAX_SHEETS, Number(item.prints) || 0) : item.prints ?? 0}</strong> {"tờ"}
+                  <strong>{isPolaroid(item) ? Math.max(SELFBOOTH_MIN_SHEETS, Number(item.prints) || 0) : item.prints ?? 0}</strong> {"tờ"}
                   {isStrip(item) && <small> = {piecesLabel(item, includedSheets(item))}</small>}
                 </dd>
               </div>

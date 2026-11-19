@@ -9,7 +9,7 @@ Các mục **Chỉnh ảnh, Màu ảnh, Thêm chữ, Nhãn dán** tiếp tục d
 
 Hai bước dùng chung thời gian chọn ảnh trong **Thiết lập → Chữ trên máy chụp**. Bấm Tiếp tục hoặc Đổi khung không đặt lại giờ. Hết giờ ở một trong hai bước sẽ tự chọn đủ ảnh rồi ghép/in theo cơ chế hiện có. Nếu đang ở màn khung, hệ thống nạp các ảnh cần dùng trước khi dựng bản xem QR, tránh bản ghép trống do chưa mở màn chọn ảnh.
 
-Màn khung không tải hoặc giải mã ảnh khách, không dựng nhiều canvas ghép khung cùng lúc. Việc tải ảnh gốc tiếp tục ở nền. Nguồn ảnh in, kích thước tờ RX1, công thức màu in và bản ghép album khoảng 20 MP không bị thay đổi. Phòng Selfbooth/Polaroid vẫn chụp → QR → chọn ảnh trên điện thoại.
+Màn khung không tải hoặc giải mã ảnh khách, không dựng nhiều canvas ghép khung cùng lúc. Việc tải ảnh gốc tiếp tục ở nền. Nguồn ảnh in, kích thước tờ RX1, công thức màu in và bản ghép album khoảng 20 MP không bị thay đổi. Phòng Selfbooth vẫn chụp → QR → chọn ảnh trên điện thoại.
 
 Đây là thay đổi frontend. Cần triển khai frontend mới rồi tải lại kiosk sau khi kết thúc lượt khách hiện tại; không cần cài lại chương trình in. Phiên chọn ảnh từ bản cũ tiếp tục mở màn ghép, không bị mất lựa chọn.
 

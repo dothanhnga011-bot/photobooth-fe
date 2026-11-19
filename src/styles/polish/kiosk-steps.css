@@ -229,15 +229,6 @@
   }
   .kiosk-size.full .kiosk-size-art i { width: 44px; }
   .kiosk-size.strip .kiosk-size-art i { width: 24px; }
-  /* Thẻ Instax: ảnh trên thẻ trắng, lề dưới dày */
-  .kiosk-size.instax .kiosk-size-art {
-    padding: 8px 14px;
-  }
-  .kiosk-size.instax .kiosk-size-art i {
-    width: 62px;
-    border: 6px solid #fffaf3;
-    border-bottom-width: 22px;
-  }
   .kiosk-size-off {
     color: #8a3b2c;
     font-size: 14px;

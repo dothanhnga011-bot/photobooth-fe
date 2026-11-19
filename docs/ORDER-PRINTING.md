@@ -6,7 +6,7 @@ Mở **Đơn hàng → In ảnh** để đọc lại dữ liệu của đúng đ
 
 Mã cấp ở quầy chỉ dùng một lần trong hai giờ từ lúc xác nhận đã thu tiền. **Tạo mã** không còn ô Chi nhánh: chọn gói thì hệ thống tự chọn máy/phòng phù hợp; nếu có nhiều máy phù hợp, chọn theo tên máy. Máy chủ lấy chi nhánh từ phòng đó, không nhận giá trị chi nhánh do form tạo mã gửi lên. Màn xác nhận hiển thị tên phòng.
 
-Chỉ chọn được máy đang hoạt động, đúng loại gói, thuộc phạm vi tài khoản và áp dụng bảng giá của gói. Gói DNP dùng ở Photobooth; layout Instax dùng ở Polaroid. Cả hai loại đều có thể thanh toán tại quầy, nhận mã rồi nhập trên kiosk; PTB còn có luồng tiền mặt tại máy. Máy chủ tiếp tục kiểm tra loại phòng và phạm vi sử dụng khi tạo, kích hoạt và nhập mã.
+Chỉ chọn được máy đang hoạt động, đúng loại gói, thuộc phạm vi tài khoản và áp dụng bảng giá của gói. Gói tờ 10 × 15 dùng ở Photobooth; gói tờ 20 × 30 dùng ở Selfbooth. Cả hai loại đều có thể thanh toán tại quầy, nhận mã rồi nhập trên kiosk; PTB còn có luồng tiền mặt tại máy. Máy chủ tiếp tục kiểm tra loại phòng và phạm vi sử dụng khi tạo, kích hoạt và nhập mã.
 
 **Quản lý máy → Thêm mới / Chỉnh sửa** cũng không còn ô Chi nhánh / địa chỉ. Sửa máy giữ thông tin nội bộ đang có; thêm máy lấy chi nhánh của tài khoản nếu có, nếu không thì lấy từ máy hiện có (ưu tiên máy đang hoạt động). Tiệm chưa có máy nào dùng giá trị nội bộ “Mặc định”. Các bản in và mã cũ giữ thông tin đã lưu.
 
@@ -27,7 +27,7 @@ Nếu kiosk báo mã thuộc chi nhánh khác, kiểm tra chi nhánh của phi�
 
 ## Ghép ảnh để in
 
-Khi chưa có file, có thể chọn ảnh gốc trong album hoặc thêm ảnh từ PC, chọn khung, chỉnh từng ô và xem trước. Ảnh gốc còn đang tải lên không được chọn làm nguồn in. File RX1 được ghép thành PNG 2400 × 3600 px hoặc ngang từ ảnh gốc, gửi cùng chương trình in như kiosk rồi lưu vào lịch sử đơn. Khổ Instax tải file để dùng chương trình Instax riêng.
+Khi chưa có file, có thể chọn ảnh gốc trong album hoặc thêm ảnh từ PC, chọn khung, chỉnh từng ô và xem trước. Ảnh gốc còn đang tải lên không được chọn làm nguồn in. File RX1 được ghép thành PNG 2400 × 3600 px hoặc ngang từ ảnh gốc, gửi cùng chương trình in như kiosk rồi lưu vào lịch sử đơn. Tờ 20 × 30 của Selfbooth in qua hàng chờ máy DS820 của phòng đó.
 
 ## Lưu file và chống trùng
 
