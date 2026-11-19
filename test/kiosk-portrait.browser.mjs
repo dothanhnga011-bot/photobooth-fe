@@ -214,7 +214,8 @@ test("code entry: a big code box and keypad", async () => {
 test("sheet type: two big cards per row, back / code / next on one row", async () => {
   const m = await portrait("size", { card: ".kiosk-size", foot: FOOT });
   assert.equal(m.pageScrolls, false);
-  assert.deepEqual([m.card.count, m.card.rows], [3, 2]);
+  // Khổ nhỏ + khổ to (phòng Photobooth không bán gói Selfbooth): hai thẻ to cùng một hàng.
+  assert.deepEqual([m.card.count, m.card.rows], [2, 1]);
   assert.ok(m.card.minWidth >= 380, `thẻ rộng ${m.card.minWidth} px`);
   footOk(m, 3);
 });
