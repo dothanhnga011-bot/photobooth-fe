@@ -11,16 +11,15 @@ const fixture = `
   import { createRoot } from 'react-dom/client';
   import { StudioContext, ToastProvider } from '/src/studio.jsx';
   import { KioskCode, KioskPackages, KioskPayChoice, KioskPrintCount, KioskPayment } from '/src/kiosk/KioskSale.jsx';
-  import { isInstax, minSheets, saleTotal } from '/src/kiosk/print-count.js';
+  import { minSheets, saleTotal } from '/src/kiosk/print-count.js';
   import { billAcceptor } from '/src/kiosk/bill-acceptor.js';
   import '/src/tailwind.css';
   const packs = [
     { _id: 'strip', name: 'Gói 70k · 2 ảnh nhỏ', printSize: 'strip', price: 70000, prints: 1, shots: 12 },
     { _id: 'full', name: 'Gói 100k · 2 ảnh lớn', printSize: 'full', price: 100000, prints: 2, shots: 16 },
     { _id: 'old', name: 'Gói cũ một tờ', printSize: 'full', price: 50000, prints: 1, shots: 8 },
-    { _id: 'instax', name: 'Gói Instax', printSize: 'instax', price: 120000, prints: 2, shots: 10 },
   ];
-  const extraFor = (pack) => isInstax(pack) ? 30000 : 20000;
+  const extraFor = () => 20000;
   window.billEnabled = () => billAcceptor.enabled;
   function App() {
     const [step, setStep] = useState(new URLSearchParams(location.search).get('step') || 'size');
@@ -28,16 +27,14 @@ const fixture = `
     const [sheets, setSheets] = useState(0);
     const [code, setCode] = useState('');
     const [voucher, setVoucher] = useState('');
-    const [instax, setInstax] = useState({ ready: false, film: null, message: 'Máy in Instax chưa kết nối với máy tính.' });
-    window.setInstaxFixture = setInstax;
     return <>
       {step === 'method' && <KioskPayChoice onCode={() => setStep('code')} onCash={() => setStep('size')} onBack={() => {}} />}
       {step === 'code' && <KioskCode code={code} setCode={setCode} onSubmit={(e) => { e.preventDefault(); setVoucher(code); }}
         onBack={() => setStep('method')} busy={false} error='' device='fixture-device' cameraReady={true} />}
-      {step === 'size' && <KioskPackages packages={packs} instax={instax} onPick={(p) => { setPack(p); setSheets(minSheets(p)); setStep('print'); }}
+      {step === 'size' && <KioskPackages packages={packs} onPick={(p) => { setPack(p); setSheets(minSheets(p)); setStep('print'); }}
         onCode={() => setStep('code')} onBack={() => {}} />}
       {step === 'print' && <KioskPrintCount pack={pack} sheets={sheets} extraPrintPrice={extraFor(pack)}
-        film={isInstax(pack) ? instax.film : null} onChange={setSheets} onNext={() => setStep('pay')} onBack={() => setStep('size')} />}
+        onChange={setSheets} onNext={() => setStep('pay')} onBack={() => setStep('size')} />}
       {step === 'pay' && <KioskPayment pack={pack} total={saleTotal(pack, sheets, extraFor(pack))} sheets={sheets} bills={[]} onBill={() => {}}
         onPaid={() => {}} onSkip={() => {}} onBack={() => setStep('print')} onIdle={() => {}}
         testMode={false} busy={false} error='' cameraReady={true} cashReady={false} />}
@@ -156,33 +153,6 @@ test("prints are counted in pieces from a minimum of two; paying goes straight t
     assert.match(await page.locator(".pay-board").innerText(), /70\.000/);
     assert.equal(await page.evaluate(() => window.billEnabled()), false, "no serial port in the test browser");
     await shot(page, "pay");
-    assert.deepEqual(errors, []);
-  } finally { await page.close(); }
-});
-
-test("Instax is locked while its printer is not ready and never sells more pieces than film left", async () => {
-  const page = await browser.newPage({ viewport: { width: 1328, height: 639 } });
-  const errors = [];
-  page.on("pageerror", (e) => errors.push(e.message));
-  try {
-    await page.goto(base);
-    const card = page.getByRole("button", { name: /Gói Instax/ });
-    assert.equal(await card.isDisabled(), true);
-    assert.match(await card.innerText(), /kèm 2 tấm Instax[\s\S]*chưa kết nối với máy tính — nhờ nhân viên hỗ trợ/);
-    await page.evaluate(() => window.setInstaxFixture({ ready: true, film: 3, message: "" }));
-    await shot(page, "size-instax");
-    await card.click();
-    await page.getByRole("button", { name: /Tiếp tục/ }).click();
-    await page.getByRole("heading", { name: "Chọn số lượng" }).waitFor();
-    const count = () => page.locator(".kiosk-counter output").innerText();
-    assert.equal(await count(), "2");
-    assert.match(await page.locator(".print-unit").innerText(), /tấm Instax\s+Gợi ý: mỗi người một tấm — đi mấy người thì chọn bấy nhiêu tấm/);
-    await page.getByRole("button", { name: "Tăng số bản in" }).click();
-    assert.equal(await count(), "3");
-    assert.match(await page.locator(".kiosk-price strong").innerText(), /150\.000/);
-    assert.equal(await page.getByRole("button", { name: "Tăng số bản in" }).isDisabled(), true, "only 3 sheets of film left");
-    assert.match(await page.locator(".print-unit").innerText(), /Máy Instax còn 3 tấm phim — chọn tối đa 3 tấm/);
-    await shot(page, "prints-instax");
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });

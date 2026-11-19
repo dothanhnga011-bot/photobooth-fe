@@ -9,7 +9,6 @@ import {
   frameCapacity,
   slotScale,
   frameOutputSize,
-  instaxPrint,
   largePrint,
   isSingleStrip,
   loadFrameImage,
@@ -329,7 +328,6 @@ export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filter
 
 // Tờ in 10 × 15 cm cho cả lượt: khung nguyên tờ (kể cả khung nhỏ phủ cả tờ — 2 dải, máy in cắt đôi)
 // in `prints` tờ; khung dải cũ (một dải) ghép 2 dải / tờ.
-// Khổ Instax (printSize của vé): mỗi tấm là một ảnh ngang 1260 × 840 riêng, máy Instax Link WIDE in từng tấm.
 export async function printSheets(frameCanvas, frame, prints, printSize = frame.printSize, scale = 1) {
   if (!prints) return [];
   // Tờ 20 × 30 máy DS820 (phòng Polaroid / Selfbooth): mỗi tờ đúng 2400 × 3600 (hoặc ngang), JPEG như album.
@@ -337,12 +335,6 @@ export async function printSheets(frameCanvas, frame, prints, printSize = frame.
     const image = largePrint(frameCanvas);
     const data = await jpegDataUrl(image, 0.95);
     if (image !== frameCanvas) image.width = image.height = 0;
-    return Array.from({ length: prints }, () => data);
-  }
-  if (printSize === "instax") {
-    const image = instaxPrint(frameCanvas);
-    const data = await jpegDataUrl(image, 0.95);
-    image.width = image.height = 0;
     return Array.from({ length: prints }, () => data);
   }
   // Khung nhỏ 1200 × 1800 đã có sẵn 2 dải: in nguyên tờ 1 lần (máy DNP cắt đôi), không nhân đôi nữa.
@@ -441,7 +433,7 @@ async function watchSpool(token, requestKey) {
   }
 }
 
-// printSize: khổ của khung được in ("strip" → máy cắt đôi, "full" → nguyên tờ; Instax bỏ trống).
+// printSize: khổ của khung được in ("strip" → máy cắt đôi, "full" → nguyên tờ).
 export async function queueKioskPrint({ token, images, frameName, printSize, archive = false, requestKey = crypto.randomUUID() }) {
   if (!images.length) return;
   await updateSetting(QUEUE_KEY, (current) => {

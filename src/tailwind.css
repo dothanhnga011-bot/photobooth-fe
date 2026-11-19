@@ -51,6 +51,7 @@
 @import "./styles/admin/usability.css";
 @import "./styles/admin/studio-setup.css";
 @import "./styles/admin/frames.css";
+@import "./styles/admin/frame-regions.css";
 @import "./styles/entry/kiosk-flow.css";
 @import "./styles/entry/kiosk-portrait.css";
 @import "./styles/entry/kiosk-frames.css";

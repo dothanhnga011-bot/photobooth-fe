@@ -19,9 +19,9 @@ const fixture = `
   const packs = [
     { _id: 'pack-strip', name: 'Khung nhỏ', printSize: 'strip', price: 70000, prints: 1, shots: 4 },
     { _id: 'pack-full', name: 'Khung to', printSize: 'full', price: 100000, prints: 2, shots: 4 },
-    // Layout của phòng Polaroid (gói khổ Instax): bán ở quầy thành mã chụp, không bán ở máy.
-    { _id: 'pack-polaroid-2', name: 'Polaroid đôi', printSize: 'instax', price: 100000, prints: 1, shots: 8, countdownSeconds: 10, selectCount: 2 },
-    { _id: 'pack-polaroid-1', name: '1 ảnh to', printSize: 'instax', price: 100000, prints: 1, shots: 8, countdownSeconds: 10, selectCount: 1 },
+    // Gói của phòng Selfbooth (tờ 20 × 30): bán ở quầy thành mã chụp, không bán ở máy.
+    { _id: 'pack-polaroid-2', name: 'Polaroid đôi', printSize: 'large', price: 100000, prints: 1, shots: 8, countdownSeconds: 10, selectCount: 2 },
+    { _id: 'pack-polaroid-1', name: '1 ảnh to', printSize: 'large', price: 100000, prints: 1, shots: 8, countdownSeconds: 10, selectCount: 1 },
   ];
   // Chữ trên máy chụp tiệm đã sửa (Thiết lập → Chữ trên máy chụp).
   const kioskTexts = { 'polaroid.codeTitle': 'Nhập mã Selfbooth' };

@@ -1,0 +1,207 @@
+@layer components {
+  .admin-shell .catalog-editor-frames {
+    width: min(1020px, calc(100vw - 32px));
+    max-width: 1020px;
+  }
+  .admin-shell .catalog-editor-frames .resource-editor-content {
+    grid-template-columns: minmax(220px, .8fr) minmax(0, 1.2fr);
+  }
+  .frame-region-actions, .frame-region-modes, .frame-region-selection {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .frame-image-field .frame-region-actions > button,
+  .frame-image-field .frame-region-modes > button,
+  .frame-image-field .frame-region-selection > button,
+  .frame-image-field .frame-region-angle > button,
+  .frame-image-field .frame-region-align > button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-height: 36px;
+    padding: 7px 10px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: #fff;
+    color: var(--ink);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .frame-image-field .frame-region-modes > button[aria-pressed="true"] {
+    border-color: var(--wine);
+    background: #f3e9df;
+    color: var(--wine);
+    font-weight: 600;
+  }
+  .frame-image-field button:disabled { opacity: .5; cursor: default; }
+  .frame-image-field button:focus-visible { outline: 3px solid #bb8b6a; outline-offset: 2px; }
+  .frame-region-editor { display: grid; gap: 10px; min-width: 0; }
+  .frame-region-hint, .frame-region-caption {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.65;
+  }
+  .frame-region-hint { min-height: 20px; }
+  .frame-region-preview {
+    width: min(100%, 340px);
+    margin-inline: auto;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: repeating-conic-gradient(#e9e3da 0 25%, #fff 0 50%) 0 0 / 16px 16px;
+  }
+  .frame-region-viewport {
+    max-height: 58dvh;
+    overflow: auto;
+    padding: 46px 14px 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #f6f2ed;
+    overscroll-behavior: contain;
+  }
+  /* The dialog's ".modal label" stacks labels in a column with 18px margins: in a column the
+     slider (flex: 1; width: 0) gets no width at all. */
+  .frame-region-zoom {
+    display: flex; flex-direction: row; align-items: center; gap: 9px; margin: 0;
+    font-size: 12px; color: var(--muted);
+  }
+  .admin-shell .catalog-editor .frame-region-zoom > input,
+  .admin-shell .catalog-editor .frame-region-angle > input {
+    flex: 1; width: 0; min-width: 0; min-height: 30px; padding: 0; accent-color: var(--wine);
+  }
+  .frame-region-zoom > output { min-width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+  .frame-region-inspector { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #fbf9f6; }
+  .frame-region-numbers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .frame-region-number { display: grid; gap: 5px; min-width: 0; margin: 0; color: var(--muted); font-size: 11px; }
+  .admin-shell .catalog-editor .frame-region-number > input { min-height: 38px; padding: 7px 10px; background: #fff; font-variant-numeric: tabular-nums; }
+  .frame-region-angle, .frame-region-align { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  /* The image itself determines the stage height. No max-height crop or border
+     may change the coordinate plane used by the normalized region overlays. */
+  .frame-region-stage {
+    position: relative;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .frame-region-stage > img {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: none;
+    padding: 0;
+    border: 0;
+    pointer-events: none;
+  }
+  .frame-region-stage.is-drawing { cursor: crosshair; }
+  .frame-region-box {
+    position: absolute;
+    box-sizing: border-box;
+    border: 2px solid #c34343;
+    background: #cd47471c;
+    pointer-events: none;
+  }
+  .frame-region-box.is-selected { border-color: #9b2222; box-shadow: 0 0 0 1px #fff; z-index: 1; }
+  .frame-image-field .frame-region-hit {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: #992d2d;
+    font-size: 19px;
+    font-weight: 700;
+    text-shadow: 0 1px 3px #fff;
+    cursor: move;
+    pointer-events: auto;
+    touch-action: none;
+  }
+  .frame-region-stage.is-drawing .frame-region-hit { cursor: crosshair; }
+  .frame-image-field .frame-region-handle {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: 2px solid #fff;
+    border-radius: 3px;
+    background: #ad3232;
+    pointer-events: auto;
+    touch-action: none;
+  }
+  .frame-region-handle.nw { top: -9px; left: -9px; cursor: nwse-resize; }
+  .frame-region-handle.ne { top: -9px; right: -9px; cursor: nesw-resize; }
+  .frame-region-handle.sw { bottom: -9px; left: -9px; cursor: nesw-resize; }
+  .frame-region-handle.se { bottom: -9px; right: -9px; cursor: nwse-resize; }
+  /* Side handles: a bar in the middle of each side, so one side can be pulled on its own. */
+  .frame-image-field .frame-region-side { border-radius: 5px; }
+  .frame-image-field .frame-region-side.n, .frame-image-field .frame-region-side.s {
+    left: 50%; width: 26px; height: 12px; transform: translateX(-50%); cursor: ns-resize;
+  }
+  .frame-image-field .frame-region-side.e, .frame-image-field .frame-region-side.w {
+    top: 50%; width: 12px; height: 26px; transform: translateY(-50%); cursor: ew-resize;
+  }
+  .frame-region-side.n { top: -7px; }
+  .frame-region-side.s { bottom: -7px; }
+  .frame-region-side.w { left: -7px; }
+  .frame-region-side.e { right: -7px; }
+  /* The rotate knob sits above the top side; keep it clear of the top bar. */
+  .frame-image-field .frame-region-rotate-handle { top: -42px; }
+  .frame-image-field .frame-region-rotate-handle {
+    position: absolute; top: -34px; left: 50%; transform: translateX(-50%);
+    display: grid; place-items: center; width: 26px; height: 26px; padding: 0;
+    border: 2px solid #fff; border-radius: 50%; background: #ad3232; color: #fff;
+    cursor: grab; pointer-events: auto; touch-action: none;
+  }
+  .frame-region-selection strong { margin-right: auto; color: var(--ink); font-size: 13px; }
+  .frame-image-field .frame-drop-meta { flex-wrap: wrap; font-size: 12px; line-height: 1.6; }
+  /* On the narrowest phones the print size gets a row of its own, so it reads in full. */
+  @media (max-width: 360px) {
+    .admin-shell .catalog-editor .resource-field-printSize { grid-column: 1 / -1; }
+  }
+  @media (max-width: 700px) {
+    .admin-shell .catalog-editor-frames .resource-editor-content { grid-template-columns: 1fr; }
+    .admin-shell .catalog-editor-frames { width: 100%; }
+    .frame-region-preview { width: min(100%, 320px); }
+    .frame-region-modes > button { flex: 1; }
+  }
+  /* Photobooth: hộp ghép khung phòng Selfbooth (selfbooth-frame-editor.jsx). */
+  .frame-resolution-warning {
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid #ecd2a6;
+    border-radius: 10px;
+    background: #fff7ea;
+    color: #6b4513;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .admin-shell .selfbooth-frame-editor .selfbooth-frame-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .admin-shell .selfbooth-frame-editor .selfbooth-frame-image {
+    display: grid;
+    align-content: start;
+    gap: 8px;
+    min-width: 0;
+  }
+  .admin-shell .selfbooth-frame-editor .soft-note {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+}

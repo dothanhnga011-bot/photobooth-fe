@@ -335,10 +335,6 @@ export function composeLayout(canvas, frameImage, slots, images, transforms, dec
 
 // ─── Bộ chủ đề (nhiều khung cùng themeName) & xuất tờ in DNP 10 × 15 cm ───
 export const SHEET = { w: 1200, h: 1800 }; // 4 × 6 inch @ 300 pixels/inch
-// Khung Instax Wide thiết kế ở 1800 × 1200 (ngang 3 : 2, cùng cỡ tờ 10 × 15 nên ảnh ghép trong album
-// nét); máy Instax Link WIDE in ảnh ngang 1260 × 840.
-export const INSTAX_FRAME = { w: 1200, h: 1800 };
-export const INSTAX_PRINT = { w: 1260, h: 840 };
 // Khung phòng Polaroid / Selfbooth từ 14/11: tờ 20 × 30 cm máy DNP DS820, 2400 × 3600 (dọc hoặc ngang).
 export { LARGE_SHEET };
 
@@ -377,8 +373,6 @@ export function frameOutputSize(frame, image) {
   // Khung phủ cả tờ (khung nhỏ = 2 dải trên một tờ) in nguyên tờ; khung một dải chỉ nửa tờ.
   const box = frame.printSize === "large"
     ? LARGE_SHEET
-    : frame.printSize === "instax"
-    ? INSTAX_FRAME
     : isSingleStrip(frame, image.naturalWidth, image.naturalHeight) ? { w: SHEET.w / 2, h: SHEET.h } : SHEET;
   const landscape = image.naturalWidth > image.naturalHeight;
   const [bw, bh] = landscape ? [box.h, box.w] : [box.w, box.h];
@@ -432,17 +426,6 @@ export function largePrint(canvas) {
   return out;
 }
 
-// Một tấm Instax Wide: ảnh ngang 1260 × 840, khung dọc được xoay cho vừa.
-export function instaxPrint(canvas) {
-  const out = document.createElement("canvas");
-  out.width = INSTAX_PRINT.w;
-  out.height = INSTAX_PRINT.h;
-  const ctx = out.getContext("2d");
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, out.width, out.height);
-  placeOn(ctx, canvas, 0, 0, out.width, out.height);
-  return out;
-}
 
 // Xếp khung lên tờ 10 × 15: khung nguyên tờ chiếm 1 tờ (khung ngang → tờ ngang
 // 15 × 10, máy in tự xoay), khung dải ghép 2 dải / tờ dọc.

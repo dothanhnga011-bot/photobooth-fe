@@ -16,7 +16,6 @@ import {
   Monitor,
   Printer,
   RotateCcw,
-  Frame,
   Trash2,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -38,8 +37,9 @@ import { ResourceEditor } from "./resource-editor";
 import { ServiceTabs, serviceOf, useServiceTab } from "./service-tabs";
 import { polaroidPackage } from "../polaroid-layouts.js";
 import { isPolaroidSize, POLAROID_SIZE } from "../print-sizes.js";
-import { createTestFrames, SAMPLE_PRICE, TEST_FRAMES } from "./polaroid-presets";
-import { instaxLow, instaxOk, roomPrinterReady } from "./printer-issues";
+import { roomPrinterReady } from "./printer-issues";
+// Giá mặc định khi thêm gói Selfbooth mới (Bảng giá → tab Selfbooth).
+const SAMPLE_PRICE = 100000;
 
 const searchable = (value) =>
   String(value || "")
@@ -62,7 +62,7 @@ const RESOURCE_ICONS = {
 
 const clock = (value) =>
   new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
-const AGENT_SIZES = { full: "DNP", strip: "DNP", large: "DNP DS820", instax: "Instax" };
+const AGENT_SIZES = { full: "DNP", strip: "DNP", large: "DNP DS820" };
 const CUT_TEXT = {
   auto: " · tờ nhỏ tự cắt đôi",
   queue: " · tờ nhỏ in qua hàng in cắt đôi 2 inch",
@@ -84,7 +84,7 @@ function RoomPrinter({ roomName, agent, dnp }) {
     </p>
   );
 }
-// Chương trình in tự động (print agent) và máy Instax của từng chi nhánh.
+// Chương trình in tự động (print agent) của từng phòng / chi nhánh.
 function PrinterStatus({ printers }) {
   return (
     <section className="panel printer-status" aria-label="Máy in">
@@ -103,8 +103,7 @@ function PrinterStatus({ printers }) {
           <RoomPrinter {...row} />
         </div>
       ))}
-      {printers.filter((row) => !row.room).map(({ branch, at, instax, agent }) => {
-        const low = instaxLow(instax);
+      {printers.filter((row) => !row.room && row.agent).map(({ branch, agent }) => {
         const kinds = [...new Set((agent?.printSizes || []).map((s) => AGENT_SIZES[s]))].join(" + ");
         return (
           <div key={branch} className="printer-status-branch">
@@ -115,15 +114,6 @@ function PrinterStatus({ printers }) {
                   ? `đang chạy${kinds ? ` (${kinds})` : ""}`
                   : "không chạy — lệnh in sẽ không tự in, bật lại print-agent trên máy cạnh máy in"}
                 <small> · báo lúc {clock(agent.at)}</small>
-              </p>
-            )}
-            {instax && (
-              <p className={instaxOk(instax) ? "is-ready" : "is-warn"}>
-                <strong>{agent ? "Máy Instax Link WIDE" : branch}</strong> ·{" "}
-                {instax.ready ? (low ? "Sắp hết phim — chuẩn bị hộp phim mới" : "Sẵn sàng") : instax.message}
-                {Number.isInteger(instax.film) && ` · còn ${instax.film} tấm phim`}
-                {Number.isInteger(instax.battery) && ` · pin ${instax.battery}%${instax.charging ? " (đang sạc)" : ""}`}
-                {at && <small> · báo lúc {clock(at)}</small>}
               </p>
             )}
           </div>
@@ -153,7 +143,7 @@ export function ResourceManager({ resource, notify, me }) {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
-  // Máy in của các phòng (print agent báo về mỗi phút): DNP RX1, DNP DS820; máy Instax cũ: sẵn sàng, số phim, pin.
+  // Máy in của các phòng (print agent báo về mỗi phút): DNP RX1 phòng Photobooth, DNP DS820 phòng Selfbooth.
   const [printers, setPrinters] = useState([]);
   // Khung ảnh có trang riêng (admin/frames.jsx); đây là máy, gói chụp và tài khoản.
   const isCatalog = resource === "packages";
@@ -283,24 +273,6 @@ export function ResourceManager({ resource, notify, me }) {
       setBusy(false);
     }
   }
-  // Tab Polaroid: 2 khung thử Mellow (1 ảnh, 2 ảnh) để thử phòng Selfbooth ngay; khung cùng tên đã có thì giữ.
-  async function createTrialFrames() {
-    if (!canManage || busy) return;
-    if (!confirm(`Tạo ${TEST_FRAMES.length} khung thử tờ 20 × 30 (${TEST_FRAMES.map((f) => f.name).join(", ")})?
-Khung có chữ Mellow, tim và ngày in — dùng để thử phòng Selfbooth. Tắt hoặc xoá ở mục Khung khi có khung thật.`)) return;
-    setBusy(true);
-    try {
-      const made = await createTestFrames();
-      reloadCatalog?.();
-      notify(made.length
-        ? `Đã tạo ${made.length} khung thử: ${made.join(", ")}.`
-        : "Đã có đủ khung thử — không tạo thêm.");
-    } catch (e) {
-      toast.error(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
   async function deactivate(item) {
     if (!canManage) return;
     if (!confirm(`Ngừng sử dụng ${item.name || item.code}?`)) return;
@@ -422,12 +394,6 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
           status={status}
           onStatusChange={setStatus}
           onCreate={() => newItem(service === "polaroid" ? POLAROID_SIZE : "full")}
-          actions={service === "polaroid" && canManage && (
-            <Button className="outline" disabled={busy || loading} onClick={createTrialFrames}>
-              <Frame size={16} aria-hidden="true" />
-              {busy ? "Đang tạo…" : "Tạo 2 khung thử"}
-            </Button>
-          )}
           loading={loading}
         />
       ) : (
@@ -458,7 +424,7 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
           onDeactivate={deactivate}
           onCreate={newItem}
           filtered={filtered}
-          sizes={service === "polaroid" ? [POLAROID_SIZE, "instax"] : ["strip", "full"]}
+          sizes={service === "polaroid" ? [POLAROID_SIZE] : ["strip", "full"]}
         />
         {canManage && (
           <section className="panel extra-price-panel" aria-labelledby="extra-price-title">

@@ -23,27 +23,26 @@ import { compareFrameOrder } from "../frame-catalog-data";
 import { detectSlots, frameCapacity, isPhotoRegion, printDate } from "../frame-utils";
 import { serviceOf } from "./service-tabs";
 import { SelfboothImport } from "./selfbooth-import.jsx";
+import { SelfboothFrameEditor } from "./selfbooth-frame-editor.jsx";
 import { isPolaroidSize } from "../print-sizes.js";
 
-// Khung phòng Polaroid (tờ 20 × 30 máy DS820; khung Instax cũ) gom theo chủ đề như Selfbooth: khách chọn cả bộ
-// trên điện thoại.
-const isInstaxFrame = (frame) => isPolaroidSize(frame.printSize);
+// Khung phòng Selfbooth (tờ 20 × 30 máy DS820) gom theo chủ đề như web Selfbooth: khách chọn cả bộ trên điện thoại.
+const isSelfboothFrame = (frame) => isPolaroidSize(frame.printSize);
 
 const PAGE_SIZE = 12;
 const MAX_BYTES = 10 * 1024 * 1024;
-const SIZES = { full: "Size lớn", strip: "Size nhỏ", large: "Size 20 × 30", instax: "Size Instax (cũ)" };
-// Khổ thêm mới được: từ 14/11 phòng Polaroid in tờ 20 × 30 máy DS820, không thêm khung Instax nữa.
+const SIZES = { full: "Size lớn", strip: "Size nhỏ", large: "Size 20 × 30" };
+// Khổ thêm mới được: phòng Photobooth (lớn / nhỏ) và phòng Selfbooth (tờ 20 × 30 máy DS820).
 const NEW_SIZES = ["full", "strip", "large"];
 const SIZE_NOTES = {
   full: "In nguyên tờ 10 × 15 cm",
   strip: "2 dải 5 × 15 cm trên một tờ, máy in cắt đôi",
   large: "Phòng Selfbooth: tờ 20 × 30 cm máy DNP DS820",
-  instax: "Thẻ Instax Wide, ảnh ngang 3 : 2 (máy Instax Link WIDE)",
 };
-const FRAME_TITLES = { full: "size lớn", strip: "size nhỏ", large: "20 × 30", instax: "Instax Wide" };
-// Cỡ ảnh khung theo khổ: tờ 10 × 15 và thẻ Instax Wide đều 1200 × 1800 (3 : 2; Instax Wide thường ngang);
+const FRAME_TITLES = { full: "size lớn", strip: "size nhỏ", large: "20 × 30" };
+// Cỡ ảnh khung theo khổ: tờ 10 × 15 là 1200 × 1800 (3 : 2);
 // tờ 20 × 30 máy DS820 là 2400 × 3600 (8 × 12 inch, 300 điểm / inch).
-const FRAME_PIXELS = { full: [1200, 1800], strip: [1200, 1800], large: [2400, 3600], instax: [1200, 1800] };
+const FRAME_PIXELS = { full: [1200, 1800], strip: [1200, 1800], large: [2400, 3600] };
 const pixelsText = (printSize) => {
   const [w, h] = FRAME_PIXELS[printSize] || FRAME_PIXELS.full;
   return `${w} × ${h} hoặc ${h} × ${w}`;
@@ -126,7 +125,15 @@ export function FramesManager({ notify, initialTheme = "all" }) {
   const edit = (frame) =>
     run(async () => setEditing(await api(`/admin/frames/${frame._id}`)));
 
-  if (editing)
+  // Khung phòng Selfbooth (20 × 30): hộp ghép khung giống web Selfbooth, mở trên danh sách khung. Khung PTB: trình cũ.
+  const selfboothEditing = Boolean(editing) && isPolaroidSize(editing.printSize);
+  const saved = async (message) => {
+    setEditing(null);
+    await load();
+    reloadCatalog?.();
+    notify(message);
+  };
+  if (editing && !selfboothEditing)
     return (
       <FrameEditor
         frame={editing}
@@ -144,6 +151,10 @@ export function FramesManager({ notify, initialTheme = "all" }) {
     );
   return (
     <div className="frames-manager">
+      {selfboothEditing && (
+        <SelfboothFrameEditor frame={editing} themes={themes} themeKinds={themeKinds}
+          onClose={() => setEditing(null)} onSaved={saved} />
+      )}
       <ErrorBox error={error} />
       {importing && (
         <SelfboothImport
@@ -154,7 +165,6 @@ export function FramesManager({ notify, initialTheme = "all" }) {
             reloadCatalog?.();
             notify([
               created.length && `Đã chép ${created.length} khung từ Selfbooth: ${created.join(", ")}.`,
-              converted.length && `Đã đổi ${converted.length} khung khổ Instax sang tờ 20 × 30: ${converted.join(", ")}.`,
             ].filter(Boolean).join(" ") ||
               `Các khung đã chọn đều đã chép trước đó${skipped.length ? `: ${skipped.join(", ")}` : ""}.`);
           }}
@@ -176,7 +186,6 @@ export function FramesManager({ notify, initialTheme = "all" }) {
             <option value="full">Size lớn</option>
             <option value="strip">Size nhỏ</option>
             <option value="large">Size 20 × 30</option>
-            {frames?.some((f) => f.printSize === "instax") && <option value="instax">Size Instax (cũ)</option>}
           </select>
         </label>
         <Button className="outline" onClick={() => setImporting(true)}>
@@ -265,7 +274,7 @@ function newFrame(printSize, themeName, frames) {
   };
 }
 
-// Ảnh khung: PNG / JPG ≤ 10 MB, đúng 1200 × 1800 hoặc 1800 × 1200 (Instax Wide cũng vậy, thường
+// Ảnh khung: PNG / JPG ≤ 10 MB, đúng 1200 × 1800 hoặc 1800 × 1200 (khung
 // ngang); ảnh cùng tỉ lệ được đưa về đúng cỡ, giữ nền trong suốt.
 async function readFrameFile(file, printSize = "full") {
   if (!/^image\/(png|jpeg|webp)$/.test(file.type)) throw new Error("Vui lòng chọn ảnh khung PNG (hoặc JPG).");
@@ -396,7 +405,7 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
   const maxPhoto = Math.max(0, ...slots.filter(isPhotoRegion).map((s) => s.photo || 0));
   const strip = frame.printSize === "strip";
   const imageSrc = frame.image?.startsWith("data:") ? frame.image : assetUrl(frame.image);
-  const instax = isInstaxFrame(frame);
+  const selfbooth = isSelfboothFrame(frame);
   const sameKind = themes.filter((name) => (themeKinds[name] || "photobooth") === serviceOf(frame.printSize));
   const themeOptions = [...new Set([...sameKind, frame.themeName].filter((name) => name && name !== "__new"))];
 
@@ -521,7 +530,7 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
               {themeOptions.map((name) => <option key={name} value={name}>{name}</option>)}
               <option value="__new">+ Chủ đề mới…</option>
             </select>
-            {instax && <small>Phòng Selfbooth: khách chọn cả bộ khung cùng chủ đề trên điện thoại.</small>}
+            {selfbooth && <small>Phòng Selfbooth: khách chọn cả bộ khung cùng chủ đề trên điện thoại.</small>}
           </label>
           {frame.themeName === "__new" && (
             <label>
@@ -538,8 +547,6 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
             <select value={frame.printSize} onChange={(e) => set({ printSize: e.target.value })}>
               <option value="full">Size lớn — in nguyên tờ 10 × 15</option>
               <option value="strip">Size nhỏ — 2 dải trên một tờ, cắt đôi</option>
-              <option value="large">Size 20 × 30 — phòng Selfbooth, máy DNP DS820</option>
-              {frame.printSize === "instax" && <option value="instax">Size Instax (cũ) — thẻ Instax Wide</option>}
             </select>
           </label>
           <label className="frame-color">
@@ -547,7 +554,7 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
             <input type="color" value={frame.dateColor || "#2f1a12"} onChange={(e) => set({ dateColor: e.target.value })} />
             <small style={{ color: frame.dateColor }}>{printDate()}</small>
           </label>
-          {!instax && (
+          {!selfbooth && (
           <label>
             <span>* Số lượng ảnh được chụp</span>
             <input type="number" inputMode="numeric" min={0} max={40} value={frame.shots || 0}

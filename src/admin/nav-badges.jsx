@@ -21,7 +21,7 @@ export function useAwaitingPayment() {
   return count;
 }
 
-// Máy in cần xem: lỗi, mất kết nối, chương trình in không chạy hoặc Instax sắp hết phim.
+// Máy in cần xem: lỗi, mất kết nối hoặc chương trình in không chạy.
 export function usePrinterIssues() {
   const [issues, setIssues] = useState([]);
   useLiveData("/admin/print-jobs/printers", (rows) => setIssues(printerIssues(Array.isArray(rows) ? rows : [])),

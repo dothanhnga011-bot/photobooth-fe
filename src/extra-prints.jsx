@@ -20,7 +20,7 @@ const RULES = {
 };
 
 // Giá mỗi tờ in thêm: chỉ quản trị viên đặt/sửa, ngay tại đây (không còn trang Cài đặt studio).
-// instax: giá in thêm của phòng Polaroid (tờ 20 × 30 máy DS820; vé Instax cũ cùng giá) — có giá riêng, không theo tờ 10 × 15.
+// instax (tên trường cũ extraInstaxPrice): giá in thêm của phòng Selfbooth (tờ 20 × 30 máy DS820) — có giá riêng, không theo tờ 10 × 15.
 // price chưa có (undefined / null): tiệm chưa đặt giá. startOpen: mở sẵn ô nhập (hộp bán thêm ở quầy
 // mở ngay khi chưa có giá; trang bảng giá chỉ ghi "Chưa đặt").
 export function PriceEditor({ price, onSaved, instax = false, startOpen = !price }) {
@@ -90,13 +90,13 @@ export function PriceEditor({ price, onSaved, instax = false, startOpen = !price
   );
 }
 
-// Bán thêm tờ in tại quầy (10 × 15 cm; vé phòng Polaroid: tờ 20 × 30, vé Instax cũ: tấm Instax): cộng tờ vào vé.
+// Bán thêm tờ in tại quầy (10 × 15 cm; vé phòng Selfbooth: tờ 20 × 30): cộng tờ vào vé.
 export function ExtraPrints({ booking, onClose, onSold, canEditPrice = false }) {
   const { settings = {}, reload } = useStudio();
   const toast = useToast();
   const v = useValidation();
   const instax = isPolaroidSize(booking.printSize);
-  const unit = booking.printSize === "instax" ? "tấm" : "tờ";
+  const unit = "tờ";
   const price = Number(instax ? settings.extraInstaxPrice : settings.extraPrintPrice) || 0;
   // Khách đã chọn thêm bản in trên kiosk: điền sẵn số tờ cần thu.
   const [form, setForm] = useState({

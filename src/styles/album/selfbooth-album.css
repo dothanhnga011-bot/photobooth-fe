@@ -674,13 +674,13 @@
   .sb-album .frame-tabs button.missing:not([aria-selected="true"]) {
     border-style: dashed;
   }
-  .sb-album .frame-editor {
+  .sb-album :is(.frame-editor, .frame-workspace) {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 300px;
     gap: 20px;
     align-items: start;
   }
-  .sb-album .frame-main {
+  .sb-album :is(.frame-main, .frame-preview-panel) {
     display: grid;
     gap: 10px;
     min-width: 0;
@@ -818,6 +818,135 @@
   }
   .sb-album .tool-rows:disabled {
     opacity: 0.45;
+  }
+  .sb-album .tool-rows {
+    display: grid;
+    gap: 10px;
+  }
+  /* Hàng xoay ảnh: nút về 0°, thanh kéo, số độ. */
+  .sb-album .tool-row:has(> b) {
+    grid-template-columns: 34px minmax(0, 1fr) 44px;
+  }
+  .sb-album .tool-row > b {
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  /* Thanh trên của bước ghép: ← tên khung · 1/2 | 2/2 ô */
+  .sb-album .frame-nav {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    margin: 0 0 20px;
+    padding: 0 0 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .sb-album .frame-nav > .icon-button {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--line-strong);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  /* Bước ghép ẩn phần đầu album như Selfbooth (thêm chỗ cho khung) nhưng giữ dòng đếm giờ: hết giờ là tự gửi in. */
+  .sb-album:has(.frame-nav) > .studio-meta {
+    display: grid;
+  }
+  .sb-album:has(.frame-nav) > .studio-meta > :not(.sb-timer) {
+    display: none;
+  }
+  .sb-album .frame-nav strong {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--ink);
+    font-family: "Be Vietnam Pro", system-ui, sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sb-album .frame-nav > span {
+    padding: 6px 9px;
+    border-radius: 7px;
+    background: var(--stone);
+    color: var(--ink);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  /* Danh sách ảnh của một ô (Đổi ảnh / chạm ô trống) */
+  .sb-album .photo-sheet {
+    width: min(100% - 24px, 560px);
+    max-height: 86dvh;
+    overflow: auto;
+    padding: 22px;
+    border-radius: 16px;
+    background: var(--paper);
+  }
+  .sb-album .photo-sheet .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+  .sb-album .photo-sheet h3 {
+    margin: 0;
+    font-family: var(--display);
+    font-size: 24px;
+    font-weight: 600;
+  }
+  .sb-album .photo-sheet .muted {
+    margin: 0 0 10px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .sb-album .sheet-every {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 14px;
+    font-size: 14px;
+  }
+  .sb-album .photo-sheet-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 10px;
+  }
+  .sb-album .photo-sheet-grid button {
+    position: relative;
+    aspect-ratio: 3 / 4;
+    padding: 0;
+    overflow: hidden;
+    border: 2px solid transparent;
+    border-radius: 12px;
+    background: var(--strong);
+    cursor: pointer;
+  }
+  .sb-album .photo-sheet-grid button.active {
+    border-color: var(--wine);
+  }
+  .sb-album .photo-sheet-grid img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  /* Ảnh đang kéo từ dải ảnh lên khung */
+  .sb-album .drag-ghost {
+    position: fixed;
+    z-index: 60;
+    width: 72px;
+    height: 96px;
+    object-fit: cover;
+    border-radius: 8px;
+    box-shadow: 0 10px 24px rgb(59 42 34 / 0.3);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
   }
 
   /* ── 04 Kết quả: tấm Instax trên bệ sứ ─────────────────────────────────── */
@@ -1079,7 +1208,7 @@
     .sb-album .theme-catalog {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-    .sb-album .frame-editor {
+    .sb-album :is(.frame-editor, .frame-workspace) {
       grid-template-columns: minmax(0, 1fr);
     }
   }
@@ -1095,7 +1224,16 @@
       gap: 14px 12px;
     }
     .sb-album .theme-catalog {
-      grid-template-columns: minmax(0, 1fr);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 22px 14px;
+    }
+    .sb-album .theme-big-preview {
+      gap: 6px;
+      padding: 18px 10px;
+    }
+    .sb-album .theme-card-meta {
+      gap: 4px 8px;
+      font-size: 12px;
     }
     .sb-album .studio-actions {
       flex-wrap: wrap;
@@ -1112,8 +1250,26 @@
     .sb-album .fav-count {
       margin-right: 4px;
     }
+    .sb-album .studio-actions.theme-action-bar {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 12px;
+    }
     .sb-album .theme-action-summary {
-      display: none;
+      grid-column: 1 / -1;
+      grid-row: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      text-align: left;
+    }
+    .sb-album .theme-action-summary strong {
+      max-width: 48vw;
+      font-size: 13px;
+    }
+    .sb-album .theme-action-summary small {
+      font-size: 11px;
     }
     .sb-album .studio-actions:not(.gallery-bar) > .button {
       flex: 1 1 0;

@@ -53,7 +53,7 @@ export function SelfboothImport({ onClose, onDone }) {
         </div>
         <p className="muted">
           Khung chép sang dùng cho phòng Selfbooth (in tờ 20 × 30 ở máy DNP DS820, như web Selfbooth), giữ nguyên ảnh,
-          chủ đề và các ô ảnh. Khung đã chép trước đây khổ Instax được chọn sẵn: bấm chép để đổi sang 20 × 30. Sau khi chép vẫn sửa / tắt được ở Khung ảnh.
+          chủ đề và các ô ảnh. Sau khi chép vẫn sửa / tắt được ở Khung ảnh.
         </p>
         <ErrorBox error={error} />
         {!list && !error && (
@@ -74,7 +74,6 @@ export function SelfboothImport({ onClose, onDone }) {
                     <small>
                       {frame.slots} ô ảnh{frame.angled ? " · có ô nghiêng" : ""}
                       {frame.copied && <> · <Check size={12} aria-hidden="true" /> đã chép</>}
-                      {frame.outdated && " · đã chép khổ Instax — chép lại để đổi sang 20 × 30"}
                     </small>
                   </label>
                 ))}

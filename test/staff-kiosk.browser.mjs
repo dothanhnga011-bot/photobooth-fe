@@ -202,13 +202,15 @@ before(async () => {
         send([]);
         return;
       }
-      // Print agent cạnh máy Instax đã báo về: còn 2 tấm phim.
+      // Print agent chung của chi nhánh đã báo về; máy DS820 của phòng Selfbooth sẵn sàng.
       if (path === "/api/admin/print-jobs/printers") {
         send(printerRows || [{ branch: "Chi nhánh Nguyễn Trãi", at: new Date().toISOString(),
-          instax: { ready: true, film: 2, battery: 70, charging: false, message: "" },
-          agent: { running: true, at: new Date().toISOString(), printSizes: ["full", "instax", "strip"] } },
+          agent: { running: true, at: new Date().toISOString(), printSizes: ["full", "strip"] } },
+        { branch: "Chi nhánh Nguyễn Trãi", room: "room-sb", roomName: "Phòng Selfbooth", at: null,
+          agent: { running: true, at: new Date().toISOString(), printSizes: ["large"] },
+          dnp: { ready: true, state: "Sẵn sàng", jobs: 0, cut: "none", printer: "DNP DS820", stripPrinter: "", at: new Date().toISOString() } },
         // Máy DNP của Phòng 01 (chương trình in trên mini PC của phòng): máy in đang tắt, 1 tờ chờ.
-        { branch: "Chi nhánh Nguyễn Trãi", room: "room-1", roomName: "Phòng 01", at: null, instax: null,
+        { branch: "Chi nhánh Nguyễn Trãi", room: "room-1", roomName: "Phòng 01", at: null,
           agent: { running: true, at: new Date().toISOString(), printSizes: ["full", "strip"] },
           dnp: { ready: false, state: "Mất kết nối (máy in tắt hoặc rút cáp USB)", jobs: 1, cut: "queue",
             printer: "DS-RX1", stripPrinter: "DS-RX1 - cat doi 2x6", at: new Date().toISOString() } }]);
@@ -640,8 +642,9 @@ test("admin keeps inactive rooms, create/edit/deactivate controls, and room edit
   await openRooms();
   assert.equal(await page.getByRole("row").count(), 4);
   const printers = await page.getByRole("region", { name: "Máy in" }).innerText();
-  assert.match(printers, /Chi nhánh Nguyễn Trãi · Chương trình in tự động đang chạy \(DNP \+ Instax\)/);
-  assert.match(printers, /Máy Instax Link WIDE · Sắp hết phim — chuẩn bị hộp phim mới · còn 2 tấm phim · pin 70%/);
+  assert.match(printers, /Chi nhánh Nguyễn Trãi · Chương trình in tự động đang chạy \(DNP\)/);
+  assert.match(printers, /Phòng Selfbooth · Máy in DNP DS820 \(tờ 20 × 30\) sẵn sàng/);
+  assert.doesNotMatch(printers, /Instax/, "no Instax printer any more");
   assert.match(printers, /Phòng 01 · Máy in DNP Mất kết nối \(máy in tắt hoặc rút cáp USB\) · 1 tờ đang chờ in · tờ nhỏ in qua hàng in cắt đôi 2 inch/);
   assert.equal(
     await page.getByRole("button", { name: "Thêm mới", exact: true }).count(),
@@ -779,7 +782,7 @@ test("admin sidebar: one line per page, one icon column, 44 px rows, plain group
 });
 
 test("sidebar badges: orders waiting for payment on Đơn hàng, a red dot on Quản lý máy when a printer needs a look", async () => {
-  // Mẫu máy in mặc định: DNP Phòng 01 mất kết nối, Instax còn 2 tấm phim.
+  // Mẫu máy in mặc định: DNP Phòng 01 mất kết nối, DS820 phòng Selfbooth sẵn sàng.
   await mount("staff", 1440, defaultStaffPermissions, { awaiting: 3 });
   const nav = page.getByRole("navigation", { name: "Quản lý studio" });
   const orders = nav.getByRole("button", { name: "Đơn hàng", exact: true });
@@ -790,7 +793,7 @@ test("sidebar badges: orders waiting for payment on Đơn hàng, a red dot on Qu
   assert.equal(await orders.getAttribute("title"), "3 đơn chờ thu tiền");
   await machines.locator(".nav-dot").waitFor();
   assert.deepEqual((await machines.getAttribute("title")).split("\n"),
-    ["2 máy in cần xem:", "Máy Instax: sắp hết phim", "Phòng 01: máy in DNP chưa sẵn sàng"]);
+    ["1 máy in cần xem:", "Phòng 01: máy in DNP chưa sẵn sàng"]);
   await mkdir(screenshots, { recursive: true });
   await page.locator(".admin-sidebar").screenshot({ path: join(screenshots, "sidebar-badges-1440.png") });
   // Vừa xác nhận đã thu ở quầy: số cập nhật ngay, không đợi lần làm mới 30 giây.
@@ -802,9 +805,8 @@ test("sidebar badges: orders waiting for payment on Đơn hàng, a red dot on Qu
   // Mọi máy in ổn, không đơn nào chờ thu: không số, không chấm.
   const now = new Date().toISOString();
   await mount("staff", 1440, defaultStaffPermissions, { printers: [
-    { branch: "Chi nhánh Nguyễn Trãi", at: now, instax: { ready: true, film: 8, battery: 90, charging: false, message: "" },
-      agent: { running: true, at: now, printSizes: ["instax"] } },
-    { branch: "Chi nhánh Nguyễn Trãi", room: "room-1", roomName: "Phòng 01", at: null, instax: null,
+    { branch: "Chi nhánh Nguyễn Trãi", at: now, agent: { running: true, at: now, printSizes: ["full", "strip"] } },
+    { branch: "Chi nhánh Nguyễn Trãi", room: "room-1", roomName: "Phòng 01", at: null,
       agent: { running: true, at: now, printSizes: ["full"] }, dnp: { ready: true, state: "Sẵn sàng", jobs: 0, at: now } },
   ] });
   const asked = (path) => requests.some((entry) => entry.path === path);

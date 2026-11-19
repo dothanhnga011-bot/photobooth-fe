@@ -100,7 +100,7 @@ export function ResourceEditor({
     onChange(catalog ? polaroidPackage(next) : next);
     form.clear(key);
   };
-  // Gói phòng Polaroid tính theo thời gian như Selfbooth: tên, giá, số phút, số tờ 20 × 30 (gói cũ: tấm Instax).
+  // Gói phòng Selfbooth tính theo thời gian như web Selfbooth: tên, giá, số phút, số tờ 20 × 30.
   const unit = polaroidUnit(edit.printSize);
   const pieces = Math.max(INSTAX_SHEETS, Number(edit.prints) || 0);
   const POLAROID_LABELS = {
@@ -160,15 +160,9 @@ export function ResourceEditor({
             onChange={(event) => update(key, event.target.value)}
           />
         ) : type === "printSize" ? (
-          // Gói phòng Photobooth chỉ đổi giữa khổ to / khổ nhỏ; gói Polaroid in tờ 20 × 30 máy DS820 (gói Instax
-          // cũ đổi được sang 20 × 30, không đổi ngược lại).
-          edit.printSize === "large" ? (
+          // Gói phòng Photobooth chỉ đổi giữa khổ to / khổ nhỏ; gói Selfbooth luôn in tờ 20 × 30 máy DS820.
+          isPolaroid(edit) ? (
             <span className="resource-field-fixed">Selfbooth — in tờ 20 × 30 cm (máy DNP DS820 của phòng)</span>
-          ) : edit.printSize === "instax" ? (
-            <select name={key} value="instax" onChange={(event) => update(key, event.target.value)}>
-              <option value="instax">Instax Wide (gói cũ, máy Instax Link WIDE)</option>
-              <option value="large">Đổi sang tờ 20 × 30 cm · máy DNP DS820</option>
-            </select>
           ) : (
             <select
               name={key}

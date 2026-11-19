@@ -39,7 +39,6 @@ const fixture = `
   const packs = [
     { _id: 'strip', name: 'Gói 70k · 2 ảnh nhỏ', printSize: 'strip', price: 70000, prints: 1, shots: 12 },
     { _id: 'full', name: 'Gói 100k · 2 ảnh lớn', printSize: 'full', price: 100000, prints: 2, shots: 16 },
-    { _id: 'instax', name: 'Gói Instax', printSize: 'instax', price: 120000, prints: 2, shots: 10 },
   ];
   const settings = { name: 'Mellow', kiosk: { idleImage: picture(400, 500, ['#d9a38f', '#8a6450']) } };
   const screen = new URLSearchParams(location.search).get('screen');
@@ -81,7 +80,7 @@ const fixture = `
       case 'method': return <KioskPayChoice onCode={none} onCash={none} onBack={none} />;
       case 'code': return <KioskCode code={code} setCode={setCode} onSubmit={(e) => e.preventDefault()} onBack={none}
         busy={false} error="" device="fixture-device" cameraReady={true} />;
-      case 'size': return <KioskPackages packages={packs} instax={{ ready: true }} onPick={none} onCode={none} onBack={none} />;
+      case 'size': return <KioskPackages packages={packs} onPick={none} onCode={none} onBack={none} />;
       case 'print': return <KioskPrintCount pack={packs[0]} sheets={sheets} extraPrintPrice={20000} onChange={setSheets} onNext={none} onBack={none} />;
       case 'pay': return <KioskPayment pack={packs[0]} total={70000} sheets={1} bills={[]} onBill={none} onPaid={none} onSkip={none}
         onBack={none} onIdle={none} testMode={false} busy={false} error="" cameraReady={true} cashReady={false} />;
@@ -92,9 +91,6 @@ const fixture = `
       case 'ptb-shoot': return <Shoot />;
       case 'studio-done': return <KioskDone left={90} pending={0} nextGuest={none} done={{
         url: 'https://mellowptb.com/album/fixture', code: '123456', photos: 12, prints: 1, printSize: 'large', studio: true }} />;
-      case 'polaroid-done': return <KioskDone left={90} pending={0} nextGuest={none} done={{
-        composite: picture(1800, 1200, ['#c98f7a', '#8fb3c9']), url: 'https://mellowptb.com/album/fixture',
-        code: '123456', prints: 1, print: { status: 'printing' }, printSize: 'instax', framed: true }} />;
       case 'done': return <KioskDone left={90} pending={0} nextGuest={none} done={{
         composite: picture(1200, 1800, ['#f07aa0', '#dc1e1e', '#f07aa0', '#dc1e1e']), url: 'https://mellowptb.com/album/fixture',
         code: '123456', prints: 2, print: { status: 'printing' }, printSize: 'strip', framed: true, video: null, videoPending: true }} />;
@@ -304,15 +300,6 @@ test("Selfbooth with external HDMI, portrait: large latest JPEG and compact cont
   assert.ok(m.stage.minHeight > 1500, JSON.stringify(m.stage));
   assert.ok(m.latest.minHeight >= 600, JSON.stringify(m.latest));
   assert.ok(m.end.minHeight >= 56, `nút Chụp xong cao ${m.end.minHeight} px`);
-});
-
-test("polaroid QR screen, landscape: no video, so the composite and the QR code fill the screen", async () => {
-  const m = await portrait("polaroid-done", { qr: ".done-qr svg", photo: ".done-card img", cards: ".done-card", foot: FOOT },
-    { width: 1920, height: 1080 });
-  assert.equal(m.pageScrolls, false);
-  assert.deepEqual([m.cards.count, m.cards.rows], [2, 1]);
-  assert.ok(m.qr.minWidth >= 440, `mã QR rộng ${m.qr.minWidth} px`);
-  assert.ok(m.photo.minWidth >= 560, `ảnh ghép rộng ${m.photo.minWidth} px`);
 });
 
 test("Selfbooth room QR screen: one big QR to choose, beautify and print on the phone, on both screen shapes", async () => {

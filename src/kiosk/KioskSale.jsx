@@ -17,7 +17,6 @@ import { useKioskText } from "./use-kiosk-text.js";
 import {
   extraSheets,
   includedSheets,
-  isInstax,
   isStrip,
   MIN_PIECES,
   minSheets,
@@ -116,13 +115,11 @@ export function KioskCode({ code, setCode, onSubmit, onBack, busy, error, device
 }
 
 // Chọn khổ ảnh từ những gói thật trong Bảng giá, giữ đúng giá đã cấu hình. Khách đã chuyển khoản
-// ở quầy vẫn nhập được mã (nút phụ), ví dụ khi máy đọc tiền đang hỏng. Khổ Instax khóa khi máy
-// Instax chưa sẵn sàng (instax: tình trạng máy in máy chủ báo về).
-export function KioskPackages({ packages, instax, onPick, onCode, onBack }) {
+// ở quầy vẫn nhập được mã (nút phụ), ví dụ khi máy đọc tiền đang hỏng.
+export function KioskPackages({ packages, onPick, onCode, onBack }) {
   const t = useKioskText();
   const [selectedId, setSelectedId] = useState("");
-  const blocked = (pack) => isInstax(pack) && !instax?.ready;
-  const selected = packages.find((pack) => pack._id === selectedId && !blocked(pack));
+  const selected = packages.find((pack) => pack._id === selectedId);
   return (
     <section className="kiosk-flow package-screen size-screen">
       <header className="flow-head">
@@ -137,19 +134,13 @@ export function KioskPackages({ packages, instax, onPick, onCode, onBack }) {
             key={pack._id}
             className={`kiosk-size ${printSizeOf(pack)} ${selectedId === pack._id ? "active" : ""}`}
             aria-pressed={selectedId === pack._id}
-            disabled={blocked(pack)}
             onClick={() => setSelectedId(pack._id)}
           >
-            <span className="kiosk-size-art" aria-hidden="true">{isInstax(pack) ? <i /> : <><i /><i /></>}</span>
+            <span className="kiosk-size-art" aria-hidden="true"><i /><i /></span>
             <strong>{pack.name}</strong>
             <small>{pack.shots} lần chụp · kèm {piecesLabel(pack, includedSheets(pack))}</small>
             <b>{money(pack.price)}</b>
             {pack.description && <small>{pack.description}</small>}
-            {blocked(pack) && (
-              <em className="kiosk-size-off">
-                {(instax?.message || "Máy in Instax chưa sẵn sàng").replace(/\.$/, "")} — nhờ nhân viên hỗ trợ.
-              </em>
-            )}
           </button>
         ))}
         {!packages.length && <p className="soft-note">Chưa có gói chụp cho máy này. Nhờ nhân viên kiểm tra mục Khổ ảnh & bảng giá.</p>}
@@ -171,16 +162,13 @@ export function KioskPackages({ packages, instax, onPick, onCode, onBack }) {
   );
 }
 
-// Khách đếm theo tờ cầm trên tay (khổ nhỏ: 1 tờ 10 × 15 cắt đôi = 2 tờ nhỏ; Instax: mỗi tấm một
-// thẻ), tối thiểu 2. Giá gói đã gồm số tờ của gói; chỉ tờ in thêm mới cộng vào tổng tiền.
-// film: số tấm phim máy Instax còn — không bán quá số phim.
+// Khách đếm theo tờ cầm trên tay (khổ nhỏ: 1 tờ 10 × 15 cắt đôi = 2 tờ nhỏ; khổ to: mỗi tờ là một
+// tờ), tối thiểu 2. Giá gói đã gồm số tờ của gói; chỉ tờ in thêm mới cộng vào tổng tiền.
 const PRINT_NOTES = {
   strip: "ảnh nhỏ: 1 tờ 10 × 15 cm cắt đôi thành 2 tờ",
   full: "ảnh lớn 10 × 15 cm nguyên tờ",
-  instax: "ảnh Instax Wide (thẻ 8,6 × 10,8 cm) in ngay ở máy cạnh bạn",
-  large: "ảnh 20 × 30 cm in ở máy DNP DS820",
 };
-export function KioskPrintCount({ pack, sheets, extraPrintPrice, film = null, onChange, onNext, onBack }) {
+export function KioskPrintCount({ pack, sheets, extraPrintPrice, onChange, onNext, onBack }) {
   const t = useKioskText();
   const strip = isStrip(pack);
   const perSheet = piecesPerSheet(pack);
@@ -188,8 +176,7 @@ export function KioskPrintCount({ pack, sheets, extraPrintPrice, film = null, on
   const extra = extraSheets(pack, sheets);
   const canAdd = Number.isFinite(extraPrintPrice) && extraPrintPrice >= 0;
   const unit = pieceUnit(pack);
-  const word = isInstax(pack) ? "tấm" : "tờ";
-  const outOfFilm = isInstax(pack) && Number.isInteger(film) && sheets >= film;
+  const word = "tờ";
   return (
     <section className="kiosk-flow print-screen">
       <header className="flow-head">
@@ -203,13 +190,12 @@ export function KioskPrintCount({ pack, sheets, extraPrintPrice, film = null, on
         <div className="kiosk-counter" role="group" aria-label="Số bản in">
           <button type="button" aria-label="Giảm số bản in" disabled={sheets <= least} onClick={() => onChange(sheets - 1)}><PiMinusBold /></button>
           <output aria-live="polite">{sheets * perSheet}</output>
-          <button type="button" aria-label="Tăng số bản in" disabled={!canAdd || extra >= 20 || outOfFilm} onClick={() => onChange(sheets + 1)}><PiPlusBold /></button>
+          <button type="button" aria-label="Tăng số bản in" disabled={!canAdd || extra >= 20} onClick={() => onChange(sheets + 1)}><PiPlusBold /></button>
         </div>
         <p className="print-unit">
           {unit}
           <small>Gợi ý: mỗi người một {word} — đi mấy người thì chọn bấy nhiêu {word}.</small>
           {strip && <small>{sheets} tờ 10 × 15 cm cắt đôi · mỗi lần bấm + thêm 2 tờ nhỏ</small>}
-          {outOfFilm && <small>Máy Instax còn {film} tấm phim — chọn tối đa {film} tấm.</small>}
         </p>
         <div className="kiosk-price">
           <span>Tổng tiền</span>

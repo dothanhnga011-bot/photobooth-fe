@@ -49,7 +49,7 @@ export function PrintAlerts() {
       toast.info(text, 8000);
       notify("NXC — Lệnh in mới", text);
     };
-    // Print agent báo in lỗi (hết phim Instax, máy in mất kết nối…): lễ tân xử lý rồi bấm In lại.
+    // Print agent báo in lỗi (hết giấy, máy in mất kết nối…): lễ tân xử lý rồi bấm In lại.
     const onFailed = (e) => {
       const job = JSON.parse(e.data);
       const text = `Lệnh in vé #${job.code} chưa in được: ${job.spoolMessage || "máy in không nhận lệnh"}`;

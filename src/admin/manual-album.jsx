@@ -12,7 +12,7 @@ import "./manual-album.css";
 export function ManualAlbum({ booking, onClose, onPrinted }) {
   const toast = useToast();
   const { frames = [] } = useStudio();
-  // Vé phòng Polaroid (tờ 20 × 30 máy DS820 / Instax cũ): ghép để tải file, không in qua RX1.
+  // Vé phòng Selfbooth (tờ 20 × 30 máy DS820): ghép để tải file, không in qua RX1.
   const polaroid = isPolaroidSize(booking.printSize);
   const available = useMemo(() => frames.filter(f => f.active !== false && (f.printSize || "full") === (booking.printSize || "full") && photoLayout(f).slots.length), [frames, booking.printSize]);
   const [frameId, setFrameId] = useState(available[0]?._id || "");
@@ -123,7 +123,6 @@ export function ManualAlbum({ booking, onClose, onPrinted }) {
       {!polaroid && <><p className="soft-note">PNG 2400 × 3600 px (hoặc ngang), lấy từ ảnh gốc. Độ nét phụ thuộc nguồn ảnh và khung; bộ in chọn DPI cao nhất driver hỗ trợ.</p>
         <label>Số bộ in<select aria-label="Số bộ in" value={copies} disabled={locked} onChange={(event) => setCopies(Number(event.target.value))}>{Array.from({ length: 20 }, (_, i) => i + 1).map((value) => <option key={value} value={value}>{value}</option>)}</select></label></>}
       <div className="order-print-actions"><Button className="outline" disabled={busy} onClick={onClose}>Quay lại</Button>{sheet && <a className="button outline" href={sheet} download={`NXC-${booking.code}-in.${polaroid ? "jpg" : "png"}`}>Tải file in</a>}<Button disabled={!sheet || rendering || busy || polaroid} onClick={printLocal}>{busy ? "Đang xử lý…" : archivePending ? "Lưu kết quả in" : "In qua RX1 & lưu file"}</Button></div>
-      {booking.printSize === "instax" && <p>Khổ Instax: tải file và in bằng phần mềm dành cho máy Instax.</p>}
       {booking.printSize === "large" && <p>Tờ 20 × 30 (JPEG 2400 × 3600): tải file và in ở máy DNP DS820 của phòng Selfbooth, hoặc để khách bấm Gửi in trên điện thoại.</p>}
     </section>
   </div>;

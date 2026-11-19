@@ -56,7 +56,6 @@ import {
   frameNeed,
   printSheets,
   queueKioskComposite,
-  queueKioskPrint,
   directKioskPrint,
   printPhotoRegions,
   renderPrintFrame,
@@ -76,7 +75,7 @@ import { KioskSelect, useShotBitmaps } from "./KioskSelect.jsx";
 import { KioskFrames } from './KioskFrames.jsx';
 import { NO_DECOR, filterChoices, filterStepsFor, photoFilterId } from "./decor.js";
 import { KioskCode, KioskPackages, KioskPayChoice, KioskPayment, KioskPrintCount } from "./KioskSale.jsx";
-import { extraPriceFor, isInstax, isPolaroid, minSheets, saleTotal } from "./print-count.js";
+import { extraPriceFor, isPolaroid, minSheets, saleTotal } from "./print-count.js";
 
 // Các chỗ báo lỗi mạng ở màn chụp: mỗi lần mất kết nối chỉ báo một lần, có mạng lại thì xoá.
 const NET_SLOTS = ["poll", "sync", "start", "finish"];
@@ -681,8 +680,6 @@ export function Kiosk() {
     () => packages.filter((p) => !p.branches?.length || p.branches.includes(roomInfo?.branch)),
     [packages, roomInfo?.branch],
   );
-  // Máy Instax cạnh máy chụp (print agent báo về qua máy chủ): khổ Instax chỉ bán khi sẵn sàng.
-  const instax = roomInfo?.printers?.instax || null;
   // Số tờ 10 × 15 khách mua (khổ nhỏ: 1 tờ = 2 tờ nhỏ), không dưới mức tối thiểu của gói.
   const sheetsOf = (s) => Math.max(minSheets(s.pack), Number(s.prints) || 0);
   const saleSheets = sale?.pack ? sheetsOf(sale) : 0;
@@ -1117,7 +1114,7 @@ export function Kiosk() {
     try {
       // Ask for local-device access while the customer is still at the print button.
       // Do not move to the QR screen or start expensive rendering with a disconnected printer.
-      if (Number(s.booking.prints) > 0 && s.booking.printSize !== "instax")
+      if (Number(s.booking.prints) > 0)
         await checkDirectPrinter();
       let composite = "";
       const albumLink = `${window.location.origin}/album/${s.accessToken}`;
@@ -1161,26 +1158,26 @@ export function Kiosk() {
           try {
             if (printsCount) {
               // QR-only sessions need only the guest composite, with no spare RX1 render.
-              const printScale = s.booking.printSize !== "instax" ? 2 : 1;
+              const printScale = 2;
               printFrame = await renderPrintFrame(frame, chosenShots, s.accessToken, albumLink, {
-                ...look, scale: printScale, strict: s.booking.printSize !== "instax",
+                ...look, scale: printScale, strict: true,
                 // Tờ DNP: Lanczos3 một lần từ ảnh gốc vào ô (nét hơn rõ ở tóc, mi mắt, chữ trên khung).
-                sharp: s.booking.printSize !== "instax",
+                sharp: true,
               });
               const images = await printSheets(printFrame, frame, printsCount, s.booking.printSize, printScale);
               // Ô ảnh trên tờ (máy DNP): bộ in làm nét đủ phần ảnh, chữ / khung một nửa.
-              const photos = s.booking.printSize !== "instax" ? printPhotoRegions(frame, printFrame) : [];
+              const photos = printPhotoRegions(frame, printFrame);
               // Retain encoded bytes, not two large canvases. Printing/spooling can run while the
               // guest composite is rendered, so a slow RX1 never holds the album back.
               printFrame.width = printFrame.height = 0;
               printFrame = null;
-              printing = (s.booking.printSize !== "instax" ? directKioskPrint : queueKioskPrint)({
+              printing = directKioskPrint({
                 token: s.accessToken,
                 images,
                 frameName,
                 // Khung nhỏ → máy cắt đôi; khung lớn → nguyên tờ (kể cả khi gói ảnh nhỏ chưa có khung
-                // nhỏ nên dùng khung lớn). Instax: máy in riêng, theo gói.
-                printSize: s.booking.printSize === "instax" ? undefined : frame.printSize === "strip" ? "strip" : "full",
+                // nhỏ nên dùng khung lớn).
+                printSize: frame.printSize === "strip" ? "strip" : "full",
                 photos,
               }, { archiveAfter: albumQueued }).catch((e) => setPrint({ status: "failed", message: e.message }));
             }
@@ -1542,7 +1539,6 @@ export function Kiosk() {
     return (
       <KioskPackages
         packages={boothPackages}
-        instax={instax}
         onPick={(pack) => {
           if (!checkFolder()) return;
           setSale({ pack, prints: minSheets(pack), extraPrintPrice: extraPriceFor(pack, settings), stage: "print", requestKey: crypto.randomUUID(), bills: [] });
@@ -1557,7 +1553,6 @@ export function Kiosk() {
         pack={sale.pack}
         sheets={saleSheets}
         extraPrintPrice={sale.extraPrintPrice}
-        film={isInstax(sale.pack) ? instax?.film ?? null : null}
         onChange={(prints) => setSale({ ...sale, prints })}
         onNext={() => {
           setSale({ ...sale, stage: "pay" });

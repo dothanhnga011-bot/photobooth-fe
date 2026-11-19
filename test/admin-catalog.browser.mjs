@@ -543,42 +543,6 @@ test("packages are grouped by photo size; a small-size package starts with one s
   assertClean();
 });
 
-test("Polaroid trial frames: two Mellow 20 × 30 frames (1 and 2 photos, print date) are made once for testing the Selfbooth room", async () => {
-  await mount("packages");
-  await page.getByRole("tab", { name: /Selfbooth/ }).click();
-  page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Tạo 2 khung thử" }).click();
-  await page.waitForFunction(() => window.notifications.length === 1);
-  const made = mutations();
-  assert.deepEqual(made.map((m) => `${m.method} ${m.path}`), Array(2).fill("POST /api/admin/frames"));
-  const frames = made.map((m) => m.body);
-  const kinds = (f, kind) => f.slots.filter((s) => s.kind === kind).length;
-  assert.deepEqual(frames.map((f) => [f.name, f.printSize, f.themeName, f.active, f.order, kinds(f, "photo"), kinds(f, "date")]), [
-    ["Khung thử Mellow · 1 ảnh", "large", "", true, 0, 1, 1],
-    ["Khung thử Mellow · 2 ảnh", "large", "", true, 0, 2, 1],
-  ]);
-  for (const f of frames) {
-    for (const s of f.slots) assert.ok(s.x >= 0 && s.y >= 0 && s.x + s.w <= 1 && s.y + s.h <= 1, `${f.name}: region inside the card`);
-    // Ô ảnh dọc (máy phòng Selfbooth chụp dọc) trên tờ 20 × 30 ngang (3 : 2).
-    for (const s of f.slots.filter((r) => r.kind === "photo")) assert.ok(s.h * 1200 > s.w * 1800 * 0.95);
-    const size = await page.evaluate((src) => new Promise((resolve) => {
-      const image = new Image();
-      image.onload = () => resolve([image.naturalWidth, image.naturalHeight]);
-      image.src = src;
-    }), f.image);
-    assert.deepEqual(size, [3600, 2400], "a 20 × 30 sheet at 300 dpi");
-  }
-  assert.deepEqual(await notifications(), ["Đã tạo 2 khung thử: Khung thử Mellow · 1 ảnh, Khung thử Mellow · 2 ảnh."]);
-  // Bấm lại: khung thử đã có, không tạo thêm.
-  requests = [];
-  page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Tạo 2 khung thử" }).click();
-  await page.waitForFunction(() => window.notifications.length === 2);
-  assert.deepEqual(mutations(), []);
-  assert.equal((await notifications())[1], "Đã có đủ khung thử — không tạo thêm.");
-  assert.deepEqual(pageErrors, []);
-});
-
 test("Polaroid packages are timed like Selfbooth: minutes and 20 × 30 sheets, unlimited shots, no layouts", async () => {
   await mount("packages");
   await page.getByRole("tab", { name: /Selfbooth/ }).click();
@@ -588,6 +552,7 @@ test("Polaroid packages are timed like Selfbooth: minutes and 20 × 30 sheets, u
   assert.match(await page.locator(".extra-price-panel").innerText(), /mỗi tờ 20 × 30/i);
   // 2 layout cũ (1 ảnh · 3 phút, 2 ảnh · 5 phút) đã bỏ.
   assert.equal(await page.getByRole("button", { name: "Tạo 2 layout mẫu" }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Tạo 2 khung thử" }).count(), 0, "no Polaroid trial frames any more");
   await group.getByRole("button", { name: "Thêm gói Selfbooth" }).click();
   const dialog = page.getByRole("dialog");
   assert.equal(await dialog.locator('select[name="printSize"]').count(), 0);
@@ -627,7 +592,8 @@ test("Polaroid packages are timed like Selfbooth: minutes and 20 × 30 sheets, u
   assertClean();
 });
 
-test("a 20 × 30 frame joins a Polaroid (Selfbooth) theme like any frame; no layout picker; no new Instax frames", async () => {
+// 19/11 chủ tiệm: "admin ghép khung như Selfbooth" — khung phòng Selfbooth (20 × 30) dùng hộp ghép khung của web Selfbooth.
+test("a Selfbooth 20 × 30 frame is composed like the Selfbooth admin: detect, rotate a slot, save numbered photo slots", async () => {
   await mount("frames", {
     themes: [
       ...structuredClone(themeFixtures),
@@ -637,13 +603,39 @@ test("a 20 × 30 frame joins a Polaroid (Selfbooth) theme like any frame; no lay
   await page.getByRole("button", { name: /Thêm mới frame/ }).click();
   assert.equal(await page.getByRole("menuitem", { name: /Size Instax/ }).count(), 0, "Instax frames are not added any more");
   await page.getByRole("menuitem", { name: /Size 20 × 30/ }).click();
-  await page.getByText(/size 2400 × 3600 hoặc 3600 × 2400/).waitFor();
-  assert.equal(await page.getByRole("radiogroup", { name: "Layout Polaroid" }).count(), 0);
-  const theme = page.getByLabel("* Chủ đề");
-  // Chỉ chủ đề của phòng Polaroid; chủ đề Photobooth (Hoa, Mùa hè) không gán được cho khung 20 × 30.
-  assert.deepEqual(await theme.locator("option").allTextContents(), ["Khung lẻ (không chủ đề)", "Kawaii", "+ Chủ đề mới…"]);
-  assert.equal(await theme.inputValue(), "Kawaii");
-  await page.getByText(/khách chọn cả bộ khung cùng chủ đề trên điện thoại/).waitFor();
+  const dialog = page.getByRole("dialog", { name: "Thêm khung ảnh" });
+  await dialog.getByText("Đặt tên, gom chủ đề và kiểm tra các ô đặt ảnh.").waitFor();
+  assert.equal(await dialog.getByLabel("Kích thước khung").inputValue(), "large");
+  await dialog.getByLabel("Tên khung").fill("Kawaii 01");
+  assert.equal(await dialog.getByLabel("Tên bộ chủ đề (cùng tên để gom chung)").inputValue(), "Kawaii");
+  // Ảnh khung 20 × 30 với 2 ô trong suốt: tự nhận diện 2 ô ảnh như Selfbooth.
+  const png = await page.evaluate(() => {
+    const c = document.createElement("canvas"); c.width = 400; c.height = 600;
+    const ctx = c.getContext("2d"); ctx.fillStyle = "#e7a1b0"; ctx.fillRect(0, 0, 400, 600);
+    ctx.clearRect(40, 40, 320, 230); ctx.clearRect(40, 320, 320, 230);
+    return c.toDataURL("image/png").split(",")[1];
+  });
+  await dialog.getByLabel("Chọn file ảnh khung").setInputFiles({ name: "kawaii.png", mimeType: "image/png", buffer: Buffer.from(png, "base64") });
+  await dialog.getByRole("button", { name: "Ô ảnh 2", exact: true }).waitFor();
+  assert.match(await dialog.locator(".frame-drop-meta").innerText(), /2 ô ảnh/);
+  for (const name of ["Tự nhận diện", "Thay ảnh", "Hoàn tác", "Chọn / chỉnh ô", "Vẽ vùng ảnh"])
+    await dialog.getByRole("button", { name, exact: true }).waitFor();
+  // Chọn ô 1 rồi xoay -8° bằng ô số (như ô nghiêng của khung Selfbooth).
+  await dialog.getByRole("button", { name: "Ô ảnh 1", exact: true }).click();
+  const angle = dialog.getByLabel("Góc xoay ô (°)");
+  await angle.fill("-8");
+  await angle.press("Enter");
+  await dialog.getByRole("button", { name: "Kéo để xoay ô 1" }).waitFor();
+  await mkdir(screenshotDirectory, { recursive: true });
+  await page.screenshot({ path: join(screenshotDirectory, "frames-selfbooth-editor-1440.png") });
+  await dialog.getByRole("button", { name: "Lưu thay đổi" }).click();
+  await dialog.waitFor({ state: "hidden" });
+  const saved = mutations().find((m) => m.method === "POST" && m.path === "/api/admin/frames").body;
+  assert.equal(saved.printSize, "large");
+  assert.equal(saved.name, "Kawaii 01");
+  assert.equal(saved.themeName, "Kawaii");
+  assert.match(saved.image, /^data:image\/png;base64,/);
+  assert.deepEqual(saved.slots.map((s) => [s.kind, s.photo, s.angle ?? 0]), [["photo", 1, -8], ["photo", 2, 0]]);
   assertClean();
 });
 
@@ -652,8 +644,6 @@ test("Khung ảnh copies frames from the Selfbooth site: pick by theme, already 
     { id: "sb-1", name: "khung 1", themeName: "khung 1", printSize: "full", slots: 18, angled: true, preview: frameImage("#e9d7c4", "1"), copied: false },
     { id: "sb-2", name: "khung 1 II", themeName: "khung 1", printSize: "full", slots: 20, angled: false, preview: frameImage("#d9c1ab", "2"), copied: false },
     { id: "sb-3", name: "khung 3", themeName: "khung 3", printSize: "full", slots: 21, angled: true, preview: frameImage("#f0d9d9", "3"), copied: true },
-    // Chép trước 14/11 khổ Instax: chọn sẵn để chép lại (đổi sang tờ 20 × 30).
-    { id: "sb-4", name: "khung 4", themeName: "khung 3", printSize: "full", slots: 17, angled: true, preview: frameImage("#e0c9d9", "4"), copied: false, outdated: true },
   ] });
   await page.getByRole("button", { name: "Chép khung từ Selfbooth" }).click();
   const dialog = page.getByRole("dialog", { name: "Chép khung từ Selfbooth" });
@@ -662,19 +652,17 @@ test("Khung ảnh copies frames from the Selfbooth site: pick by theme, already 
   assert.match(await dialog.innerText(), /18 ô ảnh · có ô nghiêng/);
   const copied = dialog.getByLabel("Chép khung khung 3");
   assert.equal(await copied.isDisabled(), true, "a frame copied before cannot be copied again");
-  assert.equal(await dialog.getByLabel("Chép khung khung 4").isChecked(), true, "an old Instax copy is picked to be turned into 20 × 30");
-  assert.match(await dialog.innerText(), /đã chép khổ Instax — chép lại để đổi sang 20 × 30/);
   // Mặc định chọn sẵn mọi khung chưa chép; bỏ chọn một khung.
   await dialog.getByLabel("Chép khung khung 1 II").uncheck();
   await mkdir(screenshotDirectory, { recursive: true });
   await page.screenshot({ path: join(screenshotDirectory, "frames-selfbooth-import.png") });
-  await dialog.getByRole("button", { name: "Chép 2 khung" }).click();
+  await dialog.getByRole("button", { name: "Chép 1 khung" }).click();
   await dialog.waitFor({ state: "hidden" });
   assert.deepEqual(mutations().map((m) => [m.method, m.path, m.body]), [
-    ["POST", "/api/admin/selfbooth-frames", { ids: ["sb-1", "sb-4"] }],
+    ["POST", "/api/admin/selfbooth-frames", { ids: ["sb-1"] }],
   ]);
   await page.waitForFunction(() => window.notifications.length === 1);
-  assert.deepEqual(await notifications(), ["Đã chép 1 khung từ Selfbooth: khung 1. Đã đổi 1 khung khổ Instax sang tờ 20 × 30: khung 4."]);
+  assert.deepEqual(await notifications(), ["Đã chép 1 khung từ Selfbooth: khung 1."]);
   assertClean();
 });
 

@@ -5,7 +5,7 @@ import { Button, ErrorBox, useStudio, useToast } from "../studio";
 import { TableHeading } from "./table-heading";
 
 
-const SIZES = { full: "10 × 15 cm", strip: "5 × 15 cm", large: "20 × 30 cm", instax: "Instax Wide" };
+const SIZES = { full: "10 × 15 cm", strip: "5 × 15 cm", large: "20 × 30 cm" };
 const searchable = (value) =>
   String(value || "").normalize("NFD").replace(/\p{Diacritic}/gu, "").replace(/đ/gi, "d").toLowerCase();
 

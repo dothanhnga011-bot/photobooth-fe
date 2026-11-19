@@ -252,13 +252,13 @@ test("browser downloads request the guest endpoint and pending originals cannot 
   } finally { await page.close(); }
 });
 
-test("new guest composites render near 20 MP for portrait, landscape, single strips and Instax frames", async () => {
+test("new guest composites render near 20 MP for portrait, landscape, single strips and 20 × 30 frames", async () => {
   const page = await browser.newPage();
   try {
     await page.goto(base);
     const sizes = await page.evaluate(async () => {
       const results = [];
-      for (const [width, height, printSize] of [[2, 3, "full"], [3, 2, "full"], [1, 3, "strip"], [3, 2, "instax"]]) {
+      for (const [width, height, printSize] of [[2, 3, "full"], [3, 2, "full"], [1, 3, "strip"], [3, 2, "large"]]) {
         const background = document.createElement("canvas");
         background.width = width; background.height = height;
         background.getContext("2d").fillRect(0, 0, width, height);
@@ -266,7 +266,8 @@ test("new guest composites render near 20 MP for portrait, landscape, single str
         const guest = await window.renderGuestFrame(frame, [], "token", "", { pixels: 20_000_000, strict: true });
         results.push({ width: guest.width, height: guest.height, ratio: width / height });
         guest.width = guest.height = 0;
-        const print = await window.renderGuestFrame(frame, [], "token", "", { scale: 2 });
+        // Tờ 10 × 15 in ở scale 2 (2400 × 3600 cho RX1); tờ 20 × 30 đã là 2400 × 3600 ở scale 1 (như album Selfbooth).
+        const print = await window.renderGuestFrame(frame, [], "token", "", { scale: printSize === "large" ? 1 : 2 });
         results.at(-1).printPixels = print.width * print.height;
         print.width = print.height = 0;
       }

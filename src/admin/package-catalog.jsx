@@ -19,12 +19,10 @@ const SIZE_GROUPS = [
   ["strip", "Khổ nhỏ", "gói khổ nhỏ", "1 tờ 10 × 15 cm cắt đôi thành 2 tờ nhỏ (5 × 15 cm) · khách in tối thiểu 2 tờ nhỏ"],
   ["full", "Khổ to", "gói khổ to", "Ảnh 10 × 15 cm nguyên tờ · khách in tối thiểu 2 tờ"],
   ["large", "Gói Selfbooth", "gói Selfbooth", "Giá theo số phút chụp, bấm dây không giới hạn, kèm số tờ 20 × 30 (máy DNP DS820). Khách chọn ảnh, bộ khung và gửi in trên điện thoại; trả tiền ở quầy."],
-  ["instax", "Gói Selfbooth cũ · Instax", "gói Instax", "Gói tạo trước 14/11, in thẻ Instax Wide. Mở gói và đổi khổ sang tờ 20 × 30 để in máy DS820. Khách chọn ảnh, bộ khung và gửi in trên điện thoại; trả tiền ở quầy."],
 ];
-const ART = { strip: 2, full: 2, large: 1, instax: 1 };
+const ART = { strip: 2, full: 2, large: 1 };
 
-// sizes: các khổ của loại hình đang xem (Photobooth: khổ nhỏ + khổ to; Polaroid: tờ 20 × 30, gói Instax cũ
-// chỉ hiện khi còn gói).
+// sizes: các khổ của loại hình đang xem (Photobooth: khổ nhỏ + khổ to; Selfbooth: tờ 20 × 30).
 export function PackageCatalog({
   items,
   onEdit,
@@ -50,7 +48,7 @@ export function PackageCatalog({
     <div className={`package-size-groups${groups.length === 1 ? " is-single" : ""}`}>
       {groups.map(([size, title, short, note]) => {
         const group = items.filter((item) => printSizeOf(item) === size);
-        if (!group.length && (filtered || size === "instax")) return null;
+        if (!group.length && filtered) return null;
         const active = group.filter((item) => item.active).length;
         return (
           <section key={size} className="package-size-group" aria-label={title}>
@@ -64,7 +62,7 @@ export function PackageCatalog({
                 </h3>
                 <p>{note}</p>
               </div>
-              {onCreate && size !== "instax" && (
+              {onCreate && (
                 <button
                   type="button"
                   className="package-card-action package-size-add"
@@ -135,10 +133,10 @@ function PackageCards({ items, onEdit, onDeactivate }) {
               <div>
                 <dt>
                   <Printer size={17} aria-hidden="true" />
-                  {isPolaroid(item) ? (item.printSize === "instax" ? "Tấm Instax Wide" : "Tờ in 20 × 30") : "Tờ in 10 × 15"}
+                  {isPolaroid(item) ? "Tờ in 20 × 30" : "Tờ in 10 × 15"}
                 </dt>
                 <dd>
-                  <strong>{isPolaroid(item) ? Math.max(INSTAX_SHEETS, Number(item.prints) || 0) : item.prints ?? 0}</strong> {item.printSize === "instax" ? "tấm" : "tờ"}
+                  <strong>{isPolaroid(item) ? Math.max(INSTAX_SHEETS, Number(item.prints) || 0) : item.prints ?? 0}</strong> {"tờ"}
                   {isStrip(item) && <small> = {piecesLabel(item, includedSheets(item))}</small>}
                 </dd>
               </div>
