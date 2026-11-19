@@ -134,8 +134,9 @@ function adminPage(path) {
     case "/api/admin/themes":
     case "/api/admin/stickers":
     case "/api/admin/users":
-    // Quản lý máy: chưa có chương trình in nào báo về.
+    // Quản lý máy: chưa có chương trình in nào báo về; Hàng chờ in trống.
     case "/api/admin/print-jobs/printers":
+    case "/api/admin/print-jobs":
       return [];
     case "/api/admin/screens":
       return [

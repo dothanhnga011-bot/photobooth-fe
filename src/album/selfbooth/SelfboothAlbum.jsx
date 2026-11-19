@@ -1,8 +1,8 @@
-// Album phòng Selfbooth (in tờ 20 × 30 máy DNP DS820) — giao diện và các bước như album của web Selfbooth
+// Album phòng Selfbooth (in tờ 20 × 30 ở quầy, máy DNP DS820) — giao diện và các bước như album của web Selfbooth
 // (14/11 chủ tiệm yêu cầu "làm theo Selfbooth"): 01 Ảnh (thư viện: thả tim, thêm ảnh từ điện thoại, xoá, tải,
 // chọn nhiều; chạm ảnh để làm đẹp) → 02 Chủ đề (chọn một bộ khung) → 03 Ghép ảnh (mọi khung của bộ: chạm ô,
 // chọn ảnh, kéo để dời, phóng to) → 04 Kết quả (mỗi khung là một tờ 20 × 30; chọn tờ muốn in trong số
-// tờ của vé rồi gửi in tới máy DS820 của phòng — /albums/:token/print-pack).
+// tờ của vé rồi gửi in lên Hàng chờ in của quầy — /albums/:token/print-pack; nhân viên in ra máy DS820).
 // Thời gian do máy chủ đặt từ lần mở đầu (POST /albums/:token/edit-start, cài đặt "Thời gian chọn ảnh", mặc
 // định 250 giây); hết giờ thì tự gửi in những gì đang chọn (chưa chọn bộ khung: bộ đầu tiên, ghép tự động).
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -781,7 +781,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
         <div className="print-confirmation">
           <span className="print-confirmation-check" aria-hidden="true"><PiCheckBold /></span>
           <h2>Đã gửi in!</h2>
-          <p>Ảnh đang in ở máy in DNP DS820 — mỗi tờ 20 × 30 khoảng 1 phút. Lấy ảnh ở khay máy in hoặc nhờ nhân viên giúp bạn.</p>
+          <p>Ảnh đã được gửi tới quầy. Mời bạn ra quầy, đọc mã #{booking.code} để nhận ảnh 20 × 30.</p>
           {result.previews?.length > 0 && (
             <div className="sheet-strip is-done">
               {result.previews.map((src, i) => <img key={i} src={src} alt={`Tấm đã gửi in ${i + 1}`} />)}

@@ -30,11 +30,15 @@ export function usePrinterIssues() {
 }
 
 // Huy hiệu và lời giải thích cho từng mục; mục không có gì cần báo thì không có.
-export function navNotes({ awaiting, issues, storage }) {
+export function navNotes({ awaiting, prints = 0, printBranch, issues, storage }) {
   return {
     bookings: awaiting > 0 && {
       title: `${awaiting} đơn chờ thu tiền`,
       badge: <span className="nav-count nav-alert" aria-hidden="true">{awaiting > 99 ? "99+" : awaiting}</span>,
+    },
+    "print-queue": prints > 0 && {
+      title: `${prints} lệnh in Selfbooth đang chờ in${printBranch ? ` · ${printBranch}` : ''}`,
+      badge: <span className="nav-count nav-alert" aria-hidden="true">{prints > 99 ? "99+" : prints}</span>,
     },
     rooms: issues.length > 0 && {
       title: `${issues.length} máy in cần xem:\n${issues.join("\n")}`,

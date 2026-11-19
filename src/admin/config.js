@@ -13,6 +13,7 @@ import {
   ClipboardList,
   Type,
   Printer,
+  Inbox,
 } from "lucide-react";
 import {
   custom,
@@ -95,6 +96,8 @@ export const NAV_TREE = [
     ["statistics", "Thống kê doanh thu", ChartColumn],
   ]],
   ["bookings", "Đơn hàng", ClipboardList],
+  // Phòng Selfbooth: lệnh in khách gửi từ điện thoại, nhân viên ở quầy bấm In (máy DNP DS820 ở quầy).
+  ["print-queue", "Hàng chờ in", Inbox],
   ["rooms", "Quản lý máy", DoorOpen],
   ["setup-group", "Thiết lập", Settings2, [
     ["screens", "Màn hình chờ", Monitor],
@@ -136,6 +139,7 @@ export const STAFF_PAGES = (user) => [
   "overview",
   ...(can(user, "revenue:view") ? ["statistics"] : []),
   "bookings",
+  "print-queue",
   "storage",
   "rooms",
 ];
@@ -144,6 +148,7 @@ export const NAV_DESCRIPTIONS = {
   overview: "Doanh thu, số đơn so với kỳ trước, xếp hạng chủ đề, gói và máy; tạo mã chụp nhanh cho khách.",
   statistics: "Biểu đồ doanh thu và số đơn theo ngày hoặc tháng, so sánh với kỳ trước.",
   bookings: "Tìm đơn, gửi link ảnh, tải xuống hoặc in lại chỉ trong một màn hình.",
+  "print-queue": "Lệnh in phòng Selfbooth khách gửi từ điện thoại: bấm In 20×30 để in ra máy DNP DS820 ở quầy, nhận ảnh rồi bấm Đã in.",
   storage: "Dung lượng kho ảnh và trợ lí dọn ảnh đã hết hạn để còn chỗ lưu ảnh mới.",
   rooms: "Thông tin máy, chế độ lật ảnh, trạng thái kết nối và liên kết cài máy chụp.",
   screens: "Ảnh và lời mời trên màn hình chờ: cấu hình chung cho mọi máy hoặc riêng từng máy.",
@@ -161,7 +166,7 @@ export const NAV_DESCRIPTIONS = {
 // kết / QR. Đầu ca nhân viên mở máy chụp từng phòng.
 export const ROOM_KINDS = [
   ["photobooth", "Photobooth", "Khách chọn Nhập mã (đã chuyển khoản ở quầy) hoặc Tiền mặt (chọn loại tờ, số lượng rồi đút tiền). Chụp xong chọn ảnh, khung rồi in ở máy DNP."],
-  ["polaroid", "Selfbooth", "Khách trả tiền ở quầy theo gói (số phút, số tờ), nhập mã rồi bấm dây không giới hạn (máy ảnh Fujifilm X-T3). Hết giờ quét QR: chọn ảnh, bộ khung, ghép ảnh và gửi in trên điện thoại — in tờ 20 × 30 ở máy DNP DS820."],
+  ["polaroid", "Selfbooth", "Khách trả tiền ở quầy theo gói (số phút, số tờ), nhập mã rồi bấm dây không giới hạn (máy ảnh Fujifilm X-T3 / X-S10 / X-S20). Hết giờ quét QR: chọn ảnh, bộ khung, ghép ảnh và gửi in trên điện thoại — lệnh in lên Hàng chờ in, nhân viên ở quầy in tờ 20 × 30 (máy DNP DS820)."],
 ];
 export const ROOM_KIND_NAMES = { photobooth: "Phòng Photobooth", polaroid: "Phòng Selfbooth" };
 

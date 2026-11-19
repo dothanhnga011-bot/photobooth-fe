@@ -28,9 +28,8 @@ import { TableHeading } from "./table-heading";
 import { Guide } from "../guide";
 import { download, macScript, windowsScript } from "./kiosk-autostart";
 import dnpAgent from "./installers/print-agent-dnp.ps1?raw";
-import ds820Agent from "./installers/print-agent-ds820.ps1?raw";
 import rx1Color from "./installers/configure-rx1-color.ps1?raw";
-import { ds820Installer, printerColorInstaller, printerInstaller, printerInstallerName } from "./printer-installer";
+import { printerColorInstaller, printerInstaller, printerInstallerName } from "./printer-installer";
 import { CatalogToolbar } from "./catalog-toolbar";
 import { PackageCatalog } from "./package-catalog";
 import { ResourceEditor } from "./resource-editor";
@@ -62,7 +61,7 @@ const RESOURCE_ICONS = {
 
 const clock = (value) =>
   new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
-const AGENT_SIZES = { full: "DNP", strip: "DNP", large: "DNP DS820" };
+const AGENT_SIZES = { full: "DNP", strip: "DNP" };
 const CUT_TEXT = {
   auto: " · tờ nhỏ tự cắt đôi",
   queue: " · tờ nhỏ in qua hàng in cắt đôi 2 inch",
@@ -74,7 +73,7 @@ function RoomPrinter({ roomName, agent, dnp }) {
   const ready = roomPrinterReady({ agent, dnp });
   return (
     <p className={ready ? "is-ready" : "is-warn"}>
-      <strong>{roomName}</strong> · {/DS-?820/i.test(dnp?.printer || "") ? "Máy in DNP DS820 (tờ 20 × 30)" : "Máy in DNP"}{" "}
+      <strong>{roomName}</strong> · Máy in DNP{" "}
       {!running
         ? "— chương trình in không chạy: bật mini PC của phòng, hoặc chạy lại file cài máy in"
         : dnp
@@ -93,8 +92,7 @@ function PrinterStatus({ printers }) {
       </h3>
       {!printers.length && (
         <p className="is-warn">
-          Chưa có máy in nào báo về. Bấm “Cài máy chụp” ở dòng phòng → “File cài máy in (Windows)” (phòng Selfbooth:
-          “File cài máy in DS820”), chạy trên máy tính cắm máy DNP và làm hết các bước (cửa sổ cài đặt có thể nằm sau cửa sổ đen).
+          Chưa có máy in nào báo về. Bấm “Cài máy chụp” ở dòng phòng Photobooth → “File cài máy in (Windows)”, chạy trên mini PC cắm máy DNP và làm hết các bước (cửa sổ cài đặt có thể nằm sau cửa sổ đen).
           Mục này tự cập nhật, không cần tải lại trang.
         </p>
       )}
@@ -121,8 +119,7 @@ function PrinterStatus({ printers }) {
       })}
       <small className="muted">
         Phòng Photobooth in ở máy DNP cắm vào mini PC của phòng (tờ to in nguyên tờ, tờ nhỏ máy tự cắt đôi);
-        phòng Selfbooth in tờ 20 × 30 ở máy DNP DS820 của phòng. Máy DS820 chưa sẵn sàng (hết giấy, mất
-        kết nối) thì lệnh in Selfbooth chờ trong hàng và tự in khi máy in kết nối lại.
+        phòng Selfbooth không in tự động: lệnh in khách gửi hiện ở Hàng chờ in, nhân viên ở quầy bấm In ra máy DNP DS820.
         In lỗi (hết giấy, mất kết nối) sẽ báo ngay trên trang quản trị.
       </small>
     </section>
@@ -143,7 +140,7 @@ export function ResourceManager({ resource, notify, me }) {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
-  // Máy in của các phòng (print agent báo về mỗi phút): DNP RX1 phòng Photobooth, DNP DS820 phòng Selfbooth.
+  // Máy in DNP RX1 của các phòng Photobooth (print agent báo về mỗi phút).
   const [printers, setPrinters] = useState([]);
   // Khung ảnh có trang riêng (admin/frames.jsx); đây là máy, gói chụp và tài khoản.
   const isCatalog = resource === "packages";
@@ -328,14 +325,6 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
     setPrinterBusy(true);
     try {
       const d = await api(`/admin/rooms/${device.room._id}/printer`, { method: "POST", body: {} });
-      // Phòng Polaroid / Selfbooth: máy DNP DS820 in tờ 20 × 30 khách gửi từ điện thoại.
-      if (d.kind === "polaroid") {
-        download(printerInstallerName(d.name).replace(/^cai-may-in-/, "cai-may-in-ds820-"), ds820Installer({
-          script: ds820Agent, api: window.location.origin, token: d.token, room: d.name,
-        }));
-        notify("Đã tải file cài máy in DS820. Mở file trên máy tính cắm máy DS820 (Windows hỏi: “Thêm thông tin” → “Vẫn chạy”).");
-        return;
-      }
       download(printerInstallerName(d.name), printerInstaller({
         script: dnpAgent, api: window.location.origin, token: d.token, room: d.name,
       }));
@@ -781,23 +770,15 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
               </section>
             )}
             {device.kind === "polaroid" && (
-              <section className="kiosk-autostart printer-setup" aria-label="Máy in DNP DS820 của phòng">
+              <section className="kiosk-autostart printer-setup" aria-label="In ảnh phòng Selfbooth">
                 <h3>
-                  <Printer size={16} aria-hidden="true" /> Máy in DNP DS820 của phòng này
+                  <Printer size={16} aria-hidden="true" /> In ảnh phòng Selfbooth
                 </h3>
                 <p>
-                  Khách chọn ảnh, bộ khung và bấm <b>Gửi in</b> trên điện thoại, máy <b>DNP DS820</b> tự in
-                  tờ <b>20 × 30 cm</b>. Tải file cài về <b>máy tính cắm máy DS820</b> rồi chạy một lần (không cần quyền quản trị).
+                  Khách chọn ảnh, bộ khung và bấm <b>Gửi in</b> trên điện thoại → lệnh in hiện ở trang <b>Hàng chờ in</b>
+                  (có chuông báo). Nhân viên ở quầy bấm <b>In 20×30</b>, chọn máy <b>DNP DS820</b> cắm ở máy tính quầy,
+                  giấy 8 × 12 inch. Không cần cài chương trình in cho phòng này.
                 </p>
-                <div className="kiosk-autostart-actions">
-                  <Button className="outline small" disabled={printerBusy} onClick={downloadPrinter}>
-                    <Download size={15} /> {printerBusy ? "Đang tạo file…" : "File cài máy in DS820 (Windows)"}
-                  </Button>
-                </div>
-                <small>
-                  Cần cài driver DNP DS820, nạp cuộn giấy 8 inch và cắm máy in trước; driver phải có khổ (8x12). Tình trạng máy
-                  in hiện ở mục “Máy in tự động” trên trang Quản lý máy.
-                </small>
               </section>
             )}
             </>

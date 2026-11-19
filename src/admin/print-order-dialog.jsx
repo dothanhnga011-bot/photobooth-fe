@@ -6,7 +6,8 @@ import { Button, ErrorBox, useToast } from "../studio.jsx";
 import { checkDirectPrinter } from "../kiosk/direct-print.js";
 import { ManualAlbum } from "./manual-album.jsx";
 import { operatorPrint } from "./operator-print.js";
-import { isPolaroidSize, polaroidPrinter, polaroidUnit } from "../print-sizes.js";
+import { isPolaroidSize, polaroidUnit } from "../print-sizes.js";
+import { printLargeSheets } from "./print-sheet.js";
 import "./print-order-dialog.css";
 
 const SIZES = { full: "10 × 15 cm", strip: "2 dải 5 × 15 cm / tờ", large: "20 × 30 cm (DS820)" };
@@ -29,12 +30,11 @@ export function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
   const [manual, setManual] = useState(false);
   const [failedImage, setFailedImage] = useState("");
   const inFlight = useRef(false);
-  const queuedAttempt = useRef(null);
   const imageCache = useRef(null);
   const job = jobs.find((item) => item._id === selected) || jobs[0];
   const count = job?.sheetCount || 1;
   const printSize = job?.printSize || details.printSize || "full";
-  // Phòng Selfbooth (tờ 20 × 30 máy DS820): in lại qua hàng chờ máy in của phòng, không qua RX1.
+  // Phòng Selfbooth (tờ 20 × 30): in ở quầy bằng cửa sổ in ra máy DNP DS820, không qua RX1.
   const polaroid = isPolaroidSize(printSize);
   const maximum = polaroid ? 20 : Math.min(20, Math.floor(20 / count));
   const locked = busy || archivePending;
@@ -84,12 +84,8 @@ export function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
     inFlight.current = true; setBusy(true); setError("");
     try {
       if (polaroid) {
-        const identity = `${job._id}:${copies}`;
-        if (queuedAttempt.current?.identity !== identity) queuedAttempt.current = { identity, requestKey: crypto.randomUUID() };
-        await api(`/admin/bookings/${booking._id}/reprint`, { method: "POST",
-          body: { jobId: job._id, copies, requestKey: queuedAttempt.current.requestKey } });
-        queuedAttempt.current = null;
-        toast.success(`Đã tạo lệnh in lại cho ${polaroidPrinter(printSize)}.`);
+        printLargeSheets({ imageUrls: Array.from({ length: count }, (_, index) => sheetUrl(job, index)), code: details.code, copies });
+        toast.info(`Đang mở bản in vé #${details.code}. Chọn máy in DNP DS820, giấy 8 × 12 inch (20 × 30 cm).`);
       } else {
         if (!archivePending) await checkDirectPrinter();
         if (imageCache.current?.id !== job._id) {
@@ -154,7 +150,7 @@ export function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
             </select></label>
             <p className="order-print-total"><b>{count * copies} {polaroid ? polaroidUnit(printSize) : "tờ 10 × 15 cm"}</b>
               {printSize === "strip" && <span>Máy cắt thành {count * copies * 2} dải nhỏ.</span>}</p>
-            {polaroid && <p className="soft-note">Lệnh in vào hàng chờ của {polaroidPrinter(printSize)} ở phòng chụp — máy in tự in khi sẵn sàng.</p>}
+            {polaroid && <p className="soft-note">Bấm In mở cửa sổ in: chọn máy DNP DS820 ở quầy, giấy 8 × 12 inch, lề Không có.</p>}
             {!polaroid && <p className="soft-note">In trên PC đang cắm RX1 và chạy chương trình in. Màu, độ nét và cắt giấy theo bộ in RX1 của máy đó.</p>}
             {!maximum && <p className="soft-note">File vượt 20 tờ. Tải các tờ để chia lượt in.</p>}
           </div>
@@ -175,7 +171,7 @@ export function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
         {job && canOperate && <Button className="outline" disabled={busy} onClick={() => setManual(true)}>Ghép ảnh thủ công</Button>}
         <Button className="outline" disabled={busy || loading || !canSell} onClick={() => onExtra(details)}>+ Thêm lượt in</Button>
         {job && <Button disabled={busy || !canOperate || !maximum || copies > maximum} onClick={reprint}><Printer size={16} />
-          {busy ? "Đang xử lý…" : archivePending ? "Lưu kết quả in" : polaroid ? "Gửi in lại DS820" : "In lại qua RX1"}</Button>}
+          {busy ? "Đang xử lý…" : archivePending ? "Lưu kết quả in" : polaroid ? "In 20×30 (DS820)" : "In lại qua RX1"}</Button>}
       </div>
     </section>
   </div>;

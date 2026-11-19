@@ -162,7 +162,7 @@ export function ResourceEditor({
         ) : type === "printSize" ? (
           // Gói phòng Photobooth chỉ đổi giữa khổ to / khổ nhỏ; gói Selfbooth luôn in tờ 20 × 30 máy DS820.
           isPolaroid(edit) ? (
-            <span className="resource-field-fixed">Selfbooth — in tờ 20 × 30 cm (máy DNP DS820 của phòng)</span>
+            <span className="resource-field-fixed">Selfbooth — in tờ 20 × 30 cm (máy DNP DS820 ở quầy)</span>
           ) : (
             <select
               name={key}

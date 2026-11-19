@@ -18,7 +18,7 @@ export async function operatorPrint({ booking, images, frameName = "", printSize
   send = sendDirectPrint, request = api, storage = globalThis.sessionStorage,
 } = {}) {
   const size = printSize || booking.printSize || "full";
-  if (size === "large") throw new Error("Tờ 20 × 30 in qua hàng chờ máy DNP DS820 của phòng Selfbooth, không qua RX1.");
+  if (size === "large") throw new Error("Tờ 20 × 30 in ở Hàng chờ in (máy DNP DS820 ở quầy), không qua RX1.");
   if (!Number.isInteger(copies) || copies < 1 || copies > 20 || !images.length || images.length * copies > 20)
     throw new Error("Mỗi lượt in RX1 cần từ 1 đến 20 tờ.");
   const bytes = new Blob(images);

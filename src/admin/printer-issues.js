@@ -1,7 +1,7 @@
 // Một cách tính "máy in cần xem" cho cả bảng "Máy in tự động" (Quản lý máy) lẫn chấm đỏ ở mục
 // "Quản lý máy" trên thanh bên: dòng nào bảng tô vàng thì thanh bên có chấm đỏ.
 
-// Máy in DNP của một phòng (RX1 phòng Photobooth, DS820 phòng Selfbooth): chương trình in đang chạy và máy in sẵn sàng.
+// Máy in DNP RX1 của một phòng Photobooth: chương trình in đang chạy và máy in sẵn sàng.
 export const roomPrinterReady = ({ agent, dnp }) => Boolean(agent?.running) && (!dnp || dnp.ready);
 
 // Danh sách ngắn những gì đang cần xử lý (rỗng = mọi máy in ổn). Chưa có máy in nào báo về thì

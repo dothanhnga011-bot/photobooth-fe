@@ -27,7 +27,7 @@ function beep() {
 
 // Nhận lệnh in mới theo thời gian thực (Server-Sent Events): báo bằng thông báo, âm thanh và sự kiện
 // `nxc:print` để các bảng đang mở (dung lượng) tải lại số liệu.
-export function PrintAlerts() {
+export function PrintAlerts({ branch }) {
   const toast = useToast();
   useEffect(() => {
     // Trình duyệt tự nối lại luồng khi rớt mạng, nhưng bỏ hẳn nếu máy chủ trả lỗi (đang khởi
@@ -43,27 +43,36 @@ export function PrintAlerts() {
     };
     const onPrint = (e) => {
       const job = JSON.parse(e.data);
+      if (branch !== undefined && (job.branch || '').trim() !== branch) return;
       // A locally acknowledged print is an archive update, not another job to print at the desk.
       if (job.spoolStatus === "sent") { window.dispatchEvent(new Event("nxc:print")); return; }
-      const text = `Lệnh in mới · vé #${job.code} (${job.sheetCount || 1} ${unit(job)})`;
+      const text = `Lệnh in mới${job.branch ? ` · ${job.branch}` : ''} · vé #${job.code} (${job.sheetCount || 1} ${unit(job)})${job.printSize === "large" ? " — mở Hàng chờ in để in" : ""}`;
       toast.info(text, 8000);
       notify("NXC — Lệnh in mới", text);
     };
     // Print agent báo in lỗi (hết giấy, máy in mất kết nối…): lễ tân xử lý rồi bấm In lại.
     const onFailed = (e) => {
       const job = JSON.parse(e.data);
+      if (branch !== undefined && (job.branch || '').trim() !== branch) return;
       const text = `Lệnh in vé #${job.code} chưa in được: ${job.spoolMessage || "máy in không nhận lệnh"}`;
       toast.error(text, 20000);
       notify("NXC — Lệnh in lỗi", text);
     };
+    const onUpdated = e => {
+      const job = JSON.parse(e.data);
+      if (branch !== undefined && (job.branch || '').trim() !== branch) return;
+      window.dispatchEvent(new Event('nxc:print'));
+    };
     const connect = () => {
       clearTimeout(timer);
       source?.close();
-      source = new EventSource(getApiUrl("/api/admin/print-jobs/stream"), {
+      const query = branch === undefined ? '' : `?${new URLSearchParams({branch})}`;
+      source = new EventSource(getApiUrl(`/api/admin/print-jobs/stream${query}`), {
         withCredentials: true,
       });
       source.addEventListener("print", onPrint);
       source.addEventListener("print-failed", onFailed);
+      source.addEventListener("print-updated", onUpdated);
       source.addEventListener("open", () => {
         failures = 0;
         if (lost) window.dispatchEvent(new Event("nxc:print"));
@@ -86,6 +95,6 @@ export function PrintAlerts() {
       unsubscribe();
       source.close();
     };
-  }, []);
+  }, [branch]);
   return null;
 }

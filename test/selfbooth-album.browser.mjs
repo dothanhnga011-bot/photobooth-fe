@@ -1,7 +1,7 @@
 // Album phòng Selfbooth trên điện thoại, giống album của web Selfbooth: khách quét QR → 01 Ảnh (thư viện: thả tim,
 // làm đẹp, xoá, thêm ảnh từ điện thoại) → 02 Chủ đề (một bộ khung) → 03 Ghép ảnh (mọi khung của bộ, ô nghiêng
-// của khung chép từ Selfbooth) → 04 Kết quả (mỗi khung một tờ 20 × 30, chọn tờ rồi gửi in tới máy DNP DS820 của
-// phòng). Đồng hồ do máy chủ đặt (edit-start); hết giờ tự gửi in.
+// của khung chép từ Selfbooth) → 04 Kết quả (mỗi khung một tờ 20 × 30, chọn tờ rồi gửi in lên Hàng chờ in của
+// quầy, nhân viên in ra máy DNP DS820). Đồng hồ do máy chủ đặt (edit-start); hết giờ tự gửi in.
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -288,7 +288,7 @@ test("album like Selfbooth: 01 Ảnh → 02 Chủ đề → 03 Ghép ảnh → 0
     await page.screenshot({ path: resolve(".cache/main-flows/album-result-390.png"), fullPage: true });
     await page.getByRole("button", { name: "Gửi in (2 tờ 20 × 30)" }).click();
     await page.getByRole("heading", { name: "Đã gửi in!" }).waitFor({ timeout: 30000 });
-    await page.getByText(/máy in DNP DS820/).waitFor();
+    await page.getByText(/Ảnh đã được gửi tới quầy/).waitFor();
     assert.equal(prints.length, 1);
     assert.equal(prints[0].frame, "Hoa");
     assert.equal(prints[0].key, saved.requestKey);

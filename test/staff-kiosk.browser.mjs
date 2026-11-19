@@ -54,6 +54,7 @@ let server;
 let browser;
 let page;
 let role = "staff";
+let staffBranch = "Chi nhánh Nguyễn Trãi";
 let rooms;
 let devices;
 // Số liệu kho ảnh trả cho /api/admin/storage (mặc định chưa có số liệu).
@@ -61,6 +62,13 @@ let storageSummary = {};
 // Số đơn chờ thu tiền (/api/admin/bookings/awaiting-payment) và máy in báo về (null = mẫu mặc định có lỗi).
 let awaitingCount = 0;
 let printerRows = null;
+// Hàng chờ in của phòng Selfbooth (/api/admin/print-jobs?size=large).
+let queueJobs = [];
+const printStreams = new Set();
+const queueDelays = new Map();
+function emitPrint(job) {
+  for (const response of printStreams) response.write(`event: print\ndata: ${JSON.stringify(job)}\n\n`);
+}
 let requests = [];
 let unexpected = [];
 let pageErrors = [];
@@ -122,6 +130,9 @@ before(async () => {
     new URL("../public/logo-m-384.jpg", import.meta.url),
   );
   server = createServer(async (request, response) => {
+    // Keep the fixture on localhost without network interception: interception
+    // stalls document.write popup images in Windows headless Chromium.
+    response.setHeader('Content-Security-Policy', "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self' data:; img-src 'self' data: blob:");
     const path = new URL(request.url, "http://fixture").pathname;
     if (path === "/logo-m-384.jpg") {
       response.setHeader("Content-Type", "image/jpeg");
@@ -147,6 +158,7 @@ before(async () => {
           name: role === "staff" ? "Lễ tân thử nghiệm" : "Quản trị thử nghiệm",
           email: "fixture@local.test",
           role,
+          branch: role === 'staff' ? staffBranch : undefined,
           // Quyền mặc định của lễ tân (không có xem doanh thu / hủy đơn).
           permissions: role === "staff" ? staffPermissions : undefined,
         });
@@ -175,6 +187,25 @@ before(async () => {
         send({ count: awaitingCount });
         return;
       }
+      if (path === "/api/admin/print-jobs" && entry.search.get("size") === "large") {
+        if (queueDelays.has(entry.search.get('branch'))) await new Promise(resolve=>setTimeout(resolve,queueDelays.get(entry.search.get('branch'))));
+        send(queueJobs.filter((job) => job.status === (entry.search.get("status") || "pending") &&
+          (!entry.search.has('branch') || (job.branch || '') === entry.search.get('branch'))));
+        return;
+      }
+      if (path === '/api/admin/print-jobs/branches') {
+        const names = role === 'staff' ? [staffBranch] : [...new Set(['Bắc Ninh','Bắc Giang',...queueJobs.map(job=>job.branch || '')])];
+        send(names.map(branch=>({branch,pending:queueJobs.filter(job=>(job.branch||'')===branch&&job.status==='pending').length,
+          printed:queueJobs.filter(job=>(job.branch||'')===branch&&job.status==='printed').length})));
+        return;
+      }
+      const queueMatch = path.match(/^\/api\/admin\/print-jobs\/([^/]+)$/);
+      const queued = queueMatch && queueJobs.find((job) => job._id === queueMatch[1]);
+      if (queued && entry.method === "PATCH") {
+        Object.assign(queued, { status: entry.body.status, printedAt: new Date().toISOString(), printedBy: "Lễ tân" });
+        send(queued);
+        return;
+      }
       if (path === "/api/admin/bookings" || path === "/api/admin/print-jobs") {
         send(path === "/api/admin/bookings" && entry.search.has("from") ? orderFixtures : []);
         return;
@@ -195,20 +226,19 @@ before(async () => {
       }
       if (path === "/api/admin/print-jobs/stream") {
         response.setHeader("Content-Type", "text/event-stream");
-        response.end(": fixture\n\n");
+        response.write(": fixture\n\n");
+        printStreams.add(response);
+        request.on('close',()=>printStreams.delete(response));
         return;
       }
       if (path === "/api/admin/revenue") {
         send([]);
         return;
       }
-      // Print agent chung của chi nhánh đã báo về; máy DS820 của phòng Selfbooth sẵn sàng.
+      // Print agent chung của chi nhánh đã báo về (phòng Selfbooth in ở quầy, không có máy in tự động).
       if (path === "/api/admin/print-jobs/printers") {
         send(printerRows || [{ branch: "Chi nhánh Nguyễn Trãi", at: new Date().toISOString(),
           agent: { running: true, at: new Date().toISOString(), printSizes: ["full", "strip"] } },
-        { branch: "Chi nhánh Nguyễn Trãi", room: "room-sb", roomName: "Phòng Selfbooth", at: null,
-          agent: { running: true, at: new Date().toISOString(), printSizes: ["large"] },
-          dnp: { ready: true, state: "Sẵn sàng", jobs: 0, cut: "none", printer: "DNP DS820", stripPrinter: "", at: new Date().toISOString() } },
         // Máy DNP của Phòng 01 (chương trình in trên mini PC của phòng): máy in đang tắt, 1 tờ chờ.
         { branch: "Chi nhánh Nguyễn Trãi", room: "room-1", roomName: "Phòng 01", at: null,
           agent: { running: true, at: new Date().toISOString(), printSizes: ["full", "strip"] },
@@ -291,11 +321,6 @@ before(async () => {
   });
   page.setDefaultTimeout(7000);
   page.on("pageerror", (error) => pageErrors.push(error.message));
-  await page.route("**/*", (route) =>
-    new URL(route.request().url()).hostname === "127.0.0.1"
-      ? route.continue()
-      : route.abort(),
-  );
 });
 
 after(async () => {
@@ -304,8 +329,9 @@ after(async () => {
 });
 
 async function mount(nextRole = "staff", width = 1440, permissions = defaultStaffPermissions,
-  { storage = {}, awaiting = 0, printers = null } = {}) {
+  { storage = {}, awaiting = 0, printers = null, branch = "Chi nhánh Nguyễn Trãi" } = {}) {
   role = nextRole;
+  staffBranch = branch;
   staffPermissions = permissions;
   rooms = structuredClone(roomFixtures);
   devices = new Map([["room-1", { token: deviceToken, name: "Phòng 01" }]]);
@@ -353,6 +379,7 @@ test("staff can access active rooms and branches without room administration con
   assert.deepEqual(await nav.getByRole("button").allTextContents(), [
     "Tổng hợp",
     "Đơn hàng",
+    "Hàng chờ in",
     "Quản lý máy",
     "Dung lượng ảnh",
   ]);
@@ -401,6 +428,7 @@ test("a receptionist's menu and room buttons follow the permissions the server g
     "Tổng hợp",
     "Thống kê doanh thu",
     "Đơn hàng",
+    "Hàng chờ in",
     "Quản lý máy",
     "Dung lượng ảnh",
   ]);
@@ -643,7 +671,7 @@ test("admin keeps inactive rooms, create/edit/deactivate controls, and room edit
   assert.equal(await page.getByRole("row").count(), 4);
   const printers = await page.getByRole("region", { name: "Máy in" }).innerText();
   assert.match(printers, /Chi nhánh Nguyễn Trãi · Chương trình in tự động đang chạy \(DNP\)/);
-  assert.match(printers, /Phòng Selfbooth · Máy in DNP DS820 \(tờ 20 × 30\) sẵn sàng/);
+  assert.match(printers, /phòng Selfbooth không in tự động: lệnh in khách gửi hiện ở Hàng chờ in/);
   assert.match(printers, /Phòng 01 · Máy in DNP Mất kết nối \(máy in tắt hoặc rút cáp USB\) · 1 tờ đang chờ in · tờ nhỏ in qua hàng in cắt đôi 2 inch/);
   assert.equal(
     await page.getByRole("button", { name: "Thêm mới", exact: true }).count(),
@@ -748,7 +776,7 @@ test("admin sidebar: one line per page, one icon column, 44 px rows, plain group
     return { items, labels, sidebar: Math.round(sidebar.width), mainLeft: Math.round(main.left) };
   });
   const wide = await measure();
-  assert.equal(wide.items.length, 14, JSON.stringify(wide.items.map((i) => i.label)));
+  assert.equal(wide.items.length, 15, JSON.stringify(wide.items.map((i) => i.label)));
   assert.deepEqual(wide.items.filter((i) => !i.oneLine).map((i) => i.label), [], "every page name fits on one line");
   assert.ok(wide.items.every((i) => i.height >= 44), JSON.stringify(wide.items.map((i) => [i.label, i.height])));
   assert.equal(new Set(wide.items.map((i) => i.iconLeft)).size, 1, "pages in a group line up with the other pages");
@@ -776,12 +804,108 @@ test("admin sidebar: one line per page, one icon column, 44 px rows, plain group
   }));
   await page.screenshot({ path: join(screenshots, "sidebar-390.png"), fullPage: true });
   assert.equal(phone.overflow, false);
-  assert.ok(phone.heights.length === 14 && phone.heights.every((h) => h >= 44), JSON.stringify(phone.heights));
+  assert.ok(phone.heights.length === 15 && phone.heights.every((h) => h >= 44), JSON.stringify(phone.heights));
   assertClean();
 });
 
+test("Hàng chờ in: a Selfbooth print the guest sent waits for the counter; In 20×30 opens the DS820 print window, Đã in moves it", async () => {
+  // Cửa sổ in của trình duyệt: chỉ đếm, không mở hộp thoại in thật.
+  await page.context().addInitScript(() => { window.print = () => { window.__printCalls = (window.__printCalls || 0) + 1; }; });
+  queueJobs = [{ _id: "job-sb-1", code: "246810", name: "Lan", branch:"Chi nhánh Nguyễn Trãi", roomName: "Phòng Selfbooth", copies: 1, frameName: "Hoa",
+    printSize: "large", sheetCount: 2, status: "pending", spoolStatus: "idle", createdAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 72 * 3600000).toISOString(), image: "/logo-m-384.jpg" }];
+  try {
+    await mount("staff");
+    const nav = page.getByRole("navigation", { name: "Quản lý studio" });
+    const queue = nav.getByRole("button", { name: "Hàng chờ in", exact: true });
+    await queue.locator(".nav-alert").waitFor();
+    assert.equal(await queue.getAttribute("title"), "1 lệnh in Selfbooth đang chờ in · Chi nhánh Nguyễn Trãi");
+    await queue.click();
+    const card = page.locator(".print-card").filter({ hasText: "#246810" });
+    await card.waitFor();
+    assert.match(await card.innerText(), /Phòng Selfbooth · Hoa · 2 tờ × 1 bản/);
+    const [popup] = await Promise.all([page.waitForEvent("popup"), card.getByRole("button", { name: /In 20×30/ }).click()]);
+    await popup.getByText(/Ảnh đã sẵn sàng/).waitFor({timeout:8000});
+    assert.equal(await popup.locator(".print-sheet img").count(), 2, "both 20 × 30 sheets of the order");
+    assert.match(await popup.locator(".toolbar").innerText(), /DNP DS820[\s\S]*8 × 12 inch/);
+    assert.match(await popup.locator('.booking-info').innerText(),/Chi nhánh Nguyễn Trãi/);
+    await popup.waitForFunction(() => window.__printCalls >= 1);
+    await popup.emulateMedia({media:'print'});
+    const paper=await popup.locator('.print-sheet').first().boundingBox();
+    assert.equal(Math.round(paper.width),1152);assert.equal(Math.round(paper.height),768,'12 × 8 inches at CSS 96 px/inch');
+    assert.equal(queueJobs[0].status,'pending','opening or closing print preview never marks paper as printed');
+    await popup.close();
+    await card.getByRole("button", { name: /Đã in/ }).click();
+    await page.getByText("Không có lệnh đang chờ tại Chi nhánh Nguyễn Trãi.").waitFor();
+    assert.deepEqual(requests.filter((entry) => entry.method === "PATCH").map((entry) => [entry.path, entry.body]),
+      [["/api/admin/print-jobs/job-sb-1", { status: "printed" }]]);
+    await queue.locator(".nav-alert").waitFor({ state: "detached" });
+    await page.getByRole("button", { name: "Đã in", exact: true }).click();
+    await page.locator(".print-card").filter({ hasText: "#246810" }).getByRole("button", { name: /In lại/ }).waitFor();
+    assertClean();
+  } finally {
+    queueJobs = [];
+  }
+});
+
+test('Selfbooth queues: separate Bắc Ninh/Bắc Giang, retain selected site, filter live alerts and lock staff scope', async()=>{
+  const makeJob=(branch,id,code)=>({_id:id,branch,code,roomName:'Selfbooth',copies:1,frameName:'Hoa',printSize:'large',
+    sheetCount:1,status:'pending',spoolStatus:'idle',createdAt:new Date().toISOString(),
+    expiresAt:new Date(Date.now()+72*3600000).toISOString(),image:'/logo-m-384.jpg'});
+  queueJobs=[makeJob('Bắc Ninh','bn-1','110001'),makeJob('Bắc Giang','bg-1','220001'),makeJob('Bắc Giang','bg-2','220002')];
+  try{
+    await page.goto(`http://127.0.0.1:${server.address().port}/admin`);
+    await page.evaluate(()=>localStorage.setItem('nxc-selfbooth-print-branch','Bắc Ninh'));
+    await mount('admin');
+    const nav=page.getByRole('navigation',{name:'Quản lý studio'});
+    const queue=nav.getByRole('button',{name:'Hàng chờ in',exact:true});await queue.click();
+    const sites=page.getByRole('group',{name:'Chọn cơ sở in'});
+    await page.locator('.print-card').filter({hasText:'#110001'}).waitFor();
+    assert.equal(await page.locator('.print-card').count(),1);
+    assert.equal(await sites.getByRole('button',{name:'Bắc Ninh',exact:true}).getAttribute('aria-pressed'),'true');
+    assert.equal(await sites.getByRole('button',{name:'Bắc Ninh',exact:true}).locator('span').evaluate(el=>getComputedStyle(el).color),'rgb(255, 250, 243)','selected branch text stays readable on brown');
+    assert.match(await sites.getByRole('button',{name:'Bắc Giang',exact:true}).innerText(),/2 chờ in/);
+    await sites.getByRole('button',{name:'Bắc Giang',exact:true}).click();
+    await page.locator('.print-card').filter({hasText:'#220001'}).waitFor();
+    assert.equal(await page.locator('.print-card').count(),2);
+    assert.equal(await page.locator('.print-card').filter({hasText:'#110001'}).count(),0);
+    assert.match(await queue.getAttribute('title'),/2 lệnh.*Bắc Giang/);
+    // A delayed response from the previous site cannot restore its print buttons.
+    queueDelays.set('Bắc Ninh',350);
+    await sites.getByRole('button',{name:'Bắc Ninh',exact:true}).click();
+    assert.equal(await page.locator('.print-card').count(),0);
+    await sites.getByRole('button',{name:'Bắc Giang',exact:true}).click();
+    await page.locator('.print-card').filter({hasText:'#220001'}).waitFor();
+    await page.waitForTimeout(450);
+    assert.equal(await page.locator('.print-card').filter({hasText:'#110001'}).count(),0);
+    // Real EventSource: ignore a misrouted event, refresh the active site's queue immediately.
+    emitPrint(makeJob('Bắc Ninh','bn-other','110099'));
+    await page.waitForTimeout(100);
+    assert.equal(await page.getByText(/Lệnh in mới.*110099/).count(),0);
+    const fresh=makeJob('Bắc Giang','bg-fresh','220099');queueJobs.push(fresh);emitPrint(fresh);
+    await page.locator('.print-card').filter({hasText:'#220099'}).waitFor({timeout:4000});
+    assert.ok(requests.some(entry=>entry.path==='/api/admin/print-jobs/stream'&&entry.search.get('branch')==='Bắc Giang'));
+    await page.screenshot({path:join(screenshots,'selfbooth-queue-bac-giang.png'),fullPage:true});
+    await mount('admin');await queue.click();
+    assert.equal(await sites.getByRole('button',{name:'Bắc Giang',exact:true}).getAttribute('aria-pressed'),'true');
+    await page.locator('.print-card').filter({hasText:'#220099'}).waitFor();
+    await page.setViewportSize({width:390,height:844});
+    await page.waitForTimeout(200);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'mobile queue fits without horizontal scrolling');
+    const touch=await sites.getByRole('button',{name:'Bắc Giang',exact:true}).boundingBox();assert.ok(touch.height>=44);
+    await page.screenshot({path:join(screenshots,'selfbooth-queue-bac-giang-phone.png'),fullPage:true});
+    await mount('staff',1440,defaultStaffPermissions,{branch:'Bắc Ninh'});await queue.click();
+    await page.locator('.print-card').filter({hasText:'#110001'}).waitFor();
+    assert.equal(await sites.getByRole('button').count(),1);
+    assert.equal(await sites.getByRole('button',{name:'Bắc Giang',exact:true}).count(),0);
+    assert.equal(await page.locator('.print-card').count(),1);
+    await page.screenshot({path:join(screenshots,'selfbooth-queue-bac-ninh-staff.png'),fullPage:true});
+    assertClean();
+  }finally{queueJobs=[];queueDelays.clear();}
+});
+
 test("sidebar badges: orders waiting for payment on Đơn hàng, a red dot on Quản lý máy when a printer needs a look", async () => {
-  // Mẫu máy in mặc định: DNP Phòng 01 mất kết nối, DS820 phòng Selfbooth sẵn sàng.
+  // Mẫu máy in mặc định: DNP Phòng 01 mất kết nối.
   await mount("staff", 1440, defaultStaffPermissions, { awaiting: 3 });
   const nav = page.getByRole("navigation", { name: "Quản lý studio" });
   const orders = nav.getByRole("button", { name: "Đơn hàng", exact: true });
