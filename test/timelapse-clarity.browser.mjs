@@ -7,7 +7,8 @@ import { chromium } from "../../photobooth-be/node_modules/playwright/index.mjs"
 
 let server, browser, page;
 before(async () => {
-  const modules = new Map(await Promise.all(["clip-recorder.js", "live-preview-layout.js"].map(async name =>
+  // Every kiosk module these two import must be served too (live-preview-layout.js → preview-orientation.js).
+  const modules = new Map(await Promise.all(["clip-recorder.js", "live-preview-layout.js", "preview-orientation.js"].map(async name =>
     [`/${name}`, await readFile(new URL(`../src/kiosk/${name}`, import.meta.url), "utf8")])));
   server = createServer((req, res) => {
     const source = modules.get(req.url);

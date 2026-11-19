@@ -83,7 +83,14 @@ export function KioskCode({ code, setCode, onSubmit, onBack, busy, error, device
       )}
       {!cameraReady && <p className="soft-note">{FOLDER_NOTE}</p>}
       <form className="payment-voucher code-card" onSubmit={onSubmit}>
-        <label htmlFor="kiosk-code">Mã chụp</label>
+        {/* Khách thấy còn thiếu mấy số (ô nhập chỉ hiện các số đã gõ) và biết khi nào bấm Bắt đầu chụp được. Cùng
+            hàng với nhãn để không đẩy nút Bắt đầu chụp khỏi màn thấp (1366 × 768, 1024 × 600). */}
+        <div className="code-label-row">
+          <label htmlFor="kiosk-code">Mã chụp</label>
+          <span className={`code-progress${code.length === 6 ? " is-ready" : ""}`} aria-live="polite">
+            {code.length === 0 ? "Mã gồm 6 số" : code.length < 6 ? `Còn ${6 - code.length} số` : "Đủ 6 số ✓"}
+          </span>
+        </div>
         <input id="kiosk-code" type="text" inputMode="numeric" pattern="[0-9]{6}" maxLength={6}
           autoComplete="one-time-code" placeholder="••••••" value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} />
@@ -199,7 +206,8 @@ export function KioskPrintCount({ pack, sheets, extraPrintPrice, film = null, on
           <button type="button" aria-label="Tăng số bản in" disabled={!canAdd || extra >= 20 || outOfFilm} onClick={() => onChange(sheets + 1)}><PiPlusBold /></button>
         </div>
         <p className="print-unit">
-          {unit} · mỗi người một {word}: đi {MIN_PIECES} người chọn {MIN_PIECES} {word}
+          {unit}
+          <small>Gợi ý: mỗi người một {word} — đi mấy người thì chọn bấy nhiêu {word}.</small>
           {strip && <small>{sheets} tờ 10 × 15 cm cắt đôi · mỗi lần bấm + thêm 2 tờ nhỏ</small>}
           {outOfFilm && <small>Máy Instax còn {film} tấm phim — chọn tối đa {film} tấm.</small>}
         </p>

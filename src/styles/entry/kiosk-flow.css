@@ -616,6 +616,22 @@
   .code-screen .flow-head p { font-size: clamp(18px, 1.5vw, 24px); line-height: 1.45; }
   .code-screen .code-card label { font-size: 20px; }
   .code-screen .code-card input { height: 64px; font-size: 36px; }
+  /* Nhãn "Mã chụp" và "Còn 4 số" / "Đủ 6 số ✓" cùng một hàng trên ô mã */
+  .code-card .code-label-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .code-card .code-progress {
+    color: var(--mellow-muted, #7a5a48);
+    font-size: 18px;
+    white-space: nowrap;
+  }
+  .code-card .code-progress.is-ready {
+    color: #2f6b45;
+    font-weight: 700;
+  }
   .code-card .voucher-keypad { gap: 8px; }
   .code-card .voucher-keypad button { min-height: 58px; font-size: 28px; }
   .code-card .button {

@@ -44,4 +44,13 @@
     .ptb-frame-caption small { font-size: 15px; }
     .ptb-frame-art b, .ptb-frame-check { width: 38px; height: 38px; font-size: 18px; }
   }
+  /* Màn ngang của tiệm (1366–1920 px, khách đứng cách màn ~1 m): dòng hướng dẫn dưới tiêu đề, chữ "Đã chọn" và tên
+     khung trước đây 13–14 px, khó đọc. Màn nhập mã đã có cỡ chữ riêng. */
+  @media (orientation: landscape) and (min-width: 1200px) {
+    .kiosk-flow:not(.code-screen) .flow-head p { font-size: clamp(17px, 1.15vw, 22px); line-height: 1.45; }
+    .ptb-frames-foot p { font-size: clamp(16px, 1vw, 19px); }
+    .ptb-frame-caption { font-size: clamp(14px, .85vw, 16px); }
+    .ptb-frame-caption small { font-size: clamp(13px, .8vw, 15px); }
+    .kiosk-method small { text-wrap: balance; }
+  }
 }

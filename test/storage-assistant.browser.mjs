@@ -1383,6 +1383,9 @@ test("nearest stored image deadline comes from shared storage data and counts do
       document.querySelector(".storage-expiry strong")?.textContent ===
       "1 giờ 59 phút",
   );
+  // The 30-second poll has fired; its request may reach the route handler a moment after the countdown repaints.
+  for (let i = 0; i < 100 && storageReads().length < 2; i++)
+    await new Promise((resolve) => setTimeout(resolve, 20));
   assert.equal(
     storageReads().length,
     2,

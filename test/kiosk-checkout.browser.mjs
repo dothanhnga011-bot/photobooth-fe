@@ -176,7 +176,7 @@ test("Instax is locked while its printer is not ready and never sells more piece
     await page.getByRole("heading", { name: "Chọn số lượng" }).waitFor();
     const count = () => page.locator(".kiosk-counter output").innerText();
     assert.equal(await count(), "2");
-    assert.match(await page.locator(".print-unit").innerText(), /tấm Instax · mỗi người một tấm/);
+    assert.match(await page.locator(".print-unit").innerText(), /tấm Instax\s+Gợi ý: mỗi người một tấm — đi mấy người thì chọn bấy nhiêu tấm/);
     await page.getByRole("button", { name: "Tăng số bản in" }).click();
     assert.equal(await count(), "3");
     assert.match(await page.locator(".kiosk-price strong").innerText(), /150\.000/);
