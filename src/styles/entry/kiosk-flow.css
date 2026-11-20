@@ -276,7 +276,7 @@
   }
   .shoot-timer span {
     color: var(--mellow-muted, #7a5a48);
-    font-size: 11px;
+    font-size: 14px;
     font-weight: 700;
     letter-spacing: 0.12em;
   }
@@ -447,7 +447,7 @@
   }
   .shoot-end-wrap small {
     color: var(--mellow-muted, #7a5a48);
-    font-size: 12px;
+    font-size: 14px;
   }
   .shoot-error {
     position: fixed;
@@ -815,7 +815,7 @@
   }
   .select-hint {
     color: var(--mellow-muted, #7a5a48);
-    font-size: 13px;
+    font-size: 14px;
   }
   .select-screen .flow-foot {
     flex-direction: column;

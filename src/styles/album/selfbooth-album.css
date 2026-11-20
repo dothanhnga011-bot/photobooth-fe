@@ -528,7 +528,7 @@
     border-radius: 2px;
     background: rgb(59 42 34 / 0.86);
     color: #f6efe5;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.04em;
     pointer-events: none;
@@ -1362,7 +1362,7 @@
       font-size: 13px;
     }
     .sb-album .theme-action-summary small {
-      font-size: 11px;
+      font-size: 12px;
     }
     .sb-album .studio-actions:not(.gallery-bar) > .button {
       flex: 1 1 0;

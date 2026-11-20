@@ -350,13 +350,13 @@
       border-radius: 14px;
     }
     .shoot-screen.is-portrait .shoot-timer span {
-      font-size: 11px;
+      font-size: 13px;
     }
     .shoot-screen.is-portrait .shoot-timer strong {
       font-size: clamp(32px, 3.8vw, 48px);
     }
     .shoot-screen.is-portrait .shoot-timer small {
-      font-size: 12px;
+      font-size: 14px;
     }
     .shoot-screen.is-portrait .shoot-thumbs {
       height: clamp(70px, 8vh, 100px);

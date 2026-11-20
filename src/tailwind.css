@@ -58,3 +58,5 @@
 @import "./styles/entry/kiosk-classic.css";
 @import "./styles/entry/kiosk-live.css";
 @import "./styles/admin/sidebar.css";
+/* Cỡ chữ tối thiểu cho dễ đọc (nạp sau cùng): styles/readability.css. */
+@import "./styles/readability.css";

@@ -250,7 +250,7 @@
     overflow-wrap: anywhere;
   }
   .admin-shell .catalog-preview-label {
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 600;
     letter-spacing: 1.5px;
     color: var(--muted);
@@ -365,7 +365,7 @@
     .admin-shell .catalog-results {
       flex-wrap: wrap;
       gap: 8px;
-      font-size: 11px;
+      font-size: 12px;
     }
     .admin-shell .catalog-counts {
       gap: 14px;

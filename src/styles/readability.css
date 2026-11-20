@@ -1,0 +1,36 @@
+/*
+ * Cỡ chữ tối thiểu cho dễ đọc (20/11, đo cỡ chữ thật trên các màn hình): vài dòng chữ nhận cỡ từ phần tử cha nên
+ * nằm ở đây, nạp sau cùng. Mốc: quản trị và album điện thoại ≥ 12px (chữ thường ≥ 12,5px); máy chụp — khách đứng
+ * cách màn hình — chữ phụ ≥ 14px. Các cỡ khác sửa ngay tại quy tắc của chúng.
+ */
+@layer components {
+  /* Album điện thoại: tên bước 01 Ảnh · 02 Chủ đề · 03 Ghép ảnh · 04 Kết quả. */
+  .studio-page .sb-album .studio-steps button {
+    font-size: 12.5px;
+  }
+
+  /* Quản trị: nhãn "Đã tắt" trên khung, số gói theo trạng thái, nút "Bỏ ảnh" ở ô ảnh khung. */
+  .admin-shell .frames-grid .frames-card-image .frames-off,
+  .admin-shell .catalog-toolbar .catalog-results .catalog-counts span,
+  .admin-shell .frame-image-field .frame-drop-meta .text-link {
+    font-size: 12px;
+  }
+
+  /* Máy chụp: nút "Về mặc định" ở mục chỉnh ảnh (cả màn ngang và màn dọc). */
+  .select-panel .select-adjust .adjust-controls .text-link {
+    font-size: 14px;
+  }
+
+  /* Máy chụp màn ngang (màn dọc có cỡ riêng to hơn trong kiosk-portrait.css). */
+  @media (orientation: landscape) {
+    .shoot-screen .shoot-rail .shoot-timer .shoot-progress small {
+      font-size: 15px;
+    }
+    .shoot-screen .shoot-rail .shoot-thumbs .shoot-thumbs-empty {
+      font-size: 15px;
+    }
+    .kiosk-flow.done-screen .done-cards .done-card figcaption {
+      font-size: 16px;
+    }
+  }
+}
