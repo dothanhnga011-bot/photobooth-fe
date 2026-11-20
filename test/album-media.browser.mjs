@@ -238,6 +238,8 @@ test("browser downloads request the guest endpoint and pending originals cannot 
     assert.equal(result.suggestedFilename(), "NXC-123456-01.jpg");
     value.photos[0].originalPending = true;
     await page.evaluate(value => window.showAlbum(value), value);
+    // React vẽ lại sau khi showAlbum trả về: chờ dòng báo ảnh gốc đang tới rồi mới xem nút.
+    await page.getByRole("status").filter({ hasText: "Đang nhận ảnh gốc độ nét cao" }).waitFor();
     assert.equal(await page.getByRole("button", { name: "Lưu ảnh", exact: true }).isDisabled(), true);
     assert.equal(await page.getByRole("button", { name: "Lưu tất cả (3)", exact: true }).isDisabled(), true);
     value.captureEndsAt = new Date(Date.now() - 2 * 3600000).toISOString();
