@@ -1,7 +1,8 @@
 /* Mellow kraft/espresso, existing serif titles. Frame catalog first, then
    photograph on the left + touch controls on the right. No customer art in step 1. */
 @layer components {
-  .ptb-flow-step { color: var(--mellow-muted,#7a5a48); font-size: 14px; font-weight: 600; letter-spacing: .12em; }
+  /* 14px cho khách đứng xa đọc được; dòng thấp (17px) để phần đầu màn không cao thêm, ảnh không nhỏ lại. */
+  .ptb-flow-step { color: var(--mellow-muted,#7a5a48); font-size: 14px; font-weight: 600; line-height: 17px; letter-spacing: .12em; }
   .ptb-frames-screen { height: 100dvh; min-height: 0; overflow: hidden; }
   .ptb-frames-screen .flow-head { flex: none; gap: 6px; }
   .ptb-frames-screen .flow-head h1 { font-size: clamp(28px,3.2vw,48px); }
