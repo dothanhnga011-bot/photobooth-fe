@@ -59,6 +59,15 @@ const COLORS = { 1: [220, 40, 40, 255], 2: [40, 180, 60, 255], 3: [40, 80, 220, 
 const photos = Object.fromEntries(Object.entries(COLORS).map(([n, c]) => [n, png(300, 400, () => c)]));
 
 let server, browser, base, portrait;
+// Bộ chấm khuôn mặt giả thay cho MediaPipe (gợi ý ảnh đẹp): điểm từng ảnh lấy ở window.fixtureFaces.
+const FAKE_FACE_SCORE = `
+  export async function scorePhoto(token, photo) {
+    const faces = window.fixtureFaces?.[photo.id];
+    if (faces === "unavailable") throw Object.assign(new Error("no model"), { code: "FACE_DETECTION_UNAVAILABLE" });
+    window.fixtureScored = (window.fixtureScored || 0) + 1;
+    return faces || [];
+  }
+`;
 const fixture = `
   import React from 'react';
   import { createRoot } from 'react-dom/client';
@@ -91,7 +100,8 @@ before(async () => {
     build: { write: false, minify: false, rollupOptions: { input: "virtual:selfbooth.jsx" } },
     plugins: [tailwindcss(), { name: "selfbooth-fixture", enforce: "pre",
       resolveId: (id) => (id.startsWith("virtual:") ? "\0" + id : null),
-      load: (id) => (id === "\0virtual:selfbooth.jsx" ? fixture : null) }],
+      load: (id) => (id === "\0virtual:selfbooth.jsx" ? fixture
+        : id.replace(/\\/g, "/").endsWith("/src/album/selfbooth/face-score.js") ? FAKE_FACE_SCORE : null) }],
   });
   const assets = new Map(bundle.output.map((a) => ["/" + a.fileName, a.code || a.source]));
   const entry = bundle.output.find((a) => a.isEntry).fileName;
@@ -118,7 +128,7 @@ before(async () => {
 });
 after(async () => { await browser?.close(); await new Promise((resolve) => server?.close(resolve)); });
 
-async function phone({ originalPending = false, photoCount = 4, printError = null, lostReply = false,
+async function phone({ faces = null, originalPending = false, photoCount = 4, printError = null, lostReply = false,
   viewport = { width: 390, height: 844 }, realPhoto = false, prints: quota = 1, desktop = false, size = "large" } = {}) {
   const page = await browser.newPage(desktop ? { viewport } : { viewport, isMobile: true, hasTouch: true });
   const errors = [], prints = [], mediaRequests = [], deletes = [], uploads = [], asked = [];
@@ -169,6 +179,7 @@ async function phone({ originalPending = false, photoCount = 4, printError = nul
     if (path.endsWith("/albums/fixture-album")) return route.fulfill({ json: booking });
     return route.fulfill({ status: 404, json: { message: `unexpected ${path}` } });
   });
+  if (faces) await page.addInitScript((value) => { window.fixtureFaces = value; }, faces);
   await page.goto(`${base}/album/fixture-album`);
   return { page, errors, prints, mediaRequests, deletes, uploads, booking, asked,
     originalsReady:()=>{booking.photos.forEach(p=>delete p.originalPending)} };
@@ -431,6 +442,72 @@ test("a lost print reply is recovered by looking up the job, without sending a s
     assert.equal(prints.length, 1);
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
+});
+
+test("the library suggests as many smiling, eyes-open photos as the frame set has slots; one tap fills the missing hearts", async () => {
+  const face = (smile, blink = 0.1) => ({ smile, blink, width: 0.2 });
+  const faces = {
+    p1: [face(0.9), face(0.8)],
+    p2: [face(0.95), face(0.9)], // tốt hơn ảnh 1, chụp liền sau
+    p3: [face(0.99, 0.8), face(0.9)], // có người nhắm mắt
+    p4: [face(0.2, 0.2), face(0.1)],
+    p5: [face(0.99)], // thiếu một người
+    p6: [face(0.7), face(0.7, 0.2)],
+    p7: [],
+    p8: [face(0.85), face(0.8)],
+    p9: [face(0.6, 0.3), face(0.5, 0.2)],
+  };
+  const { page, errors } = await phone({ photoCount: 9, realPhoto: true, faces });
+  try {
+    const bar = page.locator(".suggest-bar");
+    const suggested = async () => (await page.locator(".studio-grid figure.is-suggested .studio-photo").evaluateAll(
+      (buttons) => buttons.map((b) => b.getAttribute("aria-label")))).sort();
+    // Chưa chọn bộ: theo bộ ít ô nhất của tiệm ("Selfbooth", 2 ô).
+    await bar.filter({ hasText: "Gợi ý 2 ảnh đẹp" }).waitFor({ timeout: 30000 });
+    assert.deepEqual(await suggested(), ["Xem & chỉnh ảnh 02", "Xem & chỉnh ảnh 08"]);
+    // Chọn bộ "Hoa" (2 khung × 2 ô = 4 ô) rồi quay lại thư viện: gợi ý đúng 4 ảnh.
+    await page.getByRole("button", { name: /Chọn chủ đề/ }).click();
+    await page.getByRole("button", { name: "Chọn bộ Hoa, 2 khung, 4 ô ảnh" }).click();
+    await page.getByRole("button", { name: "Quay lại" }).click();
+    const hoa = bar.filter({ hasText: "Bộ “Hoa” có 4 ô" });
+    await hoa.filter({ hasText: "Gợi ý 4 ảnh đẹp" }).waitFor();
+    assert.deepEqual(await suggested(), ["Xem & chỉnh ảnh 01", "Xem & chỉnh ảnh 02", "Xem & chỉnh ảnh 06", "Xem & chỉnh ảnh 08"]);
+    assert.equal(await page.locator(".photo-suggested").count(), 4);
+    await page.screenshot({ path: resolve(".cache/main-flows/album-suggestions-390.png"), fullPage: true });
+    // Chỉ xem ảnh gợi ý, rồi xem lại tất cả.
+    await hoa.getByRole("button", { name: "Xem ảnh gợi ý" }).click();
+    assert.equal(await page.locator(".studio-grid figure").count(), 4);
+    await hoa.getByRole("button", { name: "Xem tất cả ảnh" }).click();
+    assert.equal(await page.locator(".studio-grid figure").count(), 9);
+    // Đã thả tim 1 ảnh: chỉ thả thêm 3 ảnh gợi ý đẹp nhất cho đủ 4 ô.
+    await page.getByRole("button", { name: "Thả tim ảnh 09" }).click();
+    await hoa.getByRole("button", { name: "Thả tim 3 ảnh gợi ý" }).click();
+    await page.getByText("Thích · 4").waitFor();
+    assert.deepEqual((await stored(page)).hearts.sort(), ["p2", "p6", "p8", "p9"]);
+    assert.equal(await bar.getByRole("button", { name: /Thả tim \d+ ảnh gợi ý/ }).count(), 0, "the set is already full");
+    // Điểm lưu trên máy: tải lại trang không chấm lại.
+    assert.equal(await page.evaluate(() => window.fixtureScored), 9);
+    await page.reload();
+    await bar.filter({ hasText: "Gợi ý 4 ảnh đẹp" }).waitFor();
+    assert.equal(await page.evaluate(() => window.fixtureScored || 0), 0, "scores come from this phone's saved results");
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("no suggestions when the face model cannot load or the album is small; the library still works", async () => {
+  const unavailable = Object.fromEntries(Array.from({ length: 9 }, (_, i) => [`p${i + 1}`, "unavailable"]));
+  for (const options of [{ photoCount: 9, realPhoto: true, faces: unavailable }, { photoCount: 4 }]) {
+    const { page, errors } = await phone(options);
+    try {
+      await page.getByRole("heading", { name: "Thư viện ảnh" }).waitFor();
+      await page.waitForTimeout(800);
+      assert.equal(await page.locator(".suggest-bar").count(), 0);
+      assert.equal(await page.locator(".photo-suggested").count(), 0);
+      await page.getByRole("button", { name: "Thả tim ảnh 01" }).click();
+      await page.getByText("Thích · 1").waitFor();
+      assert.deepEqual(errors, []);
+    } finally { await page.close(); }
+  }
 });
 
 test("the album fits phones (390, 320) and a desktop like the Selfbooth album; the editor keeps Done on screen", async () => {

@@ -28,6 +28,8 @@ export function loadFaceLandmarker() {
       baseOptions: { modelAssetPath: modelUrl, delegate: "CPU" },
       runningMode: "IMAGE",
       numFaces: 6,
+      // Điểm biểu cảm từng mặt (mắt nhắm, cười): dùng cho gợi ý ảnh đẹp ở album Selfbooth (scoreFaces).
+      outputFaceBlendshapes: true,
       minFaceDetectionConfidence: 0.5,
       minFacePresenceConfidence: 0.5,
     });
@@ -42,6 +44,26 @@ export function loadFaceLandmarker() {
     );
   });
   return landmarker;
+}
+
+// Gợi ý ảnh đẹp (album/selfbooth/photo-suggestions.js): mắt nhắm (eyeBlink) và cười (mouthSmile) của từng
+// mặt, 0..1. Chạy một lần trên ảnh nhỏ của thư viện (không thử xoay như khi làm đẹp). Mặt quá nhỏ (người đi
+// ngang phía sau, mặt in trên áo) không tính.
+const MIN_FACE_WIDTH = 0.06;
+export async function scoreFaces(source) {
+  const model = await loadFaceLandmarker();
+  const result = model.detect(source);
+  return (result.faceBlendshapes || [])
+    .map((shapes, index) => {
+      const score = (name) => shapes.categories.find((c) => c.categoryName === name)?.score ?? 0;
+      const xs = (result.faceLandmarks?.[index] || []).map((point) => point.x);
+      return {
+        blink: Math.max(score("eyeBlinkLeft"), score("eyeBlinkRight")),
+        smile: (score("mouthSmileLeft") + score("mouthSmileRight")) / 2,
+        width: xs.length ? Math.max(...xs) - Math.min(...xs) : 0,
+      };
+    })
+    .filter((face) => face.width >= MIN_FACE_WIDTH);
 }
 
 // Trả về danh sách khuôn mặt, mỗi mặt là mảng điểm {x, y} theo pixel.

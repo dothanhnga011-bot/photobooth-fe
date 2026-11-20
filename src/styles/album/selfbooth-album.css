@@ -441,6 +441,87 @@
     font-size: 14px;
   }
 
+  /* ── Gợi ý ảnh đẹp (use-photo-suggestions.js): thanh trên lưới ảnh và nhãn "Gợi ý" ở góc ảnh ──── */
+  .sb-album .suggest-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    margin: 0 0 16px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--wine);
+    background: var(--paper);
+    color: var(--body);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .sb-album .suggest-bar > svg {
+    flex-shrink: 0;
+    color: #b0884f;
+    font-size: 18px;
+  }
+  .sb-album .suggest-bar > span {
+    flex: 1 1 220px;
+  }
+  .sb-album .suggest-bar strong {
+    color: var(--ink);
+  }
+  .sb-album .suggest-bar.is-working {
+    border-left-color: var(--line-strong);
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .sb-album .suggest-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .sb-album .suggest-actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 14px;
+    border: 1px solid var(--line-strong);
+    border-radius: 2px;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .sb-album .suggest-actions button[aria-pressed="true"] {
+    border-color: var(--wine);
+    box-shadow: inset 0 0 0 1px var(--wine);
+  }
+  .sb-album .suggest-actions button.is-primary {
+    border-color: var(--wine);
+    background: var(--wine);
+    color: var(--paper);
+  }
+  .sb-album .suggest-actions button.is-primary svg {
+    color: #f3b8c2;
+  }
+  .sb-album .suggest-actions button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .sb-album .photo-suggested {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    padding: 3px 8px;
+    border-radius: 2px;
+    background: rgb(59 42 34 / 0.86);
+    color: #f6efe5;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    pointer-events: none;
+  }
+
   /* ── Thanh dưới: tấm giấy với đường chỉ ────────────────────────────────── */
   .sb-album .studio-actions {
     position: fixed;

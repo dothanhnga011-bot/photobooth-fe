@@ -17,9 +17,9 @@ before(async () => {
     plugins: [{ name: 'beauty-model-fixture',
       resolveId: id => id === 'virtual:beauty-model' ? '\0' + id : null,
       load: id => id === '\0virtual:beauty-model' ? `
-        import { detectFaces, applyBeauty, loadFaceLandmarker } from '/src/beauty.js';
+        import { detectFaces, applyBeauty, loadFaceLandmarker, scoreFaces } from '/src/beauty.js';
         import { applyBeautyAsync } from '/src/image-processing.js';
-        window.beauty = { detectFaces, applyBeauty, applyBeautyAsync, loadFaceLandmarker };
+        window.beauty = { detectFaces, applyBeauty, applyBeautyAsync, loadFaceLandmarker, scoreFaces };
       ` : null,
     }],
   });
@@ -117,4 +117,17 @@ test('the shipped model detects the portrait and skin/face adjustments change ac
   assert.ok(result.changed > 200, `face adjustments affect pixels: ${JSON.stringify(result)}`);
   assert.deepEqual(result.size, result.expected);
   for(const [name,changed] of Object.entries(result.effects)) assert.ok(changed>5,`${name} actually changes the portrait: ${JSON.stringify(result.effects)}`);
+});
+
+// Gợi ý ảnh đẹp ở album Selfbooth: cùng model chấm cười / nhắm mắt trên ảnh nhỏ 640 px của thư viện.
+test('the bundled model scores smile and closed eyes for each face on a 640 px library thumbnail', async () => {
+  const faces = await page.evaluate(async () => {
+    const img = new Image(); img.src = '/portrait.jpg'; await img.decode();
+    const scale = 640 / Math.max(img.naturalWidth, img.naturalHeight);
+    const bitmap = await createImageBitmap(img, { resizeWidth: Math.round(img.naturalWidth * scale), resizeHeight: Math.round(img.naturalHeight * scale) });
+    try { return await window.beauty.scoreFaces(bitmap); } finally { bitmap.close(); }
+  });
+  assert.equal(faces.length, 1, JSON.stringify(faces));
+  for (const key of ['blink', 'smile', 'width']) assert.ok(faces[0][key] >= 0 && faces[0][key] <= 1, JSON.stringify(faces[0]));
+  assert.ok(faces[0].blink < 0.55, 'the sample portrait has open eyes: ' + faces[0].blink);
 });

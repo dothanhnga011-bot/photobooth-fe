@@ -34,6 +34,8 @@ import { createCanvasCache } from '../../canvas-cache.js';
 
 import { BeautyEditor } from './BeautyEditor.jsx';
 import { FrameEditor, NO_MOVE } from './FrameEditor.jsx';
+import { usePhotoSuggestions } from './use-photo-suggestions.js';
+import { suggestionTarget } from './photo-suggestions.js';
 
 const STEPS = [
   ["Ảnh", PiImagesDuotone],
@@ -121,8 +123,17 @@ function EditedThumb({ token, photo, adjust, small, suspended, alt, loading }) {
 }
 
 function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, frozen, uploadProgress, selectedPack, downloadingId,
-  onFavorite, onDelete, onDownload, onEdit, onUpload, onNext }) {
+  suggestions = [], capacity = 0, suggestProgress = null, onHeartMany, onFavorite, onDelete, onDownload, onEdit, onUpload, onNext }) {
   const [selecting, setSelecting] = useState(false);
+  // Gợi ý ảnh đẹp: chỉ xem các ảnh gợi ý (hết gợi ý thì về xem tất cả).
+  const [onlySuggested, setOnlySuggested] = useState(false);
+  const suggested = useMemo(() => new Set(suggestions), [suggestions]);
+  const showSuggested = onlySuggested && suggested.size > 0;
+  const shown = showSuggested ? photos.filter((p) => suggested.has(p.id)) : photos;
+  // Đã chọn bộ khung: chỉ thả tim cho đủ số ô còn thiếu (ảnh đẹp nhất trước); chưa chọn bộ: cả loạt gợi ý.
+  const hearted = new Set(photos.filter((p) => p.favorite).map((p) => p.id));
+  const needed = capacity ? Math.max(0, capacity - favorites) : Infinity;
+  const unhearted = suggestions.filter((id) => !hearted.has(id)).slice(0, needed);
   const [selected, setSelected] = useState(() => new Set());
   const input = useRef(null);
   const allSelected = selecting && photos.length > 0 && selected.size === photos.length;
@@ -154,6 +165,31 @@ function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, f
           <PiDownloadSimpleBold aria-hidden="true" /> Tải tất cả
         </Button>
       </div>
+      {suggestProgress && (
+        <p className="suggest-bar is-working" role="status">
+          <PiSparkleFill aria-hidden="true" />
+          <span>Đang tìm ảnh cười tươi, không nhắm mắt để gợi ý cho bạn… {suggestProgress.done}/{suggestProgress.total}</span>
+        </p>
+      )}
+      {!suggestProgress && suggested.size > 0 && (
+        <div className="suggest-bar" role="status">
+          <PiSparkleFill aria-hidden="true" />
+          <span>
+            {selectedPack && capacity ? <>Bộ “{selectedPack.name}” có {capacity} ô — </> : null}
+            Gợi ý <strong>{suggested.size} ảnh đẹp</strong>: cười tươi, không ai nhắm mắt. Chọn nhanh từ đây nhé.
+          </span>
+          <div className="suggest-actions">
+            <button type="button" aria-pressed={showSuggested} onClick={() => setOnlySuggested(!showSuggested)}>
+              {showSuggested ? "Xem tất cả ảnh" : "Xem ảnh gợi ý"}
+            </button>
+            {unhearted.length > 0 && (
+              <button type="button" className="is-primary" disabled={frozen} onClick={() => onHeartMany(unhearted)}>
+                <PiHeartFill aria-hidden="true" /> Thả tim {unhearted.length} ảnh gợi ý
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       <div className={`studio-grid ${selecting ? "is-selecting" : ""}`}>
         <button type="button" className="studio-upload-tile" aria-label="Thêm ảnh từ điện thoại" aria-busy={busy}
           disabled={locked} onClick={() => input.current?.click()}>
@@ -161,16 +197,17 @@ function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, f
           <strong>{busy ? "Đang tải lên…" : "Thêm ảnh"}</strong>
           <span>{busy ? uploadProgress ? `Đã lưu ${uploadProgress.done}/${uploadProgress.total} ảnh` : "Vui lòng đợi" : "Từ điện thoại"}</span>
         </button>
-        {photos.map((p, i) => {
+        {shown.map((p, i) => {
           const adjust = adjustOf(p.id);
           const number = pad(p.number || i + 1);
           return (
-            <figure key={p.id} className={`${p.favorite ? "is-fav" : ""} ${selected.has(p.id) ? "is-picked" : ""}`}>
+            <figure key={p.id} className={`${p.favorite ? "is-fav" : ""} ${selected.has(p.id) ? "is-picked" : ""} ${suggested.has(p.id) ? "is-suggested" : ""}`}>
               <button type="button" className="studio-photo" aria-label={selecting ? `Chọn ảnh ${number}` : `Xem & chỉnh ảnh ${number}`}
                 onClick={() => (selecting ? toggle(p.id) : onEdit(p))}>
                 <EditedThumb photo={p} token={token} adjust={adjust} small={small} suspended={suspended} alt={`Ảnh ${number}`} loading={i < 4 ? 'eager' : 'lazy'}/>
               </button>
               {!isNeutral(adjust) && <span className="photo-edited" title="Đã chỉnh sửa"><PiSparkleFill /></span>}
+              {suggested.has(p.id) && <span className="photo-suggested" title="Gợi ý: cười tươi, không nhắm mắt">Gợi ý</span>}
               <div className="tile-actions">
                 {selecting ? (
                   <button type="button" className="tile-btn tile-check" role="checkbox" aria-checked={selected.has(p.id)}
@@ -440,6 +477,11 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
   const used = Number(booking.printSheets) || 0;
   const remaining = Math.max(0, quota - used);
   const [editing, setEditing] = useState(null);
+  // Gợi ý ảnh đẹp (cười tươi, không ai nhắm mắt): bao nhiêu ảnh theo số ô của bộ khung đã chọn (chưa chọn thì bộ
+  // ít ô nhất); tạm dừng chấm khi khách đang chỉnh ảnh.
+  const suggestLimit = suggestionTarget({ total: photos.length, packCapacity: required, packCapacities: packs.map(capacityOf) });
+  const { progress: suggestProgress, suggested: suggestedIds } = usePhotoSuggestions(token, photos, { limit: suggestLimit, paused: Boolean(editing) });
+  const suggested = useMemo(() => new Set(suggestedIds), [suggestedIds]);
   const [shortage, setShortage] = useState(false);
   const [busy, setBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null);
@@ -473,6 +515,11 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
   function toggleHeart(photo) {
     if (frozen) return;
     save((v) => ({ hearts: v.hearts.includes(photo.id) ? v.hearts.filter((h) => h !== photo.id) : [...v.hearts, photo.id] }));
+  }
+  function heartMany(list) {
+    if (frozen || !list.length) return;
+    save((v) => ({ hearts: [...v.hearts, ...list.filter((id) => !v.hearts.includes(id))] }));
+    toast.success(`Đã thả tim ${list.length} ảnh gợi ý.`);
   }
   async function removePhotos(list) {
     if (mutating.current || frozen || !list.length || !window.confirm(`Xóa ${list.length} ảnh khỏi thư viện?`)) return false;
@@ -557,7 +604,10 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
     for (const frame of packs.find((p) => p.id === id)?.frames || []) loadFrameImage(frame.image).catch(() => {});
     if (id !== saved.packId) save({ packId: id, layouts: {}, frameIndex: 0, autoFill: false });
   }
-  const pool = (autoFill) => autoFill ? [...favorites, ...photos.filter((p) => !p.favorite)].map((p) => p.id) : favorites.map((p) => p.id);
+  // Ghép tự động: ảnh yêu thích trước, rồi ảnh gợi ý, rồi các ảnh còn lại.
+  const pool = (autoFill) => autoFill
+    ? [...favorites, ...photos.filter((p) => !p.favorite && suggested.has(p.id)), ...photos.filter((p) => !p.favorite && !suggested.has(p.id))].map((p) => p.id)
+    : favorites.map((p) => p.id);
   function toCompose() {
     if (!pack || !required || !photos.length) return;
     if (favorites.length < required && !ready) {
@@ -737,6 +787,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
       ) : step === 0 ? (
         <Gallery token={token} photos={newestFirst} favorites={favorites.length} adjustOf={adjustOf} small={small} suspended={Boolean(editing)} busy={busy} frozen={frozen}
           uploadProgress={uploadProgress} selectedPack={pack} downloadingId={downloadingId} onFavorite={toggleHeart}
+          suggestions={suggestedIds} capacity={pack ? required : 0} suggestProgress={suggestProgress} onHeartMany={heartMany}
           onDelete={removePhotos} onDownload={downloadOne} onEdit={(p) => setEditing(p.id)} onUpload={upload}
           onNext={() => go(1)} />
       ) : step === 1 ? (
