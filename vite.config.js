@@ -99,8 +99,15 @@ function guestStylesheet() {
       const fileName = `assets/guest-${createHash('sha256').update(source).digest('hex').slice(0, 8)}.css`;
       this.emitFile({ type: 'asset', fileName, source });
       // Written by the parser while it reads <head>, so either file blocks rendering like the
-      // original <link> did (no flash of unstyled content).
-      const choose = `<script>window.__fullStylesheet="/${link[1]}";document.write('<link rel="stylesheet" crossorigin href="'+(location.pathname.indexOf("/album/")===0?"/${fileName}":window.__fullStylesheet)+'">')</script>` +
+      // original <link> did (no flash of unstyled content). If the stylesheet does not arrive (a page
+      // opened while Cloudflare is switching to a new version: new HTML, CSS not there yet), reload
+      // once — at most every 30 s, so an offline page does not loop. A missing /assets file comes back
+      // as the app's HTML page (not_found_handling: single-page-application); the browser refuses it
+      // and fires "load" with an empty sheet rather than "error", so "load" checks for rules too.
+      const retry = 'window.__cssRetry=function(l){try{if(l&&l.sheet&&l.sheet.cssRules.length)return;' +
+        'var k="nxc-css-retry",t=+sessionStorage.getItem(k)||0;' +
+        'if(Date.now()-t>30000){sessionStorage.setItem(k,String(Date.now()));location.reload()}}catch(e){}};';
+      const choose = `<script>${retry}window.__fullStylesheet="/${link[1]}";document.write('<link rel="stylesheet" crossorigin onload="__cssRetry(this)" onerror="__cssRetry()" href="'+(location.pathname.indexOf("/album/")===0?"/${fileName}":window.__fullStylesheet)+'">')</script>` +
         `<noscript>${link[0]}</noscript>`;
       html.source = page.replace(link[0], choose);
     },
