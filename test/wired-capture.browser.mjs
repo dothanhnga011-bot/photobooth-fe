@@ -56,7 +56,7 @@ before(async () => {
 
 after(async () => { await browser?.close(); await new Promise((resolve) => server?.close(resolve)); });
 
-async function booth(phase, { polaroid = false, deferStart = false } = {}) {
+async function booth(phase, { selfbooth = false, deferStart = false } = {}) {
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
   const errors = [], agentRequests = [];
   let releaseStart, startRequests = 0;
@@ -67,7 +67,7 @@ async function booth(phase, { polaroid = false, deferStart = false } = {}) {
   let booking = {
     _id: "fixture-booking", packageName: "Gói thử", shots: 3, photos: [],
     captureDuration: 10, status: "checked_in",
-    ...(polaroid ? { source: "polaroid", printSize: "large" } : {}),
+    ...(selfbooth ? { source: "selfbooth", printSize: "large" } : {}),
     ...(phase === "shoot" ? {
       captureStartedAt: new Date().toISOString(),
       captureEndsAt: new Date(Date.now() + 600000).toISOString(),
@@ -84,7 +84,7 @@ async function booth(phase, { polaroid = false, deferStart = false } = {}) {
         captureEndsAt: new Date(Date.now() + 600000).toISOString(),
       };
     }
-    await route.fulfill({ json: path.endsWith("/kiosk/ping") ? { room: { _id: "room", flip: "device", kind: polaroid ? "polaroid" : "photobooth" } }
+    await route.fulfill({ json: path.endsWith("/kiosk/ping") ? { room: { _id: "room", flip: "device", kind: selfbooth ? "selfbooth" : "photobooth" } }
       : path.endsWith("/health") ? { ok: true } : { booking } });
   });
   await page.addInitScript(({ booking, phase }) => {
@@ -128,8 +128,8 @@ test("active old timer session cannot trigger another automatic exposure", async
 });
 
 for (const phase of ["ready", "mode"]) {
-  test(`Canon Polaroid resumes ${phase} without a countdown and waits for session activation`, async () => {
-    const b = await booth(phase, { polaroid: true, deferStart: true });
+  test(`Canon Selfbooth resumes ${phase} without a countdown and waits for session activation`, async () => {
+    const b = await booth(phase, { selfbooth: true, deferStart: true });
     try {
       await b.page.getByRole("status", { name: "Đang mở lượt chụp" }).waitFor();
       // Even an old 60-second ready timer must not delay /start.
@@ -156,7 +156,7 @@ for (const phase of ["ready", "mode"]) {
 }
 
 test("Canon cable mode has no exposure countdown at the beginning or end of a session", async () => {
-  const b = await booth("shoot", { polaroid: true });
+  const b = await booth("shoot", { selfbooth: true });
   try {
     await b.page.locator(".shoot-screen.phase-shoot").waitFor();
     for (const props of [

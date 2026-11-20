@@ -16,12 +16,12 @@ import { ordersChanged } from "./nav-badges";
 const SIZE_NAMES = { full: "Lớn", strip: "Nhỏ", large: "20 × 30" };
 
 const paymentLabel = (method) => method === "cash" ? "Tiền mặt" : method === "transfer" ? "Chuyển khoản" : "—";
-// Lượt chụp phòng Polaroid: khách trả tiền ở quầy sau khi chọn layout — nhân viên bấm "Đã thu".
+// Lượt chụp phòng Selfbooth: khách trả tiền ở quầy sau khi chọn layout — nhân viên bấm "Đã thu".
 const awaitingPayment = (booking) =>
-  booking.source === "polaroid" && !booking.paid && ["checked_in", "completed"].includes(booking.status);
+  booking.source === "selfbooth" && !booking.paid && ["checked_in", "completed"].includes(booking.status);
 // Đơn không có tên khách: ghi theo nơi khách trả tiền (quầy tạo mã / đút tiền ở máy chụp).
 const customerLabel = (booking) => booking.name
-  || (booking.source === "kiosk" ? "Khách trả tiền mặt tại máy" : booking.source === "polaroid" ? "Khách Selfbooth" : "Khách tại quầy");
+  || (booking.source === "kiosk" ? "Khách trả tiền mặt tại máy" : booking.source === "selfbooth" ? "Khách Selfbooth" : "Khách tại quầy");
 const albumUrl = (booking) => booking.accessToken ? `${window.location.origin}/album/${booking.accessToken}` : "";
 
 // Ảnh đại diện của đơn: ảnh đã ghép khung (máy chụp ghép, rồi tới lệnh in gần nhất), chưa có thì

@@ -1,5 +1,5 @@
 // The guest flow on the shop's portrait touch screen (1080 × 1920): every screen a guest sees in a
-// photobooth or polaroid room fills the screen without scrolling, with big touch targets. The polaroid
+// photobooth or selfbooth room fills the screen without scrolling, with big touch targets. The selfbooth
 // room (now the Selfbooth room) uses the same plain Mellow look: no gold ornament border since 13/11.
 // Each screen is mounted on its own (?screen=…) with fixture props; screenshots go to the temp folder.
 import assert from "node:assert/strict";
@@ -42,7 +42,7 @@ const fixture = `
   ];
   const settings = { name: 'Mellow', kiosk: { idleImage: picture(400, 500, ['#d9a38f', '#8a6450']) } };
   const screen = new URLSearchParams(location.search).get('screen');
-  // Phòng Polaroid: giao diện cổ điển (Kiosk.jsx đặt thuộc tính này trên <html>).
+  // Phòng Selfbooth: giao diện cổ điển (Kiosk.jsx đặt thuộc tính này trên <html>).
   // Màn chụp: hình trực tiếp giả lập 16 : 9 (luồng từ canvas) và ba ảnh đã chụp.
   function Shoot() {
     const video = useRef(null);
@@ -67,7 +67,7 @@ const fixture = `
       .map((colors, i) => ({ key: 'shot' + i, preview: picture(1500, 1000, colors) })));
     // Khách vừa bấm dây: một ảnh mới tới (test gọi window.addShot()).
     window.addShot = () => setShots((list) => [...list, { key: 'shot' + list.length, preview: picture(1500, 1000, ['#7ac98f', '#2f6a3d']) }]);
-    return <KioskShoot showLive={screen !== 'polaroid-shoot'} videoRef={video} zoom={0} ready phase="shoot" preCount={0} showCountdown={false}
+    return <KioskShoot showLive={screen !== 'selfbooth-shoot'} videoRef={video} zoom={0} ready phase="shoot" preCount={0} showCountdown={false}
       sessionLeft={172} taken={shots.length} quota={0} shots={shots} flash={0} receiving={false} ending={false}
       onEnd={() => {}} onReopenCamera={() => {}} />;
   }
@@ -84,10 +84,10 @@ const fixture = `
       case 'print': return <KioskPrintCount pack={packs[0]} sheets={sheets} extraPrintPrice={20000} onChange={setSheets} onNext={none} onBack={none} />;
       case 'pay': return <KioskPayment pack={packs[0]} total={70000} sheets={1} bills={[]} onBill={none} onPaid={none} onSkip={none}
         onBack={none} onIdle={none} testMode={false} busy={false} error="" cameraReady={true} cashReady={false} />;
-      case 'polaroid-idle': return <KioskEntry roomId="room" onTap={none} />;
-      case 'polaroid-code': return <KioskCode code={code} setCode={setCode} onSubmit={(e) => e.preventDefault()} onBack={none}
-        busy={false} error="" device="fixture-device" cameraReady={true} polaroid />;
-      case 'polaroid-shoot': return <Shoot />;
+      case 'selfbooth-idle': return <KioskEntry roomId="room" onTap={none} />;
+      case 'selfbooth-code': return <KioskCode code={code} setCode={setCode} onSubmit={(e) => e.preventDefault()} onBack={none}
+        busy={false} error="" device="fixture-device" cameraReady={true} selfbooth />;
+      case 'selfbooth-shoot': return <Shoot />;
       case 'ptb-shoot': return <Shoot />;
       case 'studio-done': return <KioskDone left={90} pending={0} nextGuest={none} done={{
         url: 'https://mellowptb.com/album/fixture', code: '123456', photos: 12, prints: 1, printSize: 'large', studio: true }} />;
@@ -187,8 +187,8 @@ const footOk = (m, count) => {
   assert.equal(m.foot.rows, 1, "các nút dưới cùng nằm một hàng");
 };
 
-test("idle: big polaroid on top, title and a big 'Chạm để bắt đầu' below", async () => {
-  const m = await portrait("idle", { photo: ".kiosk-polaroid", start: ".kiosk-sticker" });
+test("idle: big selfbooth on top, title and a big 'Chạm để bắt đầu' below", async () => {
+  const m = await portrait("idle", { photo: ".kiosk-selfbooth", start: ".kiosk-sticker" });
   assert.equal(m.pageScrolls, false);
   assert.ok(m.photo.minWidth >= 600, `ảnh rộng ${m.photo.minWidth} px`);
   assert.ok(m.start.minHeight >= 90, `nút bắt đầu cao ${m.start.minHeight} px`);
@@ -234,25 +234,25 @@ test("bill reader: big totals and a pointer down to the bill acceptor", async ()
   footOk(m, 1);
 });
 
-test("polaroid (Selfbooth) room: plain Mellow idle screen, no gold border", async () => {
-  const m = await portrait("polaroid-idle", { start: ".kiosk-sticker" });
+test("selfbooth (Selfbooth) room: plain Mellow idle screen, no gold border", async () => {
+  const m = await portrait("selfbooth-idle", { start: ".kiosk-sticker" });
   assert.equal(m.pageScrolls, false);
   assert.ok(m.start.minHeight >= 90, `nút bắt đầu cao ${m.start.minHeight} px`);
 });
 
-test("polaroid (Selfbooth) room: plain Mellow code card, big keypad", async () => {
-  const m = await portrait("polaroid-code", { key: ".voucher-keypad button", box: "#kiosk-code", foot: FOOT });
+test("selfbooth (Selfbooth) room: plain Mellow code card, big keypad", async () => {
+  const m = await portrait("selfbooth-code", { key: ".voucher-keypad button", box: "#kiosk-code", foot: FOOT });
   assert.equal(m.pageScrolls, false);
   assert.equal(m.key.count, 12);
   assert.ok(m.key.minHeight >= 96 && m.key.minWidth >= 200, JSON.stringify(m.key));
   assert.ok(m.box.minHeight >= 96, `ô mã cao ${m.box.minHeight} px`);
   footOk(m, 1);
-  const wide = await portrait("polaroid-code", { key: ".voucher-keypad button" }, { width: 1920, height: 1080 });
+  const wide = await portrait("selfbooth-code", { key: ".voucher-keypad button" }, { width: 1920, height: 1080 });
   assert.equal(wide.pageScrolls, false);
 });
 
 test("Selfbooth with external HDMI, landscape: latest JPEG in the main stage, no browser live view", async () => {
-  const m = await portrait("polaroid-shoot", {
+  const m = await portrait("selfbooth-shoot", {
     stage: ".shoot-stage", latest: ".shoot-latest-full", rail: ".shoot-rail", thumbs: ".shoot-thumbs img", end: ".shoot-end", live: ".shoot-stage video",
   }, { width: 1920, height: 1080 });
   assert.equal(m.pageScrolls, false);
@@ -295,7 +295,7 @@ test("PTB shoot, landscape: the photo column is twice as wide; a new photo goes 
 });
 
 test("Selfbooth with external HDMI, portrait: large latest JPEG and compact controls below", async () => {
-  const m = await portrait("polaroid-shoot", { stage: ".shoot-stage", latest: ".shoot-latest-full img", end: ".shoot-end", live: ".shoot-stage video" });
+  const m = await portrait("selfbooth-shoot", { stage: ".shoot-stage", latest: ".shoot-latest-full img", end: ".shoot-end", live: ".shoot-stage video" });
   assert.equal(m.pageScrolls, false);
   assert.equal(m.live, null);
   assert.ok(m.stage.minHeight > 1500, JSON.stringify(m.stage));

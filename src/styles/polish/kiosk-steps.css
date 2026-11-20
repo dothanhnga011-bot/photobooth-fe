@@ -1,7 +1,7 @@
 /* Kiosk kiểu Mellow: màn chờ, chọn khổ, chọn số bản in, nhập mã, đếm ngược từng tấm.
    Hệ thống “Tạp chí × Sổ lưu niệm” — token và kiểu nút dùng chung ở mellow-theme.css. */
 @layer components {
-  /* ── Màn chờ: ảnh polaroid dán băng keo + tiêu đề có nét bút dạ + nút sticker ── */
+  /* ── Màn chờ: ảnh selfbooth dán băng keo + tiêu đề có nét bút dạ + nút sticker ── */
   .kiosk-attract {
     position: relative;
     padding: 0;
@@ -43,7 +43,7 @@
     text-align: left;
     cursor: pointer;
   }
-  .kiosk-polaroid {
+  .kiosk-selfbooth {
     position: relative;
     flex: 0 0 auto;
     width: min(34vw, 420px);
@@ -52,7 +52,7 @@
     box-shadow: var(--mellow-paper-shadow);
     rotate: -4deg;
   }
-  .kiosk-polaroid::before {
+  .kiosk-selfbooth::before {
     content: "";
     position: absolute;
     top: -16px;
@@ -63,7 +63,7 @@
     rotate: -3deg;
     background: var(--mellow-tape);
   }
-  .kiosk-polaroid img {
+  .kiosk-selfbooth img {
     display: block;
     width: 100%;
     aspect-ratio: 4 / 5;
@@ -367,7 +367,7 @@
     .kiosk-tap {
       flex-direction: column;
     }
-    .kiosk-polaroid {
+    .kiosk-selfbooth {
       width: min(70vw, 320px);
     }
     .kiosk-size-grid {

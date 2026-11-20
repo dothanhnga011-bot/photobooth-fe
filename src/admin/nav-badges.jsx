@@ -9,7 +9,7 @@ import { printerIssues } from "./printer-issues";
 // Gọi sau khi tạo phiếu, xác nhận đã thu, hủy đơn…: số "chờ thu tiền" cập nhật ngay, không đợi 30 giây.
 export const ordersChanged = () => window.dispatchEvent(new Event("nxc:orders"));
 
-// Số đơn chờ thu tiền: phiếu quầy hôm nay chưa xác nhận đã thu, lượt Polaroid chưa thu.
+// Số đơn chờ thu tiền: phiếu quầy hôm nay chưa xác nhận đã thu, lượt Selfbooth chưa thu.
 export function useAwaitingPayment() {
   const [count, setCount] = useState(0);
   const load = useLiveData("/admin/bookings/awaiting-payment", (data) => setCount(Number(data?.count) || 0),
@@ -30,14 +30,14 @@ export function usePrinterIssues() {
 }
 
 // Huy hiệu và lời giải thích cho từng mục; mục không có gì cần báo thì không có.
-export function navNotes({ awaiting, prints = 0, printBranch, issues, storage }) {
+export function navNotes({ awaiting, prints = 0, issues, storage }) {
   return {
     bookings: awaiting > 0 && {
       title: `${awaiting} đơn chờ thu tiền`,
       badge: <span className="nav-count nav-alert" aria-hidden="true">{awaiting > 99 ? "99+" : awaiting}</span>,
     },
     "print-queue": prints > 0 && {
-      title: `${prints} lệnh in Selfbooth đang chờ in${printBranch ? ` · ${printBranch}` : ''}`,
+      title: `${prints} lệnh in Selfbooth đang chờ in`,
       badge: <span className="nav-count nav-alert" aria-hidden="true">{prints > 99 ? "99+" : prints}</span>,
     },
     rooms: issues.length > 0 && {

@@ -65,7 +65,6 @@ let printerRows = null;
 // Hàng chờ in của phòng Selfbooth (/api/admin/print-jobs?size=large).
 let queueJobs = [];
 const printStreams = new Set();
-const queueDelays = new Map();
 function emitPrint(job) {
   for (const response of printStreams) response.write(`event: print\ndata: ${JSON.stringify(job)}\n\n`);
 }
@@ -188,7 +187,6 @@ before(async () => {
         return;
       }
       if (path === "/api/admin/print-jobs" && entry.search.get("size") === "large") {
-        if (queueDelays.has(entry.search.get('branch'))) await new Promise(resolve=>setTimeout(resolve,queueDelays.get(entry.search.get('branch'))));
         send(queueJobs.filter((job) => job.status === (entry.search.get("status") || "pending") &&
           (!entry.search.has('branch') || (job.branch || '') === entry.search.get('branch'))));
         return;
@@ -700,7 +698,7 @@ test("admin keeps inactive rooms, create/edit/deactivate controls, and room edit
     .getByLabel("Tên máy / phòng", { exact: true })
     .fill("Phòng 01 cập nhật");
   // Hộp sửa phòng không còn loại phòng và thông tin máy (mã, dòng máy, ngày nhập, ngày hết hạn).
-  for (const name of [/Photobooth/, /Polaroid/])
+  for (const name of [/Photobooth/, /Selfbooth/])
     assert.equal(await dialog.getByRole("radio", { name }).count(), 0);
   for (const label of ["Mã máy", "Dòng máy", "Ngày nhập máy", "Ngày hết hạn", "Chi nhánh / địa chỉ"])
     assert.equal(await dialog.getByLabel(label, { exact: true }).count(), 0);
@@ -848,60 +846,37 @@ test("Hàng chờ in: a Selfbooth print the guest sent waits for the counter; In
   }
 });
 
-test('Selfbooth queues: separate Bắc Ninh/Bắc Giang, retain selected site, filter live alerts and lock staff scope', async()=>{
-  const makeJob=(branch,id,code)=>({_id:id,branch,code,roomName:'Selfbooth',copies:1,frameName:'Hoa',printSize:'large',
-    sheetCount:1,status:'pending',spoolStatus:'idle',createdAt:new Date().toISOString(),
-    expiresAt:new Date(Date.now()+72*3600000).toISOString(),image:'/logo-m-384.jpg'});
-  queueJobs=[makeJob('Bắc Ninh','bn-1','110001'),makeJob('Bắc Giang','bg-1','220001'),makeJob('Bắc Giang','bg-2','220002')];
-  try{
-    await page.goto(`http://127.0.0.1:${server.address().port}/admin`);
-    await page.evaluate(()=>localStorage.setItem('nxc-selfbooth-print-branch','Bắc Ninh'));
-    await mount('admin');
-    const nav=page.getByRole('navigation',{name:'Quản lý studio'});
-    const queue=nav.getByRole('button',{name:'Hàng chờ in',exact:true});await queue.click();
-    const sites=page.getByRole('group',{name:'Chọn cơ sở in'});
-    await page.locator('.print-card').filter({hasText:'#110001'}).waitFor();
-    assert.equal(await page.locator('.print-card').count(),1);
-    assert.equal(await sites.getByRole('button',{name:'Bắc Ninh',exact:true}).getAttribute('aria-pressed'),'true');
-    assert.equal(await sites.getByRole('button',{name:'Bắc Ninh',exact:true}).locator('span').evaluate(el=>getComputedStyle(el).color),'rgb(255, 250, 243)','selected branch text stays readable on brown');
-    assert.match(await sites.getByRole('button',{name:'Bắc Giang',exact:true}).innerText(),/2 chờ in/);
-    await sites.getByRole('button',{name:'Bắc Giang',exact:true}).click();
-    await page.locator('.print-card').filter({hasText:'#220001'}).waitFor();
-    assert.equal(await page.locator('.print-card').count(),2);
-    assert.equal(await page.locator('.print-card').filter({hasText:'#110001'}).count(),0);
-    assert.match(await queue.getAttribute('title'),/2 lệnh.*Bắc Giang/);
-    // A delayed response from the previous site cannot restore its print buttons.
-    queueDelays.set('Bắc Ninh',350);
-    await sites.getByRole('button',{name:'Bắc Ninh',exact:true}).click();
-    assert.equal(await page.locator('.print-card').count(),0);
-    await sites.getByRole('button',{name:'Bắc Giang',exact:true}).click();
-    await page.locator('.print-card').filter({hasText:'#220001'}).waitFor();
-    await page.waitForTimeout(450);
-    assert.equal(await page.locator('.print-card').filter({hasText:'#110001'}).count(),0);
-    // Real EventSource: ignore a misrouted event, refresh the active site's queue immediately.
-    emitPrint(makeJob('Bắc Ninh','bn-other','110099'));
-    await page.waitForTimeout(100);
-    assert.equal(await page.getByText(/Lệnh in mới.*110099/).count(),0);
-    const fresh=makeJob('Bắc Giang','bg-fresh','220099');queueJobs.push(fresh);emitPrint(fresh);
-    await page.locator('.print-card').filter({hasText:'#220099'}).waitFor({timeout:4000});
-    assert.ok(requests.some(entry=>entry.path==='/api/admin/print-jobs/stream'&&entry.search.get('branch')==='Bắc Giang'));
-    await page.screenshot({path:join(screenshots,'selfbooth-queue-bac-giang.png'),fullPage:true});
-    await mount('admin');await queue.click();
-    assert.equal(await sites.getByRole('button',{name:'Bắc Giang',exact:true}).getAttribute('aria-pressed'),'true');
-    await page.locator('.print-card').filter({hasText:'#220099'}).waitFor();
-    await page.setViewportSize({width:390,height:844});
+test("Hàng chờ in lists every Selfbooth print without a site picker; new prints appear live and the page fits a phone", async () => {
+  const makeJob = (branch, id, code) => ({ _id: id, branch, code, roomName: "Selfbooth", copies: 1, frameName: "Hoa", printSize: "large",
+    sheetCount: 1, status: "pending", spoolStatus: "idle", createdAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 72 * 3600000).toISOString(), image: "/logo-m-384.jpg" });
+  queueJobs = [makeJob("Bắc Ninh", "bn-1", "110001"), makeJob("Bắc Giang", "bg-1", "220001")];
+  try {
+    await mount("admin");
+    const nav = page.getByRole("navigation", { name: "Quản lý studio" });
+    const queue = nav.getByRole("button", { name: "Hàng chờ in", exact: true });
+    await queue.click();
+    await page.locator(".print-card").filter({ hasText: "#220001" }).waitFor();
+    assert.equal(await page.locator(".print-card").count(), 2, "one shop: every Selfbooth print in one queue");
+    assert.equal(await page.getByRole("group", { name: "Chọn cơ sở in" }).count(), 0);
+    assert.equal(await page.getByText("Cơ sở nhận in").count(), 0);
+    assert.equal(await queue.getAttribute("title"), "2 lệnh in Selfbooth đang chờ in");
+    // Lệnh mới tới (luồng sự kiện thật): hiện ngay, có thông báo.
+    const fresh = makeJob("Bắc Ninh", "bn-fresh", "110099");
+    queueJobs.push(fresh);
+    emitPrint(fresh);
+    await page.locator(".print-card").filter({ hasText: "#110099" }).waitFor({ timeout: 4000 });
+    await page.getByText(/Lệnh in mới · vé #110099/).waitFor();
+    assert.equal(requests.some((entry) => entry.path.startsWith("/api/admin/print-jobs") && entry.search.has("branch")), false,
+      "no site filter is sent");
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(200);
-    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'mobile queue fits without horizontal scrolling');
-    const touch=await sites.getByRole('button',{name:'Bắc Giang',exact:true}).boundingBox();assert.ok(touch.height>=44);
-    await page.screenshot({path:join(screenshots,'selfbooth-queue-bac-giang-phone.png'),fullPage:true});
-    await mount('staff',1440,defaultStaffPermissions,{branch:'Bắc Ninh'});await queue.click();
-    await page.locator('.print-card').filter({hasText:'#110001'}).waitFor();
-    assert.equal(await sites.getByRole('button').count(),1);
-    assert.equal(await sites.getByRole('button',{name:'Bắc Giang',exact:true}).count(),0);
-    assert.equal(await page.locator('.print-card').count(),1);
-    await page.screenshot({path:join(screenshots,'selfbooth-queue-bac-ninh-staff.png'),fullPage:true});
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, "the queue fits a phone");
+    await page.screenshot({ path: join(screenshots, "selfbooth-queue-phone.png"), fullPage: true });
     assertClean();
-  }finally{queueJobs=[];queueDelays.clear();}
+  } finally {
+    queueJobs = [];
+  }
 });
 
 test("sidebar badges: orders waiting for payment on Đơn hàng, a red dot on Quản lý máy when a printer needs a look", async () => {
@@ -940,7 +915,7 @@ test("sidebar badges: orders waiting for payment on Đơn hàng, a red dot on Qu
   assertClean();
 });
 
-test("a new room picks its kind (photobooth / polaroid) right in the add form", async () => {
+test("a new room picks its kind (photobooth / selfbooth) right in the add form", async () => {
   await mount("admin");
   await openRooms();
   await page.getByRole("button", { name: "Thêm mới", exact: true }).click();
@@ -953,7 +928,7 @@ test("a new room picks its kind (photobooth / polaroid) right in the add form", 
   await dialog.getByRole("button", { name: /Lưu|Thêm/ }).last().click();
   await dialog.waitFor({ state: "hidden" });
   const created = requests.find((entry) => entry.method === "POST" && entry.path === "/api/admin/rooms");
-  assert.equal(created.body.kind, "polaroid");
+  assert.equal(created.body.kind, "selfbooth");
   assert.equal('branch' in created.body, false, 'new machines get the shop default on the server');
   await roomRow("Phòng Selfbooth").getByText(/Phòng Selfbooth ·/).waitFor();
   // Hộp sửa phòng đã có không hiện loại phòng (chỉ chọn lúc thêm).

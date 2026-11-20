@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Copy, X } from "lucide-react";
 import { api, money } from "./api";
-import { includedSheets, isPolaroid, isStrip, pieceUnit, piecesLabel } from "./kiosk/print-count.js";
+import { includedSheets, isSelfbooth, isStrip, pieceUnit, piecesLabel } from "./kiosk/print-count.js";
 import { Button, ErrorBox, useStudio, useToast } from "./studio";
 import { FieldError, chosen, useValidation } from "./validate";
 import { ordersChanged } from "./admin/nav-badges";
@@ -16,23 +16,23 @@ const printsText = (pack) => {
   const sheets = includedSheets(pack);
   const pieces = piecesLabel(pack, sheets);
   if (isStrip(pack)) return `${pieces} (${sheets} tờ 10 × 15 cắt đôi)`;
-  return isPolaroid(pack) ? pieces : `${pieces} 10 × 15 cm`;
+  return isSelfbooth(pack) ? pieces : `${pieces} 10 × 15 cm`;
 };
 
 // Gói Selfbooth (tờ 20 × 30): mã nhập ở phòng Selfbooth; gói khác: mã nhập ở phòng photobooth.
-const roomKind = (room) => (room.kind === "polaroid" ? "polaroid" : "photobooth");
+const roomKind = (room) => (room.kind === "selfbooth" ? "selfbooth" : "photobooth");
 
 export function CounterTicket({ onClose, onCreated, initialDraft = null, assignedBranch = "" }) {
   const { packages = [], rooms = [], settings = {} } = useStudio();
-  // Gói photobooth và gói Polaroid (tính theo phút như Selfbooth) đang bán.
+  // Gói photobooth và gói Selfbooth (tính theo phút như Selfbooth) đang bán.
   const counterPackages = packages.filter((p) => p.active !== false);
   // Mã lấy chi nhánh từ phòng trên máy chủ; nhân viên chỉ chọn máy phù hợp với gói.
   const roomsFor = (pack) => rooms.filter((r) => r.active !== false &&
-    roomKind(r) === (isPolaroid(pack) ? "polaroid" : "photobooth") &&
+    roomKind(r) === (isSelfbooth(pack) ? "selfbooth" : "photobooth") &&
     (!assignedBranch || r.branch === assignedBranch) &&
     (!pack?.branches?.length || pack.branches.includes(r.branch)));
-  // Mặc định gói photobooth (bán nhiều nhất); chi nhánh chỉ có phòng Polaroid thì mặc định gói Polaroid.
-  const firstPackage = counterPackages.find((p) => !isPolaroid(p) && roomsFor(p).length)
+  // Mặc định gói photobooth (bán nhiều nhất); chi nhánh chỉ có phòng Selfbooth thì mặc định gói Selfbooth.
+  const firstPackage = counterPackages.find((p) => !isSelfbooth(p) && roomsFor(p).length)
     || counterPackages.find((p) => roomsFor(p).length) || counterPackages[0];
   const [form, setForm] = useState({
     package: firstPackage?._id || "",
@@ -78,7 +78,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
   const pack = packages.find((p) => p._id === form.package);
   const eligibleRooms = roomsFor(pack);
   const selectedRoom = eligibleRooms.find((room) => room._id === form.room) || eligibleRooms[0];
-  const layout = isPolaroid(pack) ? pack : null;
+  const layout = isSelfbooth(pack) ? pack : null;
   const change = (key, value) => {
     setForm((f) => {
       const next = { ...f, [key]: value };
@@ -183,7 +183,7 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
               {ticket.roomName ? (
                 <strong>{ticket.roomName}</strong>
               ) : (
-                isPolaroid(ticket) ? "phòng Selfbooth đang trống" : "phòng Photobooth đang trống"
+                isSelfbooth(ticket) ? "phòng Selfbooth đang trống" : "phòng Photobooth đang trống"
               )}{" "}
               và nhập mã này trên màn hình máy chụp.
             </p>
@@ -263,14 +263,14 @@ export function CounterTicket({ onClose, onCreated, initialDraft = null, assigne
                   onChange={(e) => change("package", e.target.value)}
                 >
                   <option value="">Chọn gói</option>
-                  {[["Photobooth", counterPackages.filter((p) => !isPolaroid(p))],
-                    ["Selfbooth (nhập mã ở phòng Selfbooth)", counterPackages.filter(isPolaroid)]]
+                  {[["Photobooth", counterPackages.filter((p) => !isSelfbooth(p))],
+                    ["Selfbooth (nhập mã ở phòng Selfbooth)", counterPackages.filter(isSelfbooth)]]
                     .filter(([, list]) => list.length)
                     .map(([group, list]) => (
                       <optgroup key={group} label={group}>
                         {list.map((p) => (
                           <option key={p._id} value={p._id}>
-                            {isPolaroid(p) ? `${p.name} · ${p.duration} phút` : p.name} — {money(p.price)}
+                            {isSelfbooth(p) ? `${p.name} · ${p.duration} phút` : p.name} — {money(p.price)}
                           </option>
                         ))}
                       </optgroup>

@@ -19,7 +19,7 @@ const safe = (url) => {
 
 // Launch the transfer application for this room's camera, alongside the kiosk.
 export function windowsScript(url, room, kind = "photobooth") {
-  // Từ 14/11 phòng Polaroid / Selfbooth cũng dùng Fujifilm X-T3 + X Acquire (như phòng Photobooth).
+  // Từ 14/11 phòng Selfbooth cũng dùng Fujifilm X-T3 + X Acquire (như phòng Photobooth).
   const canon = false;
   const key = canon ? "EOS_UTILITY" : "FUJI_ACQUIRE";
   const filename = canon ? "start-eos-utility.ps1" : "start-fuji-acquire.ps1";

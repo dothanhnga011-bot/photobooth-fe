@@ -21,7 +21,6 @@ import { StorageMonitorProvider } from "./admin/storage-monitor";
 import { StorageWarning, useStorageUsage } from "./admin/storage-warning";
 import { navNotes, useAwaitingPayment, usePrinterIssues } from "./admin/nav-badges";
 import { PrintQueue, usePendingPrints } from "./admin/print-queue";
-import { readPrintBranch, savePrintBranch } from './admin/print-branches.js';
 import { StorageAssistant } from "./admin/storage-assistant";
 
 // Trang album chỉ tải bản CSS không có phần quản trị (xem guestStylesheet trong vite.config.js); vào
@@ -37,8 +36,8 @@ if (fullStylesheet && !document.querySelector(`link[href="${fullStylesheet}"]`))
 
 // Mục lục bên trái. Cạnh mục có số / chấm báo việc cần làm: đơn chờ thu tiền (Đơn hàng), lệnh in Selfbooth
 // đang chờ (Hàng chờ in), máy in cần xem (Quản lý máy), kho ảnh đã dùng bao nhiêu % (Dung lượng ảnh); rê chuột lên mục để đọc chi tiết.
-function SidebarNav({ tree, currentTab, open, printBranch }) {
-  const notes = navNotes({ awaiting: useAwaitingPayment(), prints: usePendingPrints(printBranch), printBranch, issues: usePrinterIssues(), storage: useStorageUsage() });
+function SidebarNav({ tree, currentTab, open }) {
+  const notes = navNotes({ awaiting: useAwaitingPayment(), prints: usePendingPrints(), issues: usePrinterIssues(), storage: useStorageUsage() });
   const navButton = ([key, label, Icon], child = false) => (
     <button
       key={key}
@@ -83,7 +82,6 @@ function SidebarNav({ tree, currentTab, open, printBranch }) {
 export function Admin() {
   const [tab, setTab] = useState("overview");
   const [mobileMenu, setMobileMenu] = useState(false);
-  const [selectedPrintBranch, setSelectedPrintBranch] = useState(readPrintBranch);
   // Chủ đề được chọn khi bấm từ trang Chủ đề sang Khung ảnh ("all" = xem tất cả khung).
   const [framesTheme, setFramesTheme] = useState("all");
   const session = useAdminSession(setTab);
@@ -93,8 +91,6 @@ export function Admin() {
     return <div className="page center">Đang kiểm tra phiên đăng nhập…</div>;
   if (!user) return <LoginPage session={session} />;
   const isAdmin = user.role === "admin";
-  const printBranch = isAdmin ? selectedPrintBranch : user.branch?.trim() || '';
-  const changePrintBranch = branch => { savePrintBranch(branch); setSelectedPrintBranch(branch); };
   const allowed = isAdmin ? [...nav, ...HIDDEN_PAGES].map(([key]) => key) : STAFF_PAGES(user);
   // Mục lục chỉ gồm trang tài khoản được mở; nhóm không còn trang con thì ẩn.
   const tree = NAV_TREE.map(([key, label, Icon, children]) =>
@@ -133,7 +129,7 @@ export function Admin() {
           >
             {mobileMenu ? "Đóng menu" : "Menu quản lý"}
           </button>
-          <SidebarNav tree={tree} currentTab={currentTab} open={open} printBranch={printBranch} />
+          <SidebarNav tree={tree} currentTab={currentTab} open={open} />
           <div className="sidebar-bottom">
             <button
               onClick={() => {
@@ -168,7 +164,7 @@ export function Admin() {
           <div className="admin-content">
             <StorageWarning onOpenStorage={() => open("storage")} />
             <ErrorBox error={error} />
-            <PrintAlerts branch={printBranch} />
+            <PrintAlerts />
             {currentTab === "overview" ? (
               <Overview
                 notify={notify}
@@ -190,8 +186,7 @@ export function Admin() {
                 assignedBranch={user.branch}
               />
             ) : currentTab === "print-queue" ? (
-              <PrintQueue canOperate={can(user, "print:operate")} canDelete={isAdmin}
-                branch={printBranch} onBranchChange={changePrintBranch} assignedBranch={isAdmin ? '' : user.branch} />
+              <PrintQueue canOperate={can(user, "print:operate")} canDelete={isAdmin} />
             ) : currentTab === "screens" ? (
               <ScreensManager notify={notify} />
             ) : currentTab === "frames" ? (

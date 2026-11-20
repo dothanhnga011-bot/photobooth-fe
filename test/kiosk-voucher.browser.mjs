@@ -8,7 +8,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { chromium } from "../../photobooth-be/node_modules/playwright/index.mjs";
 
 let server, browser, base;
-const captures = resolve('.cache/polaroid-selfbooth');
+const captures = resolve('.cache/selfbooth-selfbooth');
 const fixture = `
   import React from 'react';
   import { createRoot } from 'react-dom/client';
@@ -20,11 +20,11 @@ const fixture = `
     { _id: 'pack-strip', name: 'Khung nhỏ', printSize: 'strip', price: 70000, prints: 1, shots: 4 },
     { _id: 'pack-full', name: 'Khung to', printSize: 'full', price: 100000, prints: 2, shots: 4 },
     // Gói của phòng Selfbooth (tờ 20 × 30): bán ở quầy thành mã chụp, không bán ở máy.
-    { _id: 'pack-polaroid-2', name: 'Polaroid đôi', printSize: 'large', price: 100000, prints: 1, shots: 8, countdownSeconds: 10, selectCount: 2 },
-    { _id: 'pack-polaroid-1', name: '1 ảnh to', printSize: 'large', price: 100000, prints: 1, shots: 8, countdownSeconds: 10, selectCount: 1 },
+    { _id: 'pack-selfbooth-2', name: 'Selfbooth đôi', printSize: 'large', price: 100000, prints: 1, shots: 8, countdownSeconds: 10, selectCount: 2 },
+    { _id: 'pack-selfbooth-1', name: '1 ảnh to', printSize: 'large', price: 100000, prints: 1, shots: 8, countdownSeconds: 10, selectCount: 1 },
   ];
   // Chữ trên máy chụp tiệm đã sửa (Thiết lập → Chữ trên máy chụp).
-  const kioskTexts = { 'polaroid.codeTitle': 'Nhập mã Selfbooth' };
+  const kioskTexts = { 'selfbooth.codeTitle': 'Nhập mã Selfbooth' };
   createRoot(document.getElementById('root')).render(React.createElement(MemoryRouter,
     { initialEntries: ['/kiosk?device=fixture-device'] },
     React.createElement(StudioContext.Provider,
@@ -155,7 +155,7 @@ test("photobooth room: touch → cash → sheet type → count → bill reader; 
     await page.getByRole("button", { name: /Tiền mặt/ }).click();
     await page.getByRole("heading", { name: "Chọn loại tờ" }).waitFor();
     // Phòng photobooth chỉ bán tờ bé / tờ to; gói 20 × 30 là của phòng Selfbooth.
-    assert.equal(await page.getByRole("button", { name: /Polaroid/ }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: /Selfbooth/ }).count(), 0);
     await page.getByRole("button", { name: /Khung nhỏ/ }).click();
     await page.getByRole("button", { name: /Tiếp tục/ }).click();
     await page.getByRole("heading", { name: "Chọn số lượng" }).waitFor();
@@ -184,8 +184,8 @@ const staleSale = (bills = []) => ({
   prints: 4, extraPrintPrice: 20000, stage: "pay", requestKey: "stale-key", bills,
 });
 
-test("a polaroid room drops a cash sale left from the photobooth flow and opens the code screen", async () => {
-  const { page, errors } = await openKiosk({ _id: "room-1", flip: "device", kind: "polaroid" }, {}, { sale: staleSale() });
+test("a selfbooth room drops a cash sale left from the photobooth flow and opens the code screen", async () => {
+  const { page, errors } = await openKiosk({ _id: "room-1", flip: "device", kind: "selfbooth" }, {}, { sale: staleSale() });
   try {
     await page.getByRole("heading", { name: "Nhập mã Selfbooth" }).waitFor();
     assert.equal(await page.getByRole("heading", { name: "Đút tiền để bắt đầu chụp" }).count(), 0);
@@ -194,9 +194,9 @@ test("a polaroid room drops a cash sale left from the photobooth flow and opens 
   } finally { await page.close(); }
 });
 
-test("money already inserted is never dropped: the bill screen comes back even in a polaroid room", async () => {
+test("money already inserted is never dropped: the bill screen comes back even in a selfbooth room", async () => {
   const bills = [{ amount: 50000, at: "2026-10-30T13:00:00.000Z" }];
-  const { page, errors } = await openKiosk({ _id: "room-1", flip: "device", kind: "polaroid" }, {}, { sale: staleSale(bills) });
+  const { page, errors } = await openKiosk({ _id: "room-1", flip: "device", kind: "selfbooth" }, {}, { sale: staleSale(bills) });
   try {
     await page.getByRole("heading", { name: "Đút tiền để bắt đầu chụp" }).waitFor();
     assert.match(await page.locator(".pay-board").innerText(), /50\.000/);
@@ -205,19 +205,19 @@ test("money already inserted is never dropped: the bill screen comes back even i
   } finally { await page.close(); }
 });
 
-test("polaroid (Selfbooth) room: touch → enter the code bought at the counter → shoot screen with the gold border", async () => {
+test("selfbooth (Selfbooth) room: touch → enter the code bought at the counter → shoot screen with the gold border", async () => {
   const claims = [];
-  const polaroidBooking = { ...booking, packageName: "Polaroid đôi", printSize: "large", selectCount: 2, prints: 1, captureDuration: 5 };
-  const { page, errors } = await openKiosk({ _id: "room-1", flip: "device", kind: "polaroid" }, {
+  const selfboothBooking = { ...booking, packageName: "Selfbooth đôi", printSize: "large", selectCount: 2, prints: 1, captureDuration: 5 };
+  const { page, errors } = await openKiosk({ _id: "room-1", flip: "device", kind: "selfbooth" }, {
     "/kiosk/claim": (route, body) => {
       claims.push(body);
-      // Mã của gói photobooth không mở ở phòng Polaroid (máy chủ báo lỗi, mã vẫn còn).
+      // Mã của gói photobooth không mở ở phòng Selfbooth (máy chủ báo lỗi, mã vẫn còn).
       if (body.code !== "654321")
-        return route.fulfill({ status: 400, json: { message: "Mã này dành cho phòng Photobooth, không dùng ở phòng Polaroid." } });
-      return route.fulfill({ json: { booking: polaroidBooking, captureToken: "fixture-capture", accessToken: "fixture-album" } });
+        return route.fulfill({ status: 400, json: { message: "Mã này dành cho phòng Photobooth, không dùng ở phòng Selfbooth." } });
+      return route.fulfill({ json: { booking: selfboothBooking, captureToken: "fixture-capture", accessToken: "fixture-album" } });
     },
-    "/kiosk/polaroid": () => assert.fail("the kiosk no longer sells Polaroid layouts itself"),
-    "/kiosk/start": route => route.fulfill({ json: { booking: { ...polaroidBooking,
+    "/kiosk/selfbooth": () => assert.fail("the kiosk no longer sells Selfbooth layouts itself"),
+    "/kiosk/start": route => route.fulfill({ json: { booking: { ...selfboothBooking,
       captureStartedAt: new Date().toISOString(), captureEndsAt: new Date(Date.now() + 5 * 60000).toISOString(),
     } } }),
   });
@@ -243,7 +243,7 @@ test("polaroid (Selfbooth) room: touch → enter the code bought at the counter 
       await page.screenshot({ path: resolve(captures, `code-${viewport.width}.png`), fullPage: true });
     }
     await page.setViewportSize({ width: 1366, height: 768 });
-    // Quay lại: về màn chờ (phòng Polaroid không có màn chọn cách thanh toán).
+    // Quay lại: về màn chờ (phòng Selfbooth không có màn chọn cách thanh toán).
     await page.getByRole("button", { name: "Quay lại" }).click();
     await page.getByRole("button", { name: "Chạm để bắt đầu" }).click();
     await page.getByRole("heading", { name: "Nhập mã Selfbooth" }).waitFor();
@@ -268,13 +268,13 @@ test("polaroid (Selfbooth) room: touch → enter the code bought at the counter 
 test("the shoot timer shows the package's time even when the booth PC clock is 3 minutes slow", async () => {
   // Máy chủ chạy trước máy chụp 3 phút. Gói 5 phút: đồng hồ phải bắt đầu từ 05:00 (trước đây hiện 08:00).
   const skew = 3 * 60000;
-  const polaroidBooking = { ...booking, packageName: "Polaroid đôi", printSize: "large", selectCount: 2, prints: 1, captureDuration: 5 };
+  const selfboothBooking = { ...booking, packageName: "Selfbooth đôi", printSize: "large", selectCount: 2, prints: 1, captureDuration: 5 };
   let started = null;
-  const startedBooking = () => (started ??= { ...polaroidBooking,
+  const startedBooking = () => (started ??= { ...selfboothBooking,
     captureStartedAt: new Date(Date.now() + skew).toISOString(),
     captureEndsAt: new Date(Date.now() + skew + 5 * 60000).toISOString() });
-  const { page, errors } = await openKiosk({ _id: "room-1", flip: "device", kind: "polaroid" }, {
-    "/kiosk/claim": (route) => route.fulfill({ json: { booking: polaroidBooking, captureToken: "fixture-capture", accessToken: "fixture-album" } }),
+  const { page, errors } = await openKiosk({ _id: "room-1", flip: "device", kind: "selfbooth" }, {
+    "/kiosk/claim": (route) => route.fulfill({ json: { booking: selfboothBooking, captureToken: "fixture-capture", accessToken: "fixture-album" } }),
     "/kiosk/start": (route) => route.fulfill({ json: { booking: startedBooking(), serverTime: Date.now() + skew } }),
     "/kiosk/state": (route) => route.fulfill({ json: { booking: startedBooking(), serverTime: Date.now() + skew } }),
   });

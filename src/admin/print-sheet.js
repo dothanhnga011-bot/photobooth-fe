@@ -86,11 +86,11 @@ function loadSheet(img, src, shown) {
 }
 
 // In các tờ 20 × 30 của một lệnh in (mỗi tờ `copies` bản) ra máy DNP DS820 ở quầy.
-export function printLargeSheets({ imageUrls, code, copies = 1, branch = '' }) {
+export function printLargeSheets({ imageUrls, code, copies = 1 }) {
   const count = Math.max(1, Math.min(20, Number(copies) || 1));
   const view = openPrintWindow({
     title: "In ảnh · 20 × 30 cm",
-    info: `${branch ? `${branch} · ` : ''}Vé #${code} · ${imageUrls.length} tờ 20 × 30 cm × ${count} bản.`,
+    info: `Vé #${code} · ${imageUrls.length} tờ 20 × 30 cm × ${count} bản.`,
   });
   const sheets = imageUrls.flatMap((src) => Array.from({ length: count }, () => ({ img: view.addSheet(), src })));
   Promise.all(sheets.map(({ img, src }) => loadSheet(img, src, view.shown))).then(() => view.ready(), view.fail);

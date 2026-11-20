@@ -21,19 +21,19 @@ import { api, assetUrl } from "../api";
 import { Button, ErrorBox, useStudio, useToast } from "../studio";
 import { compareFrameOrder } from "../frame-catalog-data";
 import { detectSlots, frameCapacity, isPhotoRegion, printDate } from "../frame-utils";
-import { serviceOf } from "./service-tabs";
+import { ServiceTabs, serviceOf, useServiceTab } from "./service-tabs";
 import { SelfboothImport } from "./selfbooth-import.jsx";
 import { SelfboothFrameEditor } from "./selfbooth-frame-editor.jsx";
-import { isPolaroidSize } from "../print-sizes.js";
+import { isSelfboothSize } from "../print-sizes.js";
 
 // Khung phòng Selfbooth (tờ 20 × 30 máy DS820) gom theo chủ đề như web Selfbooth: khách chọn cả bộ trên điện thoại.
-const isSelfboothFrame = (frame) => isPolaroidSize(frame.printSize);
+const isSelfboothFrame = (frame) => isSelfboothSize(frame.printSize);
 
 const PAGE_SIZE = 12;
 const MAX_BYTES = 10 * 1024 * 1024;
 const SIZES = { full: "Size lớn", strip: "Size nhỏ", large: "Size 20 × 30" };
-// Khổ thêm mới được: phòng Photobooth (lớn / nhỏ) và phòng Selfbooth (tờ 20 × 30 máy DS820).
-const NEW_SIZES = ["full", "strip", "large"];
+// Khổ thêm mới được ở từng tab: phòng Photobooth (lớn / nhỏ), phòng Selfbooth (tờ 20 × 30 máy DS820).
+const NEW_SIZES = { photobooth: ["full", "strip"], selfbooth: ["large"] };
 const SIZE_NOTES = {
   full: "In nguyên tờ 10 × 15 cm",
   strip: "2 dải 5 × 15 cm trên một tờ, máy in cắt đôi",
@@ -49,13 +49,15 @@ const pixelsText = (printSize) => {
 };
 const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
 
-// ─── Danh sách khung (như Snapbox /setting/frame): lọc chủ đề, kích thước, phân trang ──────
+// ─── Danh sách khung (như Snapbox /setting/frame): tab Photobooth / Selfbooth, lọc chủ đề, kích thước, phân trang ──
 export function FramesManager({ notify, initialTheme = "all" }) {
+  // Tab loại hình (nhớ chung với Khổ ảnh & bảng giá): khung Photobooth (10 × 15) và khung Selfbooth (20 × 30) xem riêng.
+  const [service, setService] = useServiceTab();
   const toast = useToast();
   const { reload: reloadCatalog, settings = {} } = useStudio();
   const [frames, setFrames] = useState(null);
   const [themes, setThemes] = useState([]);
-  // Loại hình của từng chủ đề (Photobooth / Polaroid): khung chỉ gán vào chủ đề cùng loại với khổ khung.
+  // Loại hình của từng chủ đề (Photobooth / Selfbooth): khung chỉ gán vào chủ đề cùng loại với khổ khung.
   const [themeKinds, setThemeKinds] = useState({});
   // Lọc sẵn theo chủ đề khi mở từ trang Chủ đề; vẫn đổi được bằng ô "Chủ đề".
   const [theme, setTheme] = useState(initialTheme);
@@ -84,12 +86,40 @@ export function FramesManager({ notify, initialTheme = "all" }) {
     rank(a.themeName?.trim()) - rank(b.themeName?.trim()) ||
     String(a.themeName || "").localeCompare(String(b.themeName || ""), "vi") ||
     compareFrameOrder(a, b)), [frames, themeOrder.join()]);
-  const visible = sorted.filter((f) =>
+  const kindOf = (name) => themeKinds[name] || "photobooth";
+  const counts = useMemo(() => ({
+    photobooth: sorted.filter((f) => serviceOf(f.printSize) === "photobooth").length,
+    selfbooth: sorted.filter((f) => serviceOf(f.printSize) === "selfbooth").length,
+  }), [sorted]);
+  const inService = sorted.filter((f) => serviceOf(f.printSize) === service);
+  // Chủ đề của tab đang xem (chủ đề cũ chưa lưu loại thì theo khung trong chủ đề).
+  const serviceThemes = themes.filter((name) => kindOf(name) === service);
+  const visible = inService.filter((f) =>
     (theme === "all" || (theme === "none" ? !f.themeName?.trim() : f.themeName?.trim() === theme)) &&
     (size === "all" || (f.printSize || "full") === size));
   const pages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   const shown = visible.slice((Math.min(page, pages) - 1) * PAGE_SIZE, Math.min(page, pages) * PAGE_SIZE);
-  useEffect(() => setPage(1), [theme, size]);
+  useEffect(() => setPage(1), [theme, size, service]);
+  // Mở từ trang Chủ đề: sang đúng tab của chủ đề đó.
+  const opened = useRef(false);
+  useEffect(() => {
+    if (opened.current || !frames) return;
+    opened.current = true;
+    if (initialTheme !== "all" && initialTheme !== "none" && themeKinds[initialTheme]) setService(themeKinds[initialTheme]);
+  }, [frames]);
+  // Đổi tab: bỏ lọc chủ đề / kích thước của tab kia.
+  const switchService = (next) => {
+    setService(next);
+    setTheme("all");
+    setSize("all");
+    setAdding(false);
+  };
+  const addFrame = (key) => {
+    setAdding(false);
+    setEditing(newFrame(key, theme !== "all" && theme !== "none" && kindOf(theme) === serviceOf(key)
+      ? theme
+      : themes.find((name) => kindOf(name) === serviceOf(key)) || "", frames || []));
+  };
   const run = async (action, message) => {
     if (busy) return;
     setBusy(true);
@@ -126,7 +156,7 @@ export function FramesManager({ notify, initialTheme = "all" }) {
     run(async () => setEditing(await api(`/admin/frames/${frame._id}`)));
 
   // Khung phòng Selfbooth (20 × 30): hộp ghép khung giống web Selfbooth, mở trên danh sách khung. Khung PTB: trình cũ.
-  const selfboothEditing = Boolean(editing) && isPolaroidSize(editing.printSize);
+  const selfboothEditing = Boolean(editing) && isSelfboothSize(editing.printSize);
   const saved = async (message) => {
     setEditing(null);
     await load();
@@ -170,41 +200,46 @@ export function FramesManager({ notify, initialTheme = "all" }) {
           }}
         />
       )}
+      <ServiceTabs value={service} onChange={switchService} counts={frames ? counts : {}} />
       <div className="frames-toolbar">
         <label>
           Chủ đề:
           <select value={theme} onChange={(e) => setTheme(e.target.value)}>
             <option value="all">Tất cả</option>
-            {themes.map((name) => <option key={name} value={name}>{name}</option>)}
-            {frames?.some((f) => !f.themeName?.trim()) && <option value="none">Khung lẻ</option>}
+            {serviceThemes.map((name) => <option key={name} value={name}>{name}</option>)}
+            {inService.some((f) => !f.themeName?.trim()) && <option value="none">Khung lẻ</option>}
           </select>
         </label>
-        <label>
-          Kích thước:
-          <select value={size} onChange={(e) => setSize(e.target.value)}>
-            <option value="all">Tất cả</option>
-            <option value="full">Size lớn</option>
-            <option value="strip">Size nhỏ</option>
-            <option value="large">Size 20 × 30</option>
-          </select>
-        </label>
-        <Button className="outline" onClick={() => setImporting(true)}>
-          <CloudDownload size={16} aria-hidden="true" /> Chép khung từ Selfbooth
-        </Button>
-        <div className="frames-add">
-          <Button onClick={() => setAdding(!adding)} aria-expanded={adding}>
-            <Plus size={16} aria-hidden="true" /> Thêm mới frame <ChevronDown size={15} aria-hidden="true" />
+        {service === "photobooth" && (
+          <label>
+            Kích thước:
+            <select value={size} onChange={(e) => setSize(e.target.value)}>
+              <option value="all">Tất cả</option>
+              <option value="full">Size lớn</option>
+              <option value="strip">Size nhỏ</option>
+            </select>
+          </label>
+        )}
+        {service === "selfbooth" && (
+          <Button className="outline" onClick={() => setImporting(true)}>
+            <CloudDownload size={16} aria-hidden="true" /> Chép khung từ Selfbooth
           </Button>
-          {adding && (
+        )}
+        <div className="frames-add">
+          {service === "selfbooth" ? (
+            <Button onClick={() => addFrame("large")}>
+              <Plus size={16} aria-hidden="true" /> Thêm mới frame 20 × 30
+            </Button>
+          ) : (
+            <Button onClick={() => setAdding(!adding)} aria-expanded={adding}>
+              <Plus size={16} aria-hidden="true" /> Thêm mới frame <ChevronDown size={15} aria-hidden="true" />
+            </Button>
+          )}
+          {adding && service === "photobooth" && (
             <div className="frames-add-menu" role="menu">
-              {NEW_SIZES.map((key) => [key, SIZES[key]]).map(([key, label]) => (
-                <button key={key} type="button" role="menuitem" onClick={() => {
-                  setAdding(false);
-                  setEditing(newFrame(key, theme !== "all" && theme !== "none" && (themeKinds[theme] || "photobooth") === serviceOf(key)
-                      ? theme
-                      : themes.find((name) => (themeKinds[name] || "photobooth") === serviceOf(key)) || "", frames || []));
-                }}>
-                  {label}
+              {NEW_SIZES.photobooth.map((key) => (
+                <button key={key} type="button" role="menuitem" onClick={() => addFrame(key)}>
+                  {SIZES[key]}
                   <small>{SIZE_NOTES[key]}</small>
                 </button>
               ))}
@@ -216,8 +251,11 @@ export function FramesManager({ notify, initialTheme = "all" }) {
       {frames && !visible.length && (
         <div className="empty-state">
           <ImagePlus />
-          <h3>{frames.length ? "Không có khung phù hợp bộ lọc" : "Chưa có khung ảnh"}</h3>
-          <p>Bấm “Thêm mới frame”, chọn size rồi tải khung PNG từ Canva lên.</p>
+          <h3>{inService.length ? "Không có khung phù hợp bộ lọc"
+            : service === "selfbooth" ? "Chưa có khung Selfbooth" : "Chưa có khung Photobooth"}</h3>
+          <p>{service === "selfbooth"
+            ? "Bấm “Chép khung từ Selfbooth” để lấy khung của web Selfbooth, hoặc “Thêm mới frame 20 × 30” để tải khung PNG lên."
+            : "Bấm “Thêm mới frame”, chọn size rồi tải khung PNG từ Canva lên."}</p>
         </div>
       )}
       <ul className="frames-grid">

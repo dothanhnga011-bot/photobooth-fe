@@ -8,11 +8,11 @@ import {
   Printer,
 } from "lucide-react";
 import { money } from "../api";
-import { includedSheets, SELFBOOTH_MIN_SHEETS, isPolaroid, isStrip, piecesLabel, pieceUnit, printSizeOf } from "../kiosk/print-count.js";
-import { polaroidPrinter } from "../print-sizes.js";
-import { polaroidPackage } from "../polaroid-layouts.js";
+import { includedSheets, SELFBOOTH_MIN_SHEETS, isSelfbooth, isStrip, piecesLabel, pieceUnit, printSizeOf } from "../kiosk/print-count.js";
+import { selfboothPrinter } from "../print-sizes.js";
+import { selfboothPackage } from "../selfbooth-package.js";
 
-// Khổ ảnh khách thấy ở màn “Chọn khổ ảnh” (phòng Photobooth) của máy chụp; gói Polaroid bán ở quầy
+// Khổ ảnh khách thấy ở màn “Chọn khổ ảnh” (phòng Photobooth) của máy chụp; gói Selfbooth bán ở quầy
 // (nhân viên tạo mã chụp). Mỗi gói đang bật là một thẻ.
 // [khổ, tên nhóm, tên ngắn trong nút / lời nhắn, mô tả]
 const SIZE_GROUPS = [
@@ -92,7 +92,7 @@ export function PackageCatalog({
 function PackageCards({ items, onEdit, onDeactivate }) {
   return (
     <ul className="package-catalog-grid" aria-label="Danh sách gói chụp">
-      {items.map(polaroidPackage).map((item) => (
+      {items.map(selfboothPackage).map((item) => (
         <li key={item._id} className="package-catalog-item">
           <article
             className={`package-card${item.active ? "" : " is-inactive"}`}
@@ -133,10 +133,10 @@ function PackageCards({ items, onEdit, onDeactivate }) {
               <div>
                 <dt>
                   <Printer size={17} aria-hidden="true" />
-                  {isPolaroid(item) ? "Tờ in 20 × 30" : "Tờ in 10 × 15"}
+                  {isSelfbooth(item) ? "Tờ in 20 × 30" : "Tờ in 10 × 15"}
                 </dt>
                 <dd>
-                  <strong>{isPolaroid(item) ? Math.max(SELFBOOTH_MIN_SHEETS, Number(item.prints) || 0) : item.prints ?? 0}</strong> {"tờ"}
+                  <strong>{isSelfbooth(item) ? Math.max(SELFBOOTH_MIN_SHEETS, Number(item.prints) || 0) : item.prints ?? 0}</strong> {"tờ"}
                   {isStrip(item) && <small> = {piecesLabel(item, includedSheets(item))}</small>}
                 </dd>
               </div>
@@ -144,8 +144,8 @@ function PackageCards({ items, onEdit, onDeactivate }) {
 
             <p className="package-card-included">
               <Images size={17} aria-hidden="true" />
-              {isPolaroid(item)
-                ? `Bấm dây không giới hạn · chọn ảnh & bộ khung trên điện thoại · ${pieceUnit(item)} · ${polaroidPrinter(item.printSize)}`
+              {isSelfbooth(item)
+                ? `Bấm dây không giới hạn · chọn ảnh & bộ khung trên điện thoại · ${pieceUnit(item)} · ${selfboothPrinter(item.printSize)}`
                 : `${item.shots || 12} lần chụp · chọn ${item.selectCount || 4} ảnh · ${isStrip(item) ? "khổ nhỏ (cắt đôi)" : "khổ to 10 × 15"}`}
             </p>
             <p className="package-card-branches">

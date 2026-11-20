@@ -24,7 +24,7 @@ import { qrImage } from "../qr-image.js";
 import { fetchMediaBlob } from "../media-delivery.js";
 import { jpegDataUrl, pngDataUrl } from "../album/encode-jpeg.js";
 import { printPackUpload } from "../album/print-upload.js";
-import { isPolaroidSize } from "../print-sizes.js";
+import { isSelfboothSize } from "../print-sizes.js";
 import { drawStickers, filterPhotos, loadStickers, stickerArea } from "./decor.js";
 import { priority, whenUplinkIdle } from "./uplink.js";
 import { sendDirectPrint } from "./direct-print.js";
@@ -98,12 +98,12 @@ export function frameCandidates(frames, { count, printSize, themeOrder = [] }) {
     String(a.themeName || "").localeCompare(String(b.themeName || ""), "vi") ||
     compareFrameOrder(a, b));
   const sameSize = sorted.filter((f) => size(f) === (printSize || "full"));
-  const polaroid = isPolaroidSize(printSize);
-  if (!polaroid && sameSize.length) return sameSize;
+  const selfbooth = isSelfboothSize(printSize);
+  if (!selfbooth && sameSize.length) return sameSize;
   const exact = sameSize.filter((f) => frameCapacity(f) === count);
   if (exact.length) return exact;
   // Tờ 20 × 30 của Selfbooth in ở máy riêng: dùng khung đúng khổ khác số ô trước khung 10 × 15.
-  if (polaroid && sameSize.length) return sameSize;
+  if (selfbooth && sameSize.length) return sameSize;
   const sameCount = sorted.filter((f) => frameCapacity(f) === count);
   return sameCount.length ? sameCount : sorted;
 }
@@ -111,7 +111,7 @@ export function frameCandidates(frames, { count, printSize, themeOrder = [] }) {
 // Số ảnh khách chọn cho khung đang xem: khổ lớn / nhỏ theo số ô của khung, Selfbooth (và chưa có khung)
 // theo gói; không quá số ảnh đã chụp.
 export function frameNeed(frame, { count, printSize, shots }) {
-  const wanted = frame && !isPolaroidSize(printSize) ? frameCapacity(frame) || count : count;
+  const wanted = frame && !isSelfboothSize(printSize) ? frameCapacity(frame) || count : count;
   return Math.max(0, Math.min(wanted, shots));
 }
 
@@ -330,7 +330,7 @@ export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filter
 // in `prints` tờ; khung dải cũ (một dải) ghép 2 dải / tờ.
 export async function printSheets(frameCanvas, frame, prints, printSize = frame.printSize, scale = 1) {
   if (!prints) return [];
-  // Tờ 20 × 30 máy DS820 (phòng Polaroid / Selfbooth): mỗi tờ đúng 2400 × 3600 (hoặc ngang), JPEG như album.
+  // Tờ 20 × 30 máy DS820 (phòng Selfbooth): mỗi tờ đúng 2400 × 3600 (hoặc ngang), JPEG như album.
   if (printSize === "large") {
     const image = largePrint(frameCanvas);
     const data = await jpegDataUrl(image, 0.95);

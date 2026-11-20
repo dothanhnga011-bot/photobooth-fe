@@ -412,7 +412,7 @@
     padding: 3px 7px;
     color: var(--muted);
   }
-  /* Đơn Polaroid chưa thu tiền: nút ghi nhận nổi rõ hơn các nút phụ */
+  /* Đơn Selfbooth chưa thu tiền: nút ghi nhận nổi rõ hơn các nút phụ */
   .admin-shell .order-more-actions button.order-collect {
     border-color: var(--mellow-cocoa, #522e22);
     color: var(--mellow-cocoa, #522e22);

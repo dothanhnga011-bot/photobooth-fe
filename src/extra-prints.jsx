@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { X } from "lucide-react";
 import { api, money } from "./api";
 import { Button, ErrorBox, useStudio, useToast } from "./studio";
-import { isPolaroidSize, polaroidUnit } from "./print-sizes.js";
+import { isSelfboothSize, selfboothUnit } from "./print-sizes.js";
 import {
   FieldError,
   custom,
@@ -95,7 +95,7 @@ export function ExtraPrints({ booking, onClose, onSold, canEditPrice = false }) 
   const { settings = {}, reload } = useStudio();
   const toast = useToast();
   const v = useValidation();
-  const selfbooth = isPolaroidSize(booking.printSize);
+  const selfbooth = isSelfboothSize(booking.printSize);
   const unit = "tờ";
   const price = Number(selfbooth ? settings.extraSelfboothPrice : settings.extraPrintPrice) || 0;
   // Khách đã chọn thêm bản in trên kiosk: điền sẵn số tờ cần thu.
@@ -167,13 +167,13 @@ export function ExtraPrints({ booking, onClose, onSold, canEditPrice = false }) 
         <form className="transaction-form" onSubmit={sell} noValidate>
           <div className="transaction-fields">
             <p>
-              Vé đang có <strong>{booking.prints ?? 1} {selfbooth ? polaroidUnit(booking.printSize) : "tờ in"}</strong> (khách đã
+              Vé đang có <strong>{booking.prints ?? 1} {selfbooth ? selfboothUnit(booking.printSize) : "tờ in"}</strong> (khách đã
               gửi {booking.printSheets || 0} {unit}). {unit === "tấm" ? "Tấm" : "Tờ"} mua thêm được cộng ngay vào
               vé — khách chỉ cần bấm “Gửi in” lại trên điện thoại.
             </p>
             <div className="extra-print-fields">
               <label>
-                {selfbooth ? `Số ${polaroidUnit(booking.printSize)} in thêm` : "Số tờ in thêm (10 × 15 cm)"}
+                {selfbooth ? `Số ${selfboothUnit(booking.printSize)} in thêm` : "Số tờ in thêm (10 × 15 cm)"}
                 <input
                   name="sheets"
                   type="number"

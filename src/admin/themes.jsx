@@ -9,7 +9,7 @@ const SIZES = { full: "10 × 15 cm", strip: "5 × 15 cm", large: "20 × 30 cm" }
 const searchable = (value) =>
   String(value || "").normalize("NFD").replace(/\p{Diacritic}/gu, "").replace(/đ/gi, "d").toLowerCase();
 
-// askKind: thêm chủ đề mới thì chọn phòng dùng chủ đề (Photobooth: khung 10 × 15; Polaroid · Selfbooth:
+// askKind: thêm chủ đề mới thì chọn phòng dùng chủ đề (Photobooth: khung 10 × 15; Selfbooth:
 // khung 20 × 30 máy DS820). Đổi tên thì giữ loại.
 function NameDialog({ title, initial = "", busy, onClose, onSave, askKind = false }) {
   const [name, setName] = useState(initial);
@@ -40,7 +40,7 @@ function NameDialog({ title, initial = "", busy, onClose, onSave, askKind = fals
                 Photobooth — khung 10 × 15 (máy DNP)
               </label>
               <label className="checkbox">
-                <input type="radio" name="theme-kind" checked={kind === "polaroid"} onChange={() => setKind("polaroid")} />
+                <input type="radio" name="theme-kind" checked={kind === "selfbooth"} onChange={() => setKind("selfbooth")} />
                 Selfbooth — khung 20 × 30 (khách chọn bộ khung trên điện thoại)
               </label>
             </fieldset>
@@ -60,7 +60,7 @@ function NameDialog({ title, initial = "", busy, onClose, onSave, askKind = fals
 }
 
 // Thiết lập → Chủ đề (như Snapbox /setting/theme): mỗi chủ đề là một bộ khung. Phòng Photobooth: khung
-// 10 × 15; phòng Polaroid (Selfbooth, từ 14/11): khung 20 × 30 máy DS820 — khách chọn cả bộ trên điện thoại.
+// 10 × 15; phòng Selfbooth (từ 14/11): khung 20 × 30 máy DS820 — khách chọn cả bộ trên điện thoại.
 export function ThemesManager({ notify, onOpenFrames }) {
   const toast = useToast();
   const { reload } = useStudio();
@@ -193,7 +193,7 @@ export function ThemesManager({ notify, onOpenFrames }) {
                       <div>
                         <strong>
                           {theme.name}
-                          {kindOf(theme) === "polaroid" && <em className="theme-kind">Phòng Selfbooth</em>}
+                          {kindOf(theme) === "selfbooth" && <em className="theme-kind">Phòng Selfbooth</em>}
                         </strong>
                         <small>Thứ tự: {index + 1} · bấm để sửa khung</small>
                       </div>

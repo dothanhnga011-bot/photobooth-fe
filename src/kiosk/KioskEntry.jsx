@@ -36,7 +36,7 @@ export function KioskEntry({
           aria-label="Chạm để bắt đầu"
         >
           {image && (
-            <span className="kiosk-polaroid" aria-hidden="true">
+            <span className="kiosk-selfbooth" aria-hidden="true">
               <img key={image} className="kiosk-slide" src={image} alt="" />
             </span>
           )}

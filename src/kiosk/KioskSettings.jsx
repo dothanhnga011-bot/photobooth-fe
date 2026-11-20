@@ -46,7 +46,7 @@ export function KioskSettings({
 }) {
   const usable = liveUsableFor({ webcam: webcamTest });
   const profile = cameraProfile(roomInfo?.kind);
-  const externalLive = roomInfo?.kind === 'polaroid' && !webcamTest;
+  const externalLive = roomInfo?.kind === 'selfbooth' && !webcamTest;
   const [soundOn, setSoundOn] = useState(isAudioEnabled);
   return (
     <details className="kiosk-settings">
@@ -150,7 +150,7 @@ export function KioskSettings({
             ))}
           </select>
         </label>
-        {roomInfo?.kind === 'polaroid' && <fieldset className="kiosk-orientation">
+        {roomInfo?.kind === 'selfbooth' && <fieldset className="kiosk-orientation">
           <legend>Xoay hình trực tiếp</legend>
           <div className="kiosk-orientation-options" role="group" aria-label="Chiều hình trực tiếp">
             {PREVIEW_ORIENTATIONS.map(([angle, name]) => <button key={angle} type="button" aria-pressed={rotation === angle}
@@ -209,14 +209,14 @@ export function KioskSettings({
               setAudioEnabled(e.target.checked);
               toast.success(
                 e.target.checked
-                  ? roomInfo?.kind === "polaroid"
+                  ? roomInfo?.kind === "selfbooth"
                     ? "Đã bật tiếng màn trập khi nhận ảnh từ dây bấm."
                     : "Đã bật âm thanh: tiếng bíp đếm ngược 3-2-1 và tiếng màn trập khi chụp."
                   : "Đã tắt âm thanh hiệu ứng chụp.",
               );
             }}
           />
-          {roomInfo?.kind === "polaroid"
+          {roomInfo?.kind === "selfbooth"
             ? "Âm thanh máy chụp: phát tiếng màn trập khi nhận ảnh từ dây bấm. Phòng Selfbooth không đếm ngược từng tấm."
             : 'Âm thanh máy chụp: phát tiếng bíp đếm ngược 3, 2, 1 và tiếng màn trập "tách" khi chụp ảnh.'}
         </label>

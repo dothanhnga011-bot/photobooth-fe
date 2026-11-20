@@ -4,9 +4,9 @@ import { money } from "../api";
 import { Button, ErrorBox, useStudio } from "../studio";
 import { FieldError } from "../validate";
 import { definitions, DEFAULT_STAFF_PERMISSIONS, PERMISSION_GROUPS, ROOM_KINDS } from "./config";
-import { includedSheets, SELFBOOTH_MIN_SHEETS, isPolaroid, isStrip, piecesLabel, printSizeOf } from "../kiosk/print-count.js";
-import { polaroidPrinter, polaroidUnit } from "../print-sizes.js";
-import { polaroidPackage } from "../polaroid-layouts.js";
+import { includedSheets, SELFBOOTH_MIN_SHEETS, isSelfbooth, isStrip, piecesLabel, printSizeOf } from "../kiosk/print-count.js";
+import { selfboothPrinter, selfboothUnit } from "../print-sizes.js";
+import { selfboothPackage } from "../selfbooth-package.js";
 
 // Loại phòng quyết định màn đầu tiên khách thấy sau “Chạm để bắt đầu”.
 const ALL_PERMISSIONS = PERMISSION_GROUPS.flatMap(([, items]) => items.map(([key]) => key));
@@ -91,29 +91,29 @@ export function ResourceEditor({
   const catalog = resource === "packages";
   const title =
     resource === "packages"
-      ? `${edit._id ? "Chỉnh sửa" : "Thêm"} ${isPolaroid(edit) ? "gói Selfbooth" : "gói chụp"}`
+      ? `${edit._id ? "Chỉnh sửa" : "Thêm"} ${isSelfbooth(edit) ? "gói Selfbooth" : "gói chụp"}`
       : edit._id
         ? "Chỉnh sửa"
         : "Thêm mới";
   const update = (key, value) => {
     const next = { ...edit, [key]: value };
-    onChange(catalog ? polaroidPackage(next) : next);
+    onChange(catalog ? selfboothPackage(next) : next);
     form.clear(key);
   };
   // Gói phòng Selfbooth tính theo thời gian như web Selfbooth: tên, giá, số phút, số tờ 20 × 30.
-  const unit = polaroidUnit(edit.printSize);
+  const unit = selfboothUnit(edit.printSize);
   const pieces = Math.max(SELFBOOTH_MIN_SHEETS, Number(edit.prints) || 0);
-  const POLAROID_LABELS = {
+  const SELFBOOTH_LABELS = {
     name: "Tên gói (vd. chụp đơn, chụp đôi)",
     price: "Giá gói (VND)",
     duration: "Thời gian chụp (phút) · bấm dây không giới hạn",
     prints: `Số ${unit} kèm gói`,
   };
   const field = ([key, baseLabel, type = "text"]) => {
-    const label = catalog && isPolaroid(edit) ? POLAROID_LABELS[key] || baseLabel : baseLabel;
+    const label = catalog && isSelfbooth(edit) ? SELFBOOTH_LABELS[key] || baseLabel : baseLabel;
     if (type === "permissions" && edit.role !== "staff") return null;
-    // Gói Polaroid chụp không giới hạn; khách chọn ảnh và bộ khung trên điện thoại (không có số ảnh chọn).
-    if (catalog && isPolaroid(edit) && ["shots", "selectCount"].includes(key)) return null;
+    // Gói Selfbooth chụp không giới hạn; khách chọn ảnh và bộ khung trên điện thoại (không có số ảnh chọn).
+    if (catalog && isSelfbooth(edit) && ["shots", "selectCount"].includes(key)) return null;
     // Loại phòng: chỉ chọn lúc thêm phòng mới.
     if (type === "roomKind") {
       if (edit._id) return null;
@@ -161,7 +161,7 @@ export function ResourceEditor({
           />
         ) : type === "printSize" ? (
           // Gói phòng Photobooth chỉ đổi giữa khổ to / khổ nhỏ; gói Selfbooth luôn in tờ 20 × 30 máy DS820.
-          isPolaroid(edit) ? (
+          isSelfbooth(edit) ? (
             <span className="resource-field-fixed">Selfbooth — in tờ 20 × 30 cm (máy DNP DS820 ở quầy)</span>
           ) : (
             <select
@@ -226,7 +226,7 @@ export function ResourceEditor({
         )}
         {catalog && key === "prints" && (
           <small className="field-hint">
-            {isPolaroid(edit)
+            {isSelfbooth(edit)
               ? `${unit[0].toUpperCase()}${unit.slice(1)} khách in từ điện thoại (mỗi khung của bộ là một ${unit}). Tối thiểu 1; in thêm tính theo giá in thêm phòng Selfbooth.`
               : isStrip(edit)
               ? `Tờ 10 × 15 = ${piecesLabel(edit, includedSheets(edit))} cho khách. Tối thiểu 1 tờ (khách thấy “2 tờ nhỏ”).`
@@ -256,7 +256,7 @@ export function ResourceEditor({
               <h2>{title}</h2>
               {catalog && (
                 <p>
-                  {isPolaroid(edit)
+                  {isSelfbooth(edit)
                     ? `Gói phòng Selfbooth: giá, số phút chụp (bấm dây không giới hạn) và số ${unit}. Bán ở quầy — nhân viên tạo mã chụp.`
                     : "Mỗi gói là một thẻ ở màn “Chọn khổ ảnh” của máy chụp: khổ ảnh, giá và số tờ in đi kèm."}
                 </p>
@@ -283,14 +283,14 @@ export function ResourceEditor({
                 className="catalog-editor-preview"
                 aria-label="Xem trước gói chụp"
               >
-                <span className="catalog-preview-label">{isPolaroid(edit) ? "GÓI SELFBOOTH · BÁN Ở QUẦY" : "THẺ TRÊN MÁY CHỤP"}</span>
-                {/* Cùng kiểu thẻ ở màn “Chọn khổ ảnh” của máy chụp (KioskPackages); gói Polaroid bán ở quầy. */}
+                <span className="catalog-preview-label">{isSelfbooth(edit) ? "GÓI SELFBOOTH · BÁN Ở QUẦY" : "THẺ TRÊN MÁY CHỤP"}</span>
+                {/* Cùng kiểu thẻ ở màn “Chọn khổ ảnh” của máy chụp (KioskPackages); gói Selfbooth bán ở quầy. */}
                 <div className="kiosk-size-preview">
                   <div className={`kiosk-size ${printSizeOf(edit)}`}>
-                    <span className="kiosk-size-art" aria-hidden="true"><i />{!isPolaroid(edit) && <i />}</span>
+                    <span className="kiosk-size-art" aria-hidden="true"><i />{!isSelfbooth(edit) && <i />}</span>
                     <strong>{edit.name || "Tên gói chụp"}</strong>
                     <small>
-                      {isPolaroid(edit)
+                      {isSelfbooth(edit)
                         ? `${Number(edit.duration) || 0} phút · kèm ${pieces} ${unit}`
                         : `${Number(edit.shots) || 0} lần chụp · kèm ${piecesLabel(edit, includedSheets(edit))}`}
                     </small>
@@ -309,13 +309,13 @@ export function ResourceEditor({
                   </li>
                   <li>
                     <Printer size={17} aria-hidden="true" />
-                    {isPolaroid(edit)
-                      ? `${pieces} ${unit} · ${polaroidPrinter(edit.printSize)}`
+                    {isSelfbooth(edit)
+                      ? `${pieces} ${unit} · ${selfboothPrinter(edit.printSize)}`
                       : `${includedSheets(edit)} tờ in 10 × 15 cm${isStrip(edit) ? ` · cắt đôi = ${piecesLabel(edit, includedSheets(edit))}` : ""}`}
                   </li>
                   <li>
                     <InfinityIcon size={17} aria-hidden="true" />
-                    {isPolaroid(edit)
+                    {isSelfbooth(edit)
                       ? "Bấm dây không giới hạn · QR: chọn ảnh, bộ khung, ghép & in trên điện thoại"
                       : `${Number(edit.shots) || 0} lần chụp · chọn ${Number(edit.selectCount) || 4} ảnh ghép khung`}
                   </li>

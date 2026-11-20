@@ -22,7 +22,7 @@ function ScreenPreview({ screen }) {
   const image = images[index % Math.max(1, images.length)];
   return (
     <div className={`idle-preview ${image ? "has-image" : ""}`} aria-label="Xem trước màn hình chờ">
-      {image && <img className="idle-polaroid" src={imageSrc(image)} alt="" />}
+      {image && <img className="idle-selfbooth" src={imageSrc(image)} alt="" />}
       <strong>{screen.title || "Cười lên, mình chụp nhé!"}</strong>
       <span>{screen.subtitle || "chụp xong in ngay · nhận ảnh trên điện thoại"}</span>
       <em>Chạm để bắt đầu</em>

@@ -5,7 +5,7 @@ import { isMac } from "./folder.js";
 // X-T3 / X-S10 / X-S20 (X Acquire + dây bấm) như phòng Photobooth; hồ sơ Canon R100 cũ không còn dùng.
 export function cameraProfile(kind) {
   const canon = false;
-  const selfbooth = kind === "polaroid";
+  const selfbooth = kind === "selfbooth";
   const folder = isMac ? `Pictures/PhotoBooth/${canon ? "Canon" : "Fujifilm"}`
     : `C:\\PhotoBooth\\${canon ? "Canon" : "Fujifilm"}`;
   const common = [

@@ -55,18 +55,18 @@
       font-size: 20px;
     }
 
-    /* ── Màn chờ: ảnh polaroid to ở trên, tiêu đề + nút "Chạm để bắt đầu" bên dưới, căn giữa ── */
+    /* ── Màn chờ: ảnh selfbooth to ở trên, tiêu đề + nút "Chạm để bắt đầu" bên dưới, căn giữa ── */
     .kiosk-tap {
       flex-direction: column;
       gap: clamp(40px, 4vh, 80px);
       padding: 96px clamp(32px, 6vw, 72px);
       text-align: center;
     }
-    .kiosk-polaroid {
+    .kiosk-selfbooth {
       width: min(64vw, 700px);
       padding: 20px 20px 84px;
     }
-    .kiosk-polaroid::before {
+    .kiosk-selfbooth::before {
       top: -22px;
       width: 180px;
       height: 44px;

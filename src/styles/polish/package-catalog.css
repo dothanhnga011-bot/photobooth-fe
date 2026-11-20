@@ -465,7 +465,7 @@
   .admin-shell .kiosk-size-preview .kiosk-size.full .kiosk-size-art i { width: 32px; }
   .admin-shell .kiosk-size-preview .kiosk-size.strip .kiosk-size-art i { width: 17px; }
   .admin-shell .kiosk-size-preview .kiosk-size.large .kiosk-size-art i { width: 38px; border: 3px solid #fffaf3; }
-  /* Hai nút chuyển loại hình chụp (Khổ ảnh & bảng giá, Chủ đề): Photobooth / Polaroid. */
+  /* Hai nút chuyển loại hình chụp (Khổ ảnh & bảng giá, Chủ đề): Photobooth / Selfbooth. */
   .admin-shell .service-tabs {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -524,7 +524,7 @@
       grid-template-columns: minmax(0, 1fr);
     }
   }
-  /* Tab Polaroid chỉ có một nhóm (layout): thẻ layout xếp nhiều cột. */
+  /* Tab Selfbooth chỉ có một nhóm (layout): thẻ layout xếp nhiều cột. */
   .admin-shell .package-size-groups.is-single .package-size-group .package-catalog-grid {
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
   }

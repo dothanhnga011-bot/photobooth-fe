@@ -75,7 +75,7 @@ import { KioskSelect, useShotBitmaps } from "./KioskSelect.jsx";
 import { KioskFrames } from './KioskFrames.jsx';
 import { NO_DECOR, filterChoices, filterStepsFor, photoFilterId } from "./decor.js";
 import { KioskCode, KioskPackages, KioskPayChoice, KioskPayment, KioskPrintCount } from "./KioskSale.jsx";
-import { extraPriceFor, isPolaroid, minSheets, saleTotal } from "./print-count.js";
+import { extraPriceFor, isSelfbooth, minSheets, saleTotal } from "./print-count.js";
 
 // Các chỗ báo lỗi mạng ở màn chụp: mỗi lần mất kết nối chỉ báo một lần, có mạng lại thì xoá.
 const NET_SLOTS = ["poll", "sync", "start", "finish"];
@@ -195,8 +195,8 @@ export function Kiosk() {
   current.current = session;
   const phase = phaseOf(session);
   // Booking metadata also identifies Canon sessions before the room ping returns.
-  const manualCapture = roomInfo?.kind === "polaroid" ||
-    session?.booking.source === "polaroid" || isPolaroid(session?.booking);
+  const manualCapture = roomInfo?.kind === "selfbooth" ||
+    session?.booking.source === "selfbooth" || isSelfbooth(session?.booking);
   const key = "photo-capture-" + device.slice(-24);
   const shown = useRef({});
   const mirrorRef = useRef(mirror);
@@ -342,7 +342,7 @@ export function Kiosk() {
     toast[type](message, duration);
   };
   // Thư mục ảnh của máy ảnh đã chọn trước đó (trình duyệt có thể hỏi lại quyền đọc).
-  const cameraSetup = cameraProfile(roomInfo?.kind || (manualCapture ? "polaroid" : undefined));
+  const cameraSetup = cameraProfile(roomInfo?.kind || (manualCapture ? "selfbooth" : undefined));
   useEffect(() => {
     if (!roomInfo && !manualCapture) return;
     let active = true;
@@ -600,7 +600,7 @@ export function Kiosk() {
       ...opened,
       mode: "remote",
       phase: "ready",
-      readyEndsAt: roomInfo?.kind === "polaroid" || opened.booking.source === "polaroid" || isPolaroid(opened.booking)
+      readyEndsAt: roomInfo?.kind === "selfbooth" || opened.booking.source === "selfbooth" || isSelfbooth(opened.booking)
         ? undefined : Date.now() + READY_SECONDS * 1000,
     }), "zoom");
     shown.current = {};
@@ -732,18 +732,18 @@ export function Kiosk() {
   }
   // Loại phòng (Quản lý máy → Cài máy chụp): photobooth (khách chọn Nhập mã / Tiền mặt, in DNP) hoặc
   // Selfbooth: khách trả tiền ở quầy, nhập mã của gói rồi chụp luôn, in tờ 20 × 30.
-  const polaroid = manualCapture;
-  // Lượt mua dở (đã chọn gói / số tờ) chỉ có ở phòng photobooth. Phòng đã đổi sang Polaroid: bỏ lượt
+  const selfbooth = manualCapture;
+  // Lượt mua dở (đã chọn gói / số tờ) chỉ có ở phòng photobooth. Phòng đã đổi sang Selfbooth: bỏ lượt
   // mua dở chưa nhận tiền, về màn chờ. Đã nhận tiền thật thì giữ lại để nhân viên xử lý.
   const roomKind = roomInfo?.kind;
   useEffect(() => {
-    if (roomKind !== "polaroid" || !sale || sale.bills?.length) return;
+    if (roomKind !== "selfbooth" || !sale || sale.bills?.length) return;
     setSale(null);
     if (["method", "code", "package", "print", "pay"].includes(step)) transition(() => setStep("start"), "fade");
   }, [roomKind, sale?.pack, sale?.bills?.length]);
   const cashReady = Boolean(roomInfo?.cashCheckoutReady);
   // Phòng photobooth bán tờ bé / tờ to (DNP RX1); gói 20 × 30 là của phòng Selfbooth.
-  const boothPackages = useMemo(() => roomPackages.filter((p) => !isPolaroid(p)), [roomPackages]);
+  const boothPackages = useMemo(() => roomPackages.filter((p) => !isSelfbooth(p)), [roomPackages]);
   // ─── Chụp ────────────────────────────────────────────────────────────────
   // Hình trực tiếp mở khi chuẩn bị chụp, tắt khi chuyển sang chọn ảnh.
   useEffect(() => {
@@ -784,7 +784,7 @@ export function Kiosk() {
   // tính quay ở chế độ nhẹ (VP8 phần mềm, 720p): H.264 phần cứng với webcam laptop đã làm sập tab
   // Chrome (STATUS_BREAKPOINT). Phòng Selfbooth (tờ 20 × 30) không quay: khách nhận ảnh gốc qua QR.
   useEffect(() => {
-    if (phase === "shoot" && ready && stream.current && !isPolaroid(session?.booking))
+    if (phase === "shoot" && ready && stream.current && !isSelfbooth(session?.booking))
       recorder.current.start(stream.current, { light: webcamRef.current });
   }, [phase, ready, webcamTest]);
   // Đồng hồ các bước chuẩn bị / chọn ảnh / chọn khung: kiểm tra 4 lần mỗi giây nhưng chỉ vẽ lại khi
@@ -1000,7 +1000,7 @@ export function Kiosk() {
       }
       // Phòng Selfbooth (tờ 20 × 30 máy DS820): không chọn ảnh ở máy chụp. Hết giờ (hoặc khách bấm Chụp xong) là
       // hiện mã QR: khách thả tim, làm đẹp, ghép khung và gửi in trên điện thoại.
-      if (isPolaroid(live.booking)) {
+      if (isSelfbooth(live.booking)) {
         transition(() => showDone(live.booking, live.accessToken, { expired, studio: true }), "zoom");
         if (expired) toast.info("Đã hết thời gian chụp — quét mã QR để chọn ảnh nhé.");
         return;
@@ -1366,7 +1366,7 @@ export function Kiosk() {
     const id = await cameraPhotoId(file, path);
     if (localShots.current.has(id) || (s.captureOrder || []).includes(id) ||
       s.booking.photos.some((p) => p.clientKey === id)) return true;
-    const quota = s.booking.source === "polaroid" || isPolaroid(s.booking) ? Infinity : Number(s.booking.shots) || Infinity;
+    const quota = s.booking.source === "selfbooth" || isSelfbooth(s.booking) ? Infinity : Number(s.booking.shots) || Infinity;
     if (shotsOf(s).length + readingRef.current >= quota) return true;
     trackReading(1);
     try {
@@ -1514,8 +1514,8 @@ export function Kiosk() {
         code={code}
         setCode={setCode}
         onSubmit={claim}
-        onBack={() => (polaroid ? backToStart() : goTo("method"))}
-        polaroid={polaroid}
+        onBack={() => (selfbooth ? backToStart() : goTo("method"))}
+        selfbooth={selfbooth}
         busy={busy}
         error={error}
         device={device}
@@ -1589,11 +1589,11 @@ export function Kiosk() {
   return (
     <KioskEntry
       onTap={() => {
-        // Còn tiền đã đút dở (tải lại trang): quay lại đúng màn đọc tiền. Phòng Polaroid vào nhập mã
+        // Còn tiền đã đút dở (tải lại trang): quay lại đúng màn đọc tiền. Phòng Selfbooth vào nhập mã
         // (như Selfbooth); phòng photobooth tiếp tục lượt mua dở, không có thì chọn cách thanh toán.
-        if (polaroid && !sale?.bills?.length) setCode("");
+        if (selfbooth && !sale?.bills?.length) setCode("");
         goTo(sale?.bills?.length ? "pay"
-          : polaroid ? "code"
+          : selfbooth ? "code"
           : sale?.pack ? (sale.stage === "pay" ? "pay" : "print") : "method");
       }}
       roomId={roomId}
@@ -1610,7 +1610,7 @@ export function Kiosk() {
         mirror={mirror}
         setMirror={setMirror}
         mirrorLocked={remoteFlip !== "device"}
-        rotation={polaroid ? liveRotation : 0}
+        rotation={selfbooth ? liveRotation : 0}
         setRotation={setRotation}
         zoom={zoom}
         setZoom={setZoom}

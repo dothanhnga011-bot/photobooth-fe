@@ -72,7 +72,7 @@ function SelectTime({ notify }) {
 }
 
 // Thiết lập → Chữ trên máy chụp: thời gian chọn ảnh và mọi dòng chữ chính trên màn hình máy chụp
-// (photobooth và Polaroid). Ô để trống = dùng chữ mặc định (hiện mờ trong ô). {n}, {s}: chỗ máy chụp điền số.
+// (photobooth và Selfbooth). Ô để trống = dùng chữ mặc định (hiện mờ trong ô). {n}, {s}: chỗ máy chụp điền số.
 export function KioskTextsManager({ notify }) {
   const toast = useToast();
   const { reload } = useStudio();

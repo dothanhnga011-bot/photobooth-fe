@@ -1,32 +1,32 @@
 // Phòng Selfbooth in tờ 20 × 30 máy DNP DS820 (khổ "large").
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isPolaroidSize, LARGE_SHEET, polaroidPrinter, polaroidUnit, POLAROID_SIZE } from "../src/print-sizes.js";
-import { extraPriceFor, isPolaroid, minSheets, pieceUnit, piecesLabel } from "../src/kiosk/print-count.js";
+import { isSelfboothSize, LARGE_SHEET, selfboothPrinter, selfboothUnit, SELFBOOTH_SIZE } from "../src/print-sizes.js";
+import { extraPriceFor, isSelfbooth, minSheets, pieceUnit, piecesLabel } from "../src/kiosk/print-count.js";
 import { frameOutputSize } from "../src/frame-utils.js";
-import { polaroidPackage } from "../src/polaroid-layouts.js";
+import { selfboothPackage } from "../src/selfbooth-package.js";
 
 // compose.js mở hàng chờ ảnh (IndexedDB) khi nạp; trong Node chỉ cần một bản giả không làm gì.
 globalThis.indexedDB ??= { open: () => ({}) };
 const { frameCandidates, frameNeed } = await import("../src/kiosk/compose.js");
 
 test("the Selfbooth room prints 20 × 30 sheets on the DS820; only that size belongs to it", () => {
-  assert.equal(POLAROID_SIZE, "large");
+  assert.equal(SELFBOOTH_SIZE, "large");
   assert.deepEqual(LARGE_SHEET, { w: 2400, h: 3600 });
-  assert.deepEqual(["full", "strip", "large", undefined].map(isPolaroidSize), [false, false, true, false]);
-  assert.equal(polaroidUnit("large"), "tờ 20 × 30");
-  assert.match(polaroidPrinter("large"), /DS820/);
+  assert.deepEqual(["full", "strip", "large", undefined].map(isSelfboothSize), [false, false, true, false]);
+  assert.equal(selfboothUnit("large"), "tờ 20 × 30");
+  assert.match(selfboothPrinter("large"), /DS820/);
 });
 
 test("a 20 × 30 package is timed like Selfbooth: at least 1 sheet, the Selfbooth extra price, counted in 20 × 30 sheets", () => {
   const pack = { printSize: "large", prints: 0, duration: 7, shots: 9, price: 100000 };
-  assert.equal(isPolaroid(pack), true);
+  assert.equal(isSelfbooth(pack), true);
   assert.equal(minSheets(pack), 1, "one 20 × 30 sheet, not the 10 × 15 minimum of 2");
   assert.equal(minSheets({ printSize: "full", prints: 0 }), 2);
   assert.equal(extraPriceFor(pack, { extraSelfboothPrice: 50000, extraPrintPrice: 20000 }), 50000);
   assert.equal(pieceUnit(pack), "tờ 20 × 30");
   assert.equal(piecesLabel(pack, 2), "2 tờ 20 × 30");
-  assert.equal(polaroidPackage(pack).shots, 0, "unlimited shots");
+  assert.equal(selfboothPackage(pack).shots, 0, "unlimited shots");
 });
 
 test("a 20 × 30 frame renders at 2400 × 3600 (or 3600 × 2400), whatever the size of its image", () => {

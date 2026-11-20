@@ -24,7 +24,7 @@ import {
   required,
 } from "../validate";
 import { AssistantAvatar } from "./assistant-avatar";
-import { isPolaroidSize } from "../print-sizes.js";
+import { isSelfboothSize } from "../print-sizes.js";
 
 // Tên hiển thị & luật kiểm tra cho từng loại dữ liệu quản trị.
 export const RESOURCE_LABELS = {
@@ -42,9 +42,9 @@ export const priceVND = custom(
 // Gói Selfbooth (tờ 20 × 30) không có số lần chụp / số ảnh chọn (chụp không giới hạn, chọn trên
 // điện thoại); số tờ in có luật riêng (ít nhất 1).
 const exceptLayouts = (rules) =>
-  rules.map((rule) => (v, label, all) => (isPolaroidSize(all.printSize) ? "" : rule(v, label, all)));
+  rules.map((rule) => (v, label, all) => (isSelfboothSize(all.printSize) ? "" : rule(v, label, all)));
 const onlySelfbooth = (rules) =>
-  rules.map((rule) => (v, label, all) => (isPolaroidSize(all.printSize) ? rule(v, label, all) : ""));
+  rules.map((rule) => (v, label, all) => (isSelfboothSize(all.printSize) ? rule(v, label, all) : ""));
 
 export const RESOURCE_RULES = {
   rooms: {
@@ -166,9 +166,9 @@ export const NAV_DESCRIPTIONS = {
 // kết / QR. Đầu ca nhân viên mở máy chụp từng phòng.
 export const ROOM_KINDS = [
   ["photobooth", "Photobooth", "Khách chọn Nhập mã (đã chuyển khoản ở quầy) hoặc Tiền mặt (chọn loại tờ, số lượng rồi đút tiền). Chụp xong chọn ảnh, khung rồi in ở máy DNP."],
-  ["polaroid", "Selfbooth", "Khách trả tiền ở quầy theo gói (số phút, số tờ), nhập mã rồi bấm dây không giới hạn (máy ảnh Fujifilm X-T3 / X-S10 / X-S20). Hết giờ chụp, khách quét QR rồi chọn ảnh, bộ khung, ghép ảnh (không tính giờ) và bấm gửi in trên điện thoại — lệnh in lên Hàng chờ in, nhân viên ở quầy in tờ 20 × 30 (máy DNP DS820)."],
+  ["selfbooth", "Selfbooth", "Khách trả tiền ở quầy theo gói (số phút, số tờ), nhập mã rồi bấm dây không giới hạn (máy ảnh Fujifilm X-T3 / X-S10 / X-S20). Hết giờ chụp, khách quét QR rồi chọn ảnh, bộ khung, ghép ảnh (không tính giờ) và bấm gửi in trên điện thoại — lệnh in lên Hàng chờ in, nhân viên ở quầy in tờ 20 × 30 (máy DNP DS820)."],
 ];
-export const ROOM_KIND_NAMES = { photobooth: "Phòng Photobooth", polaroid: "Phòng Selfbooth" };
+export const ROOM_KIND_NAMES = { photobooth: "Phòng Photobooth", selfbooth: "Phòng Selfbooth" };
 
 export const definitions = {
   rooms: [

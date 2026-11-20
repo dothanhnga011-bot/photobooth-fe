@@ -58,7 +58,7 @@ before(async () => {
       transform(code, id) {
         if (!id.replaceAll("\\", "/").endsWith("/src/capture-store.js")) return;
         // Windows headless Chromium crashes when deserializing OPFS handles from
-        // IndexedDB. Supply the Polaroid room's camera folder directly; JPEG IO and the actual
+        // IndexedDB. Supply the Selfbooth room's camera folder directly; JPEG IO and the actual
         // kiosk folder watcher stay real. All other settings use the real store.
         const declaration = 'export const readSetting = (key) => run(';
         assert.ok(code.includes(declaration));
@@ -103,7 +103,7 @@ after(async () => {
 });
 
 test('staff can check live video before a code is used; leaving settings releases the camera', async()=>{
-  const b=await booth(fakeCamera,{webcam:false,room:{_id:'room',kind:'polaroid'}});
+  const b=await booth(fakeCamera,{webcam:false,room:{_id:'room',kind:'selfbooth'}});
   try{
     await b.page.evaluate(()=>sessionStorage.setItem('photo-capture-fixture-device','null'));
     await b.page.reload();
@@ -180,12 +180,12 @@ async function booth(launched, { webcam, room = { _id: "room", flip: "device" },
       captureToken: "fixture-capture", accessToken: "fixture-album", booking, phase: "shoot", mode: "remote",
     }));
   }, { booking, webcam, lowPower, rotation });
-  await page.goto(base + (room.kind === 'polaroid' ? '?canon-folder=1' : query));
+  await page.goto(base + (room.kind === 'selfbooth' ? '?canon-folder=1' : query));
   return { page, errors, videos, frameImages, close: () => context.close() };
 }
 
 test('Selfbooth settings preview rotates, but capture uses external HDMI and keeps JPEG EXIF independent', async () => {
-  const b = await booth(fakeCamera, {webcam:false,extra:{source:'polaroid',printSize:'20x30'},room:{_id:'room',kind:'polaroid',flip:'device'},viewport:{width:540,height:960}});
+  const b = await booth(fakeCamera, {webcam:false,extra:{source:'selfbooth',printSize:'20x30'},room:{_id:'room',kind:'selfbooth',flip:'device'},viewport:{width:540,height:960}});
   try {
     const capture = await b.page.evaluate(()=>sessionStorage.getItem('photo-capture-fixture-device'));
     await b.page.evaluate(()=>sessionStorage.setItem('photo-capture-fixture-device','null'));
@@ -249,7 +249,7 @@ for (const viewport of [{width:1920,height:1080},{width:540,height:960}]) test(`
 });
 
 test('Selfbooth rotated low-power preview and webcam capture stay upright with swapped dimensions', async () => {
-  const b=await booth(fakeCamera,{webcam:true,room:{_id:'room',kind:'polaroid',flip:'device'},rotation:270,lowPower:true,viewport:{width:540,height:960}});
+  const b=await booth(fakeCamera,{webcam:true,room:{_id:'room',kind:'selfbooth',flip:'device'},rotation:270,lowPower:true,viewport:{width:540,height:960}});
   try {
     await liveReady(b.page);
     await b.page.waitForFunction(()=>{
@@ -363,7 +363,7 @@ test("in webcam test mode the Space key counts down, takes a photo from the webc
 for (const count of [1, 2]) test(`Selfbooth room (${count}-photo layout): 12 Fujifilm X-T3 JPEGs beyond the legacy quota, then the QR to choose on the phone`, async () => {
   const b = await booth(fakeCamera, {
     webcam: false,
-    room: { _id: "room", flip: "device", kind: "polaroid" },
+    room: { _id: "room", flip: "device", kind: "selfbooth" },
     // Even a legacy booking with a countdown must use the physical shutter JPEGs.
     extra: { shots: 2, selectCount: count, countdownSeconds: 3, printSize: "large", captureDuration: count === 1 ? 3 : 5 },
   });
@@ -402,9 +402,9 @@ for (const count of [1, 2]) test(`Selfbooth room (${count}-photo layout): 12 Fuj
   } finally { await b.close(); }
 });
 
-test("a resumed Polaroid (X-T3) session stays a shutter-cable session and receives shutter JPEGs while the room ping is offline", async () => {
+test("a resumed Selfbooth (X-T3) session stays a shutter-cable session and receives shutter JPEGs while the room ping is offline", async () => {
   const b = await booth(fakeCamera, { webcam: false,
-    room: { _id: 'room', flip: 'device', kind: 'polaroid' },
+    room: { _id: 'room', flip: 'device', kind: 'selfbooth' },
     extra: { printSize: 'large', selectCount: 1, prints: 1 },
   });
   try {
@@ -412,7 +412,7 @@ test("a resumed Polaroid (X-T3) session stays a shutter-cable session and receiv
     await b.page.route('**/api/kiosk/ping', route => route.abort('failed'));
     await b.page.reload();
     await b.page.locator('.shoot-screen.phase-shoot').waitFor();
-    // Chưa có phản hồi ping: vẫn nhận ra phiên phòng Polaroid (bấm dây, không có nút chạm để chụp).
+    // Chưa có phản hồi ping: vẫn nhận ra phiên phòng Selfbooth (bấm dây, không có nút chạm để chụp).
     assert.equal(await b.page.getByRole("button", { name: "Chạm để chụp" }).count(), 0);
     await b.page.evaluate(() => window.deliverCanonPhoto(1));
     await b.page.waitForFunction(() => document.querySelectorAll('.shoot-thumbs .shoot-thumb-no').length === 1, null, { timeout: 15000 });

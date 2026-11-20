@@ -610,17 +610,17 @@
   }
 }
 
-/* Khung Polaroid: chọn layout (1 ảnh to / 2 ảnh dọc chia đôi) thay cho chủ đề. Chủ đề Polaroid cũ. */
+/* Khung Selfbooth: chọn layout (1 ảnh to / 2 ảnh dọc chia đôi) thay cho chủ đề. Chủ đề Selfbooth cũ. */
 @layer components {
-  .admin-shell .frame-polaroid-layout {
+  .admin-shell .frame-selfbooth-layout {
     display: grid;
     gap: 8px;
   }
-  .admin-shell .frame-polaroid-layout > span {
+  .admin-shell .frame-selfbooth-layout > span {
     font-size: 13px;
     font-weight: 600;
   }
-  .admin-shell .frame-polaroid-layout small {
+  .admin-shell .frame-selfbooth-layout small {
     color: var(--muted);
     font-size: 12px;
     line-height: 1.5;

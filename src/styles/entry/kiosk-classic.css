@@ -1,5 +1,5 @@
 /*
-  Phòng Polaroid / Selfbooth: khung viền hoa văn vàng (classic-ornaments.jsx, ảnh rococo-corner-gold.webp)
+  Phòng Selfbooth: khung viền hoa văn vàng (classic-ornaments.jsx, ảnh rococo-corner-gold.webp)
   trên giao diện Mellow chung — bốn góc màn chờ, quanh thẻ nhập mã và quanh hình trực tiếp ở màn chụp.
 
   Giao diện cổ điển Pháp đầy đủ (giấy da be, mực nâu óc chó, thẻ nhập mã viền vàng kép, màn chụp 2/3 – 1/3)
@@ -87,22 +87,22 @@
     position: fixed;
     z-index: 0;
   }
-  :root[data-kiosk-theme="classic"] .kiosk-polaroid {
+  :root[data-kiosk-theme="classic"] .kiosk-selfbooth {
     box-shadow: 0 0 0 1px rgb(176 136 67 / 45%), var(--mellow-paper-shadow);
   }
 
   /* ── Nhập mã chụp: thẻ giấy viền vàng kép, bốn góc hoa văn ── */
-  :root[data-kiosk-theme="classic"] .code-screen.is-polaroid .flow-head {
+  :root[data-kiosk-theme="classic"] .code-screen.is-selfbooth .flow-head {
     gap: 18px;
   }
-  :root[data-kiosk-theme="classic"] .code-screen.is-polaroid .flow-head h1 {
+  :root[data-kiosk-theme="classic"] .code-screen.is-selfbooth .flow-head h1 {
     max-width: 12ch;
     font-size: clamp(36px, 3.8vw, 58px);
     line-height: 1.15;
     letter-spacing: -.025em;
     text-wrap: balance;
   }
-  :root[data-kiosk-theme="classic"] .code-screen.is-polaroid .flow-head p {
+  :root[data-kiosk-theme="classic"] .code-screen.is-selfbooth .flow-head p {
     max-width: 37ch;
     font-size: clamp(17px, 1.35vw, 22px);
     line-height: 1.75;
@@ -114,12 +114,12 @@
     letter-spacing: .22em;
     text-transform: uppercase;
   }
-  :root[data-kiosk-theme="classic"] .code-screen.is-polaroid .ornament-fleuron {
+  :root[data-kiosk-theme="classic"] .code-screen.is-selfbooth .ornament-fleuron {
     width: 220px;
     margin: 0;
     opacity: .7;
   }
-  :root[data-kiosk-theme="classic"] .code-screen.is-polaroid .code-card {
+  :root[data-kiosk-theme="classic"] .code-screen.is-selfbooth .code-card {
     position: relative;
     gap: 10px;
     padding: 38px 40px 34px;
@@ -128,11 +128,11 @@
     background: var(--mellow-card);
     box-shadow: 0 0 0 6px var(--mellow-card), 0 0 0 7px rgb(161 132 84 / 40%), 0 20px 50px -24px rgb(47 30 15 / 24%);
   }
-  :root[data-kiosk-theme="classic"] .code-screen.is-polaroid .code-card .classic-corners {
+  :root[data-kiosk-theme="classic"] .code-screen.is-selfbooth .code-card .classic-corners {
     --corner-inset: -9px;
     --corner-size: 68px;
   }
-  :root[data-kiosk-theme="classic"] .code-screen.is-polaroid .code-card label {
+  :root[data-kiosk-theme="classic"] .code-screen.is-selfbooth .code-card label {
     color: var(--classic-gold-deep);
     font-family: var(--mellow-display);
     letter-spacing: 0.18em;
@@ -141,7 +141,7 @@
     margin-bottom: 6px;
     font-size: 18px;
   }
-  :root[data-kiosk-theme="classic"] .code-screen.is-polaroid .code-card input {
+  :root[data-kiosk-theme="classic"] .code-screen.is-selfbooth .code-card input {
     border: 1px solid var(--classic-gold);
     border-radius: 8px;
     background: #fffdf7;
@@ -150,15 +150,15 @@
     letter-spacing: .22em;
     transition: border-color .16s, box-shadow .16s;
   }
-  :root[data-kiosk-theme="classic"] .code-screen.is-polaroid .code-card input:focus-visible {
+  :root[data-kiosk-theme="classic"] .code-screen.is-selfbooth .code-card input:focus-visible {
     outline: 0;
     border-color: var(--classic-gold-deep);
     box-shadow: 0 0 0 3px rgb(161 132 84 / 18%);
   }
-  :root[data-kiosk-theme="classic"] .code-screen.is-polaroid .voucher-keypad {
+  :root[data-kiosk-theme="classic"] .code-screen.is-selfbooth .voucher-keypad {
     gap: 10px;
   }
-  :root[data-kiosk-theme="classic"] .code-screen.is-polaroid .voucher-keypad button {
+  :root[data-kiosk-theme="classic"] .code-screen.is-selfbooth .voucher-keypad button {
     border-color: #dfd2bd;
     border-radius: 8px;
     background: #fffdf7;
@@ -168,24 +168,24 @@
     font-variant-numeric: tabular-nums;
     transition: background .16s, border-color .16s;
   }
-  :root[data-kiosk-theme="classic"] .code-screen.is-polaroid .voucher-keypad button[aria-label="Xóa hết mã"] {
+  :root[data-kiosk-theme="classic"] .code-screen.is-selfbooth .voucher-keypad button[aria-label="Xóa hết mã"] {
     font-size: 17px;
     font-weight: 500;
   }
-  :root[data-kiosk-theme="classic"] .code-screen.is-polaroid :is(.voucher-keypad button, .button):focus-visible {
+  :root[data-kiosk-theme="classic"] .code-screen.is-selfbooth :is(.voucher-keypad button, .button):focus-visible {
     outline: 2px solid var(--classic-gold-deep);
     outline-offset: 3px;
   }
   @media (hover: hover) {
-    :root[data-kiosk-theme="classic"] .code-screen.is-polaroid .voucher-keypad button:hover {
+    :root[data-kiosk-theme="classic"] .code-screen.is-selfbooth .voucher-keypad button:hover {
       border-color: var(--classic-gold);
       background: #f3eadc;
     }
   }
-  :root[data-kiosk-theme="classic"] .code-screen.is-polaroid .voucher-keypad button:active {
+  :root[data-kiosk-theme="classic"] .code-screen.is-selfbooth .voucher-keypad button:active {
     background: #eadcc6;
   }
-  :root[data-kiosk-theme="classic"] .code-screen.is-polaroid .code-card .button {
+  :root[data-kiosk-theme="classic"] .code-screen.is-selfbooth .code-card .button {
     min-height: 58px;
     margin-top: 12px;
     border-radius: 8px;
@@ -194,13 +194,13 @@
     font-size: 19px;
     box-shadow: none;
   }
-  :root[data-kiosk-theme="classic"] .code-screen.is-polaroid .code-card .button:disabled {
+  :root[data-kiosk-theme="classic"] .code-screen.is-selfbooth .code-card .button:disabled {
     opacity: 1;
     border-color: #d7c8b1;
     background: #e3d8c8;
     color: #82715f;
   }
-  :root[data-kiosk-theme="classic"] .code-screen.is-polaroid .flow-foot .button {
+  :root[data-kiosk-theme="classic"] .code-screen.is-selfbooth .flow-foot .button {
     border-color: transparent;
     background: transparent;
     color: var(--mellow-muted);
@@ -212,7 +212,7 @@
   /* Selfbooth entry on a landscape screen: invitation left, keypad right.
      Keeps the submit button reachable on 1024 x 600 kiosks. */
   @media (min-width: 1000px) and (orientation: landscape) {
-    .code-screen.is-polaroid {
+    .code-screen.is-selfbooth {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 500px);
       grid-template-rows: repeat(5, auto);
@@ -220,7 +220,7 @@
       gap: 20px clamp(48px, 7vw, 120px);
       padding-inline: max(56px, calc((100vw - 1120px) / 2));
     }
-    .code-screen.is-polaroid .flow-head {
+    .code-screen.is-selfbooth .flow-head {
       grid-column: 1;
       grid-row: 1;
       align-self: end;
@@ -228,40 +228,40 @@
       text-align: left;
       gap: 18px;
     }
-    .code-screen.is-polaroid .flow-head .brand-logo {
+    .code-screen.is-selfbooth .flow-head .brand-logo {
       width: 64px;
       height: 64px;
     }
-    .code-screen.is-polaroid .code-card {
+    .code-screen.is-selfbooth .code-card {
       grid-column: 2;
       grid-row: 1 / span 5;
       width: 100%;
       margin: 0;
       align-self: center;
     }
-    .code-screen.is-polaroid :is(.error-box, .soft-note, .flow-foot) {
+    .code-screen.is-selfbooth :is(.error-box, .soft-note, .flow-foot) {
       grid-column: 1;
     }
-    .code-screen.is-polaroid .flow-foot {
+    .code-screen.is-selfbooth .flow-foot {
       margin-top: 0;
       justify-content: start;
     }
   }
   @media (max-height: 700px) and (min-width: 1000px) and (orientation: landscape) {
-    .code-screen.is-polaroid { gap: 14px 48px; padding-inline: 48px; }
-    .code-screen.is-polaroid .flow-head { gap: 14px; }
-    .code-screen.is-polaroid .code-card { gap: 8px; padding: 28px 32px; }
-    .code-screen.is-polaroid .code-card .button { min-height: 48px; margin-top: 6px; }
-    .code-screen.is-polaroid .voucher-keypad { gap: 8px; }
+    .code-screen.is-selfbooth { gap: 14px 48px; padding-inline: 48px; }
+    .code-screen.is-selfbooth .flow-head { gap: 14px; }
+    .code-screen.is-selfbooth .code-card { gap: 8px; padding: 28px 32px; }
+    .code-screen.is-selfbooth .code-card .button { min-height: 48px; margin-top: 6px; }
+    .code-screen.is-selfbooth .voucher-keypad { gap: 8px; }
   }
   @media (max-width: 600px) {
-    .code-screen.is-polaroid { padding: 28px 24px; gap: 24px; }
-    .code-screen.is-polaroid .flow-head { gap: 12px; }
-    .code-screen.is-polaroid .flow-head h1 { max-width: 100%; font-size: 34px; }
-    .code-screen.is-polaroid .flow-head p { font-size: 16px; line-height: 1.6; }
-    .code-screen.is-polaroid .code-card { padding: 28px 22px 24px; margin: 0 auto; }
-    .code-screen.is-polaroid .code-card .classic-corners { --corner-size: 52px; }
-    .code-screen.is-polaroid .voucher-keypad button { min-height: 48px; }
+    .code-screen.is-selfbooth { padding: 28px 24px; gap: 24px; }
+    .code-screen.is-selfbooth .flow-head { gap: 12px; }
+    .code-screen.is-selfbooth .flow-head h1 { max-width: 100%; font-size: 34px; }
+    .code-screen.is-selfbooth .flow-head p { font-size: 16px; line-height: 1.6; }
+    .code-screen.is-selfbooth .code-card { padding: 28px 22px 24px; margin: 0 auto; }
+    .code-screen.is-selfbooth .code-card .classic-corners { --corner-size: 52px; }
+    .code-screen.is-selfbooth .voucher-keypad button { min-height: 48px; }
   }
 
   /* ── Màn chụp ── */

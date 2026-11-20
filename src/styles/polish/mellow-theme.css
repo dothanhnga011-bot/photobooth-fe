@@ -325,7 +325,7 @@
     font-family: var(--mellow-display);
     font-weight: 700;
   }
-  /* Ảnh như polaroid: viền giấy kem, nghiêng nhẹ xen kẽ */
+  /* Ảnh như selfbooth: viền giấy kem, nghiêng nhẹ xen kẽ */
   .studio-grid {
     gap: 22px;
   }
@@ -474,7 +474,7 @@
     font-weight: 700;
     box-shadow: 0 3px 0 var(--mellow-cocoa-deep);
   }
-  .idle-polaroid {
+  .idle-selfbooth {
     width: 96px;
     aspect-ratio: 4 / 5;
     padding: 6px 6px 18px;

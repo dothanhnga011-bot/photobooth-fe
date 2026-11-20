@@ -28,8 +28,8 @@ export const KIOSK_TEXT_GROUPS = [
   ]],
   ["Phòng Selfbooth", [
     // Như Selfbooth: khách trả tiền ở quầy, nhân viên đưa mã (gói đã có trong mã), nhập mã là vào chụp.
-    ["polaroid.codeTitle", "Tiêu đề nhập mã", "Nhập mã chụp"],
-    ["polaroid.codeSubtitle", "Dòng dưới tiêu đề nhập mã", "Mã 6 số nhân viên đưa khi bạn thanh toán ở quầy. Gói và thời gian chụp đã có sẵn trong mã."],
+    ["selfbooth.codeTitle", "Tiêu đề nhập mã", "Nhập mã chụp"],
+    ["selfbooth.codeSubtitle", "Dòng dưới tiêu đề nhập mã", "Mã 6 số nhân viên đưa khi bạn thanh toán ở quầy. Gói và thời gian chụp đã có sẵn trong mã."],
     ["done.studioTitle", "Tiêu đề màn QR (chọn ảnh trên điện thoại)", "Quét mã QR để chọn ảnh, làm đẹp và in nhé!"],
   ]],
 ];

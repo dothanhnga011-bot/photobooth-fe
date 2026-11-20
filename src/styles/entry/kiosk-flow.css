@@ -1546,7 +1546,7 @@
     opacity: 0.3;
     cursor: default;
   }
-  /* Chỉ có một khung (vd. layout Polaroid): không hiện mũi tên chết, vẫn giữ chỗ để khung không xê dịch. */
+  /* Chỉ có một khung (vd. layout Selfbooth): không hiện mũi tên chết, vẫn giữ chỗ để khung không xê dịch. */
   .frame-arrow.is-single {
     visibility: hidden;
   }
@@ -1593,7 +1593,7 @@
     height: auto;
     aspect-ratio: 1;
   }
-  /* Phòng Polaroid (không có video) trên màn ngang: hai ô ảnh ghép và mã QR to, dùng hết chỗ trống
+  /* Phòng Selfbooth (không có video) trên màn ngang: hai ô ảnh ghép và mã QR to, dùng hết chỗ trống
      của cột video (QR to dễ quét từ xa, ảnh ghép thấy rõ). */
   @media (orientation: landscape) and (min-width: 901px) {
     .done-cards.no-video {

@@ -1,7 +1,7 @@
 import { Package, Plus, Search, X } from "lucide-react";
 import { Button } from "../studio";
 
-// Chữ theo loại hình đang xem: phòng Photobooth bán gói khổ nhỏ / khổ to, phòng Polaroid bán gói tính
+// Chữ theo loại hình đang xem: phòng Photobooth bán gói khổ nhỏ / khổ to, phòng Selfbooth bán gói tính
 // theo phút như Selfbooth.
 const TEXTS = {
   photobooth: {
@@ -11,7 +11,7 @@ const TEXTS = {
     add: "Thêm gói chụp",
     search: "Tìm tên gói, mô tả…",
   },
-  polaroid: {
+  selfbooth: {
     noun: "gói Selfbooth",
     title: "Gói chụp phòng Selfbooth",
     note: "Mỗi gói có giá, số phút chụp (bấm dây không giới hạn) và số tờ 20 × 30 (máy DNP DS820). Nhân viên chọn gói khi tạo mã chụp ở quầy.",
@@ -20,7 +20,7 @@ const TEXTS = {
   },
 };
 
-// actions: nút thêm của từng loại (vd. "Tạo 2 khung thử" ở tab Polaroid).
+// actions: nút thêm của từng loại (vd. "Tạo 2 khung thử" ở tab Selfbooth).
 export function CatalogToolbar({
   service = "photobooth",
   items,

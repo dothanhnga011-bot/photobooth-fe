@@ -363,7 +363,7 @@ async function mount(resource, overrides = {}) {
   pageErrors = [];
   await page.goto(`http://127.0.0.1:${server.address().port}/catalog`);
   await page.waitForFunction(() => typeof window.mountCatalog === "function");
-  // Khổ ảnh & bảng giá nhớ tab Photobooth / Polaroid đang xem: mỗi test bắt đầu ở tab Photobooth.
+  // Khổ ảnh & bảng giá nhớ tab Photobooth / Selfbooth đang xem: mỗi test bắt đầu ở tab Photobooth.
   await page.evaluate(() => localStorage.removeItem("admin-service-tab"));
   await page.evaluate((resource) => window.mountCatalog(resource), resource);
   await page.locator(CARDS[resource]).first().waitFor();
@@ -511,9 +511,9 @@ test("packages are grouped by photo size; a small-size package starts with one s
   await mount("packages");
   const small = page.getByRole("region", { name: "Khổ nhỏ" });
   const large = page.getByRole("region", { name: "Khổ to" });
-  // Tab Photobooth chỉ có khổ nhỏ / khổ to; layout Polaroid ở tab riêng.
+  // Tab Photobooth chỉ có khổ nhỏ / khổ to; layout Selfbooth ở tab riêng.
   assert.equal(await page.getByRole("tab", { name: /Photobooth/ }).getAttribute("aria-selected"), "true");
-  assert.equal(await page.getByRole("region", { name: "Layout Polaroid" }).count(), 0);
+  assert.equal(await page.getByRole("region", { name: "Layout Selfbooth" }).count(), 0);
   assert.equal(await large.locator(".package-card").count(), 3);
   assert.match(await small.innerText(), /Chưa có gói khổ nhỏ/);
   // Khổ to kèm 1 tờ: dưới mức tối thiểu 2 tờ, không gửi lên máy chủ.
@@ -543,7 +543,7 @@ test("packages are grouped by photo size; a small-size package starts with one s
   assertClean();
 });
 
-test("Polaroid packages are timed like Selfbooth: minutes and 20 × 30 sheets, unlimited shots, no layouts", async () => {
+test("Selfbooth packages are timed like Selfbooth: minutes and 20 × 30 sheets, unlimited shots, no layouts", async () => {
   await mount("packages");
   await page.getByRole("tab", { name: /Selfbooth/ }).click();
   const group = page.getByRole("region", { name: "Gói Selfbooth", exact: true });
@@ -552,7 +552,7 @@ test("Polaroid packages are timed like Selfbooth: minutes and 20 × 30 sheets, u
   assert.match(await page.locator(".extra-price-panel").innerText(), /mỗi tờ 20 × 30/i);
   // 2 layout cũ (1 ảnh · 3 phút, 2 ảnh · 5 phút) đã bỏ.
   assert.equal(await page.getByRole("button", { name: "Tạo 2 layout mẫu" }).count(), 0);
-  assert.equal(await page.getByRole("button", { name: "Tạo 2 khung thử" }).count(), 0, "no Polaroid trial frames any more");
+  assert.equal(await page.getByRole("button", { name: "Tạo 2 khung thử" }).count(), 0, "no Selfbooth trial frames any more");
   await group.getByRole("button", { name: "Thêm gói Selfbooth" }).click();
   const dialog = page.getByRole("dialog");
   assert.equal(await dialog.locator('select[name="printSize"]').count(), 0);
@@ -574,7 +574,7 @@ test("Polaroid packages are timed like Selfbooth: minutes and 20 × 30 sheets, u
   assert.match(await dialog.locator(".catalog-editor-preview").innerText(), /Bấm dây không giới hạn/);
   assert.match(await dialog.locator(".catalog-editor-preview").innerText(), /máy in DNP DS820/);
   await mkdir(screenshotDirectory, { recursive: true });
-  await page.screenshot({ path: join(screenshotDirectory, "packages-polaroid-editor.png") });
+  await page.screenshot({ path: join(screenshotDirectory, "packages-selfbooth-editor.png") });
   await dialog.getByRole("button", { name: "Lưu thay đổi", exact: true }).click();
   await dialog.waitFor({ state: "hidden" });
   assert.deepEqual(
@@ -585,7 +585,7 @@ test("Polaroid packages are timed like Selfbooth: minutes and 20 × 30 sheets, u
   assert.match(await card.innerText(), /12\s*phút/);
   assert.match(await card.innerText(), /2\s*tờ/);
   assert.match(await card.innerText(), /DNP DS820/);
-  await page.screenshot({ path: join(screenshotDirectory, "packages-polaroid.png"), fullPage: true });
+  await page.screenshot({ path: join(screenshotDirectory, "packages-selfbooth.png"), fullPage: true });
   // Tab Photobooth vẫn chỉ có gói 10 × 15.
   await page.getByRole("tab", { name: /Photobooth/ }).click();
   await expectCount("packages", 3);
@@ -597,11 +597,12 @@ test("a Selfbooth 20 × 30 frame is composed like the Selfbooth admin: detect, r
   await mount("frames", {
     themes: [
       ...structuredClone(themeFixtures),
-      { name: "Kawaii", kind: "polaroid", active: true, frames: 0, activeFrames: 0, slots: 0, sizes: [], previews: [] },
+      { name: "Kawaii", kind: "selfbooth", active: true, frames: 0, activeFrames: 0, slots: 0, sizes: [], previews: [] },
     ],
   });
-  await page.getByRole("button", { name: /Thêm mới frame/ }).click();
-  await page.getByRole("menuitem", { name: /Size 20 × 30/ }).click();
+  // Khung Selfbooth ở tab riêng: nút thêm mới tạo thẳng khung 20 × 30.
+  await page.getByRole("tab", { name: /Selfbooth/ }).click();
+  await page.getByRole("button", { name: "Thêm mới frame 20 × 30" }).click();
   const dialog = page.getByRole("dialog", { name: "Thêm khung ảnh" });
   await dialog.getByText("Đặt tên, gom chủ đề và kiểm tra các ô đặt ảnh.").waitFor();
   assert.equal(await dialog.getByLabel("Kích thước khung").inputValue(), "large");
@@ -644,6 +645,9 @@ test("Khung ảnh copies frames from the Selfbooth site: pick by theme, already 
     { id: "sb-2", name: "khung 1 II", themeName: "khung 1", printSize: "full", slots: 20, angled: false, preview: frameImage("#d9c1ab", "2"), copied: false },
     { id: "sb-3", name: "khung 3", themeName: "khung 3", printSize: "full", slots: 21, angled: true, preview: frameImage("#f0d9d9", "3"), copied: true },
   ] });
+  // Nút chép chỉ có ở tab Selfbooth.
+  assert.equal(await page.getByRole("button", { name: "Chép khung từ Selfbooth" }).count(), 0);
+  await page.getByRole("tab", { name: /Selfbooth/ }).click();
   await page.getByRole("button", { name: "Chép khung từ Selfbooth" }).click();
   const dialog = page.getByRole("dialog", { name: "Chép khung từ Selfbooth" });
   await dialog.getByText("khung 1 II").waitFor();
@@ -714,6 +718,35 @@ test("frame theme and size filters combine without changing stored data", async 
   await page
     .getByRole("heading", { name: "Không có khung phù hợp bộ lọc" })
     .waitFor();
+  assert.deepEqual(mutations(), []);
+  assertClean();
+});
+
+test("Photobooth and Selfbooth frames are shown on separate tabs with their own filters and buttons", async () => {
+  await mount("frames", { frames: [...structuredClone(frameFixtures), { _id: "frame-sb", name: "Selfbooth hồng", themeName: "", order: 1,
+    printSize: "large", active: true, image: frameImage("#f2d6dd", "S"), slots: [{ x: 0.1, y: 0.1, w: 0.8, h: 0.8, kind: "photo", photo: 1 }] }] });
+  const tab = (name) => page.getByRole("tab", { name: new RegExp(name) });
+  await tab("Photobooth").waitFor();
+  assert.equal(await tab("Photobooth").getAttribute("aria-selected"), "true");
+  assert.match(await tab("Photobooth").innerText(), /Photobooth\s*4/);
+  assert.match(await tab("Selfbooth").innerText(), /Selfbooth\s*1/);
+  await expectCount("frames", 4);
+  assert.equal(await page.getByRole("button", { name: "Chép khung từ Selfbooth" }).count(), 0);
+  await page.getByRole("button", { name: /Thêm mới frame/ }).click();
+  assert.deepEqual((await page.getByRole("menuitem").allInnerTexts()).map((t) => t.split("\n")[0]), ["Size lớn", "Size nhỏ"]);
+  await page.getByRole("button", { name: /Thêm mới frame/ }).click();
+  assert.equal(await page.getByRole("menuitem").count(), 0);
+  await themeSelect().selectOption({ label: "Hoa" });
+  await tab("Selfbooth").click();
+  await expectCount("frames", 1);
+  assert.deepEqual(await frameNames(), ["Selfbooth hồng"]);
+  assert.equal(await sizeSelect().count(), 0, "every Selfbooth frame is 20 × 30");
+  assert.equal(await themeSelect().inputValue(), "all", "the other tab's theme filter is cleared");
+  await page.getByRole("button", { name: "Chép khung từ Selfbooth" }).waitFor();
+  await page.getByRole("button", { name: "Thêm mới frame 20 × 30" }).waitFor();
+  await page.screenshot({ path: join(screenshotDirectory, "frames-selfbooth-tab.png"), fullPage: true });
+  await tab("Photobooth").click();
+  await expectCount("frames", 4);
   assert.deepEqual(mutations(), []);
   assertClean();
 });
@@ -1025,18 +1058,18 @@ test("catalogs and editors fit desktop and mobile widths with review screenshots
   console.log(`Catalog review screenshots: ${screenshotDirectory}`);
 });
 
-test("themes serve both rooms: a Polaroid (Selfbooth) theme is labelled and a new theme picks its room", async () => {
+test("themes serve both rooms: a Selfbooth theme is labelled and a new theme picks its room", async () => {
   await mount("themes", {
     themes: [
       ...structuredClone(themeFixtures),
-      { name: "Kawaii", kind: "polaroid", active: true, frames: 0, activeFrames: 0, slots: 0, sizes: [], previews: [] },
+      { name: "Kawaii", kind: "selfbooth", active: true, frames: 0, activeFrames: 0, slots: 0, sizes: [], previews: [] },
     ],
   });
-  // Không còn tab Photobooth / Polaroid.
+  // Không còn tab Photobooth / Selfbooth.
   assert.equal(await page.getByRole("tab").count(), 0);
   await page.getByRole("heading", { name: "Chủ đề khung ảnh" }).waitFor();
   await page.locator(".themes-table tbody tr", { hasText: "Kawaii" }).getByText("Phòng Selfbooth").waitFor();
-  assert.equal(await page.getByText("Polaroid cũ · không còn dùng").count(), 0);
+  assert.equal(await page.getByText("Selfbooth cũ · không còn dùng").count(), 0);
   await page.getByRole("button", { name: "Thêm mới chủ đề" }).click();
   await page.getByLabel("Tên chủ đề").fill("Giáng sinh");
   await page.getByRole("button", { name: "Lưu" }).click();
@@ -1047,7 +1080,7 @@ test("themes serve both rooms: a Polaroid (Selfbooth) theme is labelled and a ne
   await page.getByLabel(/Selfbooth — khung 20 × 30/).check();
   await page.getByRole("button", { name: "Lưu" }).click();
   await page.locator(".themes-table tbody tr", { hasText: "Selfbooth Tết" }).waitFor();
-  assert.deepEqual(mutations().at(-1).body, { name: "Selfbooth Tết", kind: "polaroid" });
+  assert.deepEqual(mutations().at(-1).body, { name: "Selfbooth Tết", kind: "selfbooth" });
   assert.deepEqual(unexpected, []);
   assert.deepEqual(pageErrors, []);
 });

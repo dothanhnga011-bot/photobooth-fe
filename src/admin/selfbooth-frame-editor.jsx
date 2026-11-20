@@ -33,7 +33,7 @@ export function SelfboothFrameEditor({ frame: initial, themes = [], themeKinds =
   const [error, setError] = useState("");
   const set = (patch) => setFrame((f) => ({ ...f, ...patch }));
   // Gợi ý tên bộ: chủ đề của phòng Selfbooth.
-  const selfboothThemes = themes.filter((name) => themeKinds[name] === "polaroid");
+  const selfboothThemes = themes.filter((name) => themeKinds[name] === "selfbooth");
 
   async function save(event) {
     event.preventDefault();

@@ -6,8 +6,6 @@ import { useLiveData } from "../use-live-data";
 import { Guide } from "../guide";
 import { Button, ErrorBox, useToast } from "../studio";
 import { printLargeSheets } from "./print-sheet.js";
-import { PRINT_BRANCHES, printBranchName, printQueuePath } from './print-branches.js';
-import './print-queue.css';
 
 // Hàng chờ in của phòng Selfbooth (như web Selfbooth): khách bấm "Gửi in" trên điện thoại → lệnh in hiện ở đây
 // ngay (có chuông báo); nhân viên ở quầy bấm "In 20×30" → cửa sổ in của trình duyệt ra máy DNP DS820 ở quầy,
@@ -30,8 +28,12 @@ function useNow(every = 30000) {
   return now;
 }
 
+// Hàng chờ in của phòng Selfbooth (tờ 20 × 30). Tài khoản nhân viên có cơ sở được phân công thì máy chủ chỉ trả
+// lệnh của cơ sở đó.
+const queuePath = (status) => `/admin/print-jobs?${new URLSearchParams({ size: "large", status })}`;
+
 // Số lệnh in Selfbooth đang chờ (huy hiệu trên thanh bên).
-export function usePendingPrints(branch) {
+export function usePendingPrints() {
   const [rows, setRows] = useState([]);
   const load = useLiveData('/admin/print-jobs/branches?size=large', setRows, () => {}, 30000);
   useEffect(() => {
@@ -39,20 +41,19 @@ export function usePendingPrints(branch) {
     window.addEventListener("nxc:print", refresh);
     return () => window.removeEventListener("nxc:print", refresh);
   }, [load]);
-  return rows.filter(row=>branch===undefined||row.branch===branch).reduce((sum,row)=>sum+(Number(row.pending)||0),0);
+  return rows.reduce((sum, row) => sum + (Number(row.pending) || 0), 0);
 }
 
-export function PrintQueue({ canOperate = false, canDelete = false, branch = PRINT_BRANCHES[0], assignedBranch = '', onBranchChange = () => {} }) {
+export function PrintQueue({ canOperate = false, canDelete = false }) {
   const now = useNow();
   const toast = useToast();
   const [status, setStatus] = useState("pending");
-  const path = printQueuePath(branch,status);
+  const path = queuePath(status);
   const currentPath = useRef(path);
   currentPath.current = path;
   const [result, setResult] = useState(null);
   const loaded = result?.path === path;
   const jobs = loaded ? result.jobs : [];
-  const [branches, setBranches] = useState([]);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState("");
   const lastError = useRef("");
@@ -73,13 +74,11 @@ export function PrintQueue({ canOperate = false, canDelete = false, branch = PRI
     },
     15000,
   );
-  const loadBranches = useLiveData('/admin/print-jobs/branches?size=large', setBranches, () => {}, 15000);
   useEffect(() => {
-    const refresh = () => { load({ share: true }); loadBranches({ share: true }); };
+    const refresh = () => load({ share: true });
     window.addEventListener("nxc:print", refresh);
     return () => window.removeEventListener("nxc:print", refresh);
-  }, [load,loadBranches]);
-  const sites = assignedBranch ? [assignedBranch.trim()] : [...new Set([...PRINT_BRANCHES,branch,...branches.map(row=>row.branch)])];
+  }, [load]);
 
   async function act(job, request, message) {
     setBusyId(job._id);
@@ -100,7 +99,6 @@ export function PrintQueue({ canOperate = false, canDelete = false, branch = PRI
         imageUrls: Array.from({ length: job.sheetCount || 1 }, (_, i) => sheetUrl(job, i)),
         code: job.code,
         copies: job.copies,
-        branch: job.branch,
       });
       toast.info(`Đang mở bản in vé #${job.code}. Chọn máy in DNP DS820, giấy 8 × 12 inch (20 × 30 cm).`);
     } catch (e) {
@@ -111,17 +109,6 @@ export function PrintQueue({ canOperate = false, canDelete = false, branch = PRI
   return (
     <>
       <ErrorBox error={error} />
-      <section className="print-branch-panel" aria-label="Hàng chờ in theo cơ sở">
-        <strong>Cơ sở nhận in</strong>
-        <div className="print-branch-tabs" role="group" aria-label="Chọn cơ sở in">
-          {sites.map(site => <button key={site} type="button" aria-pressed={branch === site}
-            aria-label={printBranchName(site)} onClick={()=>onBranchChange(site)}>
-            <span>{printBranchName(site)}</span>
-            <small>{branches.find(row=>row.branch===site)?.pending ?? 0} chờ in</small>
-          </button>)}
-        </div>
-        <p>Đang xem <b>{printBranchName(branch)}</b>. {assignedBranch ? 'Tài khoản chỉ nhận lệnh của cơ sở được phân công.' : 'Chọn cơ sở để xem và in riêng từng hàng chờ.'}</p>
-      </section>
       <Guide
         id="print-ds820"
         title="in ảnh 20 × 30 bằng DNP DS820"
@@ -176,7 +163,7 @@ export function PrintQueue({ canOperate = false, canDelete = false, branch = PRI
               </div>
               <div>
                 <strong>#{job.code}{job.name ? ` · ${job.name}` : ""}</strong>
-                <small><b>{printBranchName(job.branch)}</b> · {job.roomName || "Phòng Selfbooth"} · {job.frameName || "Khung ảnh"} · {sheets} tờ × {job.copies || 1} bản</small>
+                <small>{job.roomName || "Phòng Selfbooth"} · {job.frameName || "Khung ảnh"} · {sheets} tờ × {job.copies || 1} bản</small>
                 <small>{pending ? `Gửi lúc ${time(job.createdAt)}` : `In lúc ${time(job.printedAt)}${job.printedBy ? ` · ${job.printedBy}` : ""}`}</small>
                 <span className={`expiry-chip${left <= 60 ? (pending ? " is-urgent" : " is-soon") : ""}`}
                   title={`Tự xoá lúc ${time(job.expiresAt)}`}>
@@ -218,7 +205,7 @@ export function PrintQueue({ canOperate = false, canDelete = false, branch = PRI
       {loaded && !jobs.length && (
         <div className="empty-state">
           <Printer />
-          <h3>{pending ? `Không có lệnh đang chờ tại ${printBranchName(branch)}.` : `Chưa có lệnh đã in tại ${printBranchName(branch)} trong 3 ngày qua.`}</h3>
+          <h3>{pending ? "Không có lệnh in nào đang chờ." : "Chưa in ảnh nào trong 3 ngày qua."}</h3>
           <p>Khách bấm “Gửi in” trên điện thoại ở phòng Selfbooth, lệnh in sẽ hiện tại đây ngay.</p>
         </div>
       )}

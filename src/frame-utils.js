@@ -335,7 +335,7 @@ export function composeLayout(canvas, frameImage, slots, images, transforms, dec
 
 // ─── Bộ chủ đề (nhiều khung cùng themeName) & xuất tờ in DNP 10 × 15 cm ───
 export const SHEET = { w: 1200, h: 1800 }; // 4 × 6 inch @ 300 pixels/inch
-// Khung phòng Polaroid / Selfbooth từ 14/11: tờ 20 × 30 cm máy DNP DS820, 2400 × 3600 (dọc hoặc ngang).
+// Khung phòng Selfbooth từ 14/11: tờ 20 × 30 cm máy DNP DS820, 2400 × 3600 (dọc hoặc ngang).
 export { LARGE_SHEET };
 
 // themeOrder: tên chủ đề theo thứ tự quản trị sắp ở Thiết lập → Chủ đề (chủ đề khác xếp sau).

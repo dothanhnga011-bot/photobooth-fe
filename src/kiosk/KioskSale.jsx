@@ -64,17 +64,17 @@ export function KioskPayChoice({ onCode, onCash, onBack }) {
 }
 
 // Mã chụp nhân viên tạo ở quầy sau khi khách chuyển khoản: mã đã gồm gói, khổ ảnh và số bản in.
-// polaroid: phòng Polaroid (như Selfbooth) — mã đã gồm layout và thời gian chụp, chữ riêng của phòng.
-export function KioskCode({ code, setCode, onSubmit, onBack, busy, error, device, cameraReady, polaroid = false }) {
+// selfbooth: phòng Selfbooth (như web Selfbooth) — mã đã gồm layout và thời gian chụp, chữ riêng của phòng.
+export function KioskCode({ code, setCode, onSubmit, onBack, busy, error, device, cameraReady, selfbooth = false }) {
   const t = useKioskText();
   // Gõ đủ 6 số rồi khách bấm "Bắt đầu chụp" mới vào chụp (13/11 chủ tiệm bỏ tự vào chụp khi đủ số):
   // khách kịp nhìn lại mã. Mã sai thì máy xoá để nhập lại.
   return (
-    <section className={`kiosk-flow code-screen${polaroid ? " is-polaroid" : ""}`}>
+    <section className={`kiosk-flow code-screen${selfbooth ? " is-selfbooth" : ""}`}>
       <header className="flow-head">
         <Brand />
-        <h1>{t(polaroid ? "polaroid.codeTitle" : "code.title")}</h1>
-        <p>{t(polaroid ? "polaroid.codeSubtitle" : "code.subtitle")}</p>
+        <h1>{t(selfbooth ? "selfbooth.codeTitle" : "code.title")}</h1>
+        <p>{t(selfbooth ? "selfbooth.codeSubtitle" : "code.subtitle")}</p>
       </header>
       <ErrorBox error={error} />
       {!device && (

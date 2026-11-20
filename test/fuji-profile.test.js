@@ -14,7 +14,7 @@ test("Canon and Fujifilm RAW files are diagnosed while JPEG remains the capture 
 });
 
 test("both rooms shoot with a Fujifilm X-T3 through X Acquire (the Selfbooth room since 14/11)", () => {
-  const booth = cameraProfile("photobooth"), selfbooth = cameraProfile("polaroid");
+  const booth = cameraProfile("photobooth"), selfbooth = cameraProfile("selfbooth");
   for (const profile of [booth, selfbooth]) {
     assert.equal(profile.folderKey, "camera-folder-fujifilm");
     assert.match(profile.label, /X-T3/);

@@ -1232,7 +1232,7 @@
     color: var(--heart);
   }
 
-  /* ── Chặn luật album cũ / giao diện Mellow (polaroid nghiêng, chữ viết tay, kẻ đậm) ─────────────── */
+  /* ── Chặn luật album cũ / giao diện Mellow (selfbooth nghiêng, chữ viết tay, kẻ đậm) ─────────────── */
   .sb-album .studio-meta {
     grid-template-columns: minmax(0, 1fr);
     border-bottom: 0;

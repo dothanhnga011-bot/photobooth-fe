@@ -47,7 +47,7 @@ export function QuickKiosk({ toast }) {
             <span className="quick-kiosk-name">
               <b>{room.name}</b>
               <small>
-                {[room.branch, room.kind === "polaroid" ? "Selfbooth" : "Photobooth"].filter(Boolean).join(" · ")}
+                {[room.branch, room.kind === "selfbooth" ? "Selfbooth" : "Photobooth"].filter(Boolean).join(" · ")}
                 {busy === room._id ? " · đang mở…" : ""}
               </small>
             </span>

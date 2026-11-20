@@ -1,4 +1,4 @@
-# Polaroid classic ornament
+# Selfbooth classic ornament
 
 `rococo-corner-gold.webp` is an original decorative asset generated with the built-in ImageGen tool (`transparent_background: true`, new image, no reference images). It follows the antique French acanthus direction in the user's references without copying a Pinterest asset.
 

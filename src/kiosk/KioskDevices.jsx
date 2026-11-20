@@ -30,7 +30,7 @@ export function KioskDevices({ zoom, setZoom, roomInfo, toast }) {
           onChange={(e) => { const value = Number(e.target.value) / 100; setZoom(value); localStorage.setItem(CROP_KEY, String(value)); }} />
         <small>Hãy tắt các thông tin hiển thị trong tín hiệu HDMI của máy ảnh; thanh này chỉ cắt mép.</small>
       </label>
-      {roomInfo?.kind !== "polaroid" && <fieldset className="kiosk-device-box">
+      {roomInfo?.kind !== "selfbooth" && <fieldset className="kiosk-device-box">
         <legend>Máy đọc tiền (ICT)</legend>
         <p className="kiosk-device-note">
           Loại phòng:{" "}

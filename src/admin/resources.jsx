@@ -34,8 +34,8 @@ import { CatalogToolbar } from "./catalog-toolbar";
 import { PackageCatalog } from "./package-catalog";
 import { ResourceEditor } from "./resource-editor";
 import { ServiceTabs, serviceOf, useServiceTab } from "./service-tabs";
-import { polaroidPackage } from "../polaroid-layouts.js";
-import { isPolaroidSize, POLAROID_SIZE } from "../print-sizes.js";
+import { selfboothPackage } from "../selfbooth-package.js";
+import { isSelfboothSize, SELFBOOTH_SIZE } from "../print-sizes.js";
 import { roomPrinterReady } from "./printer-issues";
 // Giá mặc định khi thêm gói Selfbooth mới (Bảng giá → tab Selfbooth).
 const SAMPLE_PRICE = 100000;
@@ -146,12 +146,12 @@ export function ResourceManager({ resource, notify, me }) {
   const isCatalog = resource === "packages";
   const canManage = me?.role === "admin";
   const filtered = Boolean(query.trim()) || status !== "all";
-  // Khổ ảnh & bảng giá: xem riêng gói phòng Photobooth (khổ nhỏ / khổ to) và layout phòng Polaroid.
+  // Khổ ảnh & bảng giá: xem riêng gói phòng Photobooth (khổ nhỏ / khổ to) và layout phòng Selfbooth.
   const [service, setService] = useServiceTab();
   const serviceItems = isCatalog ? items.filter((item) => serviceOf(item.printSize) === service) : items;
   const serviceCounts = {
     photobooth: items.filter((item) => serviceOf(item.printSize) === "photobooth").length,
-    polaroid: items.filter((item) => serviceOf(item.printSize) === "polaroid").length,
+    selfbooth: items.filter((item) => serviceOf(item.printSize) === "selfbooth").length,
   };
   const visibleItems = serviceItems.filter(
     (item) =>
@@ -193,10 +193,10 @@ export function ResourceManager({ resource, notify, me }) {
     if (!canManage) return;
     setError("");
     form.setErrors({});
-    setEdit(resource === "packages" ? polaroidPackage(item) : item);
+    setEdit(resource === "packages" ? selfboothPackage(item) : item);
   };
   const fields = definitions[resource];
-  // Gói mới theo khổ ảnh: khổ nhỏ kèm 1 tờ (cắt đôi = 2 tờ nhỏ), khổ to kèm 2 tờ; gói Polaroid (tờ
+  // Gói mới theo khổ ảnh: khổ nhỏ kèm 1 tờ (cắt đôi = 2 tờ nhỏ), khổ to kèm 2 tờ; gói Selfbooth (tờ
   // 20 × 30 máy DS820, như "chụp đơn" của Selfbooth) mặc định 7 phút, 100.000 đ, chụp không giới hạn, 1 tờ.
   function newItem(printSize = "full") {
     openEditor(
@@ -205,12 +205,12 @@ export function ResourceManager({ resource, notify, me }) {
           key,
           type === "number"
             ? key === "duration"
-              ? isPolaroidSize(printSize) ? 7 : 15
+              ? isSelfboothSize(printSize) ? 7 : 15
               : key === "shots"
-                ? isPolaroidSize(printSize) ? 0 : 12
+                ? isSelfboothSize(printSize) ? 0 : 12
                 : key === "selectCount"
-                  ? isPolaroidSize(printSize) ? 1 : 4
-                  : key === "price" && isPolaroidSize(printSize)
+                  ? isSelfboothSize(printSize) ? 1 : 4
+                  : key === "price" && isSelfboothSize(printSize)
                     ? SAMPLE_PRICE
                   : key === "prints"
                     ? printSize === "full" ? 2 : 1
@@ -248,7 +248,7 @@ export function ResourceManager({ resource, notify, me }) {
     if (!form.check(edit, RESOURCE_RULES[resource] || {})) return;
     setBusy(true);
     try {
-      const body = { ...(resource === "packages" ? polaroidPackage(edit) : edit) };
+      const body = { ...(resource === "packages" ? selfboothPackage(edit) : edit) };
       if (resource === "rooms") delete body.branch;
       if (!body.password) delete body.password;
       if (resource === "users" && body.role !== "staff") delete body.permissions;
@@ -382,7 +382,7 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
           onQueryChange={setQuery}
           status={status}
           onStatusChange={setStatus}
-          onCreate={() => newItem(service === "polaroid" ? POLAROID_SIZE : "full")}
+          onCreate={() => newItem(service === "selfbooth" ? SELFBOOTH_SIZE : "full")}
           loading={loading}
         />
       ) : (
@@ -413,21 +413,21 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
           onDeactivate={deactivate}
           onCreate={newItem}
           filtered={filtered}
-          sizes={service === "polaroid" ? [POLAROID_SIZE] : ["strip", "full"]}
+          sizes={service === "selfbooth" ? [SELFBOOTH_SIZE] : ["strip", "full"]}
         />
         {canManage && (
           <section className="panel extra-price-panel" aria-labelledby="extra-price-title">
             <div>
-              <h3 id="extra-price-title">{service === "polaroid" ? "Giá in thêm tờ 20 × 30" : "Giá in thêm tờ ảnh"}</h3>
+              <h3 id="extra-price-title">{service === "selfbooth" ? "Giá in thêm tờ 20 × 30" : "Giá in thêm tờ ảnh"}</h3>
               <p className="muted">
                 Khi khách mua thêm bản in tại quầy (Đơn hàng → In ảnh → Thêm lượt in)
-                {service === "polaroid"
+                {service === "selfbooth"
                   ? ". Tờ 20 × 30 (máy DNP DS820) có giá riêng, không theo giá tờ 10 × 15."
                   : " hoặc chọn thêm ở máy chụp. Khổ nhỏ: mỗi tờ 10 × 15 cm = 2 tờ nhỏ."}
               </p>
             </div>
             <div className="extra-price-pair">
-              {service === "polaroid" ? (
+              {service === "selfbooth" ? (
                 <div className="extra-price-item">
                   <small>Phòng Selfbooth · mỗi tờ 20 × 30</small>
                   <PriceEditor selfbooth price={settings.extraSelfboothPrice} startOpen={false} onSaved={() => reloadCatalog?.()} />
@@ -769,7 +769,7 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
                 </p>
               </section>
             )}
-            {device.kind === "polaroid" && (
+            {device.kind === "selfbooth" && (
               <section className="kiosk-autostart printer-setup" aria-label="In ảnh phòng Selfbooth">
                 <h3>
                   <Printer size={16} aria-hidden="true" /> In ảnh phòng Selfbooth
