@@ -19,6 +19,9 @@ before(async () => {
       load: id => id === '\0virtual:beauty-model' ? `
         import { detectFaces, applyBeauty, loadFaceLandmarker, scoreFaces } from '/src/beauty.js';
         import { applyBeautyAsync } from '/src/image-processing.js';
+        import { scoreLoaded } from '/src/album/selfbooth/face-score.js';
+        import { pictureDistance } from '/src/album/selfbooth/photo-suggestions.js';
+        window.suggest = { scoreLoaded, pictureDistance };
         window.beauty = { detectFaces, applyBeauty, applyBeautyAsync, loadFaceLandmarker, scoreFaces };
       ` : null,
     }],
@@ -128,6 +131,33 @@ test('the bundled model scores smile and closed eyes for each face on a 640 px l
     try { return await window.beauty.scoreFaces(bitmap); } finally { bitmap.close(); }
   });
   assert.equal(faces.length, 1, JSON.stringify(faces));
-  for (const key of ['blink', 'smile', 'width']) assert.ok(faces[0][key] >= 0 && faces[0][key] <= 1, JSON.stringify(faces[0]));
+  for (const key of ['blink', 'smile', 'width', 'facing']) assert.ok(faces[0][key] >= 0 && faces[0][key] <= 1, JSON.stringify(faces[0]));
+  const { x0, y0, x1, y1 } = faces[0].box;
+  assert.ok(0 <= x0 && x0 < x1 && x1 <= 1 && 0 <= y0 && y0 < y1 && y1 <= 1, 'the face box is inside the photo');
+  assert.ok(faces[0].facing > 0.5, 'the sample portrait looks at the camera: ' + faces[0].facing);
   assert.ok(faces[0].blink < 0.55, 'the sample portrait has open eyes: ' + faces[0].blink);
+});
+
+// Đo ảnh cho gợi ý ảnh đẹp: ảnh rung tay (làm mờ) bị chấm kém nét hẳn, cùng một khung hình thì dấu vân ảnh gần nhau.
+test('a shaky (blurred) shot scores far less sharp than the same photo in focus, with a near-identical fingerprint', async () => {
+  const result = await page.evaluate(async () => {
+    const img = new Image(); img.src = '/portrait.jpg'; await img.decode();
+    const scale = 640 / Math.max(img.naturalWidth, img.naturalHeight);
+    const w = Math.round(img.naturalWidth * scale), h = Math.round(img.naturalHeight * scale);
+    const shot = async (blur) => {
+      const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d'); if (blur) ctx.filter = 'blur(3px)'; ctx.drawImage(img, 0, 0, w, h);
+      const bitmap = await createImageBitmap(canvas);
+      try { return await window.suggest.scoreLoaded(bitmap); } finally { bitmap.close(); }
+    };
+    const sharp = await shot(false), blurred = await shot(true);
+    return { sharp, blurred, distance: window.suggest.pictureDistance(sharp.hash, blurred.hash) };
+  });
+  assert.equal(result.sharp.faces.length, 1, JSON.stringify(result));
+  assert.match(result.sharp.hash, /^[0-9a-f]{16}$/);
+  assert.equal(result.sharp.faces[0].cut, false);
+  assert.ok(result.sharp.faces[0].sharp > 0);
+  assert.equal(result.blurred.faces.length, 1, "the blurred face is still found");
+  assert.ok(result.blurred.faces[0].sharp < result.sharp.faces[0].sharp * 0.35, JSON.stringify([result.sharp.faces[0], result.blurred.faces[0]]));
+  assert.ok(result.distance <= 6, 'same picture, near-identical fingerprint: ' + result.distance);
 });

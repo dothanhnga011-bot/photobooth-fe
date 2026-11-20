@@ -46,9 +46,10 @@ export function loadFaceLandmarker() {
   return landmarker;
 }
 
-// Gợi ý ảnh đẹp (album/selfbooth/photo-suggestions.js): mắt nhắm (eyeBlink) và cười (mouthSmile) của từng
-// mặt, 0..1. Chạy một lần trên ảnh nhỏ của thư viện (không thử xoay như khi làm đẹp). Mặt quá nhỏ (người đi
-// ngang phía sau, mặt in trên áo) không tính.
+// Gợi ý ảnh đẹp (album/selfbooth/photo-suggestions.js): mỗi mặt có mắt nhắm (eyeBlink) và cười (mouthSmile) 0..1,
+// khung mặt (0..1 theo ảnh) để đo độ nét và biết mặt có bị cắt ở mép không, và mức nhìn thẳng (facing: 1 là nhìn
+// thẳng, gần 0 là quay ngang — mũi lệch hẳn về một bên má). Chạy một lần trên ảnh nhỏ của thư viện (không thử xoay
+// như khi làm đẹp). Mặt quá nhỏ (người đi ngang phía sau, mặt in trên áo) không tính.
 const MIN_FACE_WIDTH = 0.06;
 export async function scoreFaces(source) {
   const model = await loadFaceLandmarker();
@@ -56,11 +57,19 @@ export async function scoreFaces(source) {
   return (result.faceBlendshapes || [])
     .map((shapes, index) => {
       const score = (name) => shapes.categories.find((c) => c.categoryName === name)?.score ?? 0;
-      const xs = (result.faceLandmarks?.[index] || []).map((point) => point.x);
+      const points = result.faceLandmarks?.[index] || [];
+      const xs = points.map((point) => point.x), ys = points.map((point) => point.y);
+      const box = xs.length
+        ? { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) } : null;
+      const [nose, left, right] = [points[1], points[234], points[454]];
+      const span = nose && left && right ? right.x - left.x : 0;
+      const turn = span ? Math.min(1, Math.abs((nose.x - left.x) / span - 0.5) * 2) : 0;
       return {
         blink: Math.max(score("eyeBlinkLeft"), score("eyeBlinkRight")),
         smile: (score("mouthSmileLeft") + score("mouthSmileRight")) / 2,
-        width: xs.length ? Math.max(...xs) - Math.min(...xs) : 0,
+        width: box ? box.x1 - box.x0 : 0,
+        box,
+        facing: 1 - turn,
       };
     })
     .filter((face) => face.width >= MIN_FACE_WIDTH);

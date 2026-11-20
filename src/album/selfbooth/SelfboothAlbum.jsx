@@ -166,25 +166,28 @@ function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, f
         </Button>
       </div>
       {suggestProgress && (
-        <p className="suggest-bar is-working" role="status">
+        <div className="suggest-bar is-working" role="status">
           <PiSparkleFill aria-hidden="true" />
-          <span>Đang tìm ảnh cười tươi, không nhắm mắt để gợi ý cho bạn… {suggestProgress.done}/{suggestProgress.total}</span>
-        </p>
+          <span>Đang tìm ảnh đẹp cho bạn — cười tươi, rõ nét, không ai nhắm mắt… {suggestProgress.done}/{suggestProgress.total}</span>
+          <span className="suggest-progress" aria-hidden="true">
+            <span style={{ width: `${Math.round((100 * suggestProgress.done) / suggestProgress.total)}%` }} />
+          </span>
+        </div>
       )}
       {!suggestProgress && suggested.size > 0 && (
         <div className="suggest-bar" role="status">
           <PiSparkleFill aria-hidden="true" />
           <span>
-            {selectedPack && capacity ? <>Bộ “{selectedPack.name}” có {capacity} ô — </> : null}
-            Gợi ý <strong>{suggested.size} ảnh đẹp</strong>: cười tươi, không ai nhắm mắt. Chọn nhanh từ đây nhé.
+            <strong>Gợi ý ảnh đẹp</strong>: {suggested.size} ảnh cười tươi, rõ nét, không ai nhắm mắt
+            {selectedPack && capacity ? <> — vừa đủ {capacity} ô của bộ “{selectedPack.name}”</> : null}. Chọn nhanh từ đây nhé.
           </span>
           <div className="suggest-actions">
             <button type="button" aria-pressed={showSuggested} onClick={() => setOnlySuggested(!showSuggested)}>
-              {showSuggested ? "Xem tất cả ảnh" : "Xem ảnh gợi ý"}
+              {showSuggested ? "Xem tất cả ảnh" : "Xem ảnh đẹp"}
             </button>
             {unhearted.length > 0 && (
               <button type="button" className="is-primary" disabled={frozen} onClick={() => onHeartMany(unhearted)}>
-                <PiHeartFill aria-hidden="true" /> Thả tim {unhearted.length} ảnh gợi ý
+                <PiHeartFill aria-hidden="true" /> Thả tim {unhearted.length} ảnh đẹp
               </button>
             )}
           </div>
@@ -207,7 +210,7 @@ function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, f
                 <EditedThumb photo={p} token={token} adjust={adjust} small={small} suspended={suspended} alt={`Ảnh ${number}`} loading={i < 4 ? 'eager' : 'lazy'}/>
               </button>
               {!isNeutral(adjust) && <span className="photo-edited" title="Đã chỉnh sửa"><PiSparkleFill /></span>}
-              {suggested.has(p.id) && <span className="photo-suggested" title="Gợi ý: cười tươi, không nhắm mắt">Gợi ý</span>}
+              {suggested.has(p.id) && <span className="photo-suggested" title="Gợi ý ảnh đẹp: cười tươi, rõ nét, không nhắm mắt">Gợi ý ảnh đẹp</span>}
               <div className="tile-actions">
                 {selecting ? (
                   <button type="button" className="tile-btn tile-check" role="checkbox" aria-checked={selected.has(p.id)}
@@ -519,7 +522,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
   function heartMany(list) {
     if (frozen || !list.length) return;
     save((v) => ({ hearts: [...v.hearts, ...list.filter((id) => !v.hearts.includes(id))] }));
-    toast.success(`Đã thả tim ${list.length} ảnh gợi ý.`);
+    toast.success(`Đã thả tim ${list.length} ảnh đẹp được gợi ý.`);
   }
   async function removePhotos(list) {
     if (mutating.current || frozen || !list.length || !window.confirm(`Xóa ${list.length} ảnh khỏi thư viện?`)) return false;

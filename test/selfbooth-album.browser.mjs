@@ -59,13 +59,20 @@ const COLORS = { 1: [220, 40, 40, 255], 2: [40, 180, 60, 255], 3: [40, 80, 220, 
 const photos = Object.fromEntries(Object.entries(COLORS).map(([n, c]) => [n, png(300, 400, () => c)]));
 
 let server, browser, base, portrait;
-// Bộ chấm khuôn mặt giả thay cho MediaPipe (gợi ý ảnh đẹp): điểm từng ảnh lấy ở window.fixtureFaces.
+// Bộ chấm khuôn mặt giả thay cho MediaPipe (gợi ý ảnh đẹp): mặt của từng ảnh lấy ở window.fixtureFaces, dấu vân
+// ảnh ở window.fixtureHashes (mặc định mỗi ảnh một dấu khác hẳn: "1111…", "2222…").
 const FAKE_FACE_SCORE = `
-  export async function scorePhoto(token, photo) {
-    const faces = window.fixtureFaces?.[photo.id];
+  export const warmScorer = () => {};
+  export async function loadPhoto(token, photo) {
+    window.fixtureLoaded = (window.fixtureLoaded || 0) + 1;
+    return { id: photo.id, close() { window.fixtureClosed = (window.fixtureClosed || 0) + 1; } };
+  }
+  export async function scoreLoaded(loaded) {
+    const faces = window.fixtureFaces?.[loaded.id];
     if (faces === "unavailable") throw Object.assign(new Error("no model"), { code: "FACE_DETECTION_UNAVAILABLE" });
     window.fixtureScored = (window.fixtureScored || 0) + 1;
-    return faces || [];
+    const digit = (Number(loaded.id.slice(1)) % 15 + 1).toString(16);
+    return { faces: faces || [], hash: window.fixtureHashes?.[loaded.id] ?? digit.repeat(16) };
   }
 `;
 const fixture = `
@@ -128,7 +135,7 @@ before(async () => {
 });
 after(async () => { await browser?.close(); await new Promise((resolve) => server?.close(resolve)); });
 
-async function phone({ faces = null, originalPending = false, photoCount = 4, printError = null, lostReply = false,
+async function phone({ faces = null, hashes = null, originalPending = false, photoCount = 4, printError = null, lostReply = false,
   viewport = { width: 390, height: 844 }, realPhoto = false, prints: quota = 1, desktop = false, size = "large" } = {}) {
   const page = await browser.newPage(desktop ? { viewport } : { viewport, isMobile: true, hasTouch: true });
   const errors = [], prints = [], mediaRequests = [], deletes = [], uploads = [], asked = [];
@@ -180,6 +187,7 @@ async function phone({ faces = null, originalPending = false, photoCount = 4, pr
     return route.fulfill({ status: 404, json: { message: `unexpected ${path}` } });
   });
   if (faces) await page.addInitScript((value) => { window.fixtureFaces = value; }, faces);
+  if (hashes) await page.addInitScript((value) => { window.fixtureHashes = value; }, hashes);
   await page.goto(`${base}/album/fixture-album`);
   return { page, errors, prints, mediaRequests, deletes, uploads, booking, asked,
     originalsReady:()=>{booking.photos.forEach(p=>delete p.originalPending)} };
@@ -457,38 +465,43 @@ test("the library suggests as many smiling, eyes-open photos as the frame set ha
     p8: [face(0.85), face(0.8)],
     p9: [face(0.6, 0.3), face(0.5, 0.2)],
   };
-  const { page, errors } = await phone({ photoCount: 9, realPhoto: true, faces });
+  // Ảnh 1 và 2 chụp liên tiếp, gần như y hệt (dấu vân ảnh khác 1 bit).
+  const hashes = { p1: "abababababababab", p2: "abababababababaa" };
+  const { page, errors } = await phone({ photoCount: 9, realPhoto: true, faces, hashes });
   try {
     const bar = page.locator(".suggest-bar");
     const suggested = async () => (await page.locator(".studio-grid figure.is-suggested .studio-photo").evaluateAll(
       (buttons) => buttons.map((b) => b.getAttribute("aria-label")))).sort();
     // Chưa chọn bộ: theo bộ ít ô nhất của tiệm ("Selfbooth", 2 ô).
-    await bar.filter({ hasText: "Gợi ý 2 ảnh đẹp" }).waitFor({ timeout: 30000 });
+    await bar.filter({ hasText: "Gợi ý ảnh đẹp: 2 ảnh" }).waitFor({ timeout: 30000 });
     assert.deepEqual(await suggested(), ["Xem & chỉnh ảnh 02", "Xem & chỉnh ảnh 08"]);
     // Chọn bộ "Hoa" (2 khung × 2 ô = 4 ô) rồi quay lại thư viện: gợi ý đúng 4 ảnh.
     await page.getByRole("button", { name: /Chọn chủ đề/ }).click();
     await page.getByRole("button", { name: "Chọn bộ Hoa, 2 khung, 4 ô ảnh" }).click();
     await page.getByRole("button", { name: "Quay lại" }).click();
-    const hoa = bar.filter({ hasText: "Bộ “Hoa” có 4 ô" });
-    await hoa.filter({ hasText: "Gợi ý 4 ảnh đẹp" }).waitFor();
-    assert.deepEqual(await suggested(), ["Xem & chỉnh ảnh 01", "Xem & chỉnh ảnh 02", "Xem & chỉnh ảnh 06", "Xem & chỉnh ảnh 08"]);
+    const hoa = bar.filter({ hasText: "vừa đủ 4 ô của bộ “Hoa”" });
+    await hoa.filter({ hasText: "Gợi ý ảnh đẹp: 4 ảnh" }).waitFor();
+    // Ảnh 1 trùng khoảnh khắc với ảnh 2 (đẹp hơn): lấy ảnh 9 (khoảnh khắc khác) cho đủ 4 ô.
+    assert.deepEqual(await suggested(), ["Xem & chỉnh ảnh 02", "Xem & chỉnh ảnh 06", "Xem & chỉnh ảnh 08", "Xem & chỉnh ảnh 09"]);
+    assert.deepEqual([...new Set(await page.locator(".photo-suggested").allInnerTexts())], ["Gợi ý ảnh đẹp"]);
     assert.equal(await page.locator(".photo-suggested").count(), 4);
     await page.screenshot({ path: resolve(".cache/main-flows/album-suggestions-390.png"), fullPage: true });
     // Chỉ xem ảnh gợi ý, rồi xem lại tất cả.
-    await hoa.getByRole("button", { name: "Xem ảnh gợi ý" }).click();
+    await hoa.getByRole("button", { name: "Xem ảnh đẹp" }).click();
     assert.equal(await page.locator(".studio-grid figure").count(), 4);
     await hoa.getByRole("button", { name: "Xem tất cả ảnh" }).click();
     assert.equal(await page.locator(".studio-grid figure").count(), 9);
     // Đã thả tim 1 ảnh: chỉ thả thêm 3 ảnh gợi ý đẹp nhất cho đủ 4 ô.
     await page.getByRole("button", { name: "Thả tim ảnh 09" }).click();
-    await hoa.getByRole("button", { name: "Thả tim 3 ảnh gợi ý" }).click();
+    await hoa.getByRole("button", { name: "Thả tim 3 ảnh đẹp" }).click();
     await page.getByText("Thích · 4").waitFor();
     assert.deepEqual((await stored(page)).hearts.sort(), ["p2", "p6", "p8", "p9"]);
-    assert.equal(await bar.getByRole("button", { name: /Thả tim \d+ ảnh gợi ý/ }).count(), 0, "the set is already full");
+    assert.equal(await bar.getByRole("button", { name: /Thả tim \d+ ảnh đẹp/ }).count(), 0, "the set is already full");
+    // Mỗi ảnh tải một lần, chấm một lần, giải phóng sau khi chấm.
+    assert.deepEqual(await page.evaluate(() => [window.fixtureLoaded, window.fixtureScored, window.fixtureClosed]), [9, 9, 9]);
     // Điểm lưu trên máy: tải lại trang không chấm lại.
-    assert.equal(await page.evaluate(() => window.fixtureScored), 9);
     await page.reload();
-    await bar.filter({ hasText: "Gợi ý 4 ảnh đẹp" }).waitFor();
+    await bar.filter({ hasText: "Gợi ý ảnh đẹp: 4 ảnh" }).waitFor();
     assert.equal(await page.evaluate(() => window.fixtureScored || 0), 0, "scores come from this phone's saved results");
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
