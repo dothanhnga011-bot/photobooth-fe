@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, ChevronDown, Copy, Download, ExternalLink, FileArchive, Image as ImageIcon, Plus, Printer, RefreshCw, Search, X } from "lucide-react";
+import { CalendarDays, ChevronDown, Copy, Download, ExternalLink, FileArchive, Image as ImageIcon, Plus, Printer, RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { api, assetUrl, formatDateTime, getApiUrl, labels, localDate, money } from "../api";
 import { isConnectivityError } from "../network.js";
@@ -8,7 +8,6 @@ import { useLiveData } from "../use-live-data";
 import { Button, ErrorBox, useToast } from "../studio";
 import { CounterTicket } from "../counter-ticket";
 import { ExtraPrints } from "../extra-prints";
-import { PeriodPicker } from "./period-picker";
 import { PrintOrderDialog } from "./print-order-dialog.jsx";
 import { QuickKiosk } from "./quick-kiosk.jsx";
 import { ordersChanged } from "./nav-badges";
@@ -129,8 +128,10 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
   const [collecting, setCollecting] = useState(null);
   const [items, setItems] = useState([]);
   const [query, setQuery] = useState("");
-  const [from, setFrom] = useState(historyStart);
-  const [to, setTo] = useState(today);
+  // Lọc một ngày (đơn chỉ lưu 3 ngày); để trống là cả 3 ngày gần nhất.
+  const [date, setDate] = useState("");
+  const from = date || historyStart;
+  const to = date || today;
   const [payment, setPayment] = useState("");
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState("");
@@ -156,13 +157,10 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
     revenue: filtered.reduce((sum, booking) => sum + (booking.total || 0), 0),
     received: filtered.reduce((sum, booking) => sum + (booking.paid ? booking.total || 0 : 0), 0),
   }), [filtered]);
-  const isRecent = from === historyStart && to === today;
-  const isToday = from === today && to === today;
-  const hasFilters = query.trim() || !isRecent || payment;
+  const hasFilters = query.trim() || date || payment;
   const resetFilters = () => {
     setQuery("");
-    setFrom(historyStart);
-    setTo(today);
+    setDate("");
     setPayment("");
   };
 
@@ -199,26 +197,30 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
 
   return <>
     <ErrorBox error={error} />
+    {/* Như trang Mã chụp của web Selfbooth: ô tìm (biểu tượng ở ô riêng) · ngày · thanh toán · CSV · làm mới ·
+        Tạo đơn; hàng "Mở máy chụp" bên dưới, mỗi phòng một thẻ. */}
     <div className="order-toolbar">
-      <div className="order-quick">
-        <Button className={`outline small ${isRecent ? "is-current" : ""}`} aria-pressed={isRecent}
-          onClick={() => { setFrom(historyStart); setTo(today); }}>3 ngày gần nhất</Button>
-        <Button className={`outline small ${isToday ? "is-current" : ""}`} aria-pressed={isToday}
-          onClick={() => { setFrom(today); setTo(today); }}>Hôm nay</Button>
+      <div className="order-search">
+        <span className="order-search-icon" aria-hidden="true"><Search size={19} /></span>
+        <input aria-label="Tìm đơn" placeholder="Tên, số điện thoại, mã đơn…" value={query} onChange={(event) => setQuery(event.target.value)} />
       </div>
-      <PeriodPicker from={from} to={to} onChange={(start, end) => { setFrom(start); setTo(end); }} />
-      <select aria-label="Lọc thanh toán" value={payment} onChange={(event) => setPayment(event.target.value)}>
-        <option value="">Thanh toán: Tất cả</option><option value="cash">Tiền mặt</option><option value="transfer">Chuyển khoản</option>
-      </select>
+      <label className="order-filter order-date">
+        <input type="date" aria-label="Lọc ngày" min={historyStart} max={today} value={date}
+          onChange={(event) => setDate(event.target.value)} />
+        <CalendarDays size={19} aria-hidden="true" />
+      </label>
+      <label className="order-filter order-payment">
+        <SlidersHorizontal size={19} aria-hidden="true" />
+        <select aria-label="Lọc thanh toán" value={payment} onChange={(event) => setPayment(event.target.value)}>
+          <option value="">Tất cả thanh toán</option><option value="cash">Tiền mặt</option><option value="transfer">Chuyển khoản</option>
+        </select>
+      </label>
+      {canExport && <Button className="outline small" onClick={csv}><Download size={18} aria-hidden="true" /> CSV</Button>}
+      <Button className="outline small order-refresh" onClick={() => load()} aria-label="Làm mới" title="Làm mới"><RefreshCw size={18} aria-hidden="true" /></Button>
+      {hasFilters && <Button className="outline small" onClick={resetFilters}><X size={18} aria-hidden="true" /> Xóa bộ lọc</Button>}
+      <Button onClick={() => setCreating(true)}><Plus size={18} aria-hidden="true" /> Tạo đơn</Button>
     </div>
-    <div className="order-actions-bar">
-      <div className="search-box"><Search size={17} /><input aria-label="Tìm đơn" placeholder="Mã đơn, tên, số điện thoại…" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
-      {canExport && <Button className="outline small" onClick={csv}><Download size={15} /> Xuất CSV (Excel)</Button>}
-      <Button className="outline small" onClick={() => load()} aria-label="Làm mới"><RefreshCw size={15} /></Button>
-      {hasFilters && <Button className="outline small" onClick={resetFilters}><X size={15} /> Xóa bộ lọc</Button>}
-      {canOpenKiosk && <QuickKiosk toast={toast} />}
-      <Button onClick={() => setCreating(true)}><Plus size={15} /> Tạo đơn</Button>
-    </div>
+    {canOpenKiosk && <QuickKiosk toast={toast} />}
     <p className="order-limit-note">Lịch sử đơn và ảnh chỉ lưu 3 ngày. Tổng thu chi của các ngày cũ vẫn có trong Thống kê doanh thu.</p>
     <div className="order-summary" aria-live="polite">
       <span><small>Đơn phù hợp</small><strong>{filtered.length}</strong></span>

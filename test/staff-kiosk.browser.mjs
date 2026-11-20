@@ -996,24 +996,28 @@ test("orders open on the last 72 hours and explain where older revenue is retain
   // Chỉ xét yêu cầu của trang Đơn hàng (trang Tổng hợp cũng đọc đơn, theo ?date=).
   const orders = () => requests.slice(before)
     .filter((entry) => entry.path === "/api/admin/bookings" && entry.search.has("from"));
-  await page.getByRole("button", { name: /Chọn tháng hoặc ngày:/ }).waitFor();
+  const day = page.getByLabel("Lọc ngày");
+  await day.waitFor();
   for (let i = 0; i < 40 && !orders().length; i++) await page.waitForTimeout(50);
   const first = orders()[0].search;
   assert.equal(first.get("from"), firstDay);
   assert.equal(first.get("to"), today);
-  assert.equal(await page.getByRole("button", { name: "3 ngày gần nhất", exact: true }).getAttribute("aria-pressed"), "true");
+  // Thanh tìm như trang Mã chụp của Selfbooth: ô tìm, ngày (trống = 3 ngày gần nhất), thanh toán, CSV, làm mới, Tạo đơn.
+  assert.equal(await day.inputValue(), "");
+  assert.deepEqual([await day.getAttribute("min"), await day.getAttribute("max")], [firstDay, today]);
+  assert.equal(await page.getByPlaceholder("Tên, số điện thoại, mã đơn…").count(), 1);
+  await page.getByRole("button", { name: "CSV", exact: true }).waitFor();
   await page.getByText(/Tổng thu chi của các ngày cũ vẫn có trong/).waitFor();
   assert.equal(await page.getByRole("button", { name: "Xóa bộ lọc" }).count(), 0);
-  await page.getByRole("button", { name: "Hôm nay", exact: true }).click();
-  await page.getByRole("button", { name: /Chọn tháng hoặc ngày: Hôm nay/ }).waitFor();
+  await day.fill(today);
   const latest = () => orders().at(-1).search;
   for (let i = 0; i < 40 && latest().get("from") !== today; i++) await page.waitForTimeout(50);
   assert.equal(latest().get("from"), today);
   assert.equal(latest().get("to"), today);
   await page.getByRole("button", { name: "Xóa bộ lọc" }).click();
-  await page.getByRole("button", { name: "3 ngày gần nhất", exact: true }).waitFor();
   for (let i = 0; i < 40 && latest().get("from") !== firstDay; i++) await page.waitForTimeout(50);
   assert.equal(latest().get("from"), firstDay);
+  assert.equal(await day.inputValue(), "");
   assertClean();
 });
 
@@ -1021,22 +1025,23 @@ test("the orders page opens a room's kiosk in a new tab without going to Quản 
   await mount();
   const nav = page.getByRole("navigation", { name: "Quản lý studio" });
   await nav.getByRole("button", { name: "Đơn hàng", exact: true }).click();
-  await page.getByRole("button", { name: "Mở máy chụp" }).click();
-  const menu = page.getByRole("menu", { name: "Mở máy chụp của phòng" });
-  await menu.getByRole("menuitem", { name: /Phòng 01/ }).waitFor();
-  // Chỉ phòng đang hoạt động.
-  assert.deepEqual(await menu.getByRole("menuitem").locator("strong").allInnerTexts(), ["Phòng 01", "Phòng 02"]);
-  const [kiosk] = await Promise.all([page.waitForEvent("popup"), menu.getByRole("menuitem", { name: /Phòng 02/ }).click()]);
+  // Hàng "Mở máy chụp" dưới thanh tìm: mỗi phòng đang hoạt động một thẻ.
+  const rooms = page.getByRole("navigation", { name: "Mở máy chụp" });
+  await rooms.getByRole("button", { name: /Phòng 01/ }).waitFor();
+  assert.deepEqual(await rooms.locator(".quick-kiosk-name b").allInnerTexts(), ["Phòng 01", "Phòng 02"]);
+  assert.match(await rooms.getByRole("button", { name: /Phòng 02/ }).innerText(), /Chi nhánh Nguyễn Trãi · Photobooth/);
+  const [kiosk] = await Promise.all([page.waitForEvent("popup"), rooms.getByRole("button", { name: /Phòng 02/ }).click()]);
   await kiosk.waitForURL(/\/kiosk\?device=/);
   assert.match(kiosk.url(), /device=fixture-device\.token_01-keep\.room-2$/);
   assert.ok(requests.some((entry) => entry.path === "/api/admin/rooms/room-2/device" && entry.method === "POST"));
   await kiosk.close();
-  await menu.waitFor({ state: "detached" });
-  // Tài khoản không có quyền cài máy chụp: không có nút.
+  await mkdir(screenshots, { recursive: true });
+  await page.screenshot({ path: join(screenshots, "orders-toolbar-1440.png") });
+  // Tài khoản không có quyền cài máy chụp: không có hàng này.
   await mount("staff", 1440, ["orders:export", "print:operate"]);
   await page.getByRole("navigation", { name: "Quản lý studio" }).getByRole("button", { name: "Đơn hàng", exact: true }).click();
   await page.getByRole("button", { name: /Tạo đơn/ }).waitFor();
-  assert.equal(await page.getByRole("button", { name: "Mở máy chụp" }).count(), 0);
+  assert.equal(await page.getByRole("navigation", { name: "Mở máy chụp" }).count(), 0);
   assertClean();
 });
 
