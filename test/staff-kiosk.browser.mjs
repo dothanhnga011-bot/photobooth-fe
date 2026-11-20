@@ -817,7 +817,7 @@ test("Hàng chờ in: a Selfbooth print the guest sent waits for the counter; In
     const nav = page.getByRole("navigation", { name: "Quản lý studio" });
     const queue = nav.getByRole("button", { name: "Hàng chờ in", exact: true });
     await queue.locator(".nav-alert").waitFor();
-    assert.equal(await queue.getAttribute("title"), "1 lệnh in Selfbooth đang chờ in · Chi nhánh Nguyễn Trãi");
+    assert.equal(await queue.getAttribute("title"), "1 lệnh in Selfbooth đang chờ in");
     await queue.click();
     const card = page.locator(".print-card").filter({ hasText: "#246810" });
     await card.waitFor();
@@ -826,7 +826,7 @@ test("Hàng chờ in: a Selfbooth print the guest sent waits for the counter; In
     await popup.getByText(/Ảnh đã sẵn sàng/).waitFor({timeout:8000});
     assert.equal(await popup.locator(".print-sheet img").count(), 2, "both 20 × 30 sheets of the order");
     assert.match(await popup.locator(".toolbar").innerText(), /DNP DS820[\s\S]*8 × 12 inch/);
-    assert.match(await popup.locator('.booking-info').innerText(),/Chi nhánh Nguyễn Trãi/);
+    assert.match(await popup.locator('.booking-info').innerText(),/Vé #246810 · 2 tờ 20 × 30 cm × 1 bản/);
     await popup.waitForFunction(() => window.__printCalls >= 1);
     await popup.emulateMedia({media:'print'});
     const paper=await popup.locator('.print-sheet').first().boundingBox();
@@ -834,7 +834,7 @@ test("Hàng chờ in: a Selfbooth print the guest sent waits for the counter; In
     assert.equal(queueJobs[0].status,'pending','opening or closing print preview never marks paper as printed');
     await popup.close();
     await card.getByRole("button", { name: /Đã in/ }).click();
-    await page.getByText("Không có lệnh đang chờ tại Chi nhánh Nguyễn Trãi.").waitFor();
+    await page.getByText("Không có lệnh in nào đang chờ.").waitFor();
     assert.deepEqual(requests.filter((entry) => entry.method === "PATCH").map((entry) => [entry.path, entry.body]),
       [["/api/admin/print-jobs/job-sb-1", { status: "printed" }]]);
     await queue.locator(".nav-alert").waitFor({ state: "detached" });
