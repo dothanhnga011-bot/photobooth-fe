@@ -100,14 +100,16 @@ function guestStylesheet() {
       this.emitFile({ type: 'asset', fileName, source });
       // Written by the parser while it reads <head>, so either file blocks rendering like the
       // original <link> did (no flash of unstyled content). If the stylesheet does not arrive (a page
-      // opened while Cloudflare is switching to a new version: new HTML, CSS not there yet), reload
-      // once — at most every 30 s, so an offline page does not loop. A missing /assets file comes back
-      // as the app's HTML page (not_found_handling: single-page-application); the browser refuses it
-      // and fires "load" with an empty sheet rather than "error", so "load" checks for rules too.
-      const retry = 'window.__cssRetry=function(l){try{if(l&&l.sheet&&l.sheet.cssRules.length)return;' +
-        'var k="nxc-css-retry",t=+sessionStorage.getItem(k)||0;' +
-        'if(Date.now()-t>30000){sessionStorage.setItem(k,String(Date.now()));location.reload()}}catch(e){}};';
-      const choose = `<script>${retry}window.__fullStylesheet="/${link[1]}";document.write('<link rel="stylesheet" crossorigin onload="__cssRetry(this)" onerror="__cssRetry()" href="'+(location.pathname.indexOf("/album/")===0?"/${fileName}":window.__fullStylesheet)+'">')</script>` +
+      // opened while Cloudflare is switching to a new version: new HTML, CSS not there yet), fetch it
+      // again past the browser cache — /assets files are cached a year as "immutable", so a broken copy
+      // kept there (before 20/11 a missing file came back as the app's HTML page) is never asked for
+      // again by a normal reload — then reload: at most every 30 s, so an offline page does not loop.
+      // A refused file (HTML instead of CSS) fires "load" with an empty sheet rather than "error".
+      const retry = 'window.__cssRetry=function(l){try{if(l.sheet&&l.sheet.cssRules.length)return;' +
+        'var k="nxc-css-retry",t=+sessionStorage.getItem(k)||0;if(Date.now()-t<30000)return;' +
+        'sessionStorage.setItem(k,String(Date.now()));var go=function(){location.reload()};' +
+        'fetch(l.href,{cache:"reload"}).then(go,go)}catch(e){}};';
+      const choose = `<script>${retry}window.__fullStylesheet="/${link[1]}";document.write('<link rel="stylesheet" crossorigin onload="__cssRetry(this)" onerror="__cssRetry(this)" href="'+(location.pathname.indexOf("/album/")===0?"/${fileName}":window.__fullStylesheet)+'">')</script>` +
         `<noscript>${link[0]}</noscript>`;
       html.source = page.replace(link[0], choose);
     },

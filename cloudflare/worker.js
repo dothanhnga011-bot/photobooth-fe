@@ -40,6 +40,25 @@ export function canonicalRedirect(incoming, env) {
   return Response.redirect(target.toString(), 302);
 }
 
+// Pages and files (wrangler.jsonc: not_found_handling "none", so a request matching no file comes here).
+// A missing file in a long-cached folder (/assets: hashed build output, public/_headers caches it a year
+// as "immutable"; /fonts) answers a 404 that nothing stores. Answering it with the app's page — the
+// Cloudflare single-page-application fallback did — put that page in browsers' cache for a year under
+// the stylesheet's name when a page was opened while a new version was being switched in, and the admin
+// stayed unstyled after every normal reload (20/11). Every other path is an app page: index.html.
+const LONG_CACHED_FILES = /^\/(?:assets|fonts)\//;
+async function staticResponse(request, env, incoming) {
+  const response = await env.ASSETS.fetch(request);
+  if (response.status !== 404) return response;
+  if (LONG_CACHED_FILES.test(incoming.pathname)) {
+    return new Response("Not found", {
+      status: 404,
+      headers: { "Cache-Control": "no-store", "Content-Type": "text/plain; charset=utf-8", "X-Content-Type-Options": "nosniff" },
+    });
+  }
+  return env.ASSETS.fetch(new Request(new URL("/", incoming), request));
+}
+
 function apiError(status, message) {
   return Response.json({ message }, {
     status,
@@ -52,7 +71,7 @@ export default {
     const incoming = new URL(request.url);
     if (incoming.pathname !== "/api" && !incoming.pathname.startsWith("/api/")) {
       const moved = ["GET", "HEAD"].includes(request.method) && canonicalRedirect(incoming, env);
-      return moved || env.ASSETS.fetch(request);
+      return moved || staticResponse(request, env, incoming);
     }
 
     // Enforce browser origin here BEFORE translating it for the existing backend.

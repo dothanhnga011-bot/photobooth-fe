@@ -9,7 +9,10 @@
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application",
+    // Tệp không có → Worker (cloudflare/worker.js): thiếu tệp trong /assets, /fonts trả 404 không lưu cache;
+    // đường dẫn trang (/kiosk, /admin/…) trả index.html. Trước dùng "single-page-application": tệp CSS thiếu
+    // lúc đang đổi bản mới bị trả trang HTML, trình duyệt lưu nó 1 năm và trang quản trị mất giao diện.
+    "not_found_handling": "none",
     // Trang chủ, quản trị, album: Worker chuyển *.workers.dev sang tên miền chính (PUBLIC_ORIGIN).
     "run_worker_first": ["/api", "/api/*", "/", "/admin", "/admin/*", "/album/*"]
   },

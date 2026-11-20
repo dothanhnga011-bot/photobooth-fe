@@ -41,6 +41,32 @@ test("Cloudflare sends only /api and /api/* to Render and leaves SPA/assets to t
   assert.equal(assets.length, 6);
 });
 
+test("a missing build file answers a 404 nothing stores; other unknown paths open the app page", async () => {
+  // As the asset binding answers with not_found_handling "none": a file or nothing.
+  const files = { "/": "<!doctype html>app", "/assets/index-new.css": "body{}" };
+  const asked = [];
+  const env = environment((input) => {
+    const path = new URL(input.url).pathname;
+    asked.push(path);
+    return path in files ? new Response(files[path]) : new Response("missing", { status: 404 });
+  });
+  // Opened while a new version is switched in: the old way, this got the app page with the
+  // "immutable" 1-year cache of /assets/* and the admin stayed unstyled after every reload.
+  for (const path of ["/assets/index-not-yet.css", "/fonts/missing.woff2"]) {
+    const response = await worker.fetch(request(path), env);
+    assert.equal(response.status, 404, path);
+    assert.equal(response.headers.get("Cache-Control"), "no-store");
+    assert.match(response.headers.get("Content-Type"), /^text\/plain/);
+  }
+  assert.equal(await (await worker.fetch(request("/assets/index-new.css"), env)).text(), "body{}");
+  for (const path of ["/kiosk", "/kiosk?device=x", "/admin/bookings", "/album/token", "/assetsy"]) {
+    const response = await worker.fetch(request(path), env);
+    assert.equal(response.status, 200, path);
+    assert.equal(await response.text(), "<!doctype html>app", path);
+  }
+  assert.deepEqual(asked.slice(-2), ["/assetsy", "/"]);
+});
+
 test("home, admin and album pages opened on *.workers.dev move to the shop's own domain; kiosk and API stay", async (t) => {
   const env = { ...environment(() => new Response("app or asset")), PUBLIC_ORIGIN: "https://mellowptb.com" };
   const calls = intercept(t, () => Response.json({ ok: true }));
