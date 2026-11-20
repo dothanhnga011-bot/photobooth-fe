@@ -166,7 +166,7 @@ export const NAV_DESCRIPTIONS = {
 // kết / QR. Đầu ca nhân viên mở máy chụp từng phòng.
 export const ROOM_KINDS = [
   ["photobooth", "Photobooth", "Khách chọn Nhập mã (đã chuyển khoản ở quầy) hoặc Tiền mặt (chọn loại tờ, số lượng rồi đút tiền). Chụp xong chọn ảnh, khung rồi in ở máy DNP."],
-  ["polaroid", "Selfbooth", "Khách trả tiền ở quầy theo gói (số phút, số tờ), nhập mã rồi bấm dây không giới hạn (máy ảnh Fujifilm X-T3 / X-S10 / X-S20). Hết giờ quét QR: chọn ảnh, bộ khung, ghép ảnh và gửi in trên điện thoại — lệnh in lên Hàng chờ in, nhân viên ở quầy in tờ 20 × 30 (máy DNP DS820)."],
+  ["polaroid", "Selfbooth", "Khách trả tiền ở quầy theo gói (số phút, số tờ), nhập mã rồi bấm dây không giới hạn (máy ảnh Fujifilm X-T3 / X-S10 / X-S20). Hết giờ chụp, khách quét QR rồi chọn ảnh, bộ khung, ghép ảnh (không tính giờ) và bấm gửi in trên điện thoại — lệnh in lên Hàng chờ in, nhân viên ở quầy in tờ 20 × 30 (máy DNP DS820)."],
 ];
 export const ROOM_KIND_NAMES = { photobooth: "Phòng Photobooth", polaroid: "Phòng Selfbooth" };
 

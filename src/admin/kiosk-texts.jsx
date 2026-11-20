@@ -4,8 +4,8 @@ import { api } from "../api";
 import { Button, ErrorBox, useStudio, useToast } from "../studio";
 import { KIOSK_TEXT_GROUPS } from "../kiosk/kiosk-texts.js";
 
-// Thời gian khách chọn ảnh & trang trí sau khi chụp xong (giây): máy chụp phòng PTB và điện thoại khách phòng
-// Selfbooth cùng đọc settings.selectSeconds. Chưa đặt: 250 giây.
+// Thời gian khách chọn ảnh & trang trí sau khi chụp xong (giây) ở máy chụp phòng PTB (settings.selectSeconds).
+// Chưa đặt: 250 giây. Phòng Selfbooth chọn ảnh trên điện thoại không tính giờ.
 const SELECT_DEFAULT = 250;
 const SELECT_PRESETS = [120, 180, 240, 250, 300, 400];
 const duration = (seconds) => {
@@ -44,7 +44,7 @@ function SelectTime({ notify }) {
   return (
     <section className="panel kiosk-content-section select-time" aria-label="Thời gian chọn ảnh">
       <h3>Thời gian chọn ảnh</h3>
-      <p className="muted">Chụp xong, khách có bấy nhiêu thời gian để chọn ảnh, khung và trang trí: ở máy chụp phòng PTB, và trên điện thoại sau khi quét QR ở phòng Selfbooth. Hết giờ thì tự chốt các ảnh đang chọn.</p>
+      <p className="muted">Chụp xong, khách có bấy nhiêu thời gian để chọn ảnh, khung và trang trí ở máy chụp phòng PTB. Hết giờ thì tự chốt các ảnh đang chọn. Phòng Selfbooth chọn ảnh trên điện thoại không tính giờ.</p>
       {saved === null ? <p className="muted">Đang tải…</p> : (
         <>
           <div className="select-time-row">

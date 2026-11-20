@@ -2,7 +2,7 @@
 // chụp giống Selfbooth"): thanh "← tên khung · 1/2 | 2/2 ô", chạm ô để chọn (ô trống: mở danh sách ảnh), kéo 1 ngón
 // để dời, chụm 2 ngón / lăn chuột để phóng to, kéo ảnh từ dải ảnh thả vào ô, Đổi ảnh / Dùng cho tất cả ô / Đặt lại,
 // thanh phóng to và thanh xoay ảnh trong ô. Khác Selfbooth: ảnh lấy từ bản đã làm đẹp cỡ nhỏ của album này (small),
-// phóng to tối đa ×3 như máy in (clampZoom), và hết giờ chọn ảnh (frozen) thì khoá thao tác.
+// phóng to tối đa ×3 như máy in (clampZoom), và đang gửi in / đã gửi in (frozen) thì khoá thao tác.
 import { useEffect, useRef, useState } from "react";
 import {
   PiArrowCounterClockwiseBold, PiArrowLeftBold, PiArrowRightBold, PiHeartFill, PiMagnifyingGlassBold,

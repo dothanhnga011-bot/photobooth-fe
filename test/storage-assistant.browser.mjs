@@ -137,6 +137,8 @@ function adminPage(path) {
     // Quản lý máy: chưa có chương trình in nào báo về; Hàng chờ in trống.
     case "/api/admin/print-jobs/printers":
     case "/api/admin/print-jobs":
+    // Hàng chờ in: số lệnh chờ của từng cơ sở (huy hiệu trên thanh bên).
+    case "/api/admin/print-jobs/branches":
       return [];
     case "/api/admin/screens":
       return [

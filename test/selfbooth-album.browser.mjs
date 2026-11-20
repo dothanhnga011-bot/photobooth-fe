@@ -1,7 +1,7 @@
 // Album phòng Selfbooth trên điện thoại, giống album của web Selfbooth: khách quét QR → 01 Ảnh (thư viện: thả tim,
 // làm đẹp, xoá, thêm ảnh từ điện thoại) → 02 Chủ đề (một bộ khung) → 03 Ghép ảnh (mọi khung của bộ, ô nghiêng
 // của khung chép từ Selfbooth) → 04 Kết quả (mỗi khung một tờ 20 × 30, chọn tờ rồi gửi in lên Hàng chờ in của
-// quầy, nhân viên in ra máy DNP DS820). Đồng hồ do máy chủ đặt (edit-start); hết giờ tự gửi in.
+// quầy, nhân viên in ra máy DNP DS820). Không tính giờ: chỉ gửi in khi khách bấm Gửi in.
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -118,10 +118,10 @@ before(async () => {
 });
 after(async () => { await browser?.close(); await new Promise((resolve) => server?.close(resolve)); });
 
-async function phone({ secondsLeft = 250, originalPending = false, photoCount = 4, printError = null, lostReply = false,
+async function phone({ originalPending = false, photoCount = 4, printError = null, lostReply = false,
   viewport = { width: 390, height: 844 }, realPhoto = false, prints: quota = 1, desktop = false, size = "large" } = {}) {
   const page = await browser.newPage(desktop ? { viewport } : { viewport, isMobile: true, hasTouch: true });
-  const errors = [], prints = [], mediaRequests = [], deletes = [], uploads = [];
+  const errors = [], prints = [], mediaRequests = [], deletes = [], uploads = [], asked = [];
   let savedJob = null, failedOnce = false;
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("dialog", (dialog) => dialog.accept());
@@ -134,6 +134,7 @@ async function phone({ secondsLeft = 250, originalPending = false, photoCount = 
     const url = new URL(route.request().url());
     const path = url.pathname;
     const method = route.request().method();
+    asked.push(path);
     // Khách xoá ảnh: máy chủ ẩn ảnh và đánh số lại.
     if (path.endsWith("/albums/fixture-album/photos") && method === "DELETE") {
       const { ids } = JSON.parse(route.request().postData());
@@ -154,8 +155,6 @@ async function phone({ secondsLeft = 250, originalPending = false, photoCount = 
       return route.fulfill({ body: realPhoto ? portrait : photos[media[1]], contentType: realPhoto ? 'image/jpeg' : "image/png" });
     }
     if (path.endsWith('/albums/fixture-album/print')) return route.fulfill({json:savedJob});
-    if (path.endsWith("/albums/fixture-album/edit-start"))
-      return route.fulfill({ json: { editEndsAt: new Date(Date.now() + secondsLeft * 1000).toISOString(), serverTime: Date.now() } });
     if (path.endsWith("/albums/fixture-album/print-pack")) {
       const headers = route.request().headers();
       prints.push({ sizes: headers["x-print-sheets"], frame: decodeURIComponent(headers["x-print-frame"]), key: headers["x-print-key"],
@@ -171,7 +170,7 @@ async function phone({ secondsLeft = 250, originalPending = false, photoCount = 
     return route.fulfill({ status: 404, json: { message: `unexpected ${path}` } });
   });
   await page.goto(`${base}/album/fixture-album`);
-  return { page, errors, prints, mediaRequests, deletes, uploads, booking,
+  return { page, errors, prints, mediaRequests, deletes, uploads, booking, asked,
     originalsReady:()=>{booking.photos.forEach(p=>delete p.originalPending)} };
 }
 
@@ -199,6 +198,16 @@ const stored = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("se
 const step = (page) => page.locator('.studio-steps [aria-current="step"]').textContent();
 
 const canvasReady = (page) => page.waitForFunction(() => document.querySelector(".frame-canvas canvas")?.width > 100);
+// Khách tự đi hết các bước với bộ "Selfbooth" (1 khung, 2 ô) rồi xem thành phẩm.
+async function toResult(page) {
+  for (const n of ["03", "01"]) await page.getByRole("button", { name: `Thả tim ảnh ${n}` }).click();
+  await page.getByRole("button", { name: /Chọn chủ đề/ }).click();
+  await page.getByRole("button", { name: "Chọn bộ Selfbooth, 1 khung, 2 ô ảnh" }).click();
+  await page.locator(".theme-action-bar").getByRole("button", { name: /Ghép ảnh/ }).click();
+  await page.locator(".frame-nav").waitFor();
+  await page.getByRole("button", { name: /Xem kết quả/ }).click();
+  await page.getByRole("heading", { name: "Thành phẩm của bạn" }).waitFor();
+}
 const tap = async (page, label, fx, fy) => {
   const box = await page.getByLabel(label).boundingBox();
   await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
@@ -212,7 +221,7 @@ test("album like Selfbooth: 01 Ảnh → 02 Chủ đề → 03 Ghép ảnh → 0
       ["Ảnh", "Chủ đề", "Ghép ảnh", "Kết quả"]);
     assert.equal((await step(page)).trim(), "Ảnh");
     await page.getByRole("heading", { name: "Thư viện ảnh" }).waitFor();
-    assert.match((await page.getByRole("timer").textContent()).replace(/\s+/g, " "), /Còn 4:(10|09|08)/);
+    assert.equal(await page.getByRole("timer").count(), 0, "choosing photos on the phone has no time limit");
     assert.equal(await page.getByRole("button", { name: /^Ghép ảnh/ }).first().isDisabled(), true);
     // Thả tim không giới hạn.
     for (const n of ["04", "02", "01"]) await page.getByRole("button", { name: `Thả tim ảnh ${n}` }).click();
@@ -245,8 +254,8 @@ test("album like Selfbooth: 01 Ảnh → 02 Chủ đề → 03 Ghép ảnh → 0
     assert.equal((await step(page)).trim(), "Ghép ảnh");
     assert.equal(await page.locator(".frame-nav strong").innerText(), "Trắng · 1/2");
     assert.equal(await page.locator(".frame-nav > span").innerText(), "2/2 ô");
-    // Phần đầu album ẩn như Selfbooth, nhưng đồng hồ đếm ngược vẫn hiện (hết giờ là tự gửi in).
-    assert.equal(await page.getByRole("timer").isVisible(), true);
+    // Phần đầu album ẩn như Selfbooth; không có đồng hồ (chọn ảnh không tính giờ).
+    assert.equal(await page.getByRole("timer").count(), 0);
     assert.equal(await page.locator(".studio-album-title").isVisible(), false);
     saved = await stored(page);
     assert.deepEqual(saved.layouts.white.map((s) => s.photo), ["p1", "p2"]);
@@ -355,29 +364,39 @@ test("the library works like Selfbooth: delete one, delete several, add a photo 
   } finally { await page.close(); }
 });
 
-test("when the time is up, the first set is filled automatically and goes to the printer by itself", async () => {
-  const { page, errors, prints } = await phone({ secondsLeft: 0 });
+test("nothing prints by itself: no timer, no deadline; the guest sends the finished sheet with Gửi in", async () => {
+  const { page, errors, prints, asked } = await phone();
   try {
+    await page.getByRole("heading", { name: "Thư viện ảnh" }).waitFor();
+    await page.waitForTimeout(1500);
+    assert.equal(prints.length, 0);
+    assert.equal(await page.getByRole("timer").count(), 0);
+    assert.equal(asked.some((path) => path.endsWith("/edit-start")), false, "no editing deadline is started");
+    await toResult(page);
+    await page.locator(".sheet-strip img").first().waitFor({ timeout: 30000 });
+    await page.waitForTimeout(500);
+    assert.equal(prints.length, 0, "the finished sheet waits for the guest");
+    await page.getByRole("button", { name: "Gửi in (1 tờ 20 × 30)" }).click();
     await page.getByRole("heading", { name: "Đã gửi in!" }).waitFor({ timeout: 30000 });
     assert.equal(prints.length, 1);
-    // Chưa chọn bộ: bộ đầu tiên ("Hoa"); vé 1 tờ nên chỉ in khung đầu của bộ.
-    assert.equal(prints[0].frame, "Hoa");
-    const sheets = sheetsOf(prints[0]);
-    assert.equal(sheets.length, 1);
-    assert.deepEqual(jpegSize(sheets[0]), [3600, 2400]);
+    assert.equal(prints[0].frame, "Selfbooth");
+    assert.deepEqual(jpegSize(sheetsOf(prints[0])[0]), [3600, 2400]);
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });
 
-test("an expired selection waits for camera originals instead of printing previews", async () => {
-  const { page, prints, mediaRequests, originalsReady, errors } = await phone({ secondsLeft: 0, originalPending: true });
+test("the finished sheet waits for camera originals instead of printing previews", async () => {
+  const { page, prints, mediaRequests, originalsReady, errors } = await phone({ originalPending: true });
   try {
     await page.getByText(/Đang nhận 4 ảnh gốc chất lượng cao/).waitFor();
-    await page.waitForTimeout(300);
+    await toResult(page);
+    await page.getByText(/Ảnh gốc đang tải lên/).waitFor({ timeout: 30000 });
     assert.equal(prints.length, 0);
     assert.equal(mediaRequests.includes("print"), false);
     originalsReady();
     await page.getByRole("button", { name: /Làm mới/ }).click();
+    await page.getByRole("button", { name: "Thử lại", exact: true }).click();
+    await page.getByRole("button", { name: "Gửi in (1 tờ 20 × 30)" }).click();
     await page.getByRole("heading", { name: "Đã gửi in!" }).waitFor({ timeout: 30000 });
     assert.equal(prints.length, 1);
     assert.ok(mediaRequests.includes("print"));
@@ -386,8 +405,10 @@ test("an expired selection waits for camera originals instead of printing previe
 });
 
 test("a print conflict does not pretend paper was sent; the retry resends the exact prepared sheets", async () => {
-  const { page, prints, errors } = await phone({ secondsLeft: 0, printError: "Các tờ in của yêu cầu này đã thay đổi. Vui lòng kiểm tra yêu cầu đã gửi." });
+  const { page, prints, errors } = await phone({ printError: "Các tờ in của yêu cầu này đã thay đổi. Vui lòng kiểm tra yêu cầu đã gửi." });
   try {
+    await toResult(page);
+    await page.getByRole("button", { name: "Gửi in (1 tờ 20 × 30)" }).click();
     await page.getByText(/Các tờ in của yêu cầu này đã thay đổi/).waitFor({ timeout: 30000 });
     assert.equal(await page.getByRole("heading", { name: "Đã gửi in!" }).count(), 0);
     await page.getByRole("button", { name: "Kiểm tra và thử lại" }).click();
@@ -400,8 +421,10 @@ test("a print conflict does not pretend paper was sent; the retry resends the ex
 });
 
 test("a lost print reply is recovered by looking up the job, without sending a second sheet", async () => {
-  const { page, prints, errors } = await phone({ secondsLeft: 0, lostReply: true });
+  const { page, prints, errors } = await phone({ lostReply: true });
   try {
+    await toResult(page);
+    await page.getByRole("button", { name: "Gửi in (1 tờ 20 × 30)" }).click();
     await page.getByRole("button", { name: "Kiểm tra và thử lại" }).waitFor({ timeout: 30000 });
     await page.getByRole("button", { name: "Kiểm tra và thử lại" }).click();
     await page.getByRole("heading", { name: "Đã gửi in!" }).waitFor();

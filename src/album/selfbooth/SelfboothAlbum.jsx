@@ -3,14 +3,14 @@
 // chọn nhiều; chạm ảnh để làm đẹp) → 02 Chủ đề (chọn một bộ khung) → 03 Ghép ảnh (mọi khung của bộ: chạm ô,
 // chọn ảnh, kéo để dời, phóng to) → 04 Kết quả (mỗi khung là một tờ 20 × 30; chọn tờ muốn in trong số
 // tờ của vé rồi gửi in lên Hàng chờ in của quầy — /albums/:token/print-pack; nhân viên in ra máy DS820).
-// Thời gian do máy chủ đặt từ lần mở đầu (POST /albums/:token/edit-start, cài đặt "Thời gian chọn ảnh", mặc
-// định 250 giây); hết giờ thì tự gửi in những gì đang chọn (chưa chọn bộ khung: bộ đầu tiên, ghép tự động).
+// Không tính giờ (20/11 chủ tiệm, như web Selfbooth): khách chọn ảnh, chọn khung, ghép rồi xem bản hoàn thiện
+// thong thả; chỉ khi khách bấm "Gửi in" thì lệnh in mới lên Hàng chờ in, nhân viên ở quầy bấm In.
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   PiArrowLeftBold, PiArrowRightBold, PiCheckBold, PiCheckCircleDuotone,
-  PiCheckSquareBold, PiClockBold, PiDownloadSimpleBold, PiHeartBold, PiHeartDuotone, PiHeartFill, PiImagesDuotone,
+  PiCheckSquareBold, PiDownloadSimpleBold, PiHeartBold, PiHeartDuotone, PiHeartFill, PiImagesDuotone,
   PiPlusBold, PiPrinterBold, PiPrinterDuotone, PiSelectionAllBold,
-  PiSparkleFill, PiSquareBold, PiStackDuotone, PiTicketBold, PiTimerBold, PiTrashBold,
+  PiSparkleFill, PiSquareBold, PiStackDuotone, PiTicketBold, PiTrashBold,
   PiUploadSimpleBold, PiWarningCircleDuotone, PiXBold,
 } from "react-icons/pi";
 import { RefreshCw } from "lucide-react";
@@ -22,7 +22,6 @@ import { renderPrintFrame } from "../../kiosk/compose.js";
 import {
   groupFramePacks, largePrint, loadFrameImage, photoLayout,
 } from "../../frame-utils.js";
-import { onNetworkRecovery } from "../../network.js";
 import { storageLink } from "../../media-delivery.js";
 import { savePhoto } from "../../kiosk/direct-upload.js";
 import { prepareCameraImageAsync } from "../../image-processing.js";
@@ -45,7 +44,6 @@ const STEPS = [
 const ACCEPTED = /^image\/(jpeg|png|webp)$/;
 const MAX_UPLOAD_MB = 40;
 const pad = (n) => String(n).padStart(2, "0");
-const clock = (s) => `${Math.floor(s / 60)}:${pad(s % 60)}`;
 const slotsOf = (frame) => photoLayout(frame).slots;
 const capacityOf = (pack) => (pack?.frames || []).reduce((n, f) => n + slotsOf(f).length, 0);
 // Ảnh của từng ô của mọi khung trong bộ: lấy lần lượt ảnh trong `pool`; repeat (tự động ghép) thì quay vòng.
@@ -469,38 +467,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
     if (saved.step === 3 && !filled && ready) save({ step: 2 });
   }, [saved.step, ready, filled]);
 
-  // ── Hạn chọn ảnh do máy chủ đặt (bù đồng hồ lệch của điện thoại) ──
-  const alreadyPrinted = used >= quota;
-  const [deadline, setDeadline] = useState(null);
-  const offset = useRef(0);
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    if (alreadyPrinted || !photos.length) return;
-    let alive = true, running = false, retryTimer;
-    const start = async () => {
-      if (running || !alive) return;
-      running = true;
-      clearTimeout(retryTimer);
-      const sent = Date.now();
-      try {
-        const r = await api(`/albums/${token}/edit-start`, { method: "POST" });
-        if (!alive) return;
-        const endsAt = new Date(r.editEndsAt).getTime();
-        if (!Number.isFinite(endsAt)) throw new Error("Chưa nhận được thời gian chọn ảnh.");
-        offset.current = Number(r.serverTime) - (sent + Date.now()) / 2 || 0;
-        setDeadline(endsAt);
-        setNow(Date.now());
-      } catch {
-        if (alive) retryTimer = setTimeout(start, 5000);
-      } finally { running = false; }
-    };
-    start();
-    const recover = onNetworkRecovery(start);
-    const timer = setInterval(() => setNow(Date.now()), 500);
-    return () => { alive = false; clearInterval(timer); clearTimeout(retryTimer); recover(); };
-  }, [token, alreadyPrinted, Boolean(photos.length)]);
-  const left = deadline ? Math.max(0, Math.ceil((deadline - (now + offset.current)) / 1000)) : null;
-  const frozen = printing || left === 0 || Boolean(result);
+  const frozen = printing || Boolean(result);
 
   // ── Thư viện ──
   function toggleHeart(photo) {
@@ -663,13 +630,13 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
     setPicked((old) => new Set(old).add(i));
   }
 
-  // ── Gửi in (khách bấm, hoặc tự động khi hết giờ) ──
+  // ── Gửi in (chỉ khi khách bấm) ──
   // Lệnh in đã chuẩn bị được giữ tới khi máy chủ nhận: thử lại gửi đúng các tấm đó (cùng mã lệnh in), máy chủ
   // nhận ra lần gửi trước nếu nó đã tới.
   const printLock = useRef(false);
   const prepared = useRef(null);
   const [failed, setFailed] = useState(false);
-  async function print({ auto = false } = {}) {
+  async function print() {
     if (printLock.current || result || !remaining) return;
     printLock.current = true;
     setPrinting(true);
@@ -679,30 +646,19 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
       const lookup = () => api(`/albums/${token}/print?requestKey=${saved.requestKey}`, { allowNull: true });
       if (await lookup()) { setResult({ sent: true, ...prepared.current?.done }); prepared.current = null; reload?.(); return; }
       if (!prepared.current) {
-        let list = sheets, chosen = [...picked];
-        if (auto || !list.length) {
-          // Hết giờ: bộ đang chọn (chưa chọn thì bộ đầu tiên), ô còn trống lấp bằng ảnh yêu thích rồi ảnh còn lại.
-          const p = pack || packs[0];
-          if (!p) throw new Error(`Tiệm chưa có bộ khung 20 × 30 — nhờ nhân viên in giúp bạn.`);
-          const layouts = layoutsOf(p, saved.layouts) && p.frames.every((f) => isFilled(f, saved.layouts[f._id]))
-            ? saved.layouts : autoLayouts(p.frames, pool(true), { repeat: true });
-          list = await renderSheets(p, layouts);
-          chosen = picked.size && sheets.length ? [...picked] : list.slice(0, remaining).map((_, i) => i);
-        }
-        chosen = chosen.sort((a, b) => a - b).filter((i) => list[i]).slice(0, remaining);
+        const chosen = [...picked].sort((a, b) => a - b).filter((i) => sheets[i]).slice(0, remaining);
         if (!chosen.length) throw new Error(`Chọn ít nhất 1 ${word} để in.`);
         prepared.current = {
           options: printPackUpload({
-            images: chosen.map((i) => list[i].data), frameName: (pack || packs[0])?.name || "Khung ảnh", requestKey: saved.requestKey,
+            images: chosen.map((i) => sheets[i].data), frameName: pack?.name || "Khung ảnh", requestKey: saved.requestKey,
           }),
-          done: { count: chosen.length, previews: chosen.map((i) => list[i].preview) },
+          done: { count: chosen.length, previews: chosen.map((i) => sheets[i].preview) },
         };
       }
       await api(`/albums/${token}/print-pack`, prepared.current.options);
       setResult({ sent: true, ...prepared.current.done });
       prepared.current = null;
       reload?.();
-      if (auto) toast.info("Hết thời gian chọn ảnh — đã gửi in những ảnh bạn đang chọn.");
     } catch (e) {
       // Mã 409 có thể là lệnh in trước đã tới (mất phản hồi): chỉ lệnh in đã lưu mới chứng minh điều đó.
       const previous = e.status === 409 && await api(`/albums/${token}/print?requestKey=${saved.requestKey}`, { allowNull: true }).catch(() => null);
@@ -717,17 +673,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
       setPrinting(false);
     }
   }
-  const autoTried = useRef(false);
-  const [retry, setRetry] = useState(0);
-  useEffect(() => onNetworkRecovery(() => { autoTried.current = false; setRetry((n) => n + 1); }), []);
-  const originalsReady = photos.length > 0 && photos.every((p) => !p.originalPending);
   const pendingOriginals = photos.filter((p) => p.originalPending).length;
-  useEffect(() => {
-    if (left === 0 && !result && remaining && originalsReady && packs.length && !autoTried.current) {
-      autoTried.current = true;
-      print({ auto: true });
-    }
-  }, [left, Boolean(result), originalsReady, packs.length, retry]);
 
   const step = result ? 3 : saved.step;
   const canOpen = (i) => i <= 1 || (i === 2 && ready) || (i === 3 && filled);
@@ -748,12 +694,6 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
           {expires && <span>Ảnh sắp xóa gần nhất: <strong>{expires}</strong></span>}
         </p>
         <p className="studio-album-tip">Mỗi ảnh lưu 3 ngày kể từ lúc chụp. Tải về máy để giữ lâu hơn.</p>
-        {!alreadyPrinted && !result && left !== null && (
-          <p className={`sb-timer${left <= 30 ? " is-low" : ""}`} role="timer" aria-live={left <= 30 ? "polite" : "off"}>
-            {left > 0 ? <PiTimerBold aria-hidden="true" /> : <PiClockBold aria-hidden="true" />}
-            {left > 0 ? <>Còn <strong>{clock(left)}</strong> để chọn ảnh, ghép khung và gửi in</> : "Hết giờ — đang gửi in những ảnh bạn đã chọn…"}
-          </p>
-        )}
         {pendingOriginals > 0 && !result && (
           <p className="sb-timer" role="status">
             Đang nhận {pendingOriginals} ảnh gốc chất lượng cao từ máy chụp — ảnh in dùng ảnh gốc nên chờ thêm chút nhé.

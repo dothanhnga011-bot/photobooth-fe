@@ -169,8 +169,8 @@ Một web, hai **loại phòng**. Đầu ca, nhân viên mở máy chụp từng
   máy **DNP DS820** qua chương trình in của phòng — xem README của `photobooth-be`): nhân viên chọn gói và xác nhận
   thanh toán ở quầy → đưa mã 6 số → Chạm để bắt đầu → **Nhập mã** → **Bắt đầu chụp** → bấm dây không giới hạn trong
   số phút của gói → hết giờ (hoặc **Chụp xong**) máy chụp hiện QR. Trên điện thoại khách đi đúng 4 bước như web
-  Selfbooth: **01 Ảnh → 02 Chủ đề → 03 Ghép ảnh → 04 Kết quả**, trong thời gian chọn ảnh của tiệm (mặc định 250 giây);
-  hết giờ máy tự in. Kiosk không chọn layout hay thu tiền: mã đã chứa gói, còn hạn 2 giờ và chỉ dùng ở đúng chi nhánh,
+  Selfbooth: **01 Ảnh → 02 Chủ đề → 03 Ghép ảnh → 04 Kết quả**, không tính giờ; xem bản hoàn thiện rồi bấm **Gửi in**
+  → lệnh in lên trang **Hàng chờ in**, nhân viên ở quầy bấm In. Kiosk không chọn layout hay thu tiền: mã đã chứa gói, còn hạn 2 giờ và chỉ dùng ở đúng chi nhánh,
   đúng loại phòng. Phòng Selfbooth không quay video; QR nhận toàn bộ ảnh gốc.
   Gói ở Khổ ảnh & bảng giá → tab **Selfbooth** (kèm giá in thêm tờ 20 × 30). Khung: Khung ảnh → **Chép khung từ
   Selfbooth** hoặc Thêm mới; ô ảnh chỉnh trong hộp ghép khung như bên Selfbooth (cả ô nghiêng).

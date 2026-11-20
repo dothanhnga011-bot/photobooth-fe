@@ -7,14 +7,14 @@
 | PTB | Mã đã thanh toán ở quầy hoặc tiền mặt tại kiosk | JPEG từ Fujifilm/X Acquire, hình HDMI; chọn ảnh, khung và trang trí tại kiosk | DNP RX1; ảnh ghép và video gửi nền, khách quét QR tải ảnh |
 | Selfbooth | Mã đã thanh toán ở quầy | Fujifilm X-T3/X Acquire, hình HDMI, bấm dây không đếm ngược; hết chụp hiện QR | Chọn ảnh, chủ đề, ghép khung và gửi in tờ 20 × 30 (DNP DS820) trên điện thoại |
 
-Selfbooth chụp không giới hạn trong số phút của gói. Thời gian chọn trên điện thoại lấy từ máy chủ, theo cấu hình `selectSeconds` của tiệm (mặc định 250 giây). Hết giờ tự gửi ảnh đang chọn khi đủ nguồn in; không thay bằng ảnh xem nhanh.
+Selfbooth chụp không giới hạn trong số phút của gói. Chọn ảnh trên điện thoại không tính giờ (từ 20/11): khách bấm Gửi in khi xong, lệnh in lên Hàng chờ in của quầy; không in bằng ảnh xem nhanh.
 
 ## Các sửa đổi
 
 - **Kiểm tra hình trước khi dùng mã:** Cài đặt máy chụp có nút “Kiểm tra hình trực tiếp”. Đổi nguồn hoặc rời cài đặt sẽ nhả camera. Thông báo phân biệt PC chưa nhận thiết bị, chặn quyền, thiết bị bận và nguồn bị ngắt. Khi đổi thiết bị, luồng cũ được đóng trước khi mở luồng mới; không thử EOS Webcam Utility thay cho một thẻ HDMI đang bận.
 - **Giao diện điện thoại:** tiêu đề và đồng hồ không tranh cột với phần hướng dẫn. Lưới giữ hai cột trên màn nhỏ, ảnh dọc được thấy đầy đủ. Ảnh trong trình làm đẹp nằm riêng phía trên; tab, thanh chỉnh, bộ lọc và nút Xong không bị ảnh che. Có trạng thái nhận ảnh gốc, mất kết nối thời gian và thiếu khung. Kiểm tra thực tế bằng Chromium ở 320×568 và 390×844.
 - **Bản in Selfbooth:** chỉ dùng nguồn in sau khi ảnh gốc của các tấm được chọn đã sẵn sàng. Làm đẹp trực tiếp trên canvas rồi ghép khung, bỏ bước JPEG trung gian. Bản ghép tải xuống dùng JPEG 95 thay JPEG 90; tờ 20 × 30 là 2400×3600. Dùng phép co ảnh Lanczos cho bản in.
-- **Ảnh đến muộn và hết giờ:** bản in tự tiếp tục khi nguồn gốc đến sau lúc đồng hồ về 0. Nếu chỉ chụp được một ảnh với layout hai ô, ảnh đó được lặp; giao diện thông báo rõ.
+- **Ảnh đến muộn:** thành phẩm chờ ảnh gốc; ảnh gốc tới thì bấm Thử lại rồi Gửi in. Nếu chỉ chụp được một ảnh với layout hai ô, ảnh đó được lặp; giao diện thông báo rõ.
 - **Chống gửi in lại:** khoá thao tác đồng thời; tra lệnh theo UUID trước khi gửi. Mất phản hồi thì kiểm tra lệnh đã lưu, giữ cùng nội dung và UUID để thử lại. Lỗi 409 không bị suy diễn thành đã gửi in chỉ vì thông báo có chữ “in”. “Đã gửi in” là xác nhận lưu/gửi lệnh, không xác nhận giấy đã ra.
 - **Bộ nhớ điện thoại:** cache ảnh xem trước theo từng album, tối đa khoảng 6 triệu pixel (~24 MB phần pixel cache), tối đa ba mục; ảnh nguồn in được giải mã lần lượt và đóng ngay sau khi xử lý. Tổng RAM còn gồm canvas đang hiển thị, model làm đẹp và các tài nguyên khác. Rời album giải phóng tham chiếu cache. Đổi thanh chỉnh liên tục bỏ công việc đã lỗi thời trước bước làm đẹp nặng.
 - **Danh sách khung trên điện thoại:** dùng WebP xem nhanh của khung khi có, ghép lần lượt các ô nhỏ và huỷ việc cũ khi đổi ảnh/rời bước. Bản xem lớn và bản in vẫn lấy ảnh khung đầy đủ; không giải mã đồng thời mọi khung gốc để vẽ lưới.
