@@ -42,7 +42,8 @@ export function readPending(token) {
   return task;
 }
 // Archive scheduling only needs a yes/no answer, not every customer's photo blobs.
-export async function hasPending(token) {
+// previewsOnly: ignore photos whose preview is saved and only the camera original is still uploading.
+export async function hasPending(token, { previewsOnly = false } = {}) {
   const database = await db;
   return new Promise((resolve, reject) => {
     const tx = database.transaction("photos", "readonly");
@@ -51,7 +52,7 @@ export async function hasPending(token) {
     request.onsuccess = () => {
       const cursor = request.result;
       if (!cursor) return;
-      if (cursor.value.token === token) found = true;
+      if (cursor.value.token === token && (!previewsOnly || isPreviewPending(cursor.value))) found = true;
       else cursor.continue();
     };
     tx.oncomplete = () => resolve(found);

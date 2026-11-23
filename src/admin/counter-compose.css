@@ -1,0 +1,130 @@
+/* Ghép ảnh để in ở quầy: màn chọn khung / chọn ảnh của máy chụp trên toàn màn hình, thêm một thanh công cụ. */
+@layer components {
+  .counter-compose {
+    --counter-bar: 58px;
+    position: fixed;
+    inset: 0;
+    z-index: 95;
+    overflow: auto;
+    overscroll-behavior: contain;
+    background: var(--mellow-grain, none), var(--mellow-kraft, #e8d6c2);
+  }
+  .counter-compose-bar {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 18px;
+    min-height: var(--counter-bar);
+    padding: 8px clamp(12px, 3vw, 32px);
+    border-bottom: 1px solid #d2c3b0;
+    background: #fbf6ef;
+    color: #3b2a22;
+    font-size: 14px;
+  }
+  .counter-compose-bar > strong {
+    margin-right: auto;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .counter-compose-bar label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .counter-compose-bar select,
+  .counter-compose-bar button {
+    min-height: 36px;
+    border: 1px solid #b8a690;
+    border-radius: 6px;
+    background: #fff;
+    color: #3b2a22;
+    font: inherit;
+    font-weight: 600;
+  }
+  .counter-compose-bar select {
+    padding: 0 8px;
+  }
+  .counter-compose-bar button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    cursor: pointer;
+  }
+  .counter-compose-bar button:disabled,
+  .counter-compose-bar select:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+  .counter-compose-bar .counter-compose-retry {
+    border-color: #4a2f24;
+    background: #4a2f24;
+    color: #fff;
+  }
+  /* Nút "Thêm ảnh từ máy quầy": ô chọn tệp ẩn bên trong (không có chữ "No file chosen" làm thanh cao lên). */
+  .counter-compose-bar .counter-compose-file {
+    position: relative;
+    min-height: 36px;
+    padding: 0 12px;
+    border: 1px solid #b8a690;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+  }
+  .counter-compose-bar .counter-compose-file:has(input:focus-visible) {
+    outline: 2px solid #4a2f24;
+    outline-offset: 2px;
+  }
+  .counter-compose-file input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+  .counter-compose > .error-box {
+    margin: 12px clamp(12px, 3vw, 32px) 0;
+  }
+  .counter-compose-note {
+    max-width: 560px;
+    margin: 48px auto;
+    padding: 0 16px;
+    text-align: center;
+    font-size: 16px;
+  }
+  .counter-compose .kiosk-flow {
+    gap: 10px;
+    min-height: calc(100dvh - var(--counter-bar));
+    padding-top: 10px;
+    padding-bottom: 16px;
+  }
+  /* Màn chọn khung của máy chụp cao đúng một màn hình: trừ thanh công cụ để nút Tiếp tục luôn thấy. */
+  .counter-compose .ptb-frames-screen {
+    height: calc(100dvh - var(--counter-bar));
+  }
+  @media (max-width: 720px) {
+    .counter-compose-bar > strong {
+      flex-basis: 100%;
+      order: -1;
+    }
+  }
+  /* Máy chụp không bao giờ hẹp như điện thoại; ở quầy có thể mở trên máy tính bảng / điện thoại: một cột,
+     các mục (Chọn ảnh, Chỉnh ảnh…) xuống dòng thay vì đẩy trang rộng ra. */
+  @media (max-width: 900px) {
+    .counter-compose .select-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .counter-compose .select-divider {
+      display: none;
+    }
+    .counter-compose .select-tabs button {
+      flex: 1 1 30%;
+      min-width: 0;
+      white-space: normal;
+    }
+  }
+}

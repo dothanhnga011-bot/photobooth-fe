@@ -292,14 +292,22 @@ function ConvertTo-Rx1Sharpen($value) {
   }
   return [int]$number
 }
+# Dời nội dung tờ cắt đôi (mm, dương = sang dải phải): đường cắt 2 inch của máy rơi đúng giữa hai dải.
+function ConvertTo-Rx1StripShift($value) {
+  if ($null -eq $value -or $value -is [bool] -or $value -is [string]) { throw 'stripShift must be a number' }
+  $shift = [double]$value
+  if ([double]::IsNaN($shift) -or [double]::IsInfinity($shift) -or $shift -lt -5 -or $shift -gt 5) { throw 'stripShift must be between -5 and 5 mm' }
+  return [Math]::Round($shift, 1)
+}
 function Get-Rx1OutputSettings([string]$settingsPath = (Join-Path $env:LOCALAPPDATA 'NXC-Printer\rx1-output.json')) {
-  $defaults = @{ gamma = 1.50; maxResolution = $true; sharpen = 2; warning = '' }
+  $defaults = @{ gamma = 1.50; maxResolution = $true; sharpen = 2; stripShift = 0.0; warning = '' }
   if (-not (Test-Path -LiteralPath $settingsPath)) { return $defaults }
   try {
     $profile = Get-Content -LiteralPath $settingsPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $gammaValue = $defaults.gamma
     $maximum = $true
     $sharpen = $defaults.sharpen
+    $stripShift = $defaults.stripShift
     if ($null -ne $profile.PSObject.Properties['gamma']) {
       if ($profile.gamma -is [bool]) { throw 'gamma must be a number' }
       $gammaValue = [double]$profile.gamma
@@ -310,9 +318,10 @@ function Get-Rx1OutputSettings([string]$settingsPath = (Join-Path $env:LOCALAPPD
       $maximum = $profile.maxResolution
     }
     if ($null -ne $profile.PSObject.Properties['sharpen']) { $sharpen = ConvertTo-Rx1Sharpen $profile.sharpen }
-    return @{ gamma = $gammaValue; maxResolution = $maximum; sharpen = $sharpen; warning = '' }
+    if ($null -ne $profile.PSObject.Properties['stripShift']) { $stripShift = ConvertTo-Rx1StripShift $profile.stripShift }
+    return @{ gamma = $gammaValue; maxResolution = $maximum; sharpen = $sharpen; stripShift = $stripShift; warning = '' }
   } catch {
-    $defaults.warning = "Invalid rx1-output.json; using gamma $($defaults.gamma) and maximum supported DPI, sharpness $($defaults.sharpen): $($_.Exception.Message)"
+    $defaults.warning = "Invalid rx1-output.json; using gamma $($defaults.gamma) and maximum supported DPI, sharpness $($defaults.sharpen), strip shift 0 mm: $($_.Exception.Message)"
     return $defaults
   }
 }
@@ -516,21 +525,28 @@ function Add-Rx1TestLabels([Drawing.Bitmap]$bitmap, [int]$current) {
 # như cũ), co bằng Lanczos3, bù gamma, rồi làm nét. $pageWidth / $pageHeight: PageBounds (1/100 inch);
 # $dpiX / $dpiY: độ phân giải máy in. $testCurrent ≥ 0: tờ in thử — 5 dải độ nét 0–4, dải mức đang dùng có
 # nhãn đậm. $photos: các ô ảnh trên tờ in (x, y, rộng, cao theo tỉ lệ 0–1 của tờ, nối tiếp nhau).
+# $exact (tờ cắt đôi, 23/11): đúng 4 × 6 inch như thiết kế thay vì phóng thêm ~3 % cho phủ phần tràn lề của
+# trang — phần tràn lề lấp bằng điểm mép ảnh kéo dài, dao cắt 2 inch chia đôi đúng tờ thiết kế và mép ngoài
+# của hai dải không mất nội dung. $shiftX / $shiftY: dời nội dung (điểm ảnh của tờ in) cho đường cắt của máy.
 function New-Rx1PageBitmap([Drawing.Image]$photo, [double]$pageWidth, [double]$pageHeight, [double]$dpiX, [double]$dpiY,
-    [double]$gamma, [int]$sharpen, [int]$testCurrent = -1, [double[]]$photos = @()) {
+    [double]$gamma, [int]$sharpen, [int]$testCurrent = -1, [double[]]$photos = @(), [bool]$exact = $false,
+    [double]$shiftX = 0, [double]$shiftY = 0) {
   $width = [Math]::Max(1, [int][Math]::Round($pageWidth * $dpiX / 100))
   $height = [Math]::Max(1, [int][Math]::Round($pageHeight * $dpiY / 100))
   # Phủ kín trang theo inch (điểm của máy in có thể không vuông), giữ tỉ lệ tờ in, căn giữa.
   $inch = [Math]::Max(($pageWidth / 100) / $photo.Width, ($pageHeight / 100) / $photo.Height)
+  if ($exact) { $inch = 4.0 / [Math]::Min($photo.Width, $photo.Height) }
   $w = $photo.Width * $inch * $dpiX; $h = $photo.Height * $inch * $dpiY
   $left = ($width - $w) / 2; $top = ($height - $h) / 2
+  # Vùng ảnh nguồn ứng với cả trang (ngoài ảnh: điểm mép kéo dài), và độ dời tính theo điểm của trang.
+  $kx = $photo.Width / $w; $ky = $photo.Height / $h
+  $srcX = -$left * $kx - $shiftX; $srcY = -$top * $ky - $shiftY
+  $offsetX = $shiftX / $kx; $offsetY = $shiftY / $ky
   $bitmap = $null
   $done = $false
   try {
     if (Initialize-Rx1Sharpen) {
-      # Vùng ảnh nguồn thấy được trên trang (phần tràn lề ngoài trang bị cắt).
-      $kx = $photo.Width / $w; $ky = $photo.Height / $h
-      $bitmap = [NxcRx1Sharpen]::Resample([Drawing.Bitmap]$photo, $width, $height, -$left * $kx, -$top * $ky, $width * $kx, $height * $ky, $gamma)
+      $bitmap = [NxcRx1Sharpen]::Resample([Drawing.Bitmap]$photo, $width, $height, $srcX, $srcY, $width * $kx, $height * $ky, $gamma)
       $script:Rx1Resampler = 'lanczos3'
     } else {
       $bitmap = New-Object Drawing.Bitmap($width, $height, [Drawing.Imaging.PixelFormat]::Format32bppArgb)
@@ -540,10 +556,17 @@ function New-Rx1PageBitmap([Drawing.Image]$photo, [double]$pageWidth, [double]$p
         $g.InterpolationMode = [Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
         $g.PixelOffsetMode = [Drawing.Drawing2D.PixelOffsetMode]::HighQuality
         $g.CompositingQuality = [Drawing.Drawing2D.CompositingQuality]::HighQuality
-        $dest = New-Object Drawing.Rectangle([int][Math]::Round($left)), ([int][Math]::Round($top)), ([int][Math]::Ceiling($w)), ([int][Math]::Ceiling($h))
         $attrs = New-Rx1ImageAttributes $gamma
-        try { $g.DrawImage($photo, $dest, 0, 0, $photo.Width, $photo.Height, [Drawing.GraphicsUnit]::Pixel, $attrs) }
-        finally { $attrs.Dispose() }
+        try {
+          if ($exact -or $shiftX -or $shiftY) {
+            # Cả trang từ vùng nguồn; ngoài ảnh: điểm mép lặp gương (WrapMode TileFlipXY).
+            $page = New-Object Drawing.Rectangle(0, 0, $width, $height)
+            $g.DrawImage($photo, $page, [single]$srcX, [single]$srcY, [single]($width * $kx), [single]($height * $ky), [Drawing.GraphicsUnit]::Pixel, $attrs)
+          } else {
+            $dest = New-Object Drawing.Rectangle([int][Math]::Round($left)), ([int][Math]::Round($top)), ([int][Math]::Ceiling($w)), ([int][Math]::Ceiling($h))
+            $g.DrawImage($photo, $dest, 0, 0, $photo.Width, $photo.Height, [Drawing.GraphicsUnit]::Pixel, $attrs)
+          }
+        } finally { $attrs.Dispose() }
       } finally { $g.Dispose() }
       $script:Rx1Resampler = 'gdi-bicubic'
     }
@@ -552,9 +575,10 @@ function New-Rx1PageBitmap([Drawing.Image]$photo, [double]$pageWidth, [double]$p
     if (@($amounts | Where-Object { $_ -gt 0 }).Count) {
       # Ô ảnh theo điểm của trang (làm tròn ra ngoài).
       $rects = New-Object 'System.Collections.Generic.List[int]'
+      $x0 = $left + $offsetX; $y0 = $top + $offsetY
       for ($i = 0; $i + 3 -lt $photos.Count; $i += 4) {
-        $rects.Add([int][Math]::Floor($left + $photos[$i] * $w)); $rects.Add([int][Math]::Floor($top + $photos[$i + 1] * $h))
-        $rects.Add([int][Math]::Ceiling($left + ($photos[$i] + $photos[$i + 2]) * $w)); $rects.Add([int][Math]::Ceiling($top + ($photos[$i + 1] + $photos[$i + 3]) * $h))
+        $rects.Add([int][Math]::Floor($x0 + $photos[$i] * $w)); $rects.Add([int][Math]::Floor($y0 + $photos[$i + 1] * $h))
+        $rects.Add([int][Math]::Ceiling($x0 + ($photos[$i] + $photos[$i + 2]) * $w)); $rects.Add([int][Math]::Ceiling($y0 + ($photos[$i + 1] + $photos[$i + 3]) * $h))
       }
       if (Initialize-Rx1Sharpen) { [NxcRx1Sharpen]::Apply($bitmap, [double[]]$amounts, 0.7 * $dpiX / 300, 0.7 * $dpiY / 300, 2, $rects.ToArray(), 0.5) }
       elseif ($testCurrent -ge 0) { throw "Máy này không làm nét được ảnh: $($script:Rx1SharpenError)" }
@@ -566,11 +590,17 @@ function New-Rx1PageBitmap([Drawing.Image]$photo, [double]$pageWidth, [double]$p
 }
 # Vẽ một tờ in lên trang của máy in: đúng lưới điểm, 1:1 (điểm ảnh = điểm máy in, driver không co giãn).
 # Trả về kích thước lưới "rộng x cao" để ghi nhật ký.
-function Write-Rx1Page($event, [Drawing.Image]$photo, [double]$gamma, [int]$sharpen, [int]$testCurrent = -1, [double[]]$photos = @()) {
+# $strip: tờ cắt đôi — in đúng tỉ lệ thiết kế, dời $shiftMm (mm) theo chiều ngắn của tờ (tờ dọc: dương = sang
+# dải phải; tờ ngang: sang dải dưới) cho đường cắt 2 inch của máy rơi đúng giữa hai dải.
+function Write-Rx1Page($event, [Drawing.Image]$photo, [double]$gamma, [int]$sharpen, [int]$testCurrent = -1, [double[]]$photos = @(),
+    [bool]$strip = $false, [double]$shiftMm = 0) {
+  $portrait = $photo.Width -le $photo.Height
+  $shift = $shiftMm * [Math]::Min($photo.Width, $photo.Height) / (4 * 25.4)
   # Tờ khác chiều với trang của máy in (vd. tờ ngang trên trang dọc): xoay 90 độ (chiều kim đồng hồ) cho kín
   # khổ, ô ảnh xoay theo: (x, y, rộng, cao) → (1 - y - cao, x, cao, rộng).
   $pageLandscape = $event.PageBounds.Width -gt $event.PageBounds.Height
-  if (($photo.Width -gt $photo.Height) -ne $pageLandscape) {
+  $turnedPage = ($photo.Width -gt $photo.Height) -ne $pageLandscape
+  if ($turnedPage) {
     $photo.RotateFlip([Drawing.RotateFlipType]::Rotate90FlipNone)
     $turned = New-Object 'System.Collections.Generic.List[double]'
     for ($i = 0; $i + 3 -lt $photos.Count; $i += 4) {
@@ -578,9 +608,15 @@ function Write-Rx1Page($event, [Drawing.Image]$photo, [double]$gamma, [int]$shar
     }
     $photos = $turned.ToArray()
   }
+  # Xoay 90° theo chiều kim đồng hồ: điểm (x, y) → (cao − y, x), nên +x của thiết kế thành +y, +y thành −x.
+  $shiftX = 0.0; $shiftY = 0.0
+  if ($strip -and $shift) {
+    if ($portrait) { if ($turnedPage) { $shiftY = $shift } else { $shiftX = $shift } }
+    else { if ($turnedPage) { $shiftX = -$shift } else { $shiftY = $shift } }
+  }
   $g = $event.Graphics
   $dpiX = [double]$g.DpiX; $dpiY = [double]$g.DpiY
-  $page = New-Rx1PageBitmap $photo $event.PageBounds.Width $event.PageBounds.Height $dpiX $dpiY $gamma $sharpen $testCurrent $photos
+  $page = New-Rx1PageBitmap $photo $event.PageBounds.Width $event.PageBounds.Height $dpiX $dpiY $gamma $sharpen $testCurrent $photos $strip $shiftX $shiftY
   try {
     $g.ResetTransform()
     $g.PageUnit = [Drawing.GraphicsUnit]::Pixel
@@ -614,18 +650,22 @@ function Set-Rx1RemoteOutput($profile, [string]$settingsPath = (Join-Path $env:L
     throw 'Web gamma must be between 1.00 and 2.20.'
   }
   $current = Get-Rx1OutputSettings $settingsPath
-  # Máy chủ cũ chưa gửi độ nét: giữ độ nét đang dùng trên máy này.
+  # Máy chủ cũ chưa gửi độ nét / dời đường cắt: giữ mức đang dùng trên máy này.
   $sharpen = $current.sharpen
   if ($null -ne $profile.PSObject.Properties['sharpen']) {
     try { $sharpen = ConvertTo-Rx1Sharpen $profile.sharpen } catch { throw 'Web sharpness must be a whole number from 0 to 4.' }
   }
+  $stripShift = $current.stripShift
+  if ($null -ne $profile.PSObject.Properties['stripShift']) {
+    try { $stripShift = ConvertTo-Rx1StripShift $profile.stripShift } catch { throw 'Web strip shift must be between -5 and 5 mm.' }
+  }
   if ((Test-Path -LiteralPath $settingsPath) -and -not $current.warning -and
       [Math]::Abs($current.gamma - $gamma) -lt 0.000001 -and $current.maxResolution -eq $profile.maxResolution -and
-      $current.sharpen -eq $sharpen) { return $false }
+      $current.sharpen -eq $sharpen -and [Math]::Abs($current.stripShift - $stripShift) -lt 0.000001) { return $false }
   New-Item -ItemType Directory -Force -Path (Split-Path -Parent $settingsPath) | Out-Null
   $temp = $settingsPath + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
   try {
-    $json = @{ gamma = $gamma; maxResolution = [bool]$profile.maxResolution; sharpen = $sharpen } | ConvertTo-Json -Compress
+    $json = @{ gamma = $gamma; maxResolution = [bool]$profile.maxResolution; sharpen = $sharpen; stripShift = $stripShift } | ConvertTo-Json -Compress
     [IO.File]::WriteAllText($temp, $json, (New-Object Text.UTF8Encoding($false)))
     if (Test-Path -LiteralPath $settingsPath) { [IO.File]::Replace($temp, $settingsPath, ($temp + '.previous')) }
     else { [IO.File]::Move($temp, $settingsPath) }
@@ -634,7 +674,7 @@ function Set-Rx1RemoteOutput($profile, [string]$settingsPath = (Join-Path $env:L
       if (Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file -Force }
     }
   }
-  Write-Log "RX1 output received from web: gamma $gamma; maximum supported DPI = $($profile.maxResolution); sharpness $sharpen."
+  Write-Log "RX1 output received from web: gamma $gamma; maximum supported DPI = $($profile.maxResolution); sharpness $sharpen; strip shift $stripShift mm."
   return $true
 }
 
@@ -643,15 +683,99 @@ function Set-Rx1RemoteOutput($profile, [string]$settingsPath = (Join-Path $env:L
 # thì ảnh mẫu trên web), rồi báo kết quả ở lần đồng bộ sau. Mã yêu cầu đã nhận được ghi xuống đĩa TRƯỚC khi
 # in: chương trình in khởi động lại giữa chừng cũng không in lần hai.
 function Get-Rx1TestRecordPath { return (Join-Path $env:LOCALAPPDATA 'NXC-Printer\sharpness-tests.txt') }
-function Request-Rx1SharpnessTest([string]$id) {
+# $kind 'cut' (23/11): tờ thử đường cắt thay cho tờ thử độ nét (New-Rx1CutChart).
+function Request-Rx1SharpnessTest([string]$id, [string]$kind = 'sharpness') {
   if ($id -notmatch '^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$' -or $script:Rx1TestPending -eq $id) { return }
   $record = Get-Rx1TestRecordPath
   if ((Test-Path -LiteralPath $record) -and (@(Get-Content -LiteralPath $record) -contains $id)) {
     # Đã gửi tờ thử trước khi chương trình in khởi động lại mà chưa kịp báo: báo lại để web thôi chờ.
-    if (-not $script:Rx1TestReport) { $script:Rx1TestReport = @{ id = $id; sent = $true; message = 'Tờ in thử độ nét đã được gửi tới máy in trước đó.' } }
+    if (-not $script:Rx1TestReport) { $script:Rx1TestReport = @{ id = $id; sent = $true; message = 'Tờ in thử đã được gửi tới máy in trước đó.' } }
     return
   }
   $script:Rx1TestPending = $id
+  $script:Rx1TestKind = if ($kind -eq 'cut') { 'cut' } else { 'sharpness' }
+}
+
+# ── In thử đường cắt (23/11) ─────────────────────────────────────────────────────────────────────
+# Tờ 2400 × 3600 (4 × 6 inch) in cắt đôi, đúng tỉ lệ, KHÔNG dời. Giữa tờ: thước vạch mỗi 0,5 mm từ −5 đến
+# +5 mm (vạch dài có số = 1 mm, vạch đỏ = 0 là giữa thiết kế), nền xanh bên trái, hồng bên phải. Máy cắt xong,
+# số ở vạch sát mép cắt (dải trái và dải phải cùng một số) là độ lệch của dao cắt → nhập vào "Dời đường cắt
+# dải" trên web. Hai mép ngoài có thước 0–5 mm: số mm máy xén mất ở mép ngoài.
+function New-Rx1CutChart([string]$path) {
+  Add-Type -AssemblyName System.Drawing
+  $W = 2400; $H = 3600; $mm = $W / (4 * 25.4); $center = $W / 2
+  $bitmap = New-Object Drawing.Bitmap($W, $H, [Drawing.Imaging.PixelFormat]::Format24bppRgb)
+  $g = [Drawing.Graphics]::FromImage($bitmap)
+  $owned = New-Object 'System.Collections.Generic.List[IDisposable]'
+  try {
+    $g.Clear([Drawing.Color]::White)
+    $g.TextRenderingHint = [Drawing.Text.TextRenderingHint]::AntiAliasGridFit
+    $make = { param($item) $owned.Add($item); $item }
+    $ink = & $make (New-Object Drawing.SolidBrush([Drawing.Color]::FromArgb(40, 30, 25)))
+    $red = & $make (New-Object Drawing.SolidBrush([Drawing.Color]::FromArgb(200, 30, 40)))
+    $blue = & $make (New-Object Drawing.SolidBrush([Drawing.Color]::FromArgb(214, 232, 252)))
+    $pink = & $make (New-Object Drawing.SolidBrush([Drawing.Color]::FromArgb(252, 222, 228)))
+    $paper = & $make (New-Object Drawing.SolidBrush([Drawing.Color]::White))
+    $label = & $make (New-Object Drawing.Font('Segoe UI', 30, [Drawing.FontStyle]::Bold, [Drawing.GraphicsUnit]::Pixel))
+    $title = & $make (New-Object Drawing.Font('Segoe UI', 64, [Drawing.FontStyle]::Bold, [Drawing.GraphicsUnit]::Pixel))
+    $body = & $make (New-Object Drawing.Font('Segoe UI', 40, [Drawing.FontStyle]::Regular, [Drawing.GraphicsUnit]::Pixel))
+    $centered = & $make (New-Object Drawing.StringFormat)
+    $centered.Alignment = [Drawing.StringAlignment]::Center
+    $minus = [string][char]0x2212
+    $tick = {
+      param([double]$x, [double]$y, [double]$height, [int]$tenths, [string]$text, $brush)
+      $whole = ($tenths % 10) -eq 0
+      $lineWidth = if ($tenths -eq 0) { 6 } else { 3 }
+      $length = if ($whole) { $height } else { $height * 0.45 }
+      $g.FillRectangle($brush, [single]($x - $lineWidth / 2), [single]$y, [single]$lineWidth, [single]$length)
+      if ($whole) {
+        # Hai hàng số so le để số liền nhau không chồng lên nhau.
+        $row = if ([Math]::Abs($tenths / 10) % 2 -eq 1) { $y + $height * 0.55 } else { $y + $height * 0.76 }
+        # Nền trắng sau số: vạch không cắt ngang chữ.
+        $size = $g.MeasureString($text, $label)
+        $g.FillRectangle($paper, [single]($x - $size.Width / 2), [single]($row + 2), [single]$size.Width, [single]($size.Height - 4))
+        $g.DrawString($text, $label, $brush, (New-Object Drawing.RectangleF([single]($x - 45), [single]$row, 90, 40)), $centered)
+      }
+    }
+    # Hai dải thước (trên, dưới): đường cắt hơi xiên vẫn đọc được ở cả hai.
+    foreach ($y in @(820, 2020)) {
+      $height = 760
+      $g.FillRectangle($blue, [single]($center - 5.5 * $mm), [single]$y, [single](5.5 * $mm), [single]$height)
+      $g.FillRectangle($pink, [single]$center, [single]$y, [single](5.5 * $mm), [single]$height)
+      for ($tenths = -50; $tenths -le 50; $tenths += 5) {
+        $value = [Math]::Abs($tenths / 10)
+        $text = if ($tenths -gt 0) { '+' + $value } elseif ($tenths -lt 0) { $minus + $value } else { '0' }
+        & $tick ($center + $tenths / 10 * $mm) $y $height $tenths $text $(if ($tenths -eq 0) { $red } else { $ink })
+      }
+      # Mép ngoài: 0,5–5 mm tính từ mép giấy.
+      for ($tenths = 5; $tenths -le 50; $tenths += 5) {
+        & $tick ($tenths / 10 * $mm) $y $height $tenths ([string]($tenths / 10)) $ink
+        & $tick ($W - $tenths / 10 * $mm) $y $height $tenths ([string]($tenths / 10)) $ink
+      }
+    }
+    $guide = "Số ở vạch sát mép cắt (giữa tờ) là độ lệch của dao cắt, tính bằng mm. Vào Màu in RX1 → Dời đường cắt dải, nhập đúng số đó rồi bấm Lưu. " +
+      "Vạch dài = 1 mm, vạch ngắn = 0,5 mm, vạch đỏ 0 = giữa thiết kế."
+    $edge = "Thước ở mép ngoài: số mm máy xén mất ở mép giấy."
+    foreach ($half in @(@(0, 'DẢI TRÁI'), @($center, 'DẢI PHẢI'))) {
+      $x = $half[0] + 110; $width = $center - 220
+      $g.DrawString("In thử đường cắt · $($half[1])", $title, $ink, (New-Object Drawing.RectangleF([single]$x, 200, [single]$width, 180)), $centered)
+      $g.DrawString('Tờ này in không dời (0 mm).', $body, $ink, (New-Object Drawing.RectangleF([single]$x, 420, [single]$width, 80)), $centered)
+      $g.DrawString($guide, $body, $ink, (New-Object Drawing.RectangleF([single]$x, 1640, [single]$width, 340)), $centered)
+      $g.DrawString($edge, $body, $ink, (New-Object Drawing.RectangleF([single]$x, 2860, [single]$width, 140)), $centered)
+    }
+    $bitmap.Save($path, [Drawing.Imaging.ImageFormat]::Png)
+  } finally {
+    foreach ($item in $owned) { $item.Dispose() }
+    $g.Dispose(); $bitmap.Dispose()
+  }
+}
+# Hàng in của một lệnh: tờ cắt đôi đi qua hàng in cắt đôi riêng nếu tiệm có cài.
+function Get-Rx1Queue([bool]$strip) {
+  $config = $script:Config
+  if ($strip -and $config.stripPrinter -and (($DryRunDir) -or (Get-Printer -Name $config.stripPrinter -ErrorAction SilentlyContinue))) {
+    return $config.stripPrinter
+  }
+  return $config.printer
 }
 # Vị trí các ô ảnh trên tờ in (máy chụp gửi kèm, header X-Print-Photos): "x,y,rộng,cao;…" theo tỉ lệ 0–1
 # của tờ, tối đa 40 ô. Phần ảnh được làm nét đủ mức, chữ / khung một nửa. Sai dạng thì báo lỗi.
@@ -688,35 +812,47 @@ function Save-Rx1LastSheet([string]$file, [double[]]$photos = @()) {
 function Invoke-Rx1SharpnessTest {
   $id = $script:Rx1TestPending
   if (-not $id) { return }
-  $script:Rx1TestPending = $null
+  $kind = if ($script:Rx1TestKind -eq 'cut') { 'cut' } else { 'sharpness' }
+  $script:Rx1TestPending = $null; $script:Rx1TestKind = $null
   $record = Get-Rx1TestRecordPath
   New-Item -ItemType Directory -Force -Path (Split-Path -Parent $record) | Out-Null
   $seen = @(if (Test-Path -LiteralPath $record) { Get-Content -LiteralPath $record | Select-Object -Last 19 })
   Set-Content -LiteralPath $record -Value (@($seen) + $id) -Encoding ASCII
-  $sample = $null; $sent = $false
+  $sample = $null; $chart = $null; $sent = $false
+  $name = if ($kind -eq 'cut') { 'tờ thử đường cắt' } else { 'tờ thử độ nét' }
   try {
-    $source = Get-ChildItem -LiteralPath (Split-Path -Parent $record) -Filter 'last-sheet.*' -ErrorAction SilentlyContinue | Select-Object -First 1
-    $from = 'tờ in gần nhất'
-    if (-not $source) {
-      $sample = Join-Path $env:TEMP ('nxc-rx1-sample-' + [guid]::NewGuid().ToString('N') + '.jpg')
-      Invoke-WebRequest -Uri "$($script:Config.api)/downloads/rx1-sharpness-sample.jpg" -OutFile $sample -UseBasicParsing -TimeoutSec 60
-      $source = Get-Item -LiteralPath $sample
-      $from = 'ảnh mẫu'
-    }
     $offline = Get-OfflineQueue
     if ($offline) { throw "hàng in '$offline' đang bật 'Use printer offline' trong Windows." }
-    # Vị trí ô ảnh của tờ in gần nhất (ảnh mẫu: không có — làm nét cả tờ).
-    $photos = [double[]]@()
-    $regions = Join-Path (Split-Path -Parent $record) 'last-sheet-photos.txt'
-    if (-not $sample -and (Test-Path -LiteralPath $regions)) {
-      try { $photos = ConvertFrom-Rx1PhotoRegions ((Get-Content -LiteralPath $regions -Raw).Trim()) } catch { $photos = [double[]]@() }
+    if ($kind -eq 'cut') {
+      $chart = Join-Path $env:TEMP ('nxc-rx1-cut-' + [guid]::NewGuid().ToString('N') + '.png')
+      New-Rx1CutChart $chart
+      [void](Set-PrinterCutter 'on')
+      $paper = Send-Sheets (Get-Rx1Queue $true) @($chart) 'NXC-thu-duong-cat' 'on' -1 ([double[]]@()) $true
+      $message = "Đã in tờ thử đường cắt ($paper). Đọc số ở vạch sát mép cắt rồi nhập vào Dời đường cắt dải."
+    } else {
+      $source = Get-ChildItem -LiteralPath (Split-Path -Parent $record) -Filter 'last-sheet.*' -ErrorAction SilentlyContinue | Select-Object -First 1
+      $from = 'tờ in gần nhất'
+      if (-not $source) {
+        $sample = Join-Path $env:TEMP ('nxc-rx1-sample-' + [guid]::NewGuid().ToString('N') + '.jpg')
+        Invoke-WebRequest -Uri "$($script:Config.api)/downloads/rx1-sharpness-sample.jpg" -OutFile $sample -UseBasicParsing -TimeoutSec 60
+        $source = Get-Item -LiteralPath $sample
+        $from = 'ảnh mẫu'
+      }
+      # Vị trí ô ảnh của tờ in gần nhất (ảnh mẫu: không có — làm nét cả tờ).
+      $photos = [double[]]@()
+      $regions = Join-Path (Split-Path -Parent $record) 'last-sheet-photos.txt'
+      if (-not $sample -and (Test-Path -LiteralPath $regions)) {
+        try { $photos = ConvertFrom-Rx1PhotoRegions ((Get-Content -LiteralPath $regions -Raw).Trim()) } catch { $photos = [double[]]@() }
+      }
+      [void](Set-PrinterCutter 'off')
+      $paper = Send-Sheets $script:Config.printer @($source.FullName) 'NXC-thu-do-net' 'off' (Get-Rx1OutputSettings).sharpen $photos
+      $message = "Đã in tờ thử độ nét từ $from ($paper)."
     }
-    [void](Set-PrinterCutter 'off')
-    $paper = Send-Sheets $script:Config.printer @($source.FullName) 'NXC-thu-do-net' 'off' (Get-Rx1OutputSettings).sharpen $photos
-    $message = "Đã in tờ thử độ nét từ $from ($paper)."
     $sent = $true
-  } catch { $message = "Chưa in được tờ thử độ nét: $($_.Exception.Message)" }
-  finally { if ($sample) { Remove-Item -LiteralPath $sample -Force -ErrorAction SilentlyContinue } }
+  } catch { $message = "Chưa in được ${name}: $($_.Exception.Message)" }
+  finally {
+    foreach ($file in @($sample, $chart)) { if ($file) { Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue } }
+  }
   Write-Log $message
   if ($message.Length -gt 480) { $message = $message.Substring(0, 480) }
   $script:Rx1TestReport = @{ id = $id; sent = $sent; message = $message }
@@ -745,7 +881,7 @@ function Receive-Rx1OutputSettings {
       # Kết quả tờ in thử đã tới máy chủ: thôi gửi lại.
       if ($sync.report -and $script:Rx1TestReport -and $script:Rx1TestReport.id -eq $sync.report.id) { $script:Rx1TestReport = $null }
       [void](Set-Rx1RemoteOutput $result.rx1Output)
-      if ($result.sharpnessTest -and $result.sharpnessTest.id) { Request-Rx1SharpnessTest ([string]$result.sharpnessTest.id) }
+      if ($result.sharpnessTest -and $result.sharpnessTest.id) { Request-Rx1SharpnessTest ([string]$result.sharpnessTest.id) ([string]$result.sharpnessTest.kind) }
       $sync.error = ''
       $sync.next = (Get-Date).AddSeconds(5)
     } catch {
@@ -762,7 +898,7 @@ function Receive-Rx1OutputSettings {
   if ((Get-Date) -lt $sync.next) { return }
   try {
     $current = Get-Rx1OutputSettings
-    $payload = @{ applied = @{ gamma = $current.gamma; maxResolution = $current.maxResolution; sharpen = $current.sharpen } }
+    $payload = @{ applied = @{ gamma = $current.gamma; maxResolution = $current.maxResolution; sharpen = $current.sharpen; stripShift = $current.stripShift } }
     if ($script:Rx1TestReport) { $payload.sharpnessTest = $script:Rx1TestReport; $sync.report = $script:Rx1TestReport }
     $body = $payload | ConvertTo-Json -Compress
     $sync.content = New-Object Net.Http.StringContent($body, [Text.Encoding]::UTF8, 'application/json')
@@ -796,7 +932,10 @@ function Find-Paper($settings) {
 # $cut: 'on' = máy cắt đôi tờ (2 dải 5 × 15), 'off' = in nguyên tờ 10 × 15, '' = giữ cài đặt của hàng in.
 # $test ≥ 0: tờ in thử độ nét (5 dải 0–4, dải $test = mức đang dùng có nhãn đậm).
 # $photos: vị trí các ô ảnh trên tờ (ConvertFrom-Rx1PhotoRegions); không có thì làm nét cả tờ.
-function Send-Sheets([string]$printerName, [string[]]$files, [string]$docName, [string]$cut = '', [int]$test = -1, [double[]]$photos = @()) {
+# Tờ cắt đôi ($cut 'on'): in đúng tỉ lệ thiết kế và dời theo "Dời đường cắt dải" trên web; $calibration (tờ
+# thử đường cắt): không dời, để số đọc ở mép cắt là độ lệch thật của dao cắt.
+function Send-Sheets([string]$printerName, [string[]]$files, [string]$docName, [string]$cut = '', [int]$test = -1, [double[]]$photos = @(),
+    [bool]$calibration = $false) {
   if ($DryRunDir) {
     New-Item -ItemType Directory -Force -Path $DryRunDir | Out-Null
     $safe = $printerName -replace '[^\w.-]+', '_'
@@ -832,6 +971,8 @@ function Send-Sheets([string]$printerName, [string[]]$files, [string]$docName, [
   $script:printSharpen = $outputSettings.sharpen
   $script:printTest = $test
   $script:printPhotos = $photos
+  $script:printStrip = $cut -eq 'on'
+  $script:printShift = if ($script:printStrip -and -not $calibration) { [double]$outputSettings.stripShift } else { 0.0 }
   # Resolution is selected per job; queue defaults, ICC and cutter settings remain separate.
   $quality = $document.DefaultPageSettings.PrinterResolution
   $script:printPages = $files
@@ -842,7 +983,7 @@ function Send-Sheets([string]$printerName, [string[]]$files, [string]$docName, [
     $photo = [System.Drawing.Image]::FromFile($script:printPages[$script:printIndex], $true)
     # Trang phủ kín, giữ tỉ lệ (trang DNP 6,15 × 4,13 inch có phần tràn lề), đúng lưới điểm của máy in, vẽ
     # 1:1 — driver không co giãn nữa; bù gamma rồi làm nét (New-Rx1PageBitmap).
-    try { $script:printGrid = Write-Rx1Page $event $photo $script:printGamma $script:printSharpen $script:printTest $script:printPhotos }
+    try { $script:printGrid = Write-Rx1Page $event $photo $script:printGamma $script:printSharpen $script:printTest $script:printPhotos $script:printStrip $script:printShift }
     finally { $photo.Dispose() }
     $script:printIndex++
     $event.HasMorePages = $script:printIndex -lt $script:printPages.Count
@@ -850,7 +991,8 @@ function Send-Sheets([string]$printerName, [string[]]$files, [string]$docName, [
   try { $document.Print() } finally { $document.Dispose() }
   $sharpness = if ($test -ge 0) { 'tờ thử 0–4' } elseif ($script:Rx1SharpenError -and $script:printSharpen) { "không làm nét được: $($script:Rx1SharpenError)" } else { $script:printSharpen }
   $areas = if ($photos.Count) { "$([int]($photos.Count / 4)) ô ảnh nét đủ, chữ/khung một nửa" } else { 'cả tờ' }
-  Write-Log "RX1 output: $($quality.X)x$($quality.Y) dpi, $($script:printGrid) điểm (vẽ 1:1, co $($script:Rx1Resampler)); gamma $script:printGamma; độ nét $sharpness ($areas); Windows/driver ICM."
+  $geometry = if ($script:printStrip) { "tờ cắt đôi đúng tỉ lệ, dời $($script:printShift) mm" } else { 'phủ kín trang' }
+  Write-Log "RX1 output: $($quality.X)x$($quality.Y) dpi, $($script:printGrid) điểm (vẽ 1:1, co $($script:Rx1Resampler), $geometry); gamma $script:printGamma; độ nét $sharpness ($areas); Windows/driver ICM."
   return '{0} {1}x{2}, {3} điểm, độ nét {4}' -f $paper.PaperName, $paper.Width, $paper.Height, $script:printGrid, $(if ($test -ge 0) { '0–4' } else { $script:printSharpen })
 }
 
@@ -985,13 +1127,9 @@ function Invoke-Job($job, [string[]]$localFiles = @()) {
     } }
     # Khung nhỏ: 1 tờ 1200 × 1800 (2 dải) bật "2inch cut" cho riêng lệnh này để máy cắt đôi; khung to:
     # tắt cắt, in nguyên tờ. Có hàng in cắt đôi riêng thì tờ nhỏ vẫn đi qua hàng đó.
-    $queue = $config.printer; $note = ''; $cut = 'off'
-    if ($job.printSize -eq 'strip') {
-      $cut = 'on'
-      if ($config.stripPrinter -and (($DryRunDir) -or (Get-Printer -Name $config.stripPrinter -ErrorAction SilentlyContinue))) {
-        $queue = $config.stripPrinter
-      }
-    }
+    $note = ''
+    $cut = if ($job.printSize -eq 'strip') { 'on' } else { 'off' }
+    $queue = Get-Rx1Queue ($cut -eq 'on')
     $cutter = Set-PrinterCutter $cut
     # Vị trí ô ảnh (in trực tiếp từ máy chụp): làm nét đủ phần ảnh, một nửa phần chữ / khung.
     $photos = [double[]]@()

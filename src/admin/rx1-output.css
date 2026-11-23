@@ -12,6 +12,12 @@
   .admin-shell .rx1-presets button { padding: 8px 13px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--ink); cursor: pointer; }
   .admin-shell .rx1-presets button:is([aria-pressed="true"], [aria-checked="true"]) { border-color: var(--mellow-cocoa, #522e22); background: #f7eee7; }
   .admin-shell .rx1-label { display: block; margin-top: 18px; font-size: 14px; font-weight: 700; }
+  /* Dời đường cắt dải: − [số] + */
+  .admin-shell .rx1-shift-inputs { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .admin-shell .rx1-shift-inputs input[type="number"] { width: 110px; text-align: center; }
+  .admin-shell .rx1-shift-inputs button { width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--ink); font-size: 20px; line-height: 1; cursor: pointer; }
+  .admin-shell .rx1-shift-inputs button:disabled { cursor: not-allowed; opacity: 0.5; }
+  .admin-shell .rx1-sync-row .rx1-sync-actions { display: flex; flex-wrap: wrap; gap: 8px; }
   .admin-shell .rx1-sharpen { margin-block: 10px 8px; }
   .admin-shell .rx1-sync-row .rx1-test { flex-basis: 100%; margin-left: 0; }
   .admin-shell .rx1-sync-row .rx1-test.is-sent { color: #2d7a4d; }

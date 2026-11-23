@@ -4,7 +4,8 @@ import { api, assetUrl, formatDateTime } from "../api.js";
 import { fetchMediaBlob } from "../media-delivery.js";
 import { Button, ErrorBox, useToast } from "../studio.jsx";
 import { checkDirectPrinter } from "../kiosk/direct-print.js";
-import { ManualAlbum } from "./manual-album.jsx";
+import { CounterCompose } from "./counter-compose.jsx";
+import { compositeSheet } from "./counter-sheet.js";
 import { operatorPrint } from "./operator-print.js";
 import { isSelfboothSize, selfboothUnit } from "../print-sizes.js";
 import { printLargeSheets } from "./print-sheet.js";
@@ -31,6 +32,8 @@ export function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
   const [failedImage, setFailedImage] = useState("");
   const inFlight = useRef(false);
   const imageCache = useRef(null);
+  // Tờ in làm từ ảnh ghép (đơn chưa có file in): giữ lại tới khi lưu xong để "Lưu kết quả in" không in thêm.
+  const compositeCache = useRef(null);
   const job = jobs.find((item) => item._id === selected) || jobs[0];
   const count = job?.sheetCount || 1;
   const printSize = job?.printSize || details.printSize || "full";
@@ -40,6 +43,9 @@ export function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
   const locked = busy || archivePending;
   const canOperate = !details.mediaDeleted && ["checked_in", "completed"].includes(details.status);
   const canSell = !details.mediaDeleted && details.paid && ["confirmed", "checked_in", "completed"].includes(details.status);
+  // Vé PTB: ghép lại ở quầy bằng màn chọn ảnh của máy chụp. Vé Selfbooth: khách ghép và gửi in trên điện thoại.
+  const canCompose = canOperate && Boolean(details.accessToken) && !isSelfboothSize(details.printSize);
+  const composite = canCompose && details.composite?.url ? details.composite : null;
   const preview = job?.image ? sheetUrl(job, Math.min(page, count - 1), true) : "";
 
   // Read the chosen order, rather than trusting the potentially old list-row snapshot.
@@ -104,7 +110,25 @@ export function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
     } finally { inFlight.current = false; setBusy(false); }
   }
 
-  if (manual) return <ManualAlbum booking={details} onClose={() => setManual(false)} onPrinted={() => {
+  // Đơn chưa có file in: làm tờ in từ ảnh ghép khung trong album, in qua RX1 (hoặc chỉ lưu) và lưu vào đơn.
+  async function printComposite(saveOnly) {
+    if (!composite || inFlight.current || copies > maximum) return;
+    inFlight.current = true; setBusy(true); setError("");
+    try {
+      compositeCache.current ??= await compositeSheet(assetUrl(composite.url), details.printSize);
+      const sheet = compositeCache.current;
+      await operatorPrint({ booking: details, images: [sheet.image], frameName: composite.frameName || "Ảnh ghép khung",
+        printSize: sheet.printSize, copies, saveOnly });
+      toast.success(saveOnly ? "Đã lưu file in từ ảnh ghép vào đơn." : `Đã gửi ${copies} tờ tới hàng in RX1 và lưu file in vào đơn.`);
+      setArchivePending(false); compositeCache.current = null;
+      setRefresh((value) => value + 1);
+      onPrinted?.();
+    } catch (cause) {
+      setArchivePending(Boolean(cause.printed)); setError(cause.message);
+    } finally { inFlight.current = false; setBusy(false); }
+  }
+
+  if (manual) return <CounterCompose booking={details} onClose={() => setManual(false)} onSaved={() => {
     setManual(false); setSelected(""); setPage(0); setRefresh((value) => value + 1); onPrinted?.();
   }} />;
   return <div className="modal-backdrop" onClick={() => { if (!busy) onClose(); }}>
@@ -156,19 +180,34 @@ export function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
           </div>
         </div>
         <p className="soft-note">In lại là thao tác hỗ trợ, không trừ lượt và không cộng tiền. Khách mua thêm bản in: dùng “Thêm lượt in”.</p>
-      </> : !loadError && <div className="order-print-empty">
+      </> : !loadError && (composite ? <div className="order-print-composite">
+        <img src={assetUrl(`${composite.url}?size=preview`)} alt={`Ảnh ghép khung của đơn ${booking.code}`} />
+        <div>
+          <h3>Chưa có file in — in từ ảnh ghép</h3>
+          <p>Ảnh ghép khung khách đã chọn (đúng màu, chữ, nhãn dán) được làm thành tờ in {printSize === "strip"
+            ? "10 × 15 cm, máy cắt đôi thành 2 dải 5 × 15 cm" : "10 × 15 cm"}, in qua RX1 trên máy này và lưu vào đơn để in lại sau.</p>
+          <label>Số bộ in<select aria-label="Số bộ in" value={copies} disabled={locked || !maximum} onChange={(event) => setCopies(Number(event.target.value))}>
+            {Array.from({ length: maximum }, (_, i) => i + 1).map((value) => <option key={value} value={value}>{value}</option>)}
+          </select></label>
+          <div className="order-print-composite-actions">
+            <Button disabled={busy || !maximum} onClick={() => printComposite(false)}><Printer size={16} />
+              {busy ? "Đang xử lý…" : archivePending ? "Lưu kết quả in" : "In từ ảnh ghép"}</Button>
+            {!archivePending && <Button className="outline" disabled={busy} onClick={() => printComposite(true)}>Chỉ lưu file in</Button>}
+          </div>
+          <p className="soft-note">Muốn đổi ảnh hoặc khung: bấm “Ghép ảnh thủ công”.</p>
+        </div>
+      </div> : <div className="order-print-empty">
         <ImageIcon /><h3>{details.mediaDeleted ? "Ảnh đã hết hạn lưu trữ" : "Chưa có file in đã lưu"}</h3>
         <p>{details.mediaDeleted ? "File cũ không còn để in lại."
-          : details.composite ? "Đã có ảnh ghép trong album, nhưng chưa lưu tờ in. Bạn có thể ghép lại từ ảnh gốc hoặc thêm file từ máy quầy."
-            : details.photoCount ? `Album có ${details.photoCount} ảnh gốc. Chọn khung và ảnh để tạo file in.`
-              : "Album chưa có ảnh gốc. Khi ảnh tải lên xong, bạn có thể ghép để in hoặc thêm file từ máy quầy."}</p>
-        {canOperate && details.accessToken && <Button onClick={() => setManual(true)}>Ghép ảnh để in</Button>}
-      </div>}
+          : details.photoCount ? `Album có ${details.photoCount} ảnh gốc. Ghép ảnh để in như ở máy chụp: chọn khung, chạm ảnh để đặt vào khung.`
+            : "Album chưa có ảnh gốc. Khi ảnh tải lên xong, bạn có thể ghép để in hoặc thêm file từ máy quầy."}</p>
+        {canCompose && <Button onClick={() => setManual(true)}>Ghép ảnh để in</Button>}
+      </div>)}
       <div className="order-print-actions">
         <Button className="outline" disabled={busy} onClick={() => { setFailedImage(""); setRefresh((value) => value + 1); }}><RefreshCw size={15} /> Làm mới</Button>
         {details.accessToken && <a className="button outline" href={`/album/${details.accessToken}`} target="_blank" rel="noreferrer">Mở album <ExternalLink size={15} /></a>}
         {job && <a className="button outline" href={assetUrl(`${job.image}?download=1`)}><Download size={15} /> {count > 1 ? "Tải tất cả tờ (ZIP)" : "Tải file in"}</a>}
-        {job && canOperate && <Button className="outline" disabled={busy} onClick={() => setManual(true)}>Ghép ảnh thủ công</Button>}
+        {(job || composite) && canCompose && <Button className="outline" disabled={busy} onClick={() => setManual(true)}>Ghép ảnh thủ công</Button>}
         <Button className="outline" disabled={busy || loading || !canSell} onClick={() => onExtra(details)}>+ Thêm lượt in</Button>
         {job && <Button disabled={busy || !canOperate || !maximum || copies > maximum} onClick={reprint}><Printer size={16} />
           {busy ? "Đang xử lý…" : archivePending ? "Lưu kết quả in" : selfbooth ? "In 20×30 (DS820)" : "In lại qua RX1"}</Button>}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFitGrid } from "./use-fit-grid.js";
+import { photoSlots, selectedCount } from "./photo-selection.js";
 import {
   PiArrowClockwiseBold,
   PiArrowLeftBold,
@@ -304,7 +305,7 @@ function Pick({ shot, slots, onPick, disabled }) {
       type="button"
       className={`select-shot ${picked ? "is-picked" : ""}`}
       aria-pressed={picked}
-      aria-label={picked ? `Ảnh ở ô ${slots.join(", ")}` : "Chọn ảnh này"}
+      aria-label={picked ? `Ảnh ở ô ${slots.join(", ")} · chạm để bỏ` : "Chọn ảnh này"}
       disabled={disabled}
       onClick={() => onPick(shot.key)}
     >
@@ -396,18 +397,17 @@ function OnScreenKeyboard({ onKey, onBackspace, onSpace, caps, onToggleCaps }) {
 export function KioskSelect({
   shots, bitmaps, count, selected, onPick, onRemove, onClear, secondsLeft,
   frames, index, onBack, onConfirm, busy, prints, qrUrl,
-  filters = [], decor, onDecor, shopStickers = [],
+  filters = [], decor, onDecor, shopStickers = [], counter = false, confirmLabel,
 }) {
   const toast = useToast();
   const t = useKioskText();
   const frame = frames[index];
-  const ready = selected.filter((key) => bitmaps.has(key));
-  const images = ready.map((key) => bitmaps.get(key));
-  const full = selected.length >= count;
+  const ready = photoSlots(selected, count).map(key => bitmaps.has(key) ? key : null);
+  const images = ready.map((key) => bitmaps.get(key) || null);
+  const filled = selectedCount(selected);
+  const full = count > 0 && filled >= count;
   // Một ảnh có thể nằm ở nhiều ô: danh sách ảnh khác nhau (chỉnh ảnh, màu riêng) và các ô của từng ảnh.
-  const uniqueReady = [...new Set(ready)];
-  // Vị trí trong `selected` của từng ảnh đang vẽ trên khung (ảnh chưa tải xong chưa có trên khung).
-  const readySlots = selected.flatMap((key, i) => (bitmaps.has(key) ? [i] : []));
+  const uniqueReady = [...new Set(ready.filter(Boolean))];
   const slotsOf = (key) => selected.reduce((list, k, i) => (k === key ? [...list, i + 1] : list), []);
   // Không có khung thì không có gì để trang trí: chỉ chọn ảnh. Nhãn dán chỉ lấy từ trang quản trị
   // Thiết lập → Nhãn dán (không có bộ biểu tượng dựng sẵn): tiệm chưa tải nhãn dán nào thì ẩn mục.
@@ -493,6 +493,7 @@ export function KioskSelect({
   const photoGesture = {
     get: (photo) => ({ ...DEFAULT_T, ...savedTransforms[ready[photo]] }),
     draft: (photo, t) => {
+      if (!ready[photo]) return;
       const now = performance.now();
       if (now - draftAt.current < 80) return;
       draftAt.current = now;
@@ -500,7 +501,7 @@ export function KioskSelect({
     },
     commit: (photo, t) => {
       setDraftTransform(null);
-      setTransform(ready[photo], t);
+      if (ready[photo]) setTransform(ready[photo], t);
     },
   };
   const zoomPhoto = (key, factor) => setTransform(key, { zoom: clampZoom((transforms[key]?.zoom || 1) * factor) });
@@ -535,7 +536,7 @@ export function KioskSelect({
 
   const thumbShot = shots.find((s) => s.key === (target === "all" ? selected[0] : target)) || shots[0];
   const lead = {
-    photos: `Chọn ${count} ô ảnh · đã chọn ${selected.length}/${count} · ${selected.length ? "chạm ô trên khung để bỏ" : "một ảnh dùng được nhiều ô"}`,
+    photos: `Đã chọn ${filled}/${count} ô · chạm lại ảnh hoặc ô trên khung để bỏ, các ô khác giữ nguyên`,
     adjust: "Kéo ảnh trên khung để dời, chụm / mở hai ngón để thu nhỏ / phóng to (vẫn giữ nét)",
     color: "Chọn màu cho tất cả ảnh hoặc từng ảnh — khung và nhãn dán giữ nguyên màu",
     text: "Gõ chữ muốn thêm vào khung, chọn kiểu chữ & màu rồi bấm “Thêm chữ”",
@@ -544,10 +545,10 @@ export function KioskSelect({
   return (
     <section className="kiosk-flow select-screen">
       <header className="flow-head">
-        <span className="ptb-flow-step">BƯỚC 2 / 2 · CHỌN ẢNH & TRANG TRÍ</span>
+        <span className="ptb-flow-step">{counter ? "GHÉP ẢNH TẠI QUẦY" : "BƯỚC 2 / 2 · CHỌN ẢNH & TRANG TRÍ"}</span>
         <h1>
           {/* Tiêu đề sửa ở quản trị; {s} là số giây còn lại (gạch chân). */}
-          {(() => {
+          {counter ? "Chọn ảnh & trang trí" : (() => {
             const [before, after] = t("select.title").split("{s}");
             return after === undefined
               ? <>{before} · <u>{secondsLeft}s</u></>
@@ -556,7 +557,7 @@ export function KioskSelect({
         </h1>
         <p>
           {lead}
-          {current === "photos" && selected.length > 0 && (
+          {current === "photos" && filled > 0 && (
             <> · <button type="button" className="select-clear" onClick={onClear}>Chọn lại</button></>
           )}
         </p>
@@ -582,8 +583,7 @@ export function KioskSelect({
                 onPhotoTap={
                   current === "color" ? (photo) => ready[photo] && setColorTarget(ready[photo])
                   : current === "adjust" ? (photo) => ready[photo] && setAdjustKey(ready[photo])
-                  // Mục Chọn ảnh: chạm ô có ảnh để bỏ ảnh ở ô đó (ô sau dồn lên).
-                  : current === "photos" ? (photo) => readySlots[photo] !== undefined && onRemove(readySlots[photo])
+                  : current === "photos" ? (photo) => selected[photo] && onRemove(photo)
                   : null
                 }
                 photoGesture={current === "adjust" ? photoGesture : null}
@@ -626,7 +626,7 @@ export function KioskSelect({
                   >
                     <Icon aria-hidden="true" />
                     <span>{label}</span>
-                    {id === "photos" && <small>{selected.length}/{count}</small>}
+                    {id === "photos" && <small>{filled}/{count}</small>}
                   </button>
                 );
               })}
@@ -646,7 +646,7 @@ export function KioskSelect({
                     key={shot.key}
                     shot={shot}
                     slots={slotsOf(shot.key)}
-                    disabled={full}
+                    disabled={busy || (full && !selected.includes(shot.key))}
                     onPick={onPick}
                   />
                 ))}
@@ -655,7 +655,7 @@ export function KioskSelect({
           )}
           {current === "adjust" && (
             <div className="select-tab-panel select-adjust" {...panel("adjust")}>
-              {!ready.length ? (
+              {!uniqueReady.length ? (
                 <p className="soft-note">Chọn ảnh ở mục “Chọn ảnh” trước, rồi quay lại đây để chỉnh phóng to / dời.</p>
               ) : (
                 <>
@@ -704,7 +704,7 @@ export function KioskSelect({
                   onClick={() => setColorTarget("all")}>
                   Tất cả ảnh
                 </button>
-                {[...new Set(selected)].map((key) => (
+                {[...new Set(selected.filter(Boolean))].map((key) => (
                   <TargetChip
                     key={key}
                     shot={shots.find((s) => s.key === key)}
@@ -830,13 +830,13 @@ export function KioskSelect({
         <Button className="kiosk-next" disabled={busy || !full} onClick={onConfirm}>
           {busy ? (
             "Đang ghép ảnh…"
-          ) : frame && prints ? (
+          ) : confirmLabel ? confirmLabel : frame && prints ? (
             <><PiPrinterBold aria-hidden="true" /> In ảnh</>
           ) : (
             <><PiCheckBold aria-hidden="true" /> Nhận ảnh</>
           )}
         </Button>
-        {!full && <small className="select-hint">Chọn thêm {count - selected.length} tấm để {frame && prints ? "in ảnh" : "tiếp tục"}</small>}
+        {!full && <small className="select-hint">Chọn thêm {count - filled} tấm để {frame && prints ? "in ảnh" : "tiếp tục"}</small>}
       </footer>
     </section>
   );

@@ -45,6 +45,7 @@ import {
   sameKioskSession,
 } from "./network-tasks.js";
 import { readCrop } from "./live-preview-layout.js";
+import { fillPhotoSlots, removePhotoSlot, togglePhotoSlot } from "./photo-selection.js";
 import { drawLiveCapture, previewRotation, previewRotationKey, readPreviewRotation } from './preview-orientation.js';
 import { buildTimelapse, createClipRecorder } from "./clip-recorder.js";
 import {
@@ -1066,15 +1067,14 @@ export function Kiosk() {
     const list = current.current?.selected || [];
     patch({ frameIndex: i, ...(list.length > keep && { selected: list.slice(0, keep) }) });
   };
-  // Chạm một ảnh: đặt vào ô kế tiếp của khung. Một ảnh dùng được cho nhiều ô (chạm lại để thêm ô nữa).
+  // Chạm lại để bỏ; ảnh mới lấp ô trống đầu tiên, không dồn các ô còn lại.
   const pickShot = (shotKey) => {
     const list = current.current.selected || [];
-    if (list.length < need) patch({ selected: [...list, shotKey] });
+    patch({ selected: togglePhotoSlot(list, need, shotKey) });
   };
-  // Bỏ ảnh ở một ô (chạm ô đó trên khung): các ô sau dồn lên.
   const removePick = (slot) => {
     const list = current.current.selected || [];
-    if (slot >= 0 && slot < list.length) patch({ selected: list.filter((_, i) => i !== slot) });
+    patch({ selected: removePhotoSlot(list, need, slot) });
   };
   const clearPicks = () => patch({ selected: [] });
   // Existing select/frame sessions resume without losing their photos or decor.
@@ -1097,8 +1097,7 @@ export function Kiosk() {
     const all = shotsOf(s);
     const frame = frames[Math.min(s.frameIndex || 0, Math.max(0, frames.length - 1))];
     const frameNeeds = needOf(frame);
-    const keys = (s.selected || []).slice(0, frameNeeds);
-    for (const shot of all) if (keys.length < frameNeeds && !keys.includes(shot.key)) keys.push(shot.key);
+    const keys = fillPhotoSlots(s.selected, frameNeeds, all.map(shot => shot.key));
     const chosenShots = keys.map((k) => all.find((x) => x.key === k)).filter(Boolean);
     // Ảnh xem trước ở màn QR, ảnh trong album và ảnh in cùng màu ảnh và nhãn dán khách đã chọn.
     // Màu từng ảnh (màu riêng của tấm đó, không có thì màu chung), cùng thứ tự ảnh đặt vào khung.
@@ -1112,10 +1111,7 @@ export function Kiosk() {
     };
     setComposing(true);
     try {
-      // Ask for local-device access while the customer is still at the print button.
-      // Do not move to the QR screen or start expensive rendering with a disconnected printer.
-      if (Number(s.booking.prints) > 0)
-        await checkDirectPrinter();
+      // Save the finished sheet even when the room printer is disconnected.
       let composite = "";
       const albumLink = `${window.location.origin}/album/${s.accessToken}`;
       const temporary = [];
@@ -1152,8 +1148,6 @@ export function Kiosk() {
         // Bản ghép chất lượng in: gửi vào album (khách xem / tải) và, nếu gói có in, ra máy in.
         (async () => {
           let printFrame = null, albumFrame = null;
-          let releaseArchive;
-          const albumQueued = new Promise((resolve) => { releaseArchive = resolve; });
           let printing = Promise.resolve();
           try {
             if (printsCount) {
@@ -1179,7 +1173,7 @@ export function Kiosk() {
                 // nhỏ nên dùng khung lớn).
                 printSize: frame.printSize === "strip" ? "strip" : "full",
                 photos,
-              }, { archiveAfter: albumQueued }).catch((e) => setPrint({ status: "failed", message: e.message }));
+              }).catch((e) => setPrint({ status: "failed", message: e.message }));
             }
           } catch (e) {
             if (printsCount) setPrint({ status: "failed", message: e.message });
@@ -1204,7 +1198,6 @@ export function Kiosk() {
             toast.error("Chưa lưu được ảnh ghép vào album. Vui lòng báo nhân viên.");
           } finally {
             if (albumFrame) albumFrame.width = albumFrame.height = 0;
-            releaseArchive();
           }
           await printing;
         })();

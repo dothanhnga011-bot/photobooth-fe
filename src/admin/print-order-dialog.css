@@ -26,9 +26,22 @@
 .admin-shell .order-print-empty > p { max-width: 580px; line-height: 1.7; }
 .admin-shell .order-print-dialog .order-print-actions { gap: 10px; }
 .admin-shell .order-print-dialog .order-print-actions .button { min-height: 44px; }
+/* Đơn chưa có file in nhưng có ảnh ghép khung: in thẳng từ ảnh ghép. */
+.admin-shell .order-print-composite { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 1fr); gap: 24px; align-items: start; padding: 20px 0; }
+.admin-shell .order-print-composite > img { display: block; width: 100%; height: 340px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; background: var(--stone, #f5f1ec); }
+.admin-shell .order-print-composite > div { display: grid; gap: 14px; min-width: 0; }
+.admin-shell .order-print-composite h3, .admin-shell .order-print-composite p { margin: 0; }
+.admin-shell .order-print-composite > div > p:not(.soft-note) { color: var(--muted); font-size: 14px; line-height: 1.6; }
+.admin-shell .order-print-composite label { display: grid; gap: 6px; font-size: 14px; font-weight: 600; }
+.admin-shell .order-print-composite select { min-height: 44px; }
+.admin-shell .order-print-composite-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.admin-shell .order-print-composite-actions .button { min-height: 44px; }
 @media (max-width: 600px) {
   .admin-shell .modal.order-print-dialog { padding: 18px; }
   .admin-shell .order-print-body { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .admin-shell .order-print-preview > img { height: 260px; }
   .admin-shell .order-print-dialog .order-print-actions > * { flex: 1 1 140px; }
+  .admin-shell .order-print-composite { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .admin-shell .order-print-composite > img { height: 260px; }
+  .admin-shell .order-print-composite-actions > * { flex: 1 1 140px; }
 }

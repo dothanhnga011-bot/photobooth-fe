@@ -15,7 +15,7 @@ const BOOKING = { _id: "booking-print", code: "973019", accessToken: "album-toke
   roomName: "Phòng 01", printSize: "full", prints: 6, printSheets: 2 };
 const JOB = { _id: "source", frameName: "Khung hồng", sheetCount: 2, printSize: "strip", spoolStatus: "sent",
   width: 2400, height: 3600, createdAt: new Date().toISOString(), image: "/api/albums/album-token/prints/source" };
-let server, browser, page, detail, requests, local, errors, failRead, failArchive, png;
+let server, browser, page, detail, requests, local, errors, failRead, failArchive, failPrint, png;
 const captures = join(tmpdir(), "photobooth-order-print-review");
 const fixture = `
 import React from 'react'; import {createRoot} from 'react-dom/client';
@@ -53,7 +53,8 @@ before(async () => {
       const bytes = Buffer.concat(chunks);
       const binary = req.headers["content-type"] === "application/octet-stream";
       const body = binary ? bytes : bytes.length ? JSON.parse(bytes) : null;
-      requests.push({ path: url.pathname, method: req.method, body, headers: req.headers });
+      requests.push({ path: url.pathname, search: url.search, method: req.method, body, headers: req.headers });
+      if (url.pathname === "/api/albums/album-token/composite") { res.writeHead(200, { "Content-Type": "image/png" }); res.end(png); return; }
       if (url.pathname.endsWith("/prints")) {
         if (failRead) { json({ message: "Không tải được file in" }, 503); return; }
         json(detail); return;
@@ -79,16 +80,18 @@ before(async () => {
   await mkdir(captures, { recursive: true });
 });
 after(async () => { await page?.close(); await browser?.close(); await new Promise((resolve) => server.close(resolve)); });
-async function mount({ jobs = [JOB], width = 1440, readError = false, archiveError = false } = {}) {
-  await page?.close(); requests = []; local = []; errors = []; failRead = readError; failArchive = archiveError;
-  detail = { booking: { ...BOOKING, photoCount: 4 }, jobs: structuredClone(jobs) };
+async function mount({ jobs = [JOB], width = 1440, readError = false, archiveError = false, printError = false, composite = false, booking = {} } = {}) {
+  await page?.close(); requests = []; local = []; errors = []; failRead = readError; failArchive = archiveError; failPrint = printError;
+  detail = { booking: { ...BOOKING, photoCount: 4, ...booking,
+    ...(composite && { composite: { url: "/api/albums/album-token/composite", frameName: "Khung hồng" } }) }, jobs: structuredClone(jobs) };
   page = await browser.newPage({ viewport: { width, height: width < 600 ? 844 : 1000 }, reducedMotion: "reduce" });
   page.setDefaultTimeout(12000);
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route("http://127.0.0.1:8789/**", async (route) => {
     const req = route.request(); local.push({ path: new URL(req.url()).pathname, body: req.postDataBuffer(), headers: req.headers() });
-    await route.fulfill({ contentType: "application/json", headers: { "Access-Control-Allow-Origin": "*" },
-      body: JSON.stringify(req.url().endsWith("/health") ? { directPrint: 2 } : { sent: true }) });
+    const health = req.url().endsWith("/health");
+    await route.fulfill({ contentType: "application/json", headers: { "Access-Control-Allow-Origin": "*" }, status: !health && failPrint ? 503 : 200,
+      body: JSON.stringify(health ? { directPrint: 2 } : failPrint ? { sent: false, message: "RX1 hết giấy" } : { sent: true }) });
   });
   await page.goto(`http://127.0.0.1:${server.address().port}`);
   await page.getByRole("dialog").waitFor();
@@ -138,27 +141,105 @@ test("reprint archives after one local send, and a lost archive response does no
   assert.deepEqual(errors, []);
 });
 
-test("manual composition renders original-resolution PNG and uses the RX1 agent, with no browser print popup", async () => {
+test("manual composition uses the kiosk frame and photo screens, renders an original-resolution PNG and prints on RX1", async () => {
   await mount({ jobs: [] });
   await page.getByRole("button", { name: "Ghép ảnh để in", exact: true }).click();
-  await page.getByLabel("Thêm ảnh từ máy quầy").setInputFiles({ name: "guest.png", mimeType: "image/png", buffer: png });
-  await page.getByRole("button", { name: "Đặt ảnh 1 vào ô 1" }).click();
-  await page.getByAltText("Tờ in đã ghép").waitFor();
-  await page.getByLabel("Số bộ in", { exact: true }).selectOption("2");
-  await page.screenshot({ path: join(captures, "manual-desktop.png"), fullPage: true });
+  const composer = page.getByRole("dialog", { name: "Ghép ảnh để in · #973019" });
+  await composer.getByText(/Album chưa có ảnh/).waitFor();
+  await composer.getByLabel("Thêm ảnh từ máy quầy").setInputFiles({ name: "guest.png", mimeType: "image/png", buffer: png });
+  // Màn chọn khung của máy chụp (không đếm giờ), rồi màn chọn ảnh & trang trí.
+  await composer.getByText("GHÉP ẢNH TẠI QUẦY · CHỌN KHUNG", { exact: true }).waitFor();
+  await composer.getByRole("radiogroup", { name: "Chọn khung" }).getByRole("radio").first().click();
+  await composer.getByRole("button", { name: "Tiếp tục", exact: true }).click();
+  const shots = composer.getByRole("group", { name: "Ảnh đã chụp" }).getByRole("button");
+  await shots.first().click();
+  assert.equal(await shots.first().getAttribute("aria-label"), "Ảnh ở ô 1 · chạm để bỏ");
+  for (const tab of ["Chỉnh ảnh", "Thêm chữ"]) assert.equal(await composer.getByRole("tab", { name: new RegExp(tab) }).count(), 1);
+  await composer.getByLabel("Số bộ in", { exact: true }).selectOption("2");
+  await page.waitForFunction(() => document.querySelector(".decor-canvas:not(.is-loading)"));
+  await page.screenshot({ path: join(captures, "counter-compose-desktop.png") });
   await page.setViewportSize({ width: 390, height: 844 });
-  const bounds = await page.getByRole("dialog").boundingBox();
-  assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 391);
-  await page.screenshot({ path: join(captures, "manual-mobile.png"), fullPage: true });
-  await page.getByRole("button", { name: "In qua RX1 & lưu file", exact: true }).click();
+  const wide = await page.evaluate(() => {
+    const c = document.querySelector(".counter-compose");
+    if (c.scrollWidth <= c.clientWidth + 1) return "";
+    return [...c.querySelectorAll("*")].filter((e) => e.getBoundingClientRect().right > c.clientWidth + 1)
+      .slice(0, 6).map((e) => `${e.tagName}.${e.className} ${Math.round(e.getBoundingClientRect().width)}`).join(" | ");
+  });
+  assert.equal(wide, "", "no sideways scrolling on a phone");
+  await page.screenshot({ path: join(captures, "counter-compose-mobile.png"), fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await composer.getByRole("button", { name: "In 2 bộ qua RX1", exact: true }).click();
   await page.getByRole("dialog", { name: "In ảnh đơn 973019" }).waitFor();
+  assert.equal(await page.locator(".counter-compose").count(), 0);
   const saved = requests.find((entry) => entry.path.endsWith("/print-file"));
   assert.ok(saved);
   const metadata = await sharp(saved.body).metadata();
   assert.deepEqual([metadata.width, metadata.height, metadata.format], [2400, 3600, "png"]);
   assert.equal(saved.headers["x-print-copies"], "2");
-  assert.equal(local.filter((entry) => entry.path === "/print").length, 1);
+  assert.equal(saved.headers["x-print-delivery"], undefined);
+  const sent = local.filter((entry) => entry.path === "/print");
+  assert.equal(sent.length, 1);
+  assert.ok(sent[0].headers["x-print-photos"] === undefined || /^[\d.,;]+$/.test(sent[0].headers["x-print-photos"]));
   assert.equal(browser.contexts().flatMap((context) => context.pages()).length, 1);
+  assert.deepEqual(errors, []);
+});
+
+test("an order with no saved sheet prints straight from its framed composite and keeps the file", async () => {
+  await mount({ jobs: [], composite: true });
+  await page.getByRole("heading", { name: "Chưa có file in — in từ ảnh ghép" }).waitFor();
+  await page.getByAltText("Ảnh ghép khung của đơn 973019").waitFor();
+  await page.screenshot({ path: join(captures, "composite-desktop.png") });
+  await page.getByLabel("Số bộ in", { exact: true }).selectOption("3");
+  await page.getByRole("button", { name: "In từ ảnh ghép" }).click();
+  await page.getByText("Đã gửi 3 tờ tới hàng in RX1 và lưu file in vào đơn.", { exact: true }).waitFor();
+  const saved = requests.find((entry) => entry.path.endsWith("/print-file"));
+  const metadata = await sharp(saved.body).metadata();
+  assert.deepEqual([metadata.width, metadata.height, metadata.format], [2400, 3600, "png"]);
+  assert.equal(saved.headers["x-print-copies"], "3");
+  assert.equal(saved.headers["x-print-frame"] && decodeURIComponent(saved.headers["x-print-frame"]), "Khung hồng");
+  const sent = local.filter((entry) => entry.path === "/print");
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].headers["x-print-sheets"].split(",").length, 3);
+  assert.equal(sent[0].headers["x-print-size"], "full");
+  // Lần sau mở đơn: file in đã lưu, in lại được ngay.
+  await page.getByText("File in đã lưu").waitFor();
+  assert.deepEqual(errors, []);
+
+  // Máy quầy không cắm RX1: chỉ lưu file. Vé dải nhỏ → tờ cắt đôi.
+  await mount({ jobs: [], composite: true, booking: { printSize: "strip" }, width: 390 });
+  await page.getByText(/máy cắt đôi thành 2 dải 5 × 15 cm/).waitFor();
+  const bounds = await page.getByRole("dialog").boundingBox();
+  assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 391);
+  await page.screenshot({ path: join(captures, "composite-mobile.png"), fullPage: true });
+  await page.getByRole("button", { name: "Chỉ lưu file in", exact: true }).click();
+  await page.getByText("Đã lưu file in từ ảnh ghép vào đơn.", { exact: true }).waitFor();
+  const kept = requests.find((entry) => entry.path.endsWith("/print-file"));
+  assert.equal(kept.headers["x-print-delivery"], "none");
+  assert.equal(kept.headers["x-print-size"], "strip");
+  assert.equal(local.filter((entry) => entry.path === "/print").length, 0);
+  assert.deepEqual(errors, []);
+});
+
+test("a 20 × 30 Selfbooth order never offers counter composition", async () => {
+  await mount({ jobs: [], composite: true, booking: { printSize: "large" } });
+  await page.getByText("Chưa có file in đã lưu", { exact: true }).waitFor();
+  assert.equal(await page.getByRole("button", { name: /Ghép ảnh/ }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "In từ ảnh ghép" }).count(), 0);
+  assert.deepEqual(errors, []);
+});
+
+test("a sheet RX1 did not print is still saved for the counter, marked failed, and never sent to paper again", async () => {
+  await mount({ jobs: [], printError: true });
+  const failed = await page.evaluate((image) => window.runLocalKioskPrint({ token: "album-token", printSize: "full", frameName: "Pink", images: [image] })
+    .then(() => "", (error) => error.message), `data:image/png;base64,${png.toString("base64")}`);
+  assert.equal(failed, "RX1 hết giấy");
+  assert.equal(await page.evaluate(() => window.kioskPrintState("album-token").status), "failed");
+  await page.evaluate(() => window.flushKioskPrints());
+  const archives = requests.filter((entry) => entry.path.endsWith("/print-archive"));
+  assert.equal(archives.length, 1);
+  assert.equal(archives[0].search, "?result=failed");
+  assert.equal(local.filter((entry) => entry.path === "/print").length, 1);
+  assert.deepEqual(await page.evaluate(() => window.readSetting("kiosk-print-queue")), []);
   assert.deepEqual(errors, []);
 });
 
@@ -177,17 +258,19 @@ test("direct kiosk prints archive in the background; a failed upload never resen
   assert.deepEqual(errors, []);
 });
 
-test("print archives yield to their guest's originals without being blocked by another old album", async () => {
+test("a print archive waits for its guest's previews, not the camera originals or another album", async () => {
   await mount({ jobs: [] });
   await page.evaluate(async () => {
+    await window.savePending({ id: 'current-preview', token: 'album-token', stage: 'preview' });
     await window.savePending({ id: 'current-original', token: 'album-token', stage: 'original' });
-    await window.savePending({ id: 'older-original', token: 'older-album', stage: 'original' });
+    await window.savePending({ id: 'older-preview', token: 'older-album', stage: 'preview' });
   });
   await page.evaluate((image) => window.runLocalKioskPrint({ token: 'album-token', printSize: 'full', frameName: 'Pink', images: [image] }), `data:image/png;base64,${png.toString('base64')}`);
   await page.waitForTimeout(150);
-  assert.equal(requests.filter((entry) => entry.path.endsWith('/print-archive')).length, 0, 'originals get the uplink first');
-  await page.evaluate(async () => { await window.removePending('current-original'); await window.flushKioskPrints(); });
-  assert.equal(requests.filter((entry) => entry.path.endsWith('/print-archive')).length, 1, 'another album cannot starve this archive');
+  assert.equal(requests.filter((entry) => entry.path.endsWith('/print-archive')).length, 0, 'the album previews go first');
+  await page.evaluate(async () => { await window.removePending('current-preview'); await window.flushKioskPrints(); });
+  assert.equal(requests.filter((entry) => entry.path.endsWith('/print-archive')).length, 1,
+    'the 15 MB originals still uploading, or another album, do not hold the print file back');
   assert.equal(local.filter((entry) => entry.path === '/print').length, 1);
   assert.deepEqual(errors, []);
 });

@@ -21,7 +21,8 @@ function FrameChoice({ frame, number, need, active, onPick, busy }) {
   </button>;
 }
 
-export function KioskFrames({ frames, needs, index, onPick, onContinue, secondsLeft, busy = false }) {
+// counter: nhân viên ghép lại ở quầy (Đơn hàng → In ảnh) — cùng màn chọn khung, không đếm giờ.
+export function KioskFrames({ frames, needs, index, onPick, onContinue, secondsLeft, busy = false, counter = false }) {
   const t = useKioskText(), [theme, setTheme] = useState('');
   const themeOf = frame => frame.themeName?.trim() || 'Khác';
   const themes = [...new Set(frames.map(themeOf))];
@@ -30,9 +31,9 @@ export function KioskFrames({ frames, needs, index, onPick, onContinue, secondsL
   const grid = useFitGrid(shown.length, { aspect: .8, frame: 0, min: 120 });
   return <section className="kiosk-flow ptb-frames-screen">
     <header className="flow-head">
-      <span className="ptb-flow-step">BƯỚC 1 / 2 · CHỌN KHUNG</span>
-      <h1>{t('select.frameTitle', { s: secondsLeft })}</h1>
-      <p>{t('select.frameSubtitle')}</p>
+      <span className="ptb-flow-step">{counter ? 'GHÉP ẢNH TẠI QUẦY · CHỌN KHUNG' : 'BƯỚC 1 / 2 · CHỌN KHUNG'}</span>
+      <h1>{counter ? 'Chọn khung để in' : t('select.frameTitle', { s: secondsLeft })}</h1>
+      <p>{counter ? 'Chọn khung rồi bấm Tiếp tục để chọn ảnh, chỉnh ảnh, thêm chữ như ở máy chụp.' : t('select.frameSubtitle')}</p>
     </header>
     {themes.length > 1 && <div className="frame-themes" role="group" aria-label="Chủ đề khung">
       {['', ...themes].map(name => <button key={name || '*'} type="button" aria-pressed={theme === name} disabled={busy} onClick={() => setTheme(name)}>{name || 'Tất cả'}</button>)}

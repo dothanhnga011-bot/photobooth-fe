@@ -56,6 +56,21 @@ test("uncertain local acknowledgement keeps the same durable print ID on manual 
   assert.equal(archived, 1);
 });
 
+test("a counter sheet can be saved without printing, and photo regions reach RX1 when it prints", async () => {
+  const sent = [], saved = [];
+  const dependencies = { storage: storage(), send: async (job) => { sent.push(job); },
+    request: async (path, upload) => { saved.push({ path, headers: upload.headers }); return { _id: "saved" }; } };
+  await operatorPrint({ booking: booking("save-only"), images, frameName: "Pink", saveOnly: true }, dependencies);
+  assert.equal(sent.length, 0);
+  assert.equal(saved[0].headers["X-Print-Delivery"], "none");
+  const photos = [[0.1, 0.1, 0.3, 0.2]];
+  await operatorPrint({ booking: booking("with-photos"), images, frameName: "Pink", photos }, dependencies);
+  assert.deepEqual(sent[0].photos, photos);
+  assert.equal(saved[1].headers["X-Print-Delivery"], undefined);
+  // The same sheet printed after being saved is a new attempt with its own durable ID.
+  assert.notEqual(saved[0].headers["X-Print-Key"], saved[1].headers["X-Print-Key"]);
+});
+
 test("unsupported paper and excessive copies fail before local output or archive writes", async () => {
   const dependencies = { send: async () => { throw new Error("Should not print"); } };
   await assert.rejects(operatorPrint({ booking: booking("large"), images, printSize: "large" }, dependencies), /DS820/);

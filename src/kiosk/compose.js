@@ -396,17 +396,21 @@ export async function directKioskPrint(job, { archiveAfter } = {}) {
   const saved = await updateSetting(key, (current) => current?.requestKey ? current : { requestKey: crypto.randomUUID() });
   const requestKey = saved.requestKey;
   notify(job.token, { status: 'sending' });
+  let failure = null;
   try {
     await sendDirectPrint({ ...job, requestKey });
   } catch (error) {
+    failure = error;
     notify(job.token, { status: 'failed', message: error.message });
-    throw error;
   }
-  notify(job.token, { status: 'printed' });
+  if (!failure) notify(job.token, { status: 'printed' });
   await archiveReady;
-  // A failed archive must never turn an acknowledged physical print into "failed".
-  await queueKioskPrint({ ...job, requestKey, archive: true }).catch((error) =>
-    console.warn('RX1 accepted the print; could not persist its archive upload.', error));
+  // The sheet is saved whether or not RX1 printed it (22/11): staff print it again, or extra sheets,
+  // from Đơn hàng → In ảnh without composing it by hand. A failed print is saved marked as such
+  // (never sent to a printer by the server); a failed archive never turns a printed sheet into "failed".
+  await queueKioskPrint({ ...job, requestKey, archive: true, failed: Boolean(failure) }).catch((error) =>
+    console.warn('Could not persist the print archive upload.', error));
+  if (failure) throw failure;
 }
 
 // Trạng thái máy in thật của lệnh in (print-agent ở quầy nhận lệnh → hàng in DNP của Windows / Mac).
@@ -434,12 +438,13 @@ async function watchSpool(token, requestKey) {
 }
 
 // printSize: khổ của khung được in ("strip" → máy cắt đôi, "full" → nguyên tờ).
-export async function queueKioskPrint({ token, images, frameName, printSize, archive = false, requestKey = crypto.randomUUID() }) {
+// failed (archive only): RX1 did not confirm this sheet — saved for staff to print again.
+export async function queueKioskPrint({ token, images, frameName, printSize, archive = false, failed = false, requestKey = crypto.randomUUID() }) {
   if (!images.length) return;
   await updateSetting(QUEUE_KEY, (current) => {
     const queue = current || [];
     return queue.some((job) => job.token === token) ? queue
-      : [...queue, { token, frameName, printSize, images, archive, requestKey, queuedAt: Date.now() }];
+      : [...queue, { token, frameName, printSize, images, archive, ...(archive && failed && { failed: true }), requestKey, queuedAt: Date.now() }];
   });
   if (!archive) notify(token, { status: "sending" });
   runKioskPrints();
@@ -456,14 +461,16 @@ export function runKioskPrints() {
           try {
             if (job.archive) {
               if (Date.now() - job.queuedAt > 24 * 60 * 60000) continue;
-              // Guest photos and composites get the upload link before bulky duplicate print PNGs.
+              // The guest's previews (the album) and the framed composite go first; the print file
+              // then goes before the 15 MB camera originals, so staff can print it again minutes
+              // after the session instead of after every original has uploaded (22/11).
               await whenUplinkIdle();
-              if (await hasPending(job.token)) { left.push(job); continue; }
+              if (await hasPending(job.token, { previewsOnly: true })) { left.push(job); continue; }
             }
-            const upload = () => api(`/albums/${job.token}/${job.archive ? "print-archive" : "print-pack"}`, printPackUpload({
+            const path = job.archive ? `print-archive${job.failed ? "?result=failed" : ""}` : "print-pack";
+            const printed = await priority(() => api(`/albums/${job.token}/${path}`, printPackUpload({
               images: job.images, frameName: job.frameName, requestKey: job.requestKey, printSize: job.printSize,
-            }));
-            const printed = await (job.archive ? upload() : priority(upload));
+            })));
             if (!job.archive) {
               notify(job.token, spoolState(printed));
               watchSpool(job.token, job.requestKey);

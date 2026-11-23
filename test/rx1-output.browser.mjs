@@ -45,7 +45,11 @@ before(async () => {
       if (url.pathname === "/api/admin/print-jobs/printers") return json([{ room: "room", roomName: "PTB · RX1", branch: "Tiệm",
         agent: { running: true }, rx1Output: { ...applied, at: applied.at || new Date().toISOString() }, sharpnessTest }]);
       if (url.pathname === "/api/admin/settings/rx1-output/sharpness-test/room" && req.method === "POST") {
-        sharpnessTest = { id: "test-1", status: "queued", message: "Đang chờ máy in của phòng nhận lệnh in thử." };
+        sharpnessTest = { id: "test-1", kind: "sharpness", status: "queued", message: "Đang chờ máy in của phòng nhận lệnh in thử." };
+        return json(sharpnessTest, 201);
+      }
+      if (url.pathname === "/api/admin/settings/rx1-output/cut-test/room" && req.method === "POST") {
+        sharpnessTest = { id: "cut-1", kind: "cut", status: "queued", message: "Đang chờ máy in của phòng nhận lệnh in thử." };
         return json(sharpnessTest, 201);
       }
       return json({ message: "Unexpected API" }, 404);
@@ -89,9 +93,9 @@ test("gamma is previewed locally, saved centrally and shows the printer acknowle
   assert.equal(await page.getByLabel("Thanh chỉnh gamma").getAttribute("min"), "1.00");
   assert.equal(await page.getByLabel("Thanh chỉnh gamma").getAttribute("max"), "2.20");
   await page.getByRole("button", { name: "1.80", exact: true }).click();
-  await page.getByRole("button", { name: "Lưu cấu hình màu in", exact: true }).click();
+  await page.getByRole("button", { name: "Lưu cấu hình in", exact: true }).click();
   await page.getByText("Đang chờ nhận mức mới", { exact: true }).waitFor();
-  assert.deepEqual(settings, { gamma: 1.8, maxResolution: true, sharpen: 2 }, "an old saved profile keeps the default sharpness");
+  assert.deepEqual(settings, { gamma: 1.8, maxResolution: true, sharpen: 2, stripShift: 0 }, "an old saved profile keeps the default sharpness and no cut shift");
   assert.equal(await page.getByRole("button", { name: "1.80 · Mặc định", exact: true }).count(), 1);
   assert.equal(await page.getByRole("button", { name: "1.50", exact: true }).count(), 1);
   applied = { ...settings };
@@ -123,36 +127,75 @@ test("print sharpness is saved with gamma; a sharpness test print goes to that r
   await page.getByText(/chưa hỗ trợ độ nét/).waitFor();
   assert.equal(await page.getByRole("button", { name: "In thử độ nét" }).isDisabled(), true);
   await page.getByRole("radio", { name: "4 · Mạnh" }).click();
-  await page.getByRole("button", { name: "Lưu cấu hình màu in", exact: true }).click();
-  await page.getByText(/Đã lưu gamma 1\.50, độ nét 4\./).waitFor();
-  assert.deepEqual(settings, { gamma: 1.5, maxResolution: true, sharpen: 4 });
+  await page.getByRole("button", { name: "Lưu cấu hình in", exact: true }).click();
+  await page.getByText(/Đã lưu gamma 1\.50, độ nét 4, dời đường cắt 0,0 mm\./).waitFor();
+  assert.deepEqual(settings, { gamma: 1.5, maxResolution: true, sharpen: 4, stripShift: 0 });
   applied = { ...settings };
   await page.getByRole("button", { name: "Làm mới trạng thái" }).click();
   await page.getByText("Đã nhận cấu hình", { exact: true }).waitFor();
   await page.getByText(/Gamma 1\.50 · độ nét 4/).waitFor();
   await page.getByRole("button", { name: "In thử độ nét" }).click();
   await page.getByRole("status").filter({ hasText: "Đã gửi lệnh in thử tới máy in PTB · RX1" }).waitFor();
-  await page.getByText("In thử: đang chờ máy in nhận — Đang chờ máy in của phòng nhận lệnh in thử.").waitFor();
+  await page.getByText("In thử độ nét: đang chờ máy in nhận — Đang chờ máy in của phòng nhận lệnh in thử.").waitFor();
   sharpnessTest = { id: "test-1", status: "sent", message: "Đã in tờ thử độ nét từ tờ in gần nhất (PC 4x6 413x615, 1239x1845 điểm, độ nét 0–4)." };
   await page.getByRole("button", { name: "Làm mới trạng thái" }).click();
-  await page.getByText(/In thử: đã in — Đã in tờ thử độ nét từ tờ in gần nhất/).waitFor();
+  await page.getByText(/In thử độ nét: đã in — Đã in tờ thử độ nét từ tờ in gần nhất/).waitFor();
   assert.deepEqual(requests.filter((req) => req.method === "POST").map((req) => req.path), ["/api/admin/settings/rx1-output/sharpness-test/room"]);
   assert.equal(requests.filter((req) => req.method === "PUT").length, 1, "a test print never saves settings");
   await page.screenshot({ path: join(captures, "sharpness.png"), fullPage: true });
   assert.deepEqual(errors, []);
 });
+test("the strip cut shift is saved with the print settings; a cut test print goes only to agents that support it", async () => {
+  await mount();
+  const errors = []; page.on("pageerror", (error) => errors.push(error.message));
+  const field = page.getByLabel("Dời đường cắt dải (mm)");
+  assert.equal(await field.inputValue(), "0.0");
+  // Bộ in đã báo độ nét nhưng chưa báo dời đường cắt: in thử đường cắt chưa bấm được.
+  applied = { gamma: 1.5, maxResolution: true, sharpen: 2 };
+  await page.getByRole("button", { name: "Làm mới trạng thái" }).click();
+  await page.getByText(/chưa hỗ trợ dời đường cắt/).waitFor();
+  assert.equal(await page.getByRole("button", { name: "In thử đường cắt" }).isDisabled(), true);
+  // Đọc được +1,5 mm ở mép cắt: nhập, chỉnh bằng nút −/+ rồi lưu.
+  await field.fill("1.5");
+  await page.getByRole("button", { name: "Dời sang phải 0,1 mm" }).click();
+  await page.getByRole("button", { name: "Dời sang trái 0,1 mm" }).click();
+  await page.getByRole("button", { name: "Dời sang trái 0,1 mm" }).click();
+  assert.equal(await field.inputValue(), "1.4");
+  await field.fill("5.5");
+  await page.getByText("Nhập số từ −5 đến 5 mm, tối đa 1 số thập phân.").waitFor();
+  assert.equal(await page.getByRole("button", { name: "Lưu cấu hình in", exact: true }).isDisabled(), true);
+  await field.fill("-1.5");
+  await page.getByRole("button", { name: "Lưu cấu hình in", exact: true }).click();
+  await page.getByText(/dời đường cắt −1,5 mm\. Bộ in đang chạy/).waitFor();
+  assert.deepEqual(settings, { gamma: 1.5, maxResolution: true, sharpen: 2, stripShift: -1.5 });
+  // Bộ in mới báo mức đang dùng; còn mức cũ thì chưa "Đã nhận cấu hình".
+  applied = { gamma: 1.5, maxResolution: true, sharpen: 2, stripShift: 0 };
+  await page.getByRole("button", { name: "Làm mới trạng thái" }).click();
+  await page.getByText("Đang chờ nhận mức mới", { exact: true }).waitFor();
+  applied = { ...settings };
+  await page.getByRole("button", { name: "Làm mới trạng thái" }).click();
+  await page.getByText("Đã nhận cấu hình", { exact: true }).waitFor();
+  await page.getByText(/dời đường cắt −1,5 mm ·/).waitFor();
+  await page.getByRole("button", { name: "In thử đường cắt" }).click();
+  await page.getByRole("status").filter({ hasText: "Đã gửi lệnh in thử đường cắt tới máy in PTB · RX1" }).waitFor();
+  await page.getByText("In thử đường cắt: đang chờ máy in nhận — Đang chờ máy in của phòng nhận lệnh in thử.").waitFor();
+  assert.deepEqual(requests.filter((req) => req.method === "POST").map((req) => req.path), ["/api/admin/settings/rx1-output/cut-test/room"]);
+  await page.screenshot({ path: join(captures, "strip-shift.png"), fullPage: true });
+  assert.deepEqual(errors, []);
+});
+
 test("out-of-range gamma and failed saves never claim that a new configuration was saved", async () => {
   await mount({ width: 390 });
   await page.getByLabel("Độ tối bản in (gamma)").fill("1.83");
-  await page.getByRole("button", { name: "Lưu cấu hình màu in" }).click();
+  await page.getByRole("button", { name: "Lưu cấu hình in" }).click();
   await page.getByRole("button", { name: "1.83 · Mặc định", exact: true }).waitFor();
   await page.getByLabel("Độ tối bản in (gamma)").fill("0.99");
-  assert.equal(await page.getByRole("button", { name: "Lưu cấu hình màu in" }).isDisabled(), true);
+  assert.equal(await page.getByRole("button", { name: "Lưu cấu hình in" }).isDisabled(), true);
   await page.getByLabel("Độ tối bản in (gamma)").fill("2.21");
-  assert.equal(await page.getByRole("button", { name: "Lưu cấu hình màu in" }).isDisabled(), true);
+  assert.equal(await page.getByRole("button", { name: "Lưu cấu hình in" }).isDisabled(), true);
   await page.getByLabel("Độ tối bản in (gamma)").fill("1.40");
   failSave = true;
-  await page.getByRole("button", { name: "Lưu cấu hình màu in" }).click();
+  await page.getByRole("button", { name: "Lưu cấu hình in" }).click();
   await page.getByText("Không lưu được cấu hình", { exact: true }).waitFor();
   assert.equal(configured, true);
   assert.equal(settings.gamma, 1.83);

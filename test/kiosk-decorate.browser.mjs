@@ -353,26 +353,29 @@ test("a single blank frame still has an explicit Continue step", async () => {
   } finally {await page.close()}
 });
 
-test("one photo can fill several slots; tapping its slot on the frame removes it; Chọn lại starts over", async () => {
+test("tapping a chosen photo again empties only its slot; the other photos keep their places", async () => {
   const { page, errors } = await selectScreen();
   try {
     const shots = page.getByRole("group", { name: "Ảnh đã chụp" }).getByRole("button");
     const photosTab = page.getByRole("tab", { name: /^Chọn ảnh/ });
-    // Cùng một ảnh cho cả hai ô của khung.
     await shots.nth(0).click();
-    await shots.nth(0).click();
-    assert.deepEqual((await saved(page)).selected, ["p1", "p1"]);
+    await shots.nth(1).click();
+    assert.deepEqual((await saved(page)).selected, ["p1", "p2"]);
     await photosTab.click();
-    assert.equal(await shots.nth(0).getAttribute("aria-label"), "Ảnh ở ô 1, 2");
-    assert.equal(await shots.nth(0).locator(".select-order").innerText(), "1·2");
-    assert.equal(await shots.nth(1).isDisabled(), true, "every slot is filled");
-    // Chạm ô thứ hai trên khung xem trước: bỏ ảnh ở ô đó, rồi chọn ảnh khác cho ô đó.
+    assert.equal(await shots.nth(0).getAttribute("aria-label"), "Ảnh ở ô 1 · chạm để bỏ");
+    assert.equal(await shots.nth(2).isDisabled(), true, "every slot is filled");
+    // Không thích ảnh ở ô 1: chạm lại ảnh đó — ô 1 trống, ảnh ô 2 đứng yên (trước đây ô sau dồn lên).
+    await shots.nth(0).click();
+    assert.deepEqual((await saved(page)).selected, [null, "p2"]);
+    assert.equal(await shots.nth(2).isDisabled(), false);
+    // Ảnh mới vào đúng ô trống.
+    await shots.nth(2).click();
+    assert.deepEqual((await saved(page)).selected, ["p3", "p2"]);
+    // Chạm ô thứ hai trên khung xem trước: bỏ ảnh ở ô đó, ô 1 giữ nguyên.
     await page.waitForFunction(() => document.querySelector(".decor-canvas:not(.is-loading)"));
     const box = await page.getByRole("img", { name: /Khung ảnh xem trước/ }).boundingBox();
     await page.mouse.click(box.x + 0.5 * box.width, box.y + 0.74 * box.height);
-    assert.deepEqual((await saved(page)).selected, ["p1"]);
-    await shots.nth(1).click();
-    assert.deepEqual((await saved(page)).selected, ["p1", "p2"]);
+    assert.deepEqual((await saved(page)).selected, ["p3", null]);
     await photosTab.click();
     await page.getByRole("button", { name: "Chọn lại", exact: true }).click();
     assert.deepEqual((await saved(page)).selected, []);

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Download, ImagePlus, Printer, RefreshCw, Save } from "lucide-react";
+import { Download, ImagePlus, Printer, RefreshCw, Save, Scissors } from "lucide-react";
 import { api, formatDateTime } from "../api.js";
 import { Button, ErrorBox } from "../studio.jsx";
 import { useLiveData } from "../use-live-data.js";
@@ -14,10 +14,15 @@ import "./rx1-output.css";
 const DEFAULT_SHARPEN = 2;
 const SHARPEN_LEVELS = ["Không", "Nhẹ", "Vừa", "Rõ", "Mạnh"];
 const TEST_STATUS = { queued: "đang chờ máy in nhận", sent: "đã in", failed: "chưa in được" };
+const TEST_KIND = { sharpness: "độ nét", cut: "đường cắt" };
+// Dời đường cắt dải (mm, ±5, bước 0,1): dương = nội dung sang dải phải.
+const SHIFT_MAX = 5;
+const shiftText = (value) => `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value).toFixed(1).replace(".", ",")} mm`;
 const formOf = (settings) => ({
   gamma: settings.gamma.toFixed(2),
   maxResolution: settings.maxResolution,
   sharpen: settings.sharpen ?? DEFAULT_SHARPEN,
+  stripShift: (settings.stripShift ?? 0).toFixed(1),
 });
 
 function DriverTools() {
@@ -137,27 +142,33 @@ export function Rx1OutputManager({ notify }) {
   const gamma = Number(form?.gamma);
   const valid = Boolean(form?.gamma.trim()) && Number.isFinite(gamma) && gamma >= 1 && gamma <= 2.2
     && Math.abs(gamma * 100 - Math.round(gamma * 100)) < 1e-8;
+  const shift = Number(String(form?.stripShift ?? "").replace(",", "."));
+  const shiftValid = String(form?.stripShift ?? "").trim() !== "" && Number.isFinite(shift) && Math.abs(shift) <= SHIFT_MAX
+    && Math.abs(shift * 10 - Math.round(shift * 10)) < 1e-8;
   const changed = form && (!configured || gamma !== saved?.gamma || form.maxResolution !== saved?.maxResolution
-    || form.sharpen !== (saved?.sharpen ?? DEFAULT_SHARPEN));
+    || form.sharpen !== (saved?.sharpen ?? DEFAULT_SHARPEN) || (shiftValid && shift !== (saved?.stripShift ?? 0)));
+  const nudge = (delta) => setForm({ ...form, stripShift: Math.max(-SHIFT_MAX, Math.min(SHIFT_MAX, Math.round(((shiftValid ? shift : 0) + delta) * 10) / 10)).toFixed(1) });
   const defaultGamma = saved?.gamma ?? 1.5;
   const presets = [...new Set([1, 1.3, 1.5, 1.8, 2, 2.2, defaultGamma])].sort((a, b) => a - b);
   // Tờ in thử: máy in của phòng nhận ở lần đồng bộ kế tiếp (vài giây) và in 5 dải độ nét 0–4.
-  async function sharpnessTest(printer) {
-    setTesting(printer.room); setTestMessage("");
+  async function sharpnessTest(printer, kind = "sharpness") {
+    setTesting(`${printer.room}:${kind}`); setTestMessage("");
     try {
-      await api(`/admin/settings/rx1-output/sharpness-test/${printer.room}`, { method: "POST" });
-      setTestMessage(`Đã gửi lệnh in thử tới máy in ${printer.roomName || "của phòng"}. Tờ thử ra sau khoảng 10–30 giây: 5 dải độ nét 0 → 4, ô đậm là mức đang dùng. Chọn dải đẹp nhất ở mục Độ nét bản in rồi bấm Lưu.`);
+      await api(`/admin/settings/rx1-output/${kind === "cut" ? "cut-test" : "sharpness-test"}/${printer.room}`, { method: "POST" });
+      setTestMessage(kind === "cut"
+        ? `Đã gửi lệnh in thử đường cắt tới máy in ${printer.roomName || "của phòng"}. Tờ thử ra sau khoảng 10–30 giây và được cắt đôi: đọc số ở vạch sát mép cắt (dải trái và dải phải cùng một số), nhập vào Dời đường cắt dải rồi bấm Lưu.`
+        : `Đã gửi lệnh in thử tới máy in ${printer.roomName || "của phòng"}. Tờ thử ra sau khoảng 10–30 giây: 5 dải độ nét 0 → 4, ô đậm là mức đang dùng. Chọn dải đẹp nhất ở mục Độ nét bản in rồi bấm Lưu.`);
       refreshPrinters();
     } catch (cause) { setTestMessage(cause.message); }
     finally { setTesting(""); }
   }
   async function save(event) {
     event.preventDefault();
-    if (!valid || busy || loadError) return;
+    if (!valid || !shiftValid || busy || loadError) return;
     setBusy(true); setError("");
     try {
       const result = await api("/admin/settings/rx1-output", { method: "PUT",
-        body: { gamma, maxResolution: form.maxResolution, sharpen: form.sharpen } });
+        body: { gamma, maxResolution: form.maxResolution, sharpen: form.sharpen, stripShift: shift } });
       setSaved(result.settings); setConfigured(true);
       setForm(formOf(result.settings));
       notify?.("Đã lưu màu in RX1. Các bộ in đã cập nhật sẽ tự nhận khi có kết nối.");
@@ -196,9 +207,22 @@ export function Rx1OutputManager({ notify }) {
           nhiệt loang nhẹ trên giấy. Bấm “In thử độ nét” ở danh sách máy in bên dưới để in một tờ chia 5 dải 0–4 rồi
           chọn dải đẹp nhất. Khi dùng mục này, để Sharpness trong driver DNP = 0 để không làm nét hai lần.</p>
         <p>Cấu hình này bù tông khi in giấy. Ảnh gốc và album QR giữ màu nguồn.</p>
-        <Button type="submit" disabled={busy || !valid || !changed || Boolean(loadError)}><Save size={16} /> {busy ? "Đang lưu…" : "Lưu cấu hình màu in"}</Button>
+        <label htmlFor="rx1-strip-shift">Dời đường cắt dải (mm)</label>
+        <div className="rx1-shift-inputs">
+          <button type="button" aria-label="Dời sang trái 0,1 mm" disabled={busy || Boolean(loadError) || (shiftValid && shift <= -SHIFT_MAX)}
+            onClick={() => nudge(-0.1)}>−</button>
+          <input id="rx1-strip-shift" type="number" min={-SHIFT_MAX} max={SHIFT_MAX} step="0.1" value={form.stripShift}
+            disabled={busy || Boolean(loadError)} onChange={(event) => setForm({ ...form, stripShift: event.target.value })} />
+          <button type="button" aria-label="Dời sang phải 0,1 mm" disabled={busy || Boolean(loadError) || (shiftValid && shift >= SHIFT_MAX)}
+            onClick={() => nudge(0.1)}>+</button>
+        </div>
+        {!shiftValid && <p className="field-error" role="alert">Nhập số từ −5 đến 5 mm, tối đa 1 số thập phân.</p>}
+        <p>Tờ 2 dải 5 × 15 cm được in đúng tỉ lệ thiết kế rồi máy cắt đôi. Nếu dao cắt lệch (một dải mất chữ ở mép cắt),
+          bấm “In thử đường cắt” ở danh sách máy in bên dưới, đọc số ở vạch sát mép cắt rồi nhập đúng số đó vào đây và Lưu.
+          Số dương dời nội dung sang dải phải. Chỉ áp dụng cho tờ cắt đôi, tờ 10 × 15 nguyên tờ giữ nguyên.</p>
+        <Button type="submit" disabled={busy || !valid || !shiftValid || !changed || Boolean(loadError)}><Save size={16} /> {busy ? "Đang lưu…" : "Lưu cấu hình in"}</Button>
         <p className="rx1-save-note" role="status">{configured
-          ? `Đã lưu gamma ${saved.gamma.toFixed(2)}, độ nét ${saved.sharpen ?? DEFAULT_SHARPEN}. Bộ in đang chạy sẽ tự đồng bộ; tờ đã gửi giữ mức cũ.`
+          ? `Đã lưu gamma ${saved.gamma.toFixed(2)}, độ nét ${saved.sharpen ?? DEFAULT_SHARPEN}, dời đường cắt ${shiftText(saved.stripShift ?? 0)}. Bộ in đang chạy sẽ tự đồng bộ; tờ đã gửi giữ mức cũ.`
           : "Bấm Lưu để các máy dùng chung cấu hình trên web. Hiện các máy vẫn dùng cài đặt riêng đã có."}</p>
       </form>
       <TonePreview gamma={valid ? gamma : 1.5} />
@@ -214,18 +238,26 @@ export function Rx1OutputManager({ notify }) {
         const running = printer.agent?.running;
         const fresh = applied && Date.now() - Date.parse(applied.at) < 120000;
         const matched = configured && applied && Math.abs(applied.gamma - saved.gamma) < 0.000001 && applied.maxResolution === saved.maxResolution
-          && (applied.sharpen ?? DEFAULT_SHARPEN) === (saved.sharpen ?? DEFAULT_SHARPEN);
-        // Bộ in bản cũ (chưa báo độ nét) chưa in thử được: cần mở lại chương trình in để tự cập nhật.
+          && (applied.sharpen ?? DEFAULT_SHARPEN) === (saved.sharpen ?? DEFAULT_SHARPEN)
+          && (applied.stripShift === undefined || Math.abs(applied.stripShift - (saved.stripShift ?? 0)) < 0.000001);
+        // Bộ in bản cũ (chưa báo độ nét / dời đường cắt) chưa in thử được: cần mở lại chương trình in để tự cập nhật.
         const canTest = running && fresh && applied.sharpen !== undefined;
+        const canCutTest = running && fresh && applied.stripShift !== undefined;
         const test = printer.sharpnessTest;
         return <div className="rx1-sync-row" key={printer.room}>
           <strong>{printer.roomName || printer.branch || "Máy RX1"}</strong>
           <span>{!running ? "Chưa kết nối" : !applied ? "Cần cập nhật chương trình in" : !fresh ? "Đang chờ bộ in đồng bộ" : matched ? "Đã nhận cấu hình" : configured ? "Đang chờ nhận mức mới" : "Đang dùng cấu hình riêng"}</span>
-          {applied && <small>Gamma {applied.gamma.toFixed(2)}{applied.sharpen !== undefined ? ` · độ nét ${applied.sharpen}` : " · chưa hỗ trợ độ nét (mở lại chương trình in để cập nhật)"} · {formatDateTime(applied.at)}</small>}
-          {test && <small className={`rx1-test is-${test.status}`}>In thử: {TEST_STATUS[test.status] || test.status}{test.message ? ` — ${test.message}` : ""}</small>}
-          <Button className="outline small" disabled={!canTest || testing === printer.room} onClick={() => sharpnessTest(printer)}>
-            <Printer size={15} /> {testing === printer.room ? "Đang gửi…" : "In thử độ nét"}
-          </Button>
+          {applied && <small>Gamma {applied.gamma.toFixed(2)}{applied.sharpen !== undefined ? ` · độ nét ${applied.sharpen}` : " · chưa hỗ trợ độ nét (mở lại chương trình in để cập nhật)"}
+            {applied.stripShift !== undefined ? ` · dời đường cắt ${shiftText(applied.stripShift)}` : applied.sharpen !== undefined ? " · chưa hỗ trợ dời đường cắt (mở lại chương trình in để cập nhật)" : ""} · {formatDateTime(applied.at)}</small>}
+          {test && <small className={`rx1-test is-${test.status}`}>In thử {TEST_KIND[test.kind] || TEST_KIND.sharpness}: {TEST_STATUS[test.status] || test.status}{test.message ? ` — ${test.message}` : ""}</small>}
+          <div className="rx1-sync-actions">
+            <Button className="outline small" disabled={!canTest || Boolean(testing)} onClick={() => sharpnessTest(printer)}>
+              <Printer size={15} /> {testing === `${printer.room}:sharpness` ? "Đang gửi…" : "In thử độ nét"}
+            </Button>
+            <Button className="outline small" disabled={!canCutTest || Boolean(testing)} onClick={() => sharpnessTest(printer, "cut")}>
+              <Scissors size={15} /> {testing === `${printer.room}:cut` ? "Đang gửi…" : "In thử đường cắt"}
+            </Button>
+          </div>
         </div>;
       })}
     </section>
