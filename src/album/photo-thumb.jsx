@@ -17,7 +17,7 @@ export function thumbSources(photo, token) {
     { src: directMediaUrl(api), cors: true }, { src: api, cors: false }];
 }
 
-export function PhotoThumb({ photo, token, ...props }) {
+export function PhotoThumb({ photo, token, onError, ...props }) {
   const [sources] = useState(() => thumbSources(photo, token));
   const [index, setIndex] = useState(0);
   const { src, cors } = sources[index];
@@ -26,7 +26,10 @@ export function PhotoThumb({ photo, token, ...props }) {
       {...props}
       crossOrigin={cors ? "anonymous" : undefined}
       src={src}
-      onError={() => setIndex((i) => Math.min(i + 1, sources.length - 1))}
+      onError={(event) => {
+        if (index < sources.length - 1) setIndex(index + 1);
+        else onError?.(event);
+      }}
     />
   );
 }

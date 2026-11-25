@@ -62,7 +62,10 @@ let server, browser, base, portrait;
 // Bộ chấm khuôn mặt giả thay cho MediaPipe (gợi ý ảnh đẹp): mặt của từng ảnh lấy ở window.fixtureFaces, dấu vân
 // ảnh ở window.fixtureHashes (mặc định mỗi ảnh một dấu khác hẳn: "1111…", "2222…").
 const FAKE_FACE_SCORE = `
-  export const warmScorer = () => {};
+  export const warmScorer = () => {
+    const first = [...document.querySelectorAll('.studio-grid img[loading=eager]')];
+    window.fixtureWarmAfterPhotos = first.length > 0 && first.every(img => img.complete && img.naturalWidth);
+  };
   export async function loadPhoto(token, photo) {
     window.fixtureLoaded = (window.fixtureLoaded || 0) + 1;
     return { id: photo.id, close() { window.fixtureClosed = (window.fixtureClosed || 0) + 1; } };
@@ -144,10 +147,13 @@ before(async () => {
 after(async () => { await browser?.close(); await new Promise((resolve) => server?.close(resolve)); });
 
 async function phone({ faces = null, hashes = null, originalPending = false, photoCount = 4, printError = null, lostReply = false,
-  viewport = { width: 390, height: 844 }, realPhoto = false, prints: quota = 1, desktop = false, size = "large", ios = false } = {}) {
+  viewport = { width: 390, height: 844 }, realPhoto = false, prints: quota = 1, desktop = false, size = "large", ios = false,
+  holdThumbnail, restoreStep } = {}) {
   const page = await browser.newPage(desktop ? { viewport } : { viewport, isMobile: true, hasTouch: true,
     ...(ios && { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1" }) });
   const errors = [], prints = [], mediaRequests = [], deletes = [], uploads = [], asked = [];
+  let releaseThumbnail;
+  const thumbnailGate = new Promise(resolve => { releaseThumbnail = resolve; });
   let savedJob = null, failedOnce = false;
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("dialog", (dialog) => dialog.accept());
@@ -178,6 +184,7 @@ async function phone({ faces = null, hashes = null, originalPending = false, pho
     const media = path.match(/\/albums\/fixture-album\/photos\/p(\d+)$/);
     if (media) {
       mediaRequests.push(url.searchParams.get('size'));
+      if (media[1] === String(holdThumbnail) && url.searchParams.get("size") === "thumbnail") await thumbnailGate;
       const downloadable = url.searchParams.get("download") === "1";
       return route.fulfill({ body: realPhoto ? portrait : photos[media[1]] || photos[1],
         headers: downloadable ? { "Content-Disposition": `attachment; filename="anh-${media[1].padStart(2, '0')}.jpg"` } : {},
@@ -200,6 +207,9 @@ async function phone({ faces = null, hashes = null, originalPending = false, pho
   });
   if (faces) await page.addInitScript((value) => { window.fixtureFaces = value; }, faces);
   if (hashes) await page.addInitScript((value) => { window.fixtureHashes = value; }, hashes);
+  if (restoreStep !== undefined) await page.addInitScript(step => {
+    localStorage.setItem("selfbooth-album-v2-fixture-album", JSON.stringify({ step }));
+  }, restoreStep);
   if (ios) await page.addInitScript(() => {
     window.sharedBatches = [];
     navigator.canShare = ({ files }) => files.every(f => f.type === "image/jpeg");
@@ -209,7 +219,7 @@ async function phone({ faces = null, hashes = null, originalPending = false, pho
     };
   });
   await page.goto(`${base}/album/fixture-album`);
-  return { page, errors, prints, mediaRequests, deletes, uploads, booking, asked,
+  return { page, errors, prints, mediaRequests, deletes, uploads, booking, asked, releaseThumbnail,
     originalsReady:()=>{booking.photos.forEach(p=>delete p.originalPending)} };
 }
 
@@ -576,6 +586,34 @@ test("the library suggests as many smiling, eyes-open photos as the frame set ha
     await page.reload();
     await bar.filter({ hasText: "Gợi ý ảnh đẹp: 4 ảnh" }).waitFor();
     assert.equal(await page.evaluate(() => window.fixtureScored || 0), 0, "scores come from this phone's saved results");
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("Selfbooth starts face scoring after the first eager thumbnails have loaded", async () => {
+  const { page, releaseThumbnail, errors } = await phone({ photoCount: 9, realPhoto: true, holdThumbnail: 9 });
+  try {
+    await page.waitForFunction(() => [...document.querySelectorAll(".studio-grid img[loading=eager]")].filter(img => img.naturalWidth).length === 3);
+    const first = page.getByAltText("Ảnh 09", { exact: true });
+    assert.equal(await first.getAttribute("fetchpriority"), "high");
+    assert.equal(await first.evaluate(img => img.complete), false);
+    assert.equal(await page.evaluate(() => window.fixtureLoaded || 0), 0);
+    releaseThumbnail();
+    await page.waitForFunction(() => window.fixtureScored === 9);
+    assert.equal(await page.evaluate(() => window.fixtureWarmAfterPhotos), true);
+    assert.deepEqual(errors, []);
+  } finally { releaseThumbnail(); await page.close(); }
+});
+
+test("restoring a later album step defers face scoring until returning to the gallery", async () => {
+  const { page, errors } = await phone({ photoCount: 9, realPhoto: true, restoreStep: 1 });
+  try {
+    const back = page.getByRole("button", { name: "Quay lại" });
+    await back.waitFor();
+    assert.equal(await page.evaluate(() => window.fixtureWarmAfterPhotos), undefined);
+    await back.click();
+    await page.waitForFunction(() => window.fixtureScored === 9);
+    assert.equal(await page.evaluate(() => window.fixtureWarmAfterPhotos), true);
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });

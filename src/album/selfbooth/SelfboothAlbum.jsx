@@ -46,6 +46,7 @@ const STEPS = [
 const ACCEPTED = /^image\/(jpeg|png|webp)$/;
 const MAX_UPLOAD_MB = 40;
 const SHARE_BATCH = 8;
+const FIRST_GALLERY_PHOTOS = 4;
 const pad = (n) => String(n).padStart(2, "0");
 const slotsOf = (frame) => photoLayout(frame).slots;
 const capacityOf = (pack) => (pack?.frames || []).reduce((n, f) => n + slotsOf(f).length, 0);
@@ -92,9 +93,11 @@ function useSmallEdits(media, adjustOf, edge = 720) {
 }
 
 // ─── 01 Ảnh: thư viện ảnh ───────────────────────────────────────────────────────────────────────────────
-function EditedThumb({ token, photo, adjust, small, suspended, alt, loading }) {
+function EditedThumb({ token, photo, adjust, small, suspended, alt, loading, fetchPriority, onSettled }) {
   const canvas=useRef(null),make=useRef(small);
+  const settled=useRef(onSettled);
   make.current=small;
+  settled.current=onSettled;
   const [ready,setReady]=useState(false);
   const neutral=isNeutral(adjust),key=JSON.stringify(adjust);
   useEffect(()=>{
@@ -105,23 +108,36 @@ function EditedThumb({ token, photo, adjust, small, suspended, alt, loading }) {
       const c=canvas.current;
       if(!alive || !c || !image.width)return;
       c.width=image.width;c.height=image.height;c.getContext('2d').drawImage(image,0,0);setReady(true);
+      settled.current?.();
     }).catch(()=>{});
     return ()=>{alive=false};
   },[photo.id,key,suspended]);
   return <>
-    {!ready && <PhotoThumb photo={photo} token={token} alt={alt} loading={loading} decoding="async" style={{filter:FILTER_CSS[adjust.filter]||'none'}}/>}
+    {!ready && <PhotoThumb photo={photo} token={token} alt={alt} loading={loading} decoding="async"
+      fetchPriority={fetchPriority} onLoad={onSettled} onError={onSettled} style={{filter:FILTER_CSS[adjust.filter]||'none'}}/>}
     <canvas ref={canvas} className="sb-edited-thumb" role="img" aria-label={`${alt} đã chỉnh`} style={{display:ready?'block':'none'}}/>
   </>;
 }
 
 function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, frozen, uploadProgress, selectedPack, downloadingId, saveProgress, readyToSave, onSaveAll, onShare,
-  suggestions = [], capacity = 0, suggestProgress = null, onHeartMany, onFavorite, onDelete, onDownload, onEdit, onUpload, onNext }) {
+  suggestions = [], capacity = 0, suggestProgress = null, onFirstPhotosReady, onHeartMany, onFavorite, onDelete, onDownload, onEdit, onUpload, onNext }) {
   const [selecting, setSelecting] = useState(false);
   // Gợi ý ảnh đẹp: chỉ xem các ảnh gợi ý (hết gợi ý thì về xem tất cả).
   const [onlySuggested, setOnlySuggested] = useState(false);
   const suggested = useMemo(() => new Set(suggestions), [suggestions]);
   const showSuggested = onlySuggested && suggested.size > 0;
   const shown = showSuggested ? photos.filter((p) => suggested.has(p.id)) : photos;
+  const firstPhotos = shown.slice(0, FIRST_GALLERY_PHOTOS);
+  const settledThumbnails = useRef(new Set());
+  const firstPhotosReady = useRef(false);
+  function checkFirstPhotos() {
+    if (firstPhotosReady.current || !firstPhotos.length ||
+        !firstPhotos.every(p => settledThumbnails.current.has(p.id))) return;
+    firstPhotosReady.current = true;
+    onFirstPhotosReady();
+  }
+  // A photo may have been removed while the first row was loading.
+  useEffect(checkFirstPhotos);
   // Đã chọn bộ khung: chỉ thả tim cho đủ số ô còn thiếu (ảnh đẹp nhất trước); chưa chọn bộ: cả loạt gợi ý.
   const hearted = new Set(photos.filter((p) => p.favorite).map((p) => p.id));
   const needed = capacity ? Math.max(0, capacity - favorites) : Infinity;
@@ -206,7 +222,12 @@ function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, f
             <figure key={p.id} className={`${p.favorite ? "is-fav" : ""} ${selected.has(p.id) ? "is-picked" : ""} ${suggested.has(p.id) ? "is-suggested" : ""}`}>
               <button type="button" className="studio-photo" aria-label={selecting ? `Chọn ảnh ${number}` : `Xem & chỉnh ảnh ${number}`}
                 onClick={() => (selecting ? toggle(p.id) : onEdit(p))}>
-                <EditedThumb photo={p} token={token} adjust={adjust} small={small} suspended={suspended} alt={`Ảnh ${number}`} loading={i < 4 ? 'eager' : 'lazy'}/>
+                <EditedThumb photo={p} token={token} adjust={adjust} small={small} suspended={suspended} alt={`Ảnh ${number}`}
+                  loading={i < FIRST_GALLERY_PHOTOS ? "eager" : "lazy"} fetchPriority={i === 0 ? "high" : undefined}
+                  onSettled={i < FIRST_GALLERY_PHOTOS && !firstPhotosReady.current ? () => {
+                    settledThumbnails.current.add(p.id);
+                    checkFirstPhotos();
+                  } : undefined} />
               </button>
               {!isNeutral(adjust) && <span className="photo-edited" title="Đã chỉnh sửa"><PiSparkleFill /></span>}
               {suggested.has(p.id) && <span className="photo-suggested" title="Gợi ý ảnh đẹp: cười tươi, rõ nét, không nhắm mắt">Gợi ý ảnh đẹp</span>}
@@ -479,11 +500,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
   const used = Number(booking.printSheets) || 0;
   const remaining = Math.max(0, quota - used);
   const [editing, setEditing] = useState(null);
-  // Gợi ý ảnh đẹp (cười tươi, không ai nhắm mắt): bao nhiêu ảnh theo số ô của bộ khung đã chọn (chưa chọn thì bộ
-  // ít ô nhất); tạm dừng chấm khi khách đang chỉnh ảnh.
-  const suggestLimit = suggestionTarget({ total: photos.length, packCapacity: required, packCapacities: packs.map(capacityOf) });
-  const { progress: suggestProgress, suggested: suggestedIds } = usePhotoSuggestions(token, photos, { limit: suggestLimit, paused: Boolean(editing) });
-  const suggested = useMemo(() => new Set(suggestedIds), [suggestedIds]);
+  const [firstPhotosReady, setFirstPhotosReady] = useState(false);
   const [shortage, setShortage] = useState(false);
   const [busy, setBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null);
@@ -494,6 +511,13 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
   const savingPhotos = useRef(false);
   const [printing, setPrinting] = useState(false);
   const [result, setResult] = useState(null);
+  const step = result ? 3 : saved.step;
+  const suggestLimit = suggestionTarget({ total: photos.length, packCapacity: required, packCapacities: packs.map(capacityOf) });
+  const { progress: suggestProgress, suggested: suggestedIds } = usePhotoSuggestions(token, photos, {
+    limit: suggestLimit,
+    paused: !firstPhotosReady || step !== 0 || Boolean(editing || busy || downloadingId),
+  });
+  const suggested = useMemo(() => new Set(suggestedIds), [suggestedIds]);
   const [error, setError] = useState("");
   const mutating = useRef(false);
   const bookingRef = useRef(booking);
@@ -789,7 +813,6 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
   }
   const pendingOriginals = photos.filter((p) => p.originalPending).length;
 
-  const step = result ? 3 : saved.step;
   const canOpen = (i) => i <= 1 || (i === 2 && ready) || (i === 3 && filled);
   const expires = formatDateTime(booking.mediaExpiresAt);
   const editPhoto = editing && photoOf(editing);
@@ -853,6 +876,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
           uploadProgress={uploadProgress} selectedPack={pack} downloadingId={downloadingId} onFavorite={toggleHeart}
           saveProgress={downloadingId === "all" ? (saveProgress || "Đang tải ảnh…") : ""}
           readyToSave={readyToSave} onShare={sharePrepared} onSaveAll={downloadAll}
+          onFirstPhotosReady={() => setFirstPhotosReady(true)}
           suggestions={suggestedIds} capacity={pack ? required : 0} suggestProgress={suggestProgress} onHeartMany={heartMany}
           onDelete={removePhotos} onDownload={downloadOne} onEdit={(p) => setEditing(p.id)} onUpload={upload}
           onNext={() => go(1)} />
