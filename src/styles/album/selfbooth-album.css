@@ -144,9 +144,10 @@
   }
   .sb-album .studio-meta-heading {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    gap: 16px;
+    flex-wrap: nowrap;
+    gap: 8px;
   }
   .sb-album .studio-album-title {
     font-size: 48px;
@@ -166,11 +167,6 @@
   .sb-album .studio-album-facts strong {
     color: var(--ink);
     font-weight: 600;
-  }
-  .sb-album .studio-album-tip {
-    margin: 0;
-    color: var(--muted);
-    font-size: 12.5px;
   }
   .sb-album .sb-timer {
     display: inline-flex;
@@ -294,6 +290,28 @@
     margin-top: 6px;
     color: var(--muted);
     font-size: 12.5px;
+  }
+  .sb-album .studio-head > .gallery-save {
+    display: grid;
+    justify-items: start;
+    gap: 6px;
+    max-width: 300px;
+  }
+  .sb-album .gallery-save > .button {
+    min-height: 44px;
+  }
+  .sb-album .studio-meta-heading > .studio-album-refresh {
+    min-height: 44px;
+    flex: none;
+  }
+  .sb-album .gallery-save small {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .sb-album .tile-btn.is-save-ready {
+    background: var(--wine);
+    color: var(--paper);
   }
 
   /* ── 01 Thư viện: mỗi ảnh trong viền mat ngà ───────────────────────────── */
@@ -598,76 +616,64 @@
     color: var(--heart);
   }
 
-  /* ── 02 Chủ đề: bệ ảnh sứ, chọn bằng đường viền espresso ─────────────── */
-  .sb-album .theme-status {
-    display: flex;
-    gap: 12px;
-    align-items: flex-start;
-    margin-bottom: 24px;
-    padding: 14px 16px;
-    border: 1px solid var(--line);
-    border-radius: 3px;
-    background: var(--paper);
-    color: var(--body);
-    font-size: 13.5px;
-  }
-  .sb-album .theme-status > svg {
-    flex: none;
-    margin-top: 2px;
-    font-size: 20px;
-  }
-  .sb-album .theme-status strong {
-    display: block;
-    color: var(--ink);
-    font-size: 14px;
-  }
-  .sb-album .theme-status.is-short {
-    border-color: #d9bfae;
-    background: #f4e6dc;
-  }
+  /* ── 02 Chủ đề ──────────────────────────────────────────────────────── */
   .sb-album .theme-catalog {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 28px 20px;
+    gap: 16px;
+  }
+  .sb-album .theme-catalog.is-single {
+    grid-template-columns: minmax(0, 420px);
+    justify-content: center;
   }
   .sb-album .theme-catalog > button {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+    display: grid;
+    grid-template-rows: auto 1fr;
     min-width: 0;
     padding: 0;
-    border: 0;
-    background: transparent;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--paper);
     color: var(--ink);
     text-align: left;
     font: inherit;
     cursor: pointer;
   }
+  .sb-album .theme-catalog > button:is(.active, :hover, :focus-visible) {
+    border-color: var(--wine);
+  }
+  .sb-album .theme-catalog > button.active {
+    box-shadow: 0 0 0 1px var(--wine);
+  }
   .sb-album .theme-big-preview {
     display: grid;
     grid-template-columns: repeat(var(--preview-columns, 3), minmax(0, 1fr));
-    align-items: center;
-    gap: 10px;
-    aspect-ratio: 11 / 10;
-    padding: 18px;
-    border-radius: 2px;
+    grid-template-rows: repeat(var(--preview-rows, 1), minmax(0, 1fr));
+    align-items: stretch;
+    gap: 8px;
+    height: clamp(140px, 30vw, 236px);
+    min-width: 0;
+    padding: 12px;
+    overflow: hidden;
+    border-radius: 0;
     background: var(--stone);
-    outline: 1.5px solid transparent;
-    outline-offset: 3px;
   }
-  .sb-album .theme-catalog > button:hover .theme-big-preview {
-    outline-color: var(--line-strong);
+  .sb-album .theme-catalog.is-single .theme-big-preview {
+    height: clamp(188px, 64vw, 298px);
   }
-  .sb-album .theme-catalog > button.active .theme-big-preview {
-    outline-color: var(--wine);
+  .sb-album .theme-preview-frame {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
   }
   .sb-album .theme-preview-frame img {
+    position: absolute;
+    inset: 0;
     display: block;
     width: 100%;
-    max-height: 100%;
+    height: 100%;
     object-fit: contain;
-    border-radius: 1px;
-    box-shadow: var(--mat-shadow);
   }
   .sb-album .theme-list-info,
   .sb-album .theme-card-title,
@@ -677,6 +683,7 @@
   .sb-album .theme-list-info {
     flex-direction: column;
     gap: 6px;
+    padding: 12px;
   }
   .sb-album .theme-card-title {
     align-items: center;
@@ -685,26 +692,25 @@
   }
   .sb-album .theme-card-title strong {
     font-family: var(--display);
-    font-size: 22px;
+    overflow-wrap: anywhere;
+    font-size: clamp(17px, 4.8vw, 22px);
     font-weight: 600;
   }
   .sb-album .theme-choice {
-    display: grid;
-    place-items: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     flex: none;
-    width: 22px;
-    height: 22px;
-    border: 1px solid var(--line-strong);
-    border-radius: 3px;
-    background: var(--paper);
-  }
-  .sb-album .theme-choice.checked {
-    border-color: var(--wine);
-    background: var(--wine);
-    color: var(--paper);
+    padding: 4px 7px;
+    border-radius: 999px;
+    background: var(--cream);
+    color: var(--wine);
+    font-size: 11px;
+    font-weight: 600;
   }
   .sb-album .theme-card-meta {
-    gap: 14px;
+    flex-wrap: wrap;
+    gap: 6px 12px;
     color: var(--muted);
     font-size: 13px;
   }
@@ -714,16 +720,14 @@
     gap: 5px;
   }
   .sb-album .theme-action-summary {
-    display: grid;
-    justify-items: center;
-    gap: 2px;
-    color: var(--ink);
-    text-align: center;
-  }
-  .sb-album .theme-action-summary small {
-    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 7px;
+    color: var(--body);
     font-size: 12px;
   }
+  .sb-album .theme-action-summary svg { flex: none; color: var(--heart); }
   .sb-album .empty-state {
     padding: 28px;
     border: 1px dashed var(--line-strong);
@@ -1307,22 +1311,30 @@
   }
   @media (max-width: 760px) {
     .sb-album .studio-album-title {
-      font-size: 40px;
+      font-size: clamp(29px, 10vw, 40px);
     }
     .sb-album .studio-head h2 {
       font-size: 26px;
+    }
+    .sb-album .studio-gallery-head {
+      display: grid;
+      gap: 10px;
     }
     .sb-album .studio-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 14px 12px;
     }
     .sb-album .theme-catalog {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 22px 14px;
+      gap: 12px;
     }
     .sb-album .theme-big-preview {
       gap: 6px;
-      padding: 18px 10px;
+      padding: 8px;
+    }
+    .sb-album .theme-card-title {
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      gap: 4px 8px;
     }
     .sb-album .theme-card-meta {
       gap: 4px 8px;
@@ -1351,18 +1363,6 @@
     .sb-album .theme-action-summary {
       grid-column: 1 / -1;
       grid-row: 1;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      text-align: left;
-    }
-    .sb-album .theme-action-summary strong {
-      max-width: 48vw;
-      font-size: 13px;
-    }
-    .sb-album .theme-action-summary small {
-      font-size: 12px;
     }
     .sb-album .studio-actions:not(.gallery-bar) > .button {
       flex: 1 1 0;
@@ -1372,6 +1372,14 @@
     .sb-album .studio-steps button {
       min-height: 56px;
       font-size: 11.5px;
+    }
+  }
+  @media (max-width: 760px) and (max-height: 660px) {
+    .sb-album .studio-actions.theme-action-bar {
+      position: static;
+      margin-top: 16px;
+      padding-inline: 0;
+      background: transparent;
     }
   }
 }

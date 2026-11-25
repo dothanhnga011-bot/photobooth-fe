@@ -54,6 +54,11 @@ const FRAMES = [
   { _id: "pink", name: "Hồng", themeName: "Hoa", order: 2, printSize: "large", active: true, image: frameArt([240, 150, 180, 255]), slots: SLOTS },
   { _id: "tilt", name: "Nghiêng", themeName: "Selfbooth", order: 1, printSize: "large", active: true, image: frameArt([250, 240, 225, 255]), slots: TILTED },
 ];
+const TALL_FRAME = {
+  ...FRAMES[0], _id: "tall", themeName: "Khung 1",
+  image: dataUrl(png(240, 360, (x, y) => y % 120 > 12 && y % 120 < 104 && x > 14 && x < 225
+    ? [246, 239, 229, 255] : [72, 46, 36, 255])),
+};
 // Ảnh số n một màu riêng: đọc màu ở giữa ô của ảnh in để biết ảnh nào vào ô nào.
 const COLORS = { 1: [220, 40, 40, 255], 2: [40, 180, 60, 255], 3: [40, 80, 220, 255], 4: [230, 200, 30, 255] };
 const photos = Object.fromEntries(Object.entries(COLORS).map(([n, c]) => [n, png(300, 400, () => c)]));
@@ -88,7 +93,7 @@ const fixture = `
   import '/src/kiosk/decor-fonts.js';
   import '/src/tailwind.css';
   (async () => {
-    const frames = ${JSON.stringify(FRAMES)};
+    const frames = location.search === '?tall-frame' ? [${JSON.stringify(TALL_FRAME)}] : ${JSON.stringify(FRAMES)};
     window.fixtureFrames = frames;
     const studio = { settings: {}, packages: [], frames };
     const FrameFixture = () => {
@@ -148,7 +153,7 @@ after(async () => { await browser?.close(); await new Promise((resolve) => serve
 
 async function phone({ faces = null, hashes = null, originalPending = false, photoCount = 4, printError = null, lostReply = false,
   viewport = { width: 390, height: 844 }, realPhoto = false, prints: quota = 1, desktop = false, size = "large", ios = false,
-  holdThumbnail, restoreStep } = {}) {
+  holdThumbnail, restoreStep, tallFrame = false, expiredShareTap = false } = {}) {
   const page = await browser.newPage(desktop ? { viewport } : { viewport, isMobile: true, hasTouch: true,
     ...(ios && { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1" }) });
   const errors = [], prints = [], mediaRequests = [], deletes = [], uploads = [], asked = [];
@@ -210,15 +215,20 @@ async function phone({ faces = null, hashes = null, originalPending = false, pho
   if (restoreStep !== undefined) await page.addInitScript(step => {
     localStorage.setItem("selfbooth-album-v2-fixture-album", JSON.stringify({ step }));
   }, restoreStep);
-  if (ios) await page.addInitScript(() => {
+  if (ios) await page.addInitScript(expiredTap => {
     window.sharedBatches = [];
+    window.allowShare = !expiredTap;
+    const activation = navigator.userActivation;
+    Object.defineProperty(navigator, "userActivation", { value: {
+      get isActive() { return window.allowShare && activation.isActive; },
+    } });
     navigator.canShare = ({ files }) => files.every(f => f.type === "image/jpeg");
     navigator.share = async ({ files }) => {
       if (!navigator.userActivation.isActive) throw new DOMException("Gesture needed", "NotAllowedError");
       window.sharedBatches.push(files.map(f => f.name));
     };
-  });
-  await page.goto(`${base}/album/fixture-album`);
+  }, expiredShareTap);
+  await page.goto(`${base}/album/fixture-album${tallFrame ? "?tall-frame" : ""}`);
   return { page, errors, prints, mediaRequests, deletes, uploads, booking, asked, releaseThumbnail,
     originalsReady:()=>{booking.photos.forEach(p=>delete p.originalPending)} };
 }
@@ -275,18 +285,57 @@ test("Selfbooth phone downloads individual JPEG files without a ZIP request", as
   } finally { await page.close(); }
 });
 
-test("iPhone-style saving shares JPEG files in batches from explicit taps", async () => {
-  const { page, asked, errors } = await phone({ ios: true, photoCount: 9, realPhoto: true });
+test("iPhone-style saving opens from the first tap and offers the next JPEG batch on the same button", async () => {
+  const { page, asked, errors } = await phone({ ios: true, photoCount: 12, realPhoto: true });
   try {
     await page.getByRole("button", { name: "Lưu tất cả ảnh" }).click();
-    const share = page.getByRole("button", { name: "Mở bảng lưu ảnh" });
-    await share.click();
-    await share.click();
+    await page.waitForFunction(() => window.sharedBatches.length === 1);
+    await page.getByRole("button", { name: "Lưu 4 ảnh còn lại" }).click();
+    await page.waitForFunction(() => window.sharedBatches.length === 2);
     const batches = await page.evaluate(() => window.sharedBatches);
-    assert.deepEqual(batches.map(batch => batch.length), [8, 1]);
-    assert.equal(new Set(batches.flat()).size, 9);
+    assert.deepEqual(batches.map(batch => batch.length), [8, 4]);
+    assert.equal(new Set(batches.flat()).size, 12);
     assert.ok(batches.flat().every(name => name.endsWith(".jpg")));
     assert.equal(asked.some(path => path.endsWith("/download")), false);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("an expired iPhone tap leaves the prepared full-quality files ready on the same button", async () => {
+  const { page, errors } = await phone({ ios: true, photoCount: 2, realPhoto: true, expiredShareTap: true });
+  try {
+    await page.getByRole("button", { name: "Lưu tất cả ảnh" }).click();
+    const save = page.getByRole("button", { name: "Lưu 2 ảnh", exact: true });
+    await save.waitFor();
+    assert.deepEqual(await page.evaluate(() => window.sharedBatches), []);
+    await page.evaluate(() => { window.allowShare = true; });
+    await save.click();
+    await page.waitForFunction(() => window.sharedBatches.length === 1);
+    assert.deepEqual(await page.evaluate(() => window.sharedBatches[0]), ["anh-01.jpg", "anh-02.jpg"]);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("a single portrait frame stays inside its preview and above the caption on narrow phones", async () => {
+  const { page, errors } = await phone({ tallFrame: true, viewport: { width: 320, height: 568 } });
+  try {
+    await page.getByRole("button", { name: /Chọn chủ đề/ }).click();
+    const card = page.getByRole("button", { name: "Chọn bộ Khung 1, 1 khung, 2 ô ảnh" });
+    await card.waitFor();
+    await page.waitForFunction(() => document.querySelector(".theme-preview-frame img")?.naturalHeight === 360);
+    const [preview, image, caption] = await Promise.all([
+      card.locator(".theme-big-preview").boundingBox(),
+      card.locator("img").boundingBox(),
+      card.locator(".theme-list-info").boundingBox(),
+    ]);
+    assert.ok(image.y >= preview.y && image.y + image.height <= caption.y);
+    assert.ok(image.x >= preview.x && image.x + image.width <= preview.x + preview.width);
+    assert.ok(preview.width > 240, "single frame uses the available screen width");
+    const footer = await page.locator(".theme-action-bar").boundingBox();
+    assert.ok(footer.y >= caption.y + caption.height, "the action bar leaves the whole frame card visible");
+    assert.equal(await card.getAttribute("aria-pressed"), "true");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.screenshot({ path: resolve(".cache/main-flows/album-theme-portrait-320.png"), fullPage: true });
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });
@@ -345,7 +394,7 @@ test("album like Selfbooth: 01 Ảnh → 02 Chủ đề → 03 Ghép ảnh → 0
     await page.getByRole('img',{name:'Ảnh 04 đã chỉnh',exact:true}).waitFor();
     // 02 Chủ đề: bộ "Hoa" có 2 khung × 2 ô.
     await page.getByRole("button", { name: /Chọn chủ đề/ }).click();
-    await page.getByRole("heading", { name: "Chọn bộ chủ đề" }).waitFor();
+    await page.getByRole("heading", { name: "Chọn bộ khung" }).waitFor();
     assert.equal((await step(page)).trim(), "Chủ đề");
     await page.getByText("2 bộ khung").waitFor();
     await page.getByRole("button", { name: "Chọn bộ Hoa, 2 khung, 4 ô ảnh" }).click();
@@ -493,7 +542,8 @@ test("nothing prints by itself: no timer, no deadline; the guest sends the finis
 test("the finished sheet waits for camera originals instead of printing previews", async () => {
   const { page, prints, mediaRequests, originalsReady, errors } = await phone({ originalPending: true });
   try {
-    await page.getByText(/Đang nhận 4 ảnh gốc chất lượng cao/).waitFor();
+    await page.getByText("Đang nhận 4 ảnh gốc từ máy chụp.").waitFor();
+    assert.equal(await page.getByRole("button", { name: "Lưu tất cả ảnh" }).isDisabled(), true);
     await toResult(page);
     await page.getByText(/Ảnh gốc đang tải lên/).waitFor({ timeout: 30000 });
     assert.equal(prints.length, 0);
