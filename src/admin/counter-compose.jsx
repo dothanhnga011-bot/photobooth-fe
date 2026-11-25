@@ -7,14 +7,15 @@ import { storageLink } from "../media-delivery.js";
 import { ErrorBox, useStudio, useToast } from "../studio.jsx";
 import { KioskFrames } from "../kiosk/KioskFrames.jsx";
 import { KioskSelect, useShotBitmaps } from "../kiosk/KioskSelect.jsx";
-import { frameCandidates, frameNeed, printPhotoRegions, printSheets, renderPrintFrame } from "../kiosk/compose.js";
+import { frameCandidates, printPhotoRegions, printSheets, renderPrintFrame } from "../kiosk/compose.js";
+import { frameCapacity } from "../frame-utils.js";
 import { NO_DECOR, filterChoices, filterStepsFor, photoFilterId } from "../kiosk/decor.js";
-import { photoSlots, removePhotoSlot, togglePhotoSlot } from "../kiosk/photo-selection.js";
+import { addPhotoSlot, photoSlots, removePhotoSlot } from "../kiosk/photo-selection.js";
 import { operatorPrint } from "./operator-print.js";
 import "./counter-compose.css";
 
 // Ghép ảnh để in ở quầy (Đơn hàng → In ảnh), 22/11: đúng hai màn của máy chụp PTB — chọn khung, rồi chạm
-// ảnh để đặt vào khung (thấy ngay ảnh nào ở ô nào; chạm lại để bỏ, các ô khác giữ nguyên), chỉnh / phóng
+// ảnh để đặt vào ô trống (cùng ảnh có thể vào nhiều ô), chạm ô trên khung để bỏ, chỉnh / phóng
 // ảnh, màu ảnh, thêm chữ, nhãn dán. Bấm nút cuối: ghép tờ in như máy chụp (ảnh gốc, 2400 × 3600 PNG) rồi
 // in qua RX1 trên máy này và lưu vào đơn, hoặc chỉ lưu file (in sau bằng "In lại qua RX1"). Không trừ lượt in.
 // Hiện trên toàn màn hình, ngoài khung trang quản trị, để giữ nguyên giao diện máy chụp.
@@ -59,7 +60,7 @@ export function CounterCompose({ booking, onClose, onSaved }) {
   }), [catalogFrames, shots.length, booking.printSize, settings.themes]);
   const index = Math.min(frameIndex, Math.max(0, frames.length - 1));
   const frame = frames[index];
-  const needOf = (f) => frameNeed(f, { count: Math.max(1, shots.length), printSize: booking.printSize, shots: shots.length });
+  const needOf = (f) => f ? frameCapacity(f) : 0;
   const need = needOf(frame);
   const { bitmaps, retryPreviews } = useShotBitmaps(shots, token, selected);
   const filters = useMemo(() => filterChoices(settings), [settings]);
@@ -174,7 +175,7 @@ export function CounterCompose({ booking, onClose, onSaved }) {
           retryPreviews={retryPreviews}
           count={need}
           selected={selected.slice(0, need)}
-          onPick={(key) => setSelected((list) => togglePhotoSlot(list, need, key))}
+          onPick={(key) => setSelected((list) => addPhotoSlot(list, need, key))}
           onRemove={(slot) => setSelected((list) => removePhotoSlot(list, need, slot))}
           onClear={() => setSelected([])}
           frames={frames}

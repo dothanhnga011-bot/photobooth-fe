@@ -300,17 +300,18 @@ function DecorStage({
   );
 }
 
-function Pick({ shot, slots, onPick, disabled }) {
+function Pick({ shot, slots, onPick, disabled, repeats }) {
   const preview = useObjectUrl(shot.preview);
   const [retry, setRetry] = useState(false);
   const src = !retry && shot.thumbnail ? shot.thumbnail : preview;
   const picked = slots.length > 0;
+  const action = repeats ? " · chạm để thêm vào ô trống" : " · chạm để bỏ";
   return (
     <button
       type="button"
       className={`select-shot ${picked ? "is-picked" : ""}`}
       aria-pressed={picked}
-      aria-label={picked ? `Ảnh ở ô ${slots.join(", ")} · chạm để bỏ` : "Chọn ảnh này"}
+      aria-label={picked ? `Ảnh ở ô ${slots.join(", ")}${disabled ? "" : action}` : "Chọn ảnh này"}
       disabled={disabled}
       onClick={() => onPick(shot.key)}
     >
@@ -542,7 +543,9 @@ export function KioskSelect({
 
   const thumbShot = shots.find((s) => s.key === (target === "all" ? selected[0] : target)) || shots[0];
   const lead = {
-    photos: `Đã chọn ${filled}/${count} ô · chạm lại ảnh hoặc ô trên khung để bỏ, các ô khác giữ nguyên`,
+    photos: counter
+      ? `Đã chọn ${filled}/${count} ô · chạm lại ảnh để dùng thêm · chạm ô trên khung để bỏ`
+      : `Đã chọn ${filled}/${count} ô · chạm lại ảnh hoặc ô trên khung để bỏ, các ô khác giữ nguyên`,
     adjust: "Kéo ảnh trên khung để dời, chụm / mở hai ngón để thu nhỏ / phóng to (vẫn giữ nét)",
     color: "Chọn màu cho tất cả ảnh hoặc từng ảnh — khung và nhãn dán giữ nguyên màu",
     text: "Gõ chữ muốn thêm vào khung, chọn kiểu chữ & màu rồi bấm “Thêm chữ”",
@@ -655,7 +658,8 @@ export function KioskSelect({
                     key={shot.key}
                     shot={shot}
                     slots={slotsOf(shot.key)}
-                    disabled={busy || (full && !selected.includes(shot.key))}
+                    disabled={busy || (full && (counter || !selected.includes(shot.key)))}
+                    repeats={counter}
                     onPick={onPick}
                   />
                 ))}
@@ -845,7 +849,7 @@ export function KioskSelect({
             <><PiCheckBold aria-hidden="true" /> Nhận ảnh</>
           )}
         </Button>
-        {!full && <small className="select-hint">Chọn thêm {count - filled} tấm để {frame && prints ? "in ảnh" : "tiếp tục"}</small>}
+        {!full && <small className="select-hint">{counter ? "Điền thêm" : "Chọn thêm"} {count - filled} {counter ? "ô" : "tấm"} để {frame && prints ? "in ảnh" : "tiếp tục"}</small>}
       </footer>
     </section>
   );

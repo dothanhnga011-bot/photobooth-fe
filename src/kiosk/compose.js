@@ -126,6 +126,19 @@ export function frameNeed(frame, { count, printSize, shots }) {
   return Math.max(0, Math.min(wanted, shots));
 }
 
+// Photo windows may be oval or irregular. After applying the guest's filter,
+// redraw the frame over the photo so its opaque decoration keeps its color.
+function overlayPhotoWindows(ctx, image, layout, hasPhoto) {
+  const regions = [
+    ...layout.slots.map((slot, index) => ({ slot, index })),
+    ...layout.copies.map(({ slot, of }) => ({ slot, index: of })),
+  ];
+  const masked = slotCutouts(image, regions.map(({ slot }) => slot));
+  for (const [i, { slot, index }] of regions.entries())
+    if (masked[i] && hasPhoto(index))
+      overlayFrame(ctx, image, slotRect(slot, ctx.canvas.width, ctx.canvas.height));
+}
+
 // Ghép nhanh để xem trên màn hình (ảnh 1600 px), ảnh lặp lại khi khung nhiều số ảnh hơn số ảnh đã
 // chọn. qrUrl: link album của khách (vùng QR trên khung). placeholders: đang chọn ảnh — ô chưa có ảnh
 // để trống, hiện số thứ tự (không lặp ảnh). filters: công thức màu của từng ảnh (cùng thứ tự images),
@@ -133,7 +146,7 @@ export function frameNeed(frame, { count, printSize, shots }) {
 // 1800 × 1200) — ảnh xem trước nét như bản in kể cả khi khung hiện to trên màn 1920 × 1080 (trước đây
 // 700 px, khung ngang hiện rộng ~1000 px bị phóng to nên mờ).
 export async function composePreview(frame, images, width = 900, qrUrl = "",
-  { placeholders = false, filters = [], stickers = [], transforms = [], signal, background: frameImage = null, overlay = false } = {}) {
+  { placeholders = false, filters = [], stickers = [], transforms = [], signal, background: frameImage = null, overlay = true } = {}) {
   signal?.throwIfAborted();
   const layout = photoLayout(frame);
   const [background, qr] = await Promise.all([
@@ -151,9 +164,10 @@ export async function composePreview(frame, images, width = 900, qrUrl = "",
     placeholders ? images[i] || null : images.length ? images[i % images.length] : null);
   // Ảnh trong ô → màu ảnh → mã QR / ngày in → nhãn dán (nhãn dán không bị đổi màu).
   // transforms: phóng/dời của từng ảnh (khách tự chỉnh); ô bản sao theo transform của ảnh gốc.
-  composeLayout(canvas, background, layout.slots, filled, transforms, [], { frame: { ...layout, marks: [] }, overlay });
+  composeLayout(canvas, background, layout.slots, filled, transforms, [], { frame: { ...layout, marks: [] } });
   const ctx = canvas.getContext("2d");
   filterPhotos(ctx, layout, filters, canvas.width, canvas.height);
+  if (overlay && filled.some(Boolean)) overlayPhotoWindows(ctx, background, layout, i => Boolean(filled[i]));
   if (placeholders) {
     const empty = (slot, number) => {
       const r = slotRect(slot, canvas.width, canvas.height);
@@ -269,9 +283,9 @@ const rotated = (t) => Boolean(((t?.rotate || 0) % 360 + 360) % 360);
 // guest composites (~20 MP), rendered from the full camera source with strict=true.
 // sharp (tờ in DNP): khung và ảnh co / giãn bằng Lanczos3 một lần, ảnh đặt ở toạ độ nguyên (lanczos.js) —
 // chi tiết mảnh của ảnh giữ 83 % thay vì 64 %, chữ / nét khung 65 % thay vì 46 % (ở 0,4 chu kỳ / điểm in).
-// overlay (album Selfbooth): ô trên cửa sổ trong suốt của khung được vẽ khung đè lại như bên Selfbooth.
+// overlay: giữ đường viền gốc của các cửa sổ trong suốt, kể cả khi ảnh có filter.
 // Ô xoay (khung chép từ Selfbooth) luôn vẽ bằng canvas (xoay quanh tâm ô), không qua Lanczos.
-export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filters = [], stickers = [], transforms = [], scale = 1, pixels = 0, strict = false, sharp = false, sourceFor = printSource, overlay = false } = {}) {
+export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filters = [], stickers = [], transforms = [], scale = 1, pixels = 0, strict = false, sharp = false, sourceFor = printSource, overlay = true } = {}) {
   const layout = photoLayout(frame);
   const background = await loadFrameImage(frame.image);
   const canvas = document.createElement("canvas");
@@ -291,8 +305,6 @@ export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filter
   } else ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
   const sources = new Map();
   const fitted = new Map();
-  const cutouts = overlay ? slotCutouts(background, layout.slots) : [];
-  const copyCutouts = overlay ? slotCutouts(background, layout.copies.map((copy) => copy.slot)) : [];
   const draw = (source, rect, t) =>
     sharp && !rotated(t) && !rect.angle ? drawLanczosSlot(ctx, source, rect, t, fitted) : drawSharpSlot(ctx, source, rect, t);
   try {
@@ -309,16 +321,15 @@ export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filter
       const t = transforms[index];
       const rect = slotRect(slot, canvas.width, canvas.height);
       await draw(source, rect, t);
-      if (cutouts[index]) overlayFrame(ctx, background, rect);
       // Ô bản sao cùng số ảnh (vd. dải thứ hai của khung nhỏ).
-      for (const [i, copy] of layout.copies.entries())
+      for (const copy of layout.copies)
         if (copy.of === index) {
           const copyRect = slotRect(copy.slot, canvas.width, canvas.height);
           await draw(source, copyRect, t);
-          if (copyCutouts[i]) overlayFrame(ctx, background, copyRect);
         }
     }
     filterPhotos(ctx, layout, filters, canvas.width, canvas.height);
+    if (overlay && shots.length) overlayPhotoWindows(ctx, background, layout, i => Boolean(shots[i % shots.length]));
     if (layout.marks.length) {
       const qr = layout.marks.some((m) => m.kind === "qr") && qrUrl
         ? await qrImage(qrUrl).catch(() => null) : null;

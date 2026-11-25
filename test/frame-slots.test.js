@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { detectSlots } from "../src/frame-utils.js";
-import { detectSlots as detectSelfboothSlots } from "../src/frame-detect-selfbooth.js";
 
 function frameFixture(count, transparent = false) {
   // A portrait 10×15 frame sampled at the editor's maximum 800px probe size.
@@ -92,7 +91,7 @@ test("small white decorations alone do not become photo slots", () => {
   assert.deepEqual(detectSlots(image), []);
 });
 
-test("Selfbooth finds small, oval and partly transparent windows while ignoring the transparent exterior", () => {
+test("frame slot detection finds small, oval and partly transparent windows and ignores the exterior", () => {
   const width = 600, height = 800;
   const data = new Uint8ClampedArray(width * height * 4);
   for (let y = 20; y < 780; y++) for (let x = 20; x < 580; x++) {
@@ -106,7 +105,7 @@ test("Selfbooth finds small, oval and partly transparent windows while ignoring 
       : oval ? [0, 0, 0, 64] : white ? [255, 255, 255, 255] : [82, 46, 34, 255];
     data.set(pixel, (y * width + x) * 4);
   }
-  const slots = detectSelfboothSlots({ data, width, height });
+  const slots = detectSlots({ data, width, height });
   assert.equal(slots.length, 4);
   for (const [i, [x, y, w, h]] of [[50, 100, 66, 54], [218, 100, 101, 121], [50, 180, 66, 54], [90, 360, 180, 150]].entries()) {
     const slot = slots[i];

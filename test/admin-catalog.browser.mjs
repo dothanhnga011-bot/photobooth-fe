@@ -798,6 +798,61 @@ test("a frame cannot be saved without a photo region and the editor can be left 
   assertClean();
 });
 
+test("PTB frame import detects small and oval cutouts, and new regions can be drawn with a thin outline", async () => {
+  await mount("frames");
+  await page.getByRole("button", { name: /Thêm mới frame/ }).click();
+  await page.getByRole("menuitem", { name: /Size lớn/ }).click();
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 600;
+    canvas.height = 900;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#30222c";
+    ctx.fillRect(20, 20, 560, 860);
+    ctx.clearRect(90, 140, 70, 62);
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.beginPath();
+    ctx.ellipse(320, 470, 110, 135, 0, 0, Math.PI * 2);
+    ctx.fill();
+    return canvas.toDataURL("image/png").split(",")[1];
+  });
+  await page.getByLabel("Chọn file ảnh khung PTB").setInputFiles({ name: "ptb.png", mimeType: "image/png", buffer: Buffer.from(png, "base64") });
+  const regions = page.locator(".frame-region.kind-photo");
+  await regions.nth(1).waitFor();
+  assert.equal(await regions.count(), 2);
+  await regions.first().click();
+  assert.equal(await regions.first().evaluate(node => getComputedStyle(node).borderTopWidth), "1px");
+  const handle = regions.first().locator(".frame-handle.h-nw");
+  assert.equal(await handle.evaluate(node => getComputedStyle(node, "::after").width), "5px");
+  await page.getByRole("button", { name: "Thêm QR" }).click();
+  await page.getByRole("button", { name: "Tự nhận vùng ảnh" }).click();
+  await page.getByRole("button", { name: "Vẽ vùng ảnh" }).click();
+  assert.equal(await page.locator(".frame-region.kind-qr").count(), 1);
+  assert.equal(await regions.first().locator("strong").isVisible(), false);
+  const zoom = page.getByLabel(/Phóng to khung/);
+  await zoom.press("End");
+  assert.equal(await zoom.inputValue(), "400");
+  await zoom.press("Home");
+  const board = page.locator(".frame-board");
+  await board.scrollIntoViewIfNeeded();
+  const bounds = await board.boundingBox();
+  await page.mouse.move(bounds.x + 12, bounds.y + 12);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + 16, bounds.y + 17);
+  assert.equal(await page.locator(".frame-region-draft").count(), 1);
+  await page.mouse.up();
+  await regions.nth(2).waitFor();
+  await page.screenshot({ path: join(screenshotDirectory, "frames-ptb-fine-regions.png"), fullPage: false });
+  await page.getByRole("button", { name: "Hoàn thành" }).click();
+  await cards("frames").first().waitFor();
+  const saved = mutations().find(m => m.method === "POST" && m.path === "/api/admin/frames").body;
+  const photos = saved.slots.filter(slot => slot.kind === "photo");
+  assert.deepEqual(photos.map(slot => slot.photo), [1, 2, 3]);
+  assert.ok(photos[2].w < .02 && photos[2].h < .02, "the fine region survives saving");
+  assert.equal(saved.slots.filter(slot => slot.kind === "qr").length, 1);
+  assertClean();
+});
+
 test("turning a frame off keeps all its data and only flips active", async () => {
   await mount("frames");
   await page.getByRole("button", { name: "Tắt Đêm hoa", exact: true }).click();

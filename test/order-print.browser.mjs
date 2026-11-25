@@ -15,7 +15,7 @@ const BOOKING = { _id: "booking-print", code: "973019", accessToken: "album-toke
   roomName: "Phòng 01", printSize: "full", prints: 6, printSheets: 2 };
 const JOB = { _id: "source", frameName: "Khung hồng", sheetCount: 2, printSize: "strip", spoolStatus: "sent",
   width: 2400, height: 3600, createdAt: new Date().toISOString(), image: "/api/albums/album-token/prints/source" };
-let server, browser, page, detail, requests, local, errors, failRead, failArchive, failPrint, png;
+let server, browser, page, detail, requests, local, errors, failRead, failArchive, failPrint, png, ovalFrame;
 const captures = join(tmpdir(), "photobooth-order-print-review");
 const fixture = `
 import React from 'react'; import {createRoot} from 'react-dom/client';
@@ -27,7 +27,9 @@ window.runLocalKioskPrint=async job=>(await stageKioskPrint(job)).printing;windo
 window.savePending=savePending;window.removePending=removePending;
 window.saveSetting=saveSetting;
 const booking=${JSON.stringify(BOOKING)};
-const frame={_id:'frame',name:'Khung thử',active:true,printSize:'full',image:'/frame.png',slots:[{x:.05,y:.05,w:.9,h:.9,kind:'photo',photo:1}]};
+const frame={_id:'frame',name:'Khung thử',active:true,printSize:'full',
+image:window.ovalFrame?'/oval.png':'/frame.png',
+slots:window.ovalFrame?Array.from({length:3},(_,i)=>({x:.08,y:.05+.3*i,w:.84,h:.24,kind:'photo',photo:i+1})):[{x:.05,y:.05,w:.9,h:.9,kind:'photo',photo:1}]};
 function App(){const [open,setOpen]=React.useState(true); return React.createElement('main',{className:'admin-shell'},
 open?React.createElement(PrintOrderDialog,{booking,initialCopies:window.purchasedCopies,onClose:()=>setOpen(false),onExtra:b=>{window.selling=b;setOpen(false)},onPrinted:()=>window.printed=(window.printed||0)+1}):React.createElement('p',null,'Đã đóng'));}
 createRoot(document.getElementById('root')).render(React.createElement(MemoryRouter,null,
@@ -35,6 +37,10 @@ React.createElement(StudioContext.Provider,{value:{frames:[frame]}},React.create
 `;
 before(async () => {
   png = await sharp({ create: { width: 1200, height: 1800, channels: 3, background: "#efd1db" } }).png().toBuffer();
+  ovalFrame = await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900">
+    <mask id="openings"><path fill="white" d="M0 0H600V900H0Z"/>
+    ${[153, 423, 693].map(y => `<ellipse cx="300" cy="${y}" rx="252" ry="108"/>`).join("")}</mask>
+    <path fill="#25212a" d="M0 0H600V900H0Z" mask="url(#openings)"/></svg>`)).png().toBuffer();
   const bundle = await build({ configFile: false, logLevel: "error", esbuild: { jsx: "automatic" },
     define: { "import.meta.env.VITE_API_URL": '""' },
     build: { write: false, minify: false, rollupOptions: { input: "/__print_fixture.jsx", output: { format: "iife", inlineDynamicImports: true } } },
@@ -47,6 +53,7 @@ before(async () => {
   server = createServer(async (req, res) => {
     const url = new URL(req.url, "http://fixture");
     const json = (body, status = 200) => { res.writeHead(status, { "Content-Type": "application/json" }); res.end(JSON.stringify(body)); };
+    if (url.pathname === "/oval.png") { res.writeHead(200, { "Content-Type": "image/png" }); res.end(ovalFrame); return; }
     if (url.pathname === "/frame.png" || /\/prints\//.test(url.pathname)) { res.writeHead(200, { "Content-Type": "image/png" }); res.end(png); return; }
     if (url.pathname.startsWith("/api/")) {
       const chunks = []; for await (const chunk of req) chunks.push(chunk);
@@ -80,12 +87,13 @@ before(async () => {
   await mkdir(captures, { recursive: true });
 });
 after(async () => { await page?.close(); await browser?.close(); await new Promise((resolve) => server.close(resolve)); });
-async function mount({ jobs = [JOB], width = 1440, readError = false, archiveError = false, printError = false, composite = false, booking = {}, purchasedCopies } = {}) {
+async function mount({ jobs = [JOB], width = 1440, readError = false, archiveError = false, printError = false, composite = false, booking = {}, purchasedCopies, oval = false } = {}) {
   await page?.close(); requests = []; local = []; errors = []; failRead = readError; failArchive = archiveError; failPrint = printError;
   detail = { booking: { ...BOOKING, photoCount: 4, ...booking,
     ...(composite && { composite: { url: "/api/albums/album-token/composite", frameName: "Khung hồng" } }) }, jobs: structuredClone(jobs) };
   page = await browser.newPage({ viewport: { width, height: width < 600 ? 844 : 1000 }, reducedMotion: "reduce" });
   if (purchasedCopies != null) await page.addInitScript(copies => { window.purchasedCopies = copies; }, purchasedCopies);
+  if (oval) await page.addInitScript(() => { window.ovalFrame = true; });
   page.setDefaultTimeout(12000);
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route("http://127.0.0.1:8789/**", async (route) => {
@@ -167,7 +175,7 @@ test("manual composition uses the kiosk frame and photo screens, renders an orig
   await composer.getByRole("button", { name: "Tiếp tục", exact: true }).click();
   const shots = composer.getByRole("group", { name: "Ảnh đã chụp" }).getByRole("button");
   await shots.first().click();
-  assert.equal(await shots.first().getAttribute("aria-label"), "Ảnh ở ô 1 · chạm để bỏ");
+  assert.equal(await shots.first().getAttribute("aria-label"), "Ảnh ở ô 1");
   for (const tab of ["Chỉnh ảnh", "Thêm chữ"]) assert.equal(await composer.getByRole("tab", { name: new RegExp(tab) }).count(), 1);
   await composer.getByLabel("Số bộ in", { exact: true }).selectOption("2");
   await page.waitForFunction(() => document.querySelector(".decor-canvas:not(.is-loading)"));
@@ -195,6 +203,49 @@ test("manual composition uses the kiosk frame and photo screens, renders an orig
   assert.equal(sent.length, 1);
   assert.ok(sent[0].headers["x-print-photos"] === undefined || /^[\d.,;]+$/.test(sent[0].headers["x-print-photos"]));
   assert.equal(browser.contexts().flatMap((context) => context.pages()).length, 1);
+  assert.deepEqual(errors, []);
+});
+
+test("manual printing fills three slots with two photos, clears only the tapped slot and keeps the oval borders", async () => {
+  await mount({ jobs: [], oval: true });
+  await page.getByRole("button", { name: "Ghép ảnh để in", exact: true }).click();
+  const composer = page.getByRole("dialog", { name: "Ghép ảnh để in · #973019" });
+  await composer.getByText(/Album chưa có ảnh/).waitFor();
+  const files = await Promise.all([["red", "#d21625"], ["green", "#187a3f"]].map(async ([name, background]) => ({
+    name: name + ".png", mimeType: "image/png",
+    buffer: await sharp({ create: { width: 480, height: 480, channels: 3, background } }).png().toBuffer(),
+  })));
+  await composer.getByLabel("Thêm ảnh từ máy quầy").setInputFiles(files);
+  await composer.getByRole("button", { name: "Tiếp tục", exact: true }).click();
+  const shots = composer.getByRole("group", { name: "Ảnh đã chụp" }).getByRole("button");
+  await shots.nth(0).click();
+  await shots.nth(0).click();
+  await shots.nth(1).click();
+  assert.equal(await shots.nth(0).getAttribute("aria-label"), "Ảnh ở ô 1, 2");
+  assert.equal(await shots.nth(1).getAttribute("aria-label"), "Ảnh ở ô 3");
+  const canvas = composer.locator(".decor-canvas:not(.is-loading)");
+  await canvas.scrollIntoViewIfNeeded();
+  const point = await canvas.evaluate(node => {
+    const rect = node.getBoundingClientRect();
+    const k = Math.min(rect.width / node.width, rect.height / node.height);
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 - node.height * k * .03 };
+  });
+  await page.mouse.click(point.x, point.y);
+  assert.match(await shots.nth(0).getAttribute("aria-label"), /Ảnh ở ô 1 ·/);
+  assert.match(await shots.nth(1).getAttribute("aria-label"), /Ảnh ở ô 3 ·/);
+  await shots.nth(0).click();
+  await composer.getByLabel("Khi ghép xong").selectOption("save");
+  await composer.getByRole("button", { name: "Lưu file in", exact: true }).click();
+  await page.getByText("File in đã lưu").waitFor();
+  const saved = requests.find(entry => entry.path.endsWith("/print-file"));
+  const { data, info } = await sharp(saved.body).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const color = (x, y) => {
+    const at = (Math.round(y * info.height) * info.width + Math.round(x * info.width)) * info.channels;
+    return [...data.subarray(at, at + 3)];
+  };
+  assert.deepEqual([color(.5, .17), color(.5, .47), color(.5, .77), color(.1, .065)],
+    [[210, 22, 37], [210, 22, 37], [24, 122, 63], [37, 33, 42]]);
+  assert.equal(local.filter(entry => entry.path === "/print").length, 0);
   assert.deepEqual(errors, []);
 });
 

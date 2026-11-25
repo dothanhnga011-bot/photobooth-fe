@@ -1,5 +1,5 @@
 import { loadFrameImage } from "./frame-utils.js";
-import { detectSlots } from "./frame-detect-selfbooth.js";
+import { detectSlots } from "./frame-detect.js";
 import { quarterTurnRegions } from "./frame-regions.js";
 
 // Khung in đúng khổ tờ 20 × 30 cm ở 300 dpi (3600 px cạnh dài): giữ đủ nét cho viền và chữ.
@@ -7,14 +7,14 @@ import { quarterTurnRegions } from "./frame-regions.js";
 const MAX_SIDE = 3600;
 const MAX_BYTES = 8_000_000;
 
-export function detectFrameSlots(image) {
+export function detectFrameSlots(image, limit) {
   const probe = document.createElement("canvas");
   const width = image.naturalWidth || image.width, height = image.naturalHeight || image.height;
   const scale = Math.min(1, 1200 / Math.max(width, height));
   probe.width = Math.max(1, Math.round(width * scale)); probe.height = Math.max(1, Math.round(height * scale));
   const ctx = probe.getContext("2d", { willReadFrequently: true });
   ctx.drawImage(image, 0, 0, probe.width, probe.height);
-  try { return detectSlots(ctx.getImageData(0, 0, probe.width, probe.height)); }
+  try { return detectSlots(ctx.getImageData(0, 0, probe.width, probe.height), limit); }
   finally { probe.width = probe.height = 0; }
 }
 

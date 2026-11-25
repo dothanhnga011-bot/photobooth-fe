@@ -6,6 +6,12 @@ export function removePhotoSlot(selected, count, slot) {
   if (slot >= 0 && slot < count) next[slot] = null;
   return next;
 }
+export function addPhotoSlot(selected, count, key) {
+  const next = photoSlots(selected, count);
+  const slot = next.indexOf(null);
+  if (slot >= 0) next[slot] = key;
+  return next;
+}
 export function togglePhotoSlot(selected, count, key) {
   const next = photoSlots(selected, count);
   const occupied = next.indexOf(key);

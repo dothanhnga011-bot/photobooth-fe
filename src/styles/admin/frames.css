@@ -359,7 +359,7 @@
     border-color: var(--mellow-cocoa, var(--wine));
     background: var(--stone, #f5f1ec);
   }
-  .admin-shell .frame-tools button:first-child {
+  .admin-shell .frame-tools button[aria-pressed="true"] {
     border-color: #c8423b;
     background: #c8423b;
     color: #fff;
@@ -390,10 +390,13 @@
   .admin-shell .frame-region-bar small {
     color: var(--muted);
   }
+  .admin-shell .frame-region-bar .ptb-region-zoom { flex: 1 1 230px; }
+  .admin-shell .ptb-region-zoom input { flex: 1; width: 0; min-width: 72px; accent-color: var(--mellow-cocoa, #522e22); }
+  .admin-shell .ptb-region-zoom output { width: 4ch; text-align: right; }
   .admin-shell .frame-board-wrap {
-    display: grid;
-    place-items: center;
-    padding: 44px 20px 24px;
+    min-width: 0;
+    max-height: 72dvh;
+    padding: 16px 20px;
     border: 1px solid var(--mellow-line, var(--line));
     border-radius: 16px;
     background:
@@ -402,8 +405,8 @@
   }
   .admin-shell .frame-board {
     position: relative;
-    display: inline-block;
-    max-width: 100%;
+    display: block;
+    margin-inline: auto;
     line-height: 0;
     box-shadow: 0 8px 26px rgb(48 40 34 / 20%);
     user-select: none;
@@ -411,51 +414,43 @@
   }
   .admin-shell .frame-board > img {
     display: block;
-    width: auto;
-    max-width: 100%;
+    width: 100%;
     height: auto;
-    max-height: max(420px, calc(100vh - 190px));
     pointer-events: none;
   }
   .admin-shell .frame-region {
     position: absolute;
     display: grid;
     place-items: center;
-    border: 2px solid #d9443b;
-    background: rgb(217 68 59 / 28%);
+    box-sizing: border-box;
+    border: 1px solid #bd3935;
     line-height: 1.2;
     cursor: move;
     touch-action: none;
   }
   .admin-shell .frame-region > strong {
-    min-width: 26px;
-    padding: 2px 8px;
-    border-radius: 6px;
-    background: #d9443b;
-    color: #fff;
-    font-size: 15px;
+    color: #a92e2b;
+    font-size: 11px;
+    text-shadow: 0 0 2px #fff, 0 0 2px #fff;
     text-align: center;
     pointer-events: none;
   }
   /* Bản sao (cùng số ảnh với một vùng trước) màu xanh như mẫu. */
   .admin-shell .frame-region.is-copy {
     border-color: #2f6fd6;
-    background: rgb(47 111 214 / 26%);
   }
   .admin-shell .frame-region.is-copy > strong {
-    background: #2f6fd6;
+    color: #164eaa;
   }
   .admin-shell .frame-region.kind-qr {
     border-color: #2d2622;
-    background: rgb(45 38 34 / 22%);
   }
   .admin-shell .frame-region.kind-qr > strong {
-    background: #2d2622;
+    color: #2d2622;
   }
   .admin-shell .frame-region.kind-date {
     border-style: dashed;
     border-color: #2f8a57;
-    background: rgb(47 138 87 / 18%);
   }
   .admin-shell .frame-region.kind-date > strong {
     padding: 0 4px;
@@ -466,16 +461,16 @@
   }
   .admin-shell .frame-region.selected {
     z-index: 2;
-    outline: 2px solid #fff;
-    outline-offset: 1px;
-    box-shadow: 0 0 0 4px rgb(48 40 34 / 35%);
+    outline: 1px solid rgb(255 255 255 / 80%);
   }
+  .admin-shell .frame-board.is-drawing { cursor: crosshair; }
+  .admin-shell .frame-board.is-drawing .frame-region { opacity: .45; pointer-events: none; }
+  .admin-shell .frame-board.is-drawing .frame-region > strong { visibility: hidden; }
+  .admin-shell .frame-board.is-drawing .frame-region-draft { opacity: 1; z-index: 3; }
   .admin-shell .frame-region-tools {
-    position: absolute;
-    right: -2px;
-    bottom: calc(100% + 6px);
     display: flex;
     gap: 4px;
+    margin-left: auto;
   }
   .admin-shell .frame-region-tools button {
     display: grid;
@@ -499,12 +494,22 @@
     position: absolute;
     width: 14px;
     height: 14px;
-    border: 2px solid #d9443b;
-    border-radius: 3px;
-    background: #fff;
     touch-action: none;
   }
-  .admin-shell .frame-region.is-copy .frame-handle {
+  .admin-shell .frame-handle::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 5px;
+    height: 5px;
+    box-sizing: border-box;
+    border: 1px solid #ad3232;
+    background: #fff;
+    pointer-events: none;
+  }
+  .admin-shell .frame-region.is-copy .frame-handle::after {
     border-color: #2f6fd6;
   }
   .admin-shell .frame-handle.h-n,
@@ -601,11 +606,7 @@
       min-height: 32px;
     }
     .admin-shell .frame-board-wrap {
-      padding: 40px 8px 16px;
-    }
-    .admin-shell .frame-handle {
-      width: 18px;
-      height: 18px;
+      padding: 12px 8px;
     }
   }
 }

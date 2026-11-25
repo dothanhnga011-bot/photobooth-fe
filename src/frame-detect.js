@@ -1,6 +1,5 @@
 // Transparent windows and opaque white placeholders are detected separately.
-// Only the Selfbooth frame editor uses these thresholds.
-export function detectSlots({ data, width, height }) {
+export function detectSlots({ data, width, height }, limit = 40) {
   const alpha = new Uint8Array(width * height), white = new Uint8Array(width * height);
   for (let i = 0; i < alpha.length; i++) {
     const p = i * 4, a = data[p + 3];
@@ -30,7 +29,7 @@ export function detectSlots({ data, width, height }) {
     if (row && slot.y - row[0].y < Math.min(.035, row[0].h / 3, slot.h / 3)) row.push(slot);
     else rows.push([slot]);
   }
-  return rows.flatMap(row => row.sort((a, b) => a.x - b.x)).slice(0, 40);
+  return rows.flatMap(row => row.sort((a, b) => a.x - b.x)).slice(0, limit);
 }
 
 function detectMaskSlots(raw, width, height, {

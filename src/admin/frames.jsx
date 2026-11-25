@@ -13,14 +13,16 @@ import {
   Power,
   QrCode,
   ScanSearch,
-  Square,
+  SquareDashed,
   Trash2,
   Upload,
 } from "lucide-react";
 import { api, assetUrl } from "../api";
 import { Button, ErrorBox, useStudio, useToast } from "../studio";
 import { compareFrameOrder } from "../frame-catalog-data";
-import { detectSlots, frameCapacity, isPhotoRegion, printDate } from "../frame-utils";
+import { frameCapacity, isPhotoRegion, loadFrameImage, printDate } from "../frame-utils";
+import { detectFrameSlots } from "../frame-import.js";
+import { moveRegion, regionFromPoints, resizeRegion } from "../frame-regions.js";
 import { ServiceTabs, serviceOf, useServiceTab } from "./service-tabs";
 import { isSelfboothSize } from "../print-sizes.js";
 
@@ -36,6 +38,9 @@ const isSelfboothFrame = (frame) => isSelfboothSize(frame.printSize);
 
 const PAGE_SIZE = 12;
 const MAX_BYTES = 10 * 1024 * 1024;
+const MAX_REGIONS = 60;
+const MAX_PHOTOS = 40;
+const MIN_REGION_SIZE = .001;
 const SIZES = { full: "Size lớn", strip: "Size nhỏ", large: "Size 20 × 30" };
 // Khổ thêm mới được ở từng tab: phòng Photobooth (lớn / nhỏ), phòng Selfbooth (tờ 20 × 30 máy DS820).
 const NEW_SIZES = { photobooth: ["full", "strip"], selfbooth: ["large"] };
@@ -384,54 +389,39 @@ async function frameRatioError(src, printSize) {
 // Tự nhận các ô trong suốt / trắng làm vùng ảnh. Khung nhỏ: ô ở dải phải trùng hàng với ô dải trái
 // nhận cùng số ảnh (in ra 2 dải giống nhau).
 async function autoRegions(src, printSize) {
-  const image = await new Promise((resolve, reject) => {
-    const im = new Image();
-    if (!/^(data|blob):/.test(src)) im.crossOrigin = "anonymous";
-    im.onload = () => resolve(im);
-    im.onerror = () => reject(new Error("Không đọc được ảnh khung."));
-    im.src = src;
-  });
-  const k = Math.min(1, 800 / Math.max(image.naturalWidth, image.naturalHeight));
-  const probe = document.createElement("canvas");
-  probe.width = Math.round(image.naturalWidth * k);
-  probe.height = Math.round(image.naturalHeight * k);
-  const ctx = probe.getContext("2d", { willReadFrequently: true });
-  ctx.drawImage(image, 0, 0, probe.width, probe.height);
-  const slots = detectSlots(ctx.getImageData(0, 0, probe.width, probe.height));
-  probe.width = probe.height = 0;
-  let next = 0;
-  const left = [];
-  return slots.map((s) => {
-    if (printSize === "strip" && s.x + s.w / 2 > 0.5) {
-      const twin = left.find((l) => Math.abs(l.y - s.y) < 0.03 && Math.abs(l.h - s.h) < 0.03);
-      if (twin) return { ...s, kind: "photo", photo: twin.photo };
+  const image = await loadFrameImage(src);
+  const slots = detectFrameSlots(image, MAX_REGIONS);
+  const leaders = new Map();
+  const ratio = Math.min(image.naturalWidth, image.naturalHeight) / Math.max(image.naturalWidth, image.naturalHeight);
+  if (printSize === "strip" && ratio >= .5) {
+    const left = slots.map((slot, index) => ({ slot, index })).filter(({ slot }) => slot.x + slot.w / 2 < .5);
+    const paired = new Set();
+    for (const [rightIndex, right] of slots.entries()) {
+      if (right.x + right.w / 2 <= .5) continue;
+      const candidates = left.filter(({ slot, index }) => !paired.has(index) &&
+        Math.abs(slot.x + .5 - right.x) < .035 && Math.abs(slot.w - right.w) < .035 &&
+        Math.abs(slot.y - right.y) < .03 && Math.abs(slot.h - right.h) < .03);
+      const twin = candidates.sort((a, b) => Math.abs(a.slot.y - right.y) - Math.abs(b.slot.y - right.y))[0];
+      if (twin) {
+        paired.add(twin.index);
+        leaders.set(rightIndex, twin.index);
+      }
     }
-    const region = { ...s, kind: "photo", photo: ++next };
-    if (s.x + s.w / 2 <= 0.5) left.push(region);
-    return region;
+  }
+  const numbers = new Map();
+  return slots.flatMap((slot, index) => {
+    const leader = leaders.get(index) ?? index;
+    if (!numbers.has(leader)) numbers.set(leader, numbers.size + 1);
+    const photo = numbers.get(leader);
+    return photo <= MAX_PHOTOS ? [{ ...slot, kind: "photo", photo }] : [];
   });
 }
 
 const HANDLES = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
-const MIN = 0.02;
-// Kéo vùng: di chuyển hoặc kéo giãn từng cạnh / góc, luôn nằm trong khung.
-function dragRegion(start, mode, dx, dy) {
-  let { x, y, w, h } = start;
-  if (mode === "move") return { ...start, x: clamp(x + dx, 0, 1 - w), y: clamp(y + dy, 0, 1 - h) };
-  if (mode.includes("e")) w = clamp(w + dx, MIN, 1 - x);
-  if (mode.includes("s")) h = clamp(h + dy, MIN, 1 - y);
-  if (mode.includes("w")) {
-    const nx = clamp(x + dx, 0, x + w - MIN);
-    w += x - nx;
-    x = nx;
-  }
-  if (mode.includes("n")) {
-    const ny = clamp(y + dy, 0, y + h - MIN);
-    h += y - ny;
-    y = ny;
-  }
-  return { ...start, x, y, w, h };
-}
+const regionStyle = region => ({
+  left: `${region.x * 100}%`, top: `${region.y * 100}%`, width: `${region.w * 100}%`, height: `${region.h * 100}%`,
+  ...(region.angle && { transform: `rotate(${region.angle}deg)` }),
+});
 
 // ─── Thêm / sửa khung (như Snapbox "Thêm mới frame size lớn"): form bên trái, khung bên phải ────
 function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose, onSaved }) {
@@ -442,40 +432,51 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
   const [error, setError] = useState("");
   const [newTheme, setNewTheme] = useState("");
   const [over, setOver] = useState(false);
+  const [drawing, setDrawing] = useState(false);
+  const [draft, setDraft] = useState(null);
+  const [zoom, setZoom] = useState(100);
+  const [analyzing, setAnalyzing] = useState(false);
   const canvas = useRef(null);
+  const picture = useRef(null);
   const gesture = useRef(null);
   const fileInput = useRef(null);
   const set = (patch) => setFrame((f) => ({ ...f, ...patch }));
   const slots = frame.slots || [];
-  const setSlots = (next) => set({ slots: typeof next === "function" ? next(slots) : next });
+  const setSlots = (next) => setFrame((f) => ({ ...f, slots: typeof next === "function" ? next(f.slots || []) : next }));
   const capacity = frameCapacity(frame);
   const maxPhoto = Math.max(0, ...slots.filter(isPhotoRegion).map((s) => s.photo || 0));
   const strip = frame.printSize === "strip";
   const imageSrc = frame.image?.startsWith("data:") ? frame.image : assetUrl(frame.image);
   const selfbooth = isSelfboothFrame(frame);
+  const [ratio, setRatio] = useState(2 / 3);
+  const canDraw = !analyzing && slots.length < MAX_REGIONS && maxPhoto < MAX_PHOTOS;
   const sameKind = themes.filter((name) => (themeKinds[name] || "photobooth") === serviceOf(frame.printSize));
   const themeOptions = [...new Set([...sameKind, frame.themeName].filter((name) => name && name !== "__new"))];
 
   async function pickFile(file) {
-    if (!file) return;
+    if (!file || analyzing) return;
     setError("");
+    setAnalyzing(true);
     try {
       const { data } = await readFrameFile(file, frame.printSize);
       const regions = slots.length ? slots : await autoRegions(data, frame.printSize).catch(() => []);
       set({ image: data, sheet: true, slots: regions });
       setSelected(-1);
+      setDrawing(false);
+      setZoom(100);
       toast.success(regions.length && !slots.length
         ? `Đã nhận ${new Set(regions.map((r) => r.photo)).size} ảnh (${regions.length} vùng) từ các ô trong suốt — kiểm tra và căn chỉnh lại nếu cần.`
-        : "Đã tải ảnh khung. Bấm “Thêm vùng ảnh” để đặt ô ảnh.");
+        : regions.length ? "Đã thay ảnh khung và giữ các vùng đã đặt." : "Đã tải ảnh khung. Bấm “Vẽ vùng ảnh” để đặt ô ảnh.");
     } catch (e) {
       setError(e.message);
       toast.error(e.message);
+    } finally {
+      setAnalyzing(false);
     }
   }
   const add = (kind) => {
-    const region = kind === "photo"
-      ? { x: 0.1, y: 0.1, w: strip ? 0.35 : 0.5, h: 0.2, kind, photo: maxPhoto + 1 }
-      : kind === "qr"
+    if (slots.length >= MAX_REGIONS || analyzing) return;
+    const region = kind === "qr"
         ? { x: 0.06, y: 0.84, w: 0.12, h: 0.08, kind }
         : { x: 0.22, y: 0.88, w: 0.22, h: 0.04, kind };
     setSlots([...slots, region]);
@@ -484,6 +485,7 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
   // Sao chép: khung nhỏ chép sang dải bên kia cùng vị trí (in ra 2 dải giống nhau); khung lớn
   // chép lệch xuống một chút. Bản sao vùng ảnh giữ nguyên số ảnh.
   const duplicate = (index) => {
+    if (slots.length >= MAX_REGIONS) return;
     const s = slots[index];
     const copy = strip
       ? { ...s, x: clamp(s.x + (s.x + s.w / 2 < 0.5 ? 0.5 : -0.5), 0, 1 - s.w) }
@@ -496,46 +498,76 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
     setSelected(-1);
   };
   const begin = (event, index, mode) => {
+    if (event.button !== 0 || gesture.current || analyzing || (drawing && mode !== "draw")) return;
+    if (!picture.current?.naturalWidth) return;
     event.preventDefault();
     event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
     const bounds = canvas.current.getBoundingClientRect();
-    gesture.current = { index, mode, x: event.clientX, y: event.clientY, width: bounds.width, height: bounds.height, start: { ...slots[index] } };
+    const point = (e) => ({ x: (e.clientX - bounds.left) / bounds.width, y: (e.clientY - bounds.top) / bounds.height });
+    gesture.current = {
+      index, mode, pointerId: event.pointerId, point, origin: point(event), start: slots[index],
+      size: { width: picture.current.naturalWidth, height: picture.current.naturalHeight },
+      renderWidth: bounds.width, renderHeight: bounds.height,
+    };
+    canvas.current.setPointerCapture(event.pointerId);
     setSelected(index);
   };
   const moveTo = (event) => {
     const g = gesture.current;
-    if (!g) return;
-    const next = dragRegion(g.start, g.mode, (event.clientX - g.x) / g.width, (event.clientY - g.y) / g.height);
+    if (!g || g.pointerId !== event.pointerId) return;
+    const point = g.point(event);
+    if (g.mode === "draw") {
+      setDraft(regionFromPoints(g.origin, point));
+      return;
+    }
+    const dx = point.x - g.origin.x, dy = point.y - g.origin.y;
+    const next = g.mode === "move" ? moveRegion(g.start, dx, dy, g.size)
+      : resizeRegion(g.start, g.mode, dx, dy, MIN_REGION_SIZE, g.size);
     setSlots((list) => list.map((s, i) => (i === g.index ? next : s)));
   };
-  const end = () => {
+  const end = (event, cancel = false) => {
+    const g = gesture.current;
+    if (!g || g.pointerId !== event.pointerId) return;
     gesture.current = null;
+    setDraft(null);
+    if (cancel || g.mode !== "draw") return;
+    const region = regionFromPoints(g.origin, g.point(event));
+    if (region.w * g.renderWidth < 3 || region.h * g.renderHeight < 3) return;
+    setSlots([...slots, { ...region, kind: "photo", photo: maxPhoto + 1 }]);
+    setSelected(slots.length);
+    setDrawing(false);
   };
   // Phím mũi tên dịch vùng đang chọn 1 px (Shift: 10 px), Delete xóa vùng.
   useEffect(() => {
     const onKey = (event) => {
+      if (drawing && event.key === "Escape") {
+        if (gesture.current) end({ pointerId: gesture.current.pointerId }, true);
+        setDrawing(false);
+        return;
+      }
       if (selected < 0 || !slots[selected] || /input|select|textarea/i.test(event.target.tagName)) return;
       if (event.key === "Delete" || event.key === "Backspace") {
         event.preventDefault();
         removeRegion(selected);
         return;
       }
-      const step = (event.shiftKey ? 10 : 1) / 1800;
-      const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[event.key];
-      if (!d) return;
+      const direction = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
+      if (!direction || !picture.current?.naturalWidth) return;
+      const step = event.shiftKey ? 10 : 1;
+      const size = { width: picture.current.naturalWidth, height: picture.current.naturalHeight };
       event.preventDefault();
-      setSlots((list) => list.map((s, i) => (i === selected ? dragRegion(s, "move", d[0], d[1]) : s)));
+      setSlots((list) => list.map((s, i) => i === selected
+        ? moveRegion(s, direction[0] * step / size.width, direction[1] * step / size.height, size) : s));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selected, slots]);
+  }, [selected, slots, drawing]);
 
   async function save() {
     const themeName = (frame.themeName === "__new" ? newTheme : frame.themeName || "").trim();
     if (frame.themeName === "__new" && !themeName) return toast.error("Vui lòng nhập tên chủ đề mới.");
     if (!frame.image) return toast.error("Vui lòng tải ảnh khung lên.");
-    if (!capacity) return toast.error("Khung cần ít nhất 1 vùng ảnh — bấm “Thêm vùng ảnh”.");
+    if (!capacity) return toast.error("Khung cần ít nhất 1 vùng ảnh — bấm “Vẽ vùng ảnh”.");
     // Đổi kích thước sau khi đã tải ảnh: ảnh phải đúng tỉ lệ của khổ mới.
     const mismatch = await frameRatioError(imageSrc, frame.printSize).catch(() => "");
     if (mismatch) return toast.error(mismatch);
@@ -591,7 +623,7 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
           </label>
           <label>
             <span>Kích thước</span>
-            <select value={frame.printSize} onChange={(e) => set({ printSize: e.target.value })}>
+            <select value={frame.printSize} disabled={analyzing} onChange={(e) => set({ printSize: e.target.value })}>
               <option value="full">Size lớn — in nguyên tờ 10 × 15</option>
               <option value="strip">Size nhỏ — 2 dải trên một tờ, cắt đôi</option>
             </select>
@@ -619,12 +651,12 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
           </label>
           <div className="frame-editor-actions">
             <Button className="outline" onClick={onClose} disabled={busy}>Hủy</Button>
-            <Button onClick={save} disabled={busy}>{busy ? "Đang lưu…" : "Hoàn thành"}</Button>
+            <Button onClick={save} disabled={busy || analyzing}>{busy ? "Đang lưu…" : "Hoàn thành"}</Button>
           </div>
         </aside>
 
         <section className="frame-editor-stage">
-          <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" hidden
+          <input ref={fileInput} type="file" aria-label="Chọn file ảnh khung PTB" accept="image/png,image/jpeg,image/webp" disabled={analyzing} hidden
             onChange={(e) => { pickFile(e.target.files?.[0]); e.target.value = ""; }} />
           {!frame.image ? (
             <div
@@ -646,24 +678,43 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
           ) : (
             <>
               <div className="frame-tools">
-                <button type="button" onClick={() => add("photo")}><Square size={15} /> Thêm vùng ảnh</button>
-                <button type="button" onClick={() => add("qr")}><QrCode size={15} /> Thêm QR</button>
-                <button type="button" onClick={() => add("date")}><CalendarDays size={15} /> Thêm ngày in</button>
-                <button type="button" onClick={async () => {
-                  const regions = await autoRegions(imageSrc, frame.printSize).catch(() => []);
-                  if (!regions.length) return toast.warning("Không thấy ô trong suốt / trắng nào trong khung.");
-                  setSlots([...regions, ...slots.filter((s) => !isPhotoRegion(s))]);
+                <button type="button" disabled={!canDraw} aria-pressed={drawing} onClick={() => {
+                  setDrawing(!drawing);
                   setSelected(-1);
-                  toast.success(`Đã nhận ${new Set(regions.map((r) => r.photo)).size} ảnh (${regions.length} vùng).`);
+                }}><SquareDashed size={15} /> Vẽ vùng ảnh</button>
+                <button type="button" disabled={analyzing || slots.length >= MAX_REGIONS} onClick={() => { setDrawing(false); add("qr"); }}><QrCode size={15} /> Thêm QR</button>
+                <button type="button" disabled={analyzing || slots.length >= MAX_REGIONS} onClick={() => { setDrawing(false); add("date"); }}><CalendarDays size={15} /> Thêm ngày in</button>
+                <button type="button" disabled={analyzing} onClick={async () => {
+                  setAnalyzing(true);
+                  setDrawing(false);
+                  try {
+                    const marks = slots.filter((s) => !isPhotoRegion(s));
+                    const regions = (await autoRegions(imageSrc, frame.printSize)).slice(0, MAX_REGIONS - marks.length);
+                    if (!regions.length) return toast.warning("Không thấy ô trong suốt hoặc ô trắng. Bạn có thể vẽ vùng ảnh.");
+                    setSlots([...regions, ...marks]);
+                    setSelected(-1);
+                    toast.success(`Đã nhận ${new Set(regions.map((r) => r.photo)).size} ảnh (${regions.length} vùng).`);
+                  } catch (e) {
+                    toast.error(e.message);
+                  } finally {
+                    setAnalyzing(false);
+                  }
                 }}><ScanSearch size={15} /> Tự nhận vùng ảnh</button>
-                <button type="button" onClick={() => fileInput.current?.click()}><ImagePlus size={15} /> Đổi ảnh khung</button>
+                <button type="button" disabled={analyzing} onClick={() => fileInput.current?.click()}><ImagePlus size={15} /> Đổi ảnh khung</button>
+              </div>
+              <div className="frame-region-bar">
+                <label className="ptb-region-zoom">Phóng to khung
+                  <input type="range" min="100" max="400" step="10" value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
+                  <output>{zoom}%</output>
+                </label>
+                {drawing && <small role="status">Kéo từ góc này sang góc kia để vẽ ô. Bấm Esc để thoát.</small>}
               </div>
               {current && (
                 <div className="frame-region-bar">
                   {isPhotoRegion(current) ? (
                     <label>
                       Vùng đang chọn: ảnh số
-                      <select value={current.photo || 1} onChange={(e) => setSlots(slots.map((s, i) => (i === selected ? { ...s, photo: Number(e.target.value) } : s)))}>
+                      <select disabled={analyzing} value={current.photo || 1} onChange={(e) => setSlots(slots.map((s, i) => (i === selected ? { ...s, photo: Number(e.target.value) } : s)))}>
                         {Array.from({ length: Math.min(40, maxPhoto + 1) }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n}</option>)}
                       </select>
                     </label>
@@ -671,38 +722,35 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
                     <span>Vùng đang chọn: {current.kind === "qr" ? "mã QR album" : "ngày in"}</span>
                   )}
                   <small>Kéo để di chuyển · kéo các cạnh / góc để giãn · phím mũi tên để dịch từng chút</small>
+                  <div className="frame-region-tools">
+                    <button type="button" aria-label="Sao chép vùng" disabled={analyzing || slots.length >= MAX_REGIONS} onClick={() => duplicate(selected)}><Copy size={13} /></button>
+                    <button type="button" aria-label="Xóa vùng" disabled={analyzing} onClick={() => removeRegion(selected)}><Trash2 size={13} /></button>
+                  </div>
                 </div>
               )}
               <div className="frame-board-wrap">
-                <div ref={canvas} className="frame-board" onPointerDown={() => setSelected(-1)}>
-                  <img src={imageSrc} alt="Khung đang chỉnh" draggable="false" crossOrigin="anonymous" />
+                <div ref={canvas} className={`frame-board${drawing ? " is-drawing" : ""}`}
+                  style={{ width: `min(${zoom}%, calc(max(420px, 100dvh - 190px) * ${ratio * zoom / 100}))` }}
+                  onPointerDown={(event) => drawing && canDraw ? begin(event, -1, "draw") : setSelected(-1)}
+                  onPointerMove={moveTo} onPointerUp={end}
+                  onPointerCancel={(event) => end(event, true)} onLostPointerCapture={(event) => end(event, true)}>
+                  <img ref={picture} src={imageSrc} alt="Khung đang chỉnh" draggable="false" crossOrigin="anonymous"
+                    onLoad={(event) => setRatio(event.currentTarget.naturalWidth / event.currentTarget.naturalHeight)} />
                   {slots.map((region, index) => (
                     <div
                       key={index}
                       className={`frame-region kind-${region.kind || "photo"} ${selected === index ? "selected" : ""} ${isPhotoRegion(region) && slots.findIndex((s) => isPhotoRegion(s) && s.photo === region.photo) !== index ? "is-copy" : ""}`}
-                      style={{ left: `${region.x * 100}%`, top: `${region.y * 100}%`, width: `${region.w * 100}%`, height: `${region.h * 100}%`,
-                        ...(region.angle ? { transform: `rotate(${region.angle}deg)` } : {}) }}
+                      style={regionStyle(region)}
                       onPointerDown={(event) => begin(event, index, "move")}
-                      onPointerMove={moveTo}
-                      onPointerUp={end}
-                      onPointerCancel={end}
                     >
                       <strong>{isPhotoRegion(region) ? region.photo : region.kind === "qr" ? "QR" : printDate()}</strong>
-                      {selected === index && (
-                        <>
-                          <div className="frame-region-tools">
-                            <button type="button" aria-label="Sao chép vùng" onPointerDown={(e) => e.stopPropagation()} onClick={() => duplicate(index)}><Copy size={13} /></button>
-                            <button type="button" aria-label="Xóa vùng" onPointerDown={(e) => e.stopPropagation()} onClick={() => removeRegion(index)}><Trash2 size={13} /></button>
-                          </div>
-                          {HANDLES.map((handle) => (
+                      {!drawing && selected === index && HANDLES.map((handle) => (
                             <span key={handle} className={`frame-handle h-${handle}`}
-                              onPointerDown={(event) => begin(event, index, handle)}
-                              onPointerMove={moveTo} onPointerUp={end} onPointerCancel={end} />
-                          ))}
-                        </>
-                      )}
+                              onPointerDown={(event) => begin(event, index, handle)} />
+                      ))}
                     </div>
                   ))}
+                  {draft && <div className="frame-region frame-region-draft" style={regionStyle(draft)} aria-hidden="true" />}
                 </div>
               </div>
             </>
