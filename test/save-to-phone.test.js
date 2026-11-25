@@ -40,3 +40,19 @@ test("download links request direct delivery while keeping server attachment fil
   assert.equal(link.href, "/api/albums/token/video?download=1&direct=1");
   assert.equal(link.download, "NXC-video.mp4");
 });
+
+test("a byte limit stops new JPEG requests and leaves the files already in flight in order", async () => {
+  const entries = Array.from({ length: 8 }, (_, i) => ({
+    url: `/api/albums/token/photos/${i}?download=1`,
+    link: `https://bucket.account.r2.cloudflarestorage.com/batch/${i}`,
+    name: `anh-${i}.jpg`, type: "image/jpeg",
+  }));
+  const calls = [];
+  globalThis.fetch = async url => {
+    calls.push(url);
+    return new Response(new Uint8Array([255, 216, 1, 255, 217]));
+  };
+  const files = await fetchFiles(entries, new Map(), undefined, { maxBytes: 5 });
+  assert.deepEqual(files.map(file => file.name), entries.slice(0, 3).map(entry => entry.name));
+  assert.deepEqual(calls, entries.slice(0, 3).map(entry => entry.link));
+});

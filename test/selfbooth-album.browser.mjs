@@ -153,10 +153,10 @@ after(async () => { await browser?.close(); await new Promise((resolve) => serve
 
 async function phone({ faces = null, hashes = null, originalPending = false, photoCount = 4, printError = null, lostReply = false,
   viewport = { width: 390, height: 844 }, realPhoto = false, prints: quota = 1, desktop = false, size = "large", ios = false,
-  holdThumbnail, restoreStep, tallFrame = false, expiredShareTap = false } = {}) {
+  holdThumbnail, restoreStep, tallFrame = false, expiredShareTap = false, maxShareFiles = null } = {}) {
   const page = await browser.newPage(desktop ? { viewport } : { viewport, isMobile: true, hasTouch: true,
     ...(ios && { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1" }) });
-  const errors = [], prints = [], mediaRequests = [], deletes = [], uploads = [], asked = [];
+  const errors = [], prints = [], mediaRequests = [], deletes = [], uploads = [], asked = [], downloads = [];
   let releaseThumbnail;
   const thumbnailGate = new Promise(resolve => { releaseThumbnail = resolve; });
   let savedJob = null, failedOnce = false;
@@ -191,6 +191,7 @@ async function phone({ faces = null, hashes = null, originalPending = false, pho
       mediaRequests.push(url.searchParams.get('size'));
       if (media[1] === String(holdThumbnail) && url.searchParams.get("size") === "thumbnail") await thumbnailGate;
       const downloadable = url.searchParams.get("download") === "1";
+      if (downloadable) downloads.push(Number(media[1]));
       return route.fulfill({ body: realPhoto ? portrait : photos[media[1]] || photos[1],
         headers: downloadable ? { "Content-Disposition": `attachment; filename="anh-${media[1].padStart(2, '0')}.jpg"` } : {},
         contentType: realPhoto ? 'image/jpeg' : "image/png" });
@@ -215,21 +216,22 @@ async function phone({ faces = null, hashes = null, originalPending = false, pho
   if (restoreStep !== undefined) await page.addInitScript(step => {
     localStorage.setItem("selfbooth-album-v2-fixture-album", JSON.stringify({ step }));
   }, restoreStep);
-  if (ios) await page.addInitScript(expiredTap => {
+  if (ios) await page.addInitScript(({ expiredShareTap, maxShareFiles }) => {
     window.sharedBatches = [];
-    window.allowShare = !expiredTap;
+    window.allowShare = !expiredShareTap;
     const activation = navigator.userActivation;
     Object.defineProperty(navigator, "userActivation", { value: {
       get isActive() { return window.allowShare && activation.isActive; },
     } });
-    navigator.canShare = ({ files }) => files.every(f => f.type === "image/jpeg");
+    navigator.canShare = ({ files }) => (maxShareFiles === null || files.length <= maxShareFiles)
+      && files.every(f => f.type === "image/jpeg");
     navigator.share = async ({ files }) => {
       if (!navigator.userActivation.isActive) throw new DOMException("Gesture needed", "NotAllowedError");
       window.sharedBatches.push(files.map(f => f.name));
     };
-  }, expiredShareTap);
+  }, { expiredShareTap, maxShareFiles });
   await page.goto(`${base}/album/fixture-album${tallFrame ? "?tall-frame" : ""}`);
-  return { page, errors, prints, mediaRequests, deletes, uploads, booking, asked, releaseThumbnail,
+  return { page, errors, prints, mediaRequests, deletes, uploads, booking, asked, downloads, releaseThumbnail,
     originalsReady:()=>{booking.photos.forEach(p=>delete p.originalPending)} };
 }
 
@@ -285,18 +287,32 @@ test("Selfbooth phone downloads individual JPEG files without a ZIP request", as
   } finally { await page.close(); }
 });
 
-test("iPhone-style saving opens from the first tap and offers the next JPEG batch on the same button", async () => {
-  const { page, asked, errors } = await phone({ ios: true, photoCount: 12, realPhoto: true });
+test("iPhone-style saving shares every JPEG in one batch even above the old 50-photo limit", async () => {
+  const { page, asked, downloads, errors } = await phone({ ios: true, photoCount: 55, realPhoto: true });
+  try {
+    await page.getByRole("button", { name: "Lưu tất cả ảnh" }).click();
+    await page.waitForFunction(() => window.sharedBatches.length === 1);
+    await page.getByRole("button", { name: "Lưu tất cả ảnh", exact: true }).waitFor();
+    const batches = await page.evaluate(() => window.sharedBatches);
+    assert.deepEqual(batches.map(batch => batch.length), [55]);
+    assert.equal(new Set(batches.flat()).size, 55);
+    assert.equal(downloads.length, 55);
+    assert.ok(batches.flat().every(name => name.endsWith(".jpg")));
+    assert.equal(asked.some(path => path.endsWith("/download")), false);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("a phone that accepts fewer files shares a smaller batch and reuses the rest", async () => {
+  const { page, downloads, errors } = await phone({ ios: true, photoCount: 14, realPhoto: true, maxShareFiles: 10 });
   try {
     await page.getByRole("button", { name: "Lưu tất cả ảnh" }).click();
     await page.waitForFunction(() => window.sharedBatches.length === 1);
     await page.getByRole("button", { name: "Lưu 4 ảnh còn lại" }).click();
-    await page.waitForFunction(() => window.sharedBatches.length === 2);
     const batches = await page.evaluate(() => window.sharedBatches);
-    assert.deepEqual(batches.map(batch => batch.length), [8, 4]);
-    assert.equal(new Set(batches.flat()).size, 12);
-    assert.ok(batches.flat().every(name => name.endsWith(".jpg")));
-    assert.equal(asked.some(path => path.endsWith("/download")), false);
+    assert.deepEqual(batches.map(batch => batch.length), [10, 4]);
+    assert.equal(new Set(batches.flat()).size, 14);
+    assert.equal(downloads.length, 14);
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });

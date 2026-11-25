@@ -45,7 +45,7 @@ const STEPS = [
 ];
 const ACCEPTED = /^image\/(jpeg|png|webp)$/;
 const MAX_UPLOAD_MB = 40;
-const SHARE_BATCH = 8;
+const SHARE_BATCH_BYTES = 128 * 1024 * 1024;
 const FIRST_GALLERY_PHOTOS = 4;
 const pad = (n) => String(n).padStart(2, "0");
 const slotsOf = (frame) => photoLayout(frame).slots;
@@ -618,13 +618,23 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
       setSaveProgress("");
     }
   }
-  async function prepareShare(scope, entries, total = entries.length) {
-    const batch = entries.slice(0, SHARE_BATCH);
+  async function prepareShare(scope, entries, total = entries.length, cache = new Map()) {
     const completed = total - entries.length;
     const progress = done => setSaveProgress(`Đang chuẩn bị ${completed + done}/${total} ảnh…`);
     progress(0);
-    const files = await fetchFiles(batch, new Map(), progress);
-    return { scope, files, total, remaining: entries.slice(batch.length), download: !navigator.canShare({ files }) };
+    const prepared = await fetchFiles(entries, cache, progress, { maxBytes: SHARE_BATCH_BYTES });
+    // A few requests can finish together after crossing the byte limit. Keep
+    // their JPEGs for the next batch and release the shared files from the cache.
+    let count = 0, bytes = 0;
+    for (const file of prepared) {
+      if (count && bytes + file.size > SHARE_BATCH_BYTES) break;
+      bytes += file.size;
+      count++;
+    }
+    let files = prepared.slice(0, count);
+    while (files.length > 1 && !navigator.canShare({ files })) files = files.slice(0, -1);
+    for (const entry of entries.slice(0, files.length)) cache.delete(entry.url);
+    return { scope, files, total, cache, remaining: entries.slice(files.length), download: !navigator.canShare({ files }) };
   }
   async function downloadFiles(files) {
     const entries = files.map(file => ({ url: URL.createObjectURL(file), name: file.name }));
@@ -633,7 +643,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
   }
   async function shareBatch(batch, fromPreparation = false) {
     setReadyToSave(batch);
-    const { scope, files, remaining, total, download } = batch;
+    const { scope, files, remaining, total, cache, download } = batch;
     // Safari lets a quick fetch use the tap that started it. After a slow fetch,
     // keep the prepared bytes and let the same button open the system sheet.
     if (fromPreparation && (download || navigator.userActivation?.isActive === false)) return;
@@ -647,13 +657,13 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
         return;
       }
     }
-    setReadyToSave(remaining.length ? { scope, files: [], remaining, total } : null);
-    if (remaining.length) setReadyToSave(await prepareShare(scope, remaining, total));
+    setReadyToSave(remaining.length ? { scope, files: [], remaining, total, cache } : null);
+    if (remaining.length) setReadyToSave(await prepareShare(scope, remaining, total, cache));
   }
   function resumeSave(batch) {
     return savePhotos(batch.scope, async () => {
       if (batch.files.length) await shareBatch(batch);
-      else await shareBatch(await prepareShare(batch.scope, batch.remaining, batch.total), true);
+      else await shareBatch(await prepareShare(batch.scope, batch.remaining, batch.total, batch.cache), true);
     });
   }
   function downloadAll() {

@@ -24,12 +24,14 @@ export function usesShareSheet() {
 export const savableOnIOS = (entry) => entry.type !== "video/webm";
 
 // Tải các tệp (3 tệp cùng lúc, giữ đúng thứ tự). Tệp đã tải giữ trong cache để bấm lại không tải lại.
-export async function fetchFiles(entries, cache, onProgress = () => {}) {
+export async function fetchFiles(entries, cache, onProgress = () => {}, { maxBytes = Infinity } = {}) {
   const files = new Array(entries.length);
   let next = 0;
   let done = 0;
+  let bytes = 0;
+  let failed = false;
   const worker = async () => {
-    while (next < entries.length) {
+    while (!failed && next < entries.length && bytes < maxBytes) {
       const i = next++;
       const entry = entries[i];
       if (!cache.has(entry.url)) {
@@ -39,10 +41,15 @@ export async function fetchFiles(entries, cache, onProgress = () => {}) {
         cache.set(entry.url, new File([blob], entry.name, { type: entry.type || blob.type }));
       }
       files[i] = cache.get(entry.url);
-      onProgress(++done);
+      bytes += files[i].size;
+      if (!failed) onProgress(++done);
     }
   };
-  await Promise.all(Array.from({ length: Math.min(3, entries.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(3, entries.length) }, () => worker().catch(error => {
+    failed = true;
+    throw error;
+  })));
+  files.length = next;
   return files;
 }
 
