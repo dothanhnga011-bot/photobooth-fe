@@ -5,7 +5,7 @@
 // phóng to tối đa ×3 như máy in (clampZoom), và đang gửi in / đã gửi in (frozen) thì khoá thao tác.
 import { useEffect, useRef, useState } from "react";
 import {
-  PiArrowCounterClockwiseBold, PiArrowLeftBold, PiArrowRightBold, PiHeartFill, PiMagnifyingGlassBold,
+  PiArrowCounterClockwiseBold, PiArrowLeftBold, PiArrowRightBold, PiHeartFill,
   PiMinusBold, PiPlusBold, PiShuffleBold, PiXBold,
 } from "react-icons/pi";
 import { Button, useToast } from "../../studio";
@@ -277,8 +277,13 @@ export function FrameEditor({ token, frame, title, slots, photos, small, photoOf
               <PiArrowCounterClockwiseBold aria-hidden="true" /> Thử lại
             </Button>
           )}
-          <p className="frame-hint">Chạm ô để chọn · kéo để di chuyển · chụm 2 ngón để phóng to</p>
-          <div className="photo-carousel" aria-label="Ảnh yêu thích">
+          {slots.length > 1 && <div className="slot-selector" role="group" aria-label="Chọn ô trên khung">
+            {slots.map((slot, i) => <button key={i} type="button" aria-pressed={selected === i} disabled={frozen}
+              className={slot.photo ? "" : "is-empty"} aria-label={`Chọn ô ${i + 1}${slot.photo ? "" : " đang trống"}`}
+              onClick={() => setSelected(i)}>{i + 1}</button>)}
+          </div>}
+          <p className="frame-hint">Chọn ô rồi chạm ảnh bên dưới. Kéo ảnh trên khung để căn vị trí.</p>
+          <div className="photo-carousel" role="group" aria-label="Ảnh để ghép">
             {photos.map((p) => (
               <CarouselThumb key={p.id} token={token} photo={p} active={p.id === current.photo} count={usage(p.id)}
                 disabled={frozen}
@@ -291,7 +296,9 @@ export function FrameEditor({ token, frame, title, slots, photos, small, photoOf
           <div className="slot-tools-head">
             <strong>Ô {selected + 1}</strong>
             <div className="slot-tools-actions">
-              <button type="button" className="text-link" disabled={frozen} onClick={() => setPicking(selected)}>
+              <button type="button" className="text-link slot-pick-action" disabled={frozen} onClick={() => {
+                setEverySlot(false); setPicking(selected);
+              }}>
                 {current.photo ? "Đổi ảnh" : "Chọn ảnh"}
               </button>
               {current.photo && slots.length > 1 && (
@@ -303,31 +310,31 @@ export function FrameEditor({ token, frame, title, slots, photos, small, photoOf
             </div>
           </div>
           <fieldset className="tool-rows" disabled={!current.photo || frozen}>
+            <label htmlFor="sb-slot-zoom" className="tool-label">Phóng to <output>{Math.round(current.zoom * 100)}%</output></label>
             <div className="tool-row">
               <button type="button" aria-label="Thu nhỏ" onClick={() => update(selected, { zoom: clamp(current.zoom - 0.1, ZOOM.min, ZOOM.max) })}>
                 <PiMinusBold />
               </button>
-              <PiMagnifyingGlassBold className="tool-icon" aria-hidden="true" />
-              <input type="range" aria-label="Phóng to ảnh" min={ZOOM.min} max={ZOOM.max} step="0.01" value={current.zoom}
+              <input id="sb-slot-zoom" type="range" aria-label="Phóng to ảnh" min={ZOOM.min} max={ZOOM.max} step="0.01" value={current.zoom}
                 onChange={(e) => update(selected, { zoom: Number(e.target.value) })} />
               <button type="button" aria-label="Phóng to" onClick={() => update(selected, { zoom: clamp(current.zoom + 0.1, ZOOM.min, ZOOM.max) })}>
                 <PiPlusBold />
               </button>
             </div>
-            <div className="tool-row">
+            <label htmlFor="sb-slot-rotation" className="tool-label">Xoay <output>{current.rotate || 0}°</output></label>
+            <div className="tool-row is-rotation">
               <button type="button" aria-label="Xoay về 0°" onClick={() => update(selected, { rotate: 0 })}>
                 <PiArrowCounterClockwiseBold />
               </button>
-              <input type="range" aria-label="Góc xoay" min="-180" max="180" step="1" value={current.rotate || 0}
+              <input id="sb-slot-rotation" type="range" aria-label="Góc xoay" min="-180" max="180" step="1" value={current.rotate || 0}
                 onChange={(e) => update(selected, { rotate: Number(e.target.value) })} />
-              <b>{current.rotate || 0}°</b>
             </div>
           </fieldset>
         </div>
       </div>
       <div className="studio-actions">
         <Button className="outline" disabled={frozen} onClick={onReshuffle}><PiShuffleBold aria-hidden="true" /> Xếp lại</Button>
-        <Button disabled={!canNext} onClick={next}>Xem kết quả <PiArrowRightBold aria-hidden="true" /></Button>
+        <Button disabled={!canNext} onClick={next}>Xem bản in <PiArrowRightBold aria-hidden="true" /></Button>
       </div>
       {ghost && <img className="drag-ghost" src={ghost.src} alt="" style={{ left: ghost.x, top: ghost.y }} />}
       {picking !== null && (

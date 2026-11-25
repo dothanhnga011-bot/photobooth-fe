@@ -262,11 +262,11 @@ const canvasReady = (page) => page.waitForFunction(() => document.querySelector(
 // Khách tự đi hết các bước với bộ "Selfbooth" (1 khung, 2 ô) rồi xem thành phẩm.
 async function toResult(page) {
   for (const n of ["03", "01"]) await page.getByRole("button", { name: `Thả tim ảnh ${n}` }).click();
-  await page.getByRole("button", { name: /Chọn chủ đề/ }).click();
+  await page.getByRole("button", { name: "Chọn khung in", exact: true }).click();
   await page.getByRole("button", { name: "Chọn bộ Selfbooth, 1 khung, 2 ô ảnh" }).click();
   await page.locator(".theme-action-bar").getByRole("button", { name: /Ghép ảnh/ }).click();
   await page.locator(".frame-nav").waitFor();
-  await page.getByRole("button", { name: /Xem kết quả/ }).click();
+  await page.getByRole("button", { name: /Xem bản in/ }).click();
   await page.getByRole("heading", { name: "Thành phẩm của bạn" }).waitFor();
 }
 const tap = async (page, label, fx, fy) => {
@@ -335,7 +335,7 @@ test("an expired iPhone tap leaves the prepared full-quality files ready on the 
 test("a single portrait frame stays inside its preview and above the caption on narrow phones", async () => {
   const { page, errors } = await phone({ tallFrame: true, viewport: { width: 320, height: 568 } });
   try {
-    await page.getByRole("button", { name: /Chọn chủ đề/ }).click();
+    await page.getByRole("button", { name: "Chọn khung in", exact: true }).click();
     const card = page.getByRole("button", { name: "Chọn bộ Khung 1, 1 khung, 2 ô ảnh" });
     await card.waitFor();
     await page.waitForFunction(() => document.querySelector(".theme-preview-frame img")?.naturalHeight === 360);
@@ -383,12 +383,12 @@ test("adding a Selfbooth frame finds its windows and lets the operator draw a sm
   } finally { await page.close(); }
 });
 
-test("album like Selfbooth: 01 Ảnh → 02 Chủ đề → 03 Ghép ảnh → 04 Kết quả, one 20 × 30 sheet per frame of the set", async () => {
-  const { page, errors, prints } = await phone({ prints: 2 });
+test("Selfbooth from the gallery to print and back, one 20 × 30 sheet per frame", async () => {
+  const { page, errors, prints } = await phone({ prints: 3 });
   try {
     await page.getByRole("heading", { name: "Ảnh của bạn" }).waitFor();
     assert.deepEqual((await page.locator(".studio-steps button").allTextContents()).map((t) => t.trim()),
-      ["Ảnh", "Chủ đề", "Ghép ảnh", "Kết quả"]);
+      ["Ảnh", "Chọn khung", "Ghép ảnh", "Bản in"]);
     assert.equal((await step(page)).trim(), "Ảnh");
     await page.getByRole("heading", { name: "Thư viện ảnh" }).waitFor();
     assert.equal(await page.getByRole("timer").count(), 0, "choosing photos on the phone has no time limit");
@@ -396,6 +396,11 @@ test("album like Selfbooth: 01 Ảnh → 02 Chủ đề → 03 Ghép ảnh → 0
     // Thả tim không giới hạn.
     for (const n of ["04", "02", "01"]) await page.getByRole("button", { name: `Thả tim ảnh ${n}` }).click();
     await page.getByText("Thích · 3").waitFor();
+    const favorites = page.getByRole("button", { name: "Ảnh đã thích", exact: true });
+    await favorites.click();
+    assert.equal(await page.locator(".studio-grid figure").count(), 3);
+    await favorites.click();
+    assert.equal(await page.locator(".studio-grid figure").count(), 4);
     // Chạm ảnh 4 để chỉnh: bộ lọc đen trắng.
     await page.getByRole("button", { name: "Xem & chỉnh ảnh 04" }).click();
     const editor = page.getByRole("dialog", { name: "Chỉnh ảnh 04" });
@@ -409,9 +414,9 @@ test("album like Selfbooth: 01 Ảnh → 02 Chủ đề → 03 Ghép ảnh → 0
     await page.getByTitle("Đã chỉnh sửa").waitFor();
     await page.getByRole('img',{name:'Ảnh 04 đã chỉnh',exact:true}).waitFor();
     // 02 Chủ đề: bộ "Hoa" có 2 khung × 2 ô.
-    await page.getByRole("button", { name: /Chọn chủ đề/ }).click();
+    await page.getByRole("button", { name: "Chọn khung in", exact: true }).click();
     await page.getByRole("heading", { name: "Chọn bộ khung" }).waitFor();
-    assert.equal((await step(page)).trim(), "Chủ đề");
+    assert.equal((await step(page)).trim(), "Chọn khung");
     await page.getByText("2 bộ khung").waitFor();
     await page.getByRole("button", { name: "Chọn bộ Hoa, 2 khung, 4 ô ảnh" }).click();
     await page.getByText(/Còn thiếu 1 ảnh yêu thích/).waitFor();
@@ -433,7 +438,9 @@ test("album like Selfbooth: 01 Ảnh → 02 Chủ đề → 03 Ghép ảnh → 0
     assert.equal(await page.getByRole("tab").count(), 2, "one tab per frame of the set");
     await canvasReady(page);
     // Chạm ô 2 của khung Trắng rồi chạm ảnh 4 bên dưới: một ảnh vào nhiều ô.
-    await tap(page, "Khung Trắng", 0.7425, 0.5);
+    const slot = page.getByRole("button", { name: "Chọn ô 2", exact: true });
+    await slot.click();
+    assert.equal(await slot.getAttribute("aria-pressed"), "true");
     await page.getByLabel("Ô 2", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Dùng ảnh 04 cho ô đang chọn" }).click();
     await page.waitForFunction(() => JSON.parse(localStorage.getItem("selfbooth-album-v2-fixture-album")).layouts.white[1].photo === "p4");
@@ -449,7 +456,9 @@ test("album like Selfbooth: 01 Ảnh → 02 Chủ đề → 03 Ghép ảnh → 0
     await sheet.getByRole("button", { name: "Đóng" }).click();
     await sheet.waitFor({ state: "detached" });
     // Kéo ảnh ở ô 1.
-    const box = await page.getByLabel("Khung Trắng").boundingBox();
+    const framePreview = page.getByLabel("Khung Trắng");
+    await framePreview.scrollIntoViewIfNeeded();
+    const box = await framePreview.boundingBox();
     const sx = box.x + box.width * 0.2575, sy = box.y + box.height * 0.5;
     await page.mouse.move(sx, sy);
     await page.mouse.down();
@@ -459,15 +468,16 @@ test("album like Selfbooth: 01 Ảnh → 02 Chủ đề → 03 Ghép ảnh → 0
     saved = await stored(page);
     assert.equal(saved.layouts.white[1].zoom, 1.5);
     await page.screenshot({ path: resolve(".cache/main-flows/album-compose-390.png"), fullPage: true });
-    // 04 Kết quả: 2 khung → 2 tờ 20 × 30; vé 2 tờ nên chọn sẵn cả hai.
-    await page.getByRole("button", { name: /Xem kết quả/ }).click();
+    // Hai khung được chọn, vé còn lại một tờ sau khi gửi in.
+    await page.getByRole("button", { name: /Xem bản in/ }).click();
     await page.getByRole("heading", { name: "Thành phẩm của bạn" }).waitFor();
     await page.locator(".sheet-strip img").nth(1).waitFor({ timeout: 30000 });
     assert.equal(await page.locator('.sheet-strip [aria-pressed="true"]').count(), 2);
     await page.screenshot({ path: resolve(".cache/main-flows/album-result-390.png"), fullPage: true });
-    await page.getByRole("button", { name: "Gửi in (2 tờ 20 × 30)" }).click();
+    await page.getByRole("button", { name: "Gửi in (2 tờ)" }).click();
     await page.getByRole("heading", { name: "Đã gửi in!" }).waitFor({ timeout: 30000 });
-    await page.getByText(/Ảnh đã được gửi tới quầy/).waitFor();
+    await page.getByText(/tại quầy để nhận ảnh/).waitFor();
+    await page.getByRole("button", { name: "In thêm (1 tờ còn lại)" }).waitFor();
     assert.equal(prints.length, 1);
     assert.equal(prints[0].frame, "Hoa");
     assert.equal(prints[0].key, saved.requestKey);
@@ -478,6 +488,14 @@ test("album like Selfbooth: 01 Ảnh → 02 Chủ đề → 03 Ghép ảnh → 0
     assert.ok(grey(await sheetColor(page, white, 0.7425, 0.5)), "photo 4 prints black & white in slot 2");
     assert.ok(grey(await sheetColor(page, pink, 0.2575, 0.5)));
     assert.ok(isBlue(await sheetColor(page, pink, 0.7425, 0.5)));
+    await page.getByRole("button", { name: "Về thư viện ảnh" }).click();
+    assert.equal(await page.getByRole("button", { name: "Lưu tất cả ảnh" }).isEnabled(), true);
+    await page.getByRole("button", { name: "Bản in", exact: true }).click();
+    await page.getByRole("heading", { name: "Đã gửi in!" }).waitFor();
+    assert.equal(prints.length, 1, "returning to the receipt does not send another print");
+    await page.getByRole("button", { name: "In thêm (1 tờ còn lại)" }).click();
+    await page.getByRole("button", { name: "Gửi in (1 tờ)" }).waitFor();
+    assert.notEqual((await stored(page)).requestKey, saved.requestKey);
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });
@@ -486,7 +504,7 @@ test("a frame copied from Selfbooth with a tilted slot is composed and printed w
   const { page, errors, prints } = await phone();
   try {
     for (const n of ["03", "01"]) await page.getByRole("button", { name: `Thả tim ảnh ${n}` }).click();
-    await page.getByRole("button", { name: /Chọn chủ đề/ }).click();
+    await page.getByRole("button", { name: "Chọn khung in", exact: true }).click();
     await page.getByRole("button", { name: "Chọn bộ Selfbooth, 1 khung, 2 ô ảnh" }).click();
     // Đủ ảnh yêu thích: vào ghép luôn, không hỏi.
     await page.locator(".theme-action-bar").getByRole("button", { name: /Ghép ảnh/ }).click();
@@ -497,9 +515,9 @@ test("a frame copied from Selfbooth with a tilted slot is composed and printed w
     await tap(page, "Khung Nghiêng", 0.74, 0.5);
     await page.getByLabel("Ô 2", { exact: true }).waitFor();
     await page.screenshot({ path: resolve(".cache/main-flows/album-compose-tilted.png"), fullPage: true });
-    await page.getByRole("button", { name: /Xem kết quả/ }).click();
+    await page.getByRole("button", { name: /Xem bản in/ }).click();
     await page.locator(".sheet-strip img").first().waitFor({ timeout: 30000 });
-    await page.getByRole("button", { name: "Gửi in (1 tờ 20 × 30)" }).click();
+    await page.getByRole("button", { name: "Gửi in (1 tờ)" }).click();
     await page.getByRole("heading", { name: "Đã gửi in!" }).waitFor({ timeout: 30000 });
     const [sheet] = sheetsOf(prints[0]);
     assert.deepEqual(jpegSize(sheet), [3600, 2400]);
@@ -546,7 +564,7 @@ test("nothing prints by itself: no timer, no deadline; the guest sends the finis
     await page.locator(".sheet-strip img").first().waitFor({ timeout: 30000 });
     await page.waitForTimeout(500);
     assert.equal(prints.length, 0, "the finished sheet waits for the guest");
-    await page.getByRole("button", { name: "Gửi in (1 tờ 20 × 30)" }).click();
+    await page.getByRole("button", { name: "Gửi in (1 tờ)" }).click();
     await page.getByRole("heading", { name: "Đã gửi in!" }).waitFor({ timeout: 30000 });
     assert.equal(prints.length, 1);
     assert.equal(prints[0].frame, "Selfbooth");
@@ -567,7 +585,7 @@ test("the finished sheet waits for camera originals instead of printing previews
     originalsReady();
     await page.getByRole("button", { name: /Làm mới/ }).click();
     await page.getByRole("button", { name: "Thử lại", exact: true }).click();
-    await page.getByRole("button", { name: "Gửi in (1 tờ 20 × 30)" }).click();
+    await page.getByRole("button", { name: "Gửi in (1 tờ)" }).click();
     await page.getByRole("heading", { name: "Đã gửi in!" }).waitFor({ timeout: 30000 });
     assert.equal(prints.length, 1);
     assert.ok(mediaRequests.includes("print"));
@@ -579,7 +597,7 @@ test("a print conflict does not pretend paper was sent; the retry resends the ex
   const { page, prints, errors } = await phone({ printError: "Các tờ in của yêu cầu này đã thay đổi. Vui lòng kiểm tra yêu cầu đã gửi." });
   try {
     await toResult(page);
-    await page.getByRole("button", { name: "Gửi in (1 tờ 20 × 30)" }).click();
+    await page.getByRole("button", { name: "Gửi in (1 tờ)" }).click();
     await page.getByText(/Các tờ in của yêu cầu này đã thay đổi/).waitFor({ timeout: 30000 });
     assert.equal(await page.getByRole("heading", { name: "Đã gửi in!" }).count(), 0);
     await page.getByRole("button", { name: "Kiểm tra và thử lại" }).click();
@@ -595,7 +613,7 @@ test("a lost print reply is recovered by looking up the job, without sending a s
   const { page, prints, errors } = await phone({ lostReply: true });
   try {
     await toResult(page);
-    await page.getByRole("button", { name: "Gửi in (1 tờ 20 × 30)" }).click();
+    await page.getByRole("button", { name: "Gửi in (1 tờ)" }).click();
     await page.getByRole("button", { name: "Kiểm tra và thử lại" }).waitFor({ timeout: 30000 });
     await page.getByRole("button", { name: "Kiểm tra và thử lại" }).click();
     await page.getByRole("heading", { name: "Đã gửi in!" }).waitFor();
@@ -628,10 +646,10 @@ test("the library suggests as many smiling, eyes-open photos as the frame set ha
     await bar.filter({ hasText: "Gợi ý ảnh đẹp: 2 ảnh" }).waitFor({ timeout: 30000 });
     assert.deepEqual(await suggested(), ["Xem & chỉnh ảnh 02", "Xem & chỉnh ảnh 08"]);
     // Chọn bộ "Hoa" (2 khung × 2 ô = 4 ô) rồi quay lại thư viện: gợi ý đúng 4 ảnh.
-    await page.getByRole("button", { name: /Chọn chủ đề/ }).click();
+    await page.getByRole("button", { name: "Chọn khung in", exact: true }).click();
     await page.getByRole("button", { name: "Chọn bộ Hoa, 2 khung, 4 ô ảnh" }).click();
     await page.getByRole("button", { name: "Quay lại" }).click();
-    const hoa = bar.filter({ hasText: "vừa đủ 4 ô của bộ “Hoa”" });
+    const hoa = bar.filter({ hasText: "4 ô trong bộ “Hoa”" });
     await hoa.filter({ hasText: "Gợi ý ảnh đẹp: 4 ảnh" }).waitFor();
     // Ảnh 1 trùng khoảnh khắc với ảnh 2 (đẹp hơn): lấy ảnh 9 (khoảnh khắc khác) cho đủ 4 ô.
     assert.deepEqual(await suggested(), ["Xem & chỉnh ảnh 02", "Xem & chỉnh ảnh 06", "Xem & chỉnh ảnh 08", "Xem & chỉnh ảnh 09"]);
