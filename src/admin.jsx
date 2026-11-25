@@ -1,38 +1,32 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { LogOut, KeyRound } from "lucide-react";
 import { PrintAlerts } from "./print-alerts";
 import { Brand, ErrorBox } from "./studio";
 import { transition } from "./transitions";
+import { ensureFullStylesheet } from "./full-stylesheet";
 import { NAV_TREE, nav, definitions, HIDDEN_PAGES, NAV_DESCRIPTIONS, STAFF_PAGES, can } from "./admin/config";
-import { ResourceManager } from "./admin/resources";
-import { BookingsManager } from "./admin/bookings";
-import { Overview } from "./admin/overview";
-import { Statistics } from "./admin/statistics";
-import { ScreensManager } from "./admin/screens";
-import { ThemesManager } from "./admin/themes";
-import { FramesManager } from "./admin/frames";
-import { StickersManager } from "./admin/stickers";
-import { FiltersManager } from "./admin/filters";
-import { KioskTextsManager } from "./admin/kiosk-texts";
-import { Rx1OutputManager } from "./admin/rx1-output.jsx";
 import { useAdminSession } from "./admin/use-admin-session";
 import { LoginPage, PasswordDialog } from "./admin/auth";
 import { StorageMonitorProvider } from "./admin/storage-monitor";
 import { StorageWarning, useStorageUsage } from "./admin/storage-warning";
 import { navNotes, useAwaitingPayment, usePrinterIssues } from "./admin/nav-badges";
 import { PrintQueue, usePendingPrints } from "./admin/print-queue";
-import { StorageAssistant } from "./admin/storage-assistant";
 
-// Trang album chỉ tải bản CSS không có phần quản trị (xem guestStylesheet trong vite.config.js); vào
-// quản trị từ đó mà không tải lại trang thì nạp thêm bản đầy đủ.
-const fullStylesheet = window.__fullStylesheet;
-if (fullStylesheet && !document.querySelector(`link[href="${fullStylesheet}"]`)) {
-  const link = document.createElement("link");
-  link.rel = "stylesheet";
-  link.crossOrigin = "";
-  link.href = fullStylesheet;
-  document.head.appendChild(link);
-}
+const lazyNamed = (load, name) => lazy(() => load().then((m) => ({ default: m[name] })));
+const ResourceManager = lazyNamed(() => import("./admin/resources"), "ResourceManager");
+const BookingsManager = lazyNamed(() => import("./admin/bookings"), "BookingsManager");
+const Overview = lazyNamed(() => import("./admin/overview"), "Overview");
+const Statistics = lazyNamed(() => import("./admin/statistics"), "Statistics");
+const ScreensManager = lazyNamed(() => import("./admin/screens"), "ScreensManager");
+const ThemesManager = lazyNamed(() => import("./admin/themes"), "ThemesManager");
+const FramesManager = lazyNamed(() => import("./admin/frames"), "FramesManager");
+const StickersManager = lazyNamed(() => import("./admin/stickers"), "StickersManager");
+const FiltersManager = lazyNamed(() => import("./admin/filters"), "FiltersManager");
+const KioskTextsManager = lazyNamed(() => import("./admin/kiosk-texts"), "KioskTextsManager");
+const Rx1OutputManager = lazyNamed(() => import("./admin/rx1-output.jsx"), "Rx1OutputManager");
+const StorageAssistant = lazyNamed(() => import("./admin/storage-assistant"), "StorageAssistant");
+
+ensureFullStylesheet();
 
 // Mục lục bên trái. Cạnh mục có số / chấm báo việc cần làm: đơn chờ thu tiền (Đơn hàng), lệnh in Selfbooth
 // đang chờ (Hàng chờ in), máy in cần xem (Quản lý máy), kho ảnh đã dùng bao nhiêu % (Dung lượng ảnh); rê chuột lên mục để đọc chi tiết.
@@ -165,56 +159,58 @@ export function Admin() {
             <StorageWarning onOpenStorage={() => open("storage")} />
             <ErrorBox error={error} />
             <PrintAlerts />
-            {currentTab === "overview" ? (
-              <Overview
-                notify={notify}
-                canSeeMoney={canSeeMoney}
-                assignedBranch={user.branch}
-              />
-            ) : currentTab === "statistics" ? (
-              <Statistics assignedBranch={user.branch} />
-            ) : currentTab === "storage" ? (
-              <StorageAssistant canManageStorage={isAdmin} />
-            ) : currentTab === "bookings" ? (
-              <BookingsManager
-                notify={notify}
-                canSeeMoney={canSeeMoney}
-                canExport={can(user, "orders:export")}
-                canCancel={can(user, "orders:cancel")}
-                canPrint={can(user, "print:operate")}
-                canOpenKiosk={can(user, "rooms:setup")}
-                assignedBranch={user.branch}
-              />
-            ) : currentTab === "print-queue" ? (
-              <PrintQueue canOperate={can(user, "print:operate")} canDelete={isAdmin} />
-            ) : currentTab === "screens" ? (
-              <ScreensManager notify={notify} />
-            ) : currentTab === "frames" ? (
-              <FramesManager notify={notify} initialTheme={framesTheme} />
-            ) : currentTab === "themes" ? (
-              <ThemesManager
-                notify={notify}
-                onOpenFrames={(themeName) => {
-                  setFramesTheme(themeName || "all");
-                  open("frames");
-                }}
-              />
-            ) : currentTab === "stickers" ? (
-              <StickersManager notify={notify} />
-            ) : currentTab === "filters" ? (
-              <FiltersManager notify={notify} />
-            ) : currentTab === "kiosk-texts" ? (
-              <KioskTextsManager notify={notify} />
-            ) : currentTab === "rx1-output" ? (
-              <Rx1OutputManager notify={notify} />
-            ) : definitions[currentTab] ? (
-              <ResourceManager
-                key={currentTab}
-                resource={currentTab}
-                notify={notify}
-                me={user}
-              />
-            ) : null}
+            <Suspense fallback={<p className="muted" role="status">Đang tải…</p>}>
+              {currentTab === "overview" ? (
+                <Overview
+                  notify={notify}
+                  canSeeMoney={canSeeMoney}
+                  assignedBranch={user.branch}
+                />
+              ) : currentTab === "statistics" ? (
+                <Statistics assignedBranch={user.branch} />
+              ) : currentTab === "storage" ? (
+                <StorageAssistant canManageStorage={isAdmin} />
+              ) : currentTab === "bookings" ? (
+                <BookingsManager
+                  notify={notify}
+                  canSeeMoney={canSeeMoney}
+                  canExport={can(user, "orders:export")}
+                  canCancel={can(user, "orders:cancel")}
+                  canPrint={can(user, "print:operate")}
+                  canOpenKiosk={can(user, "rooms:setup")}
+                  assignedBranch={user.branch}
+                />
+              ) : currentTab === "print-queue" ? (
+                <PrintQueue canOperate={can(user, "print:operate")} canDelete={isAdmin} />
+              ) : currentTab === "screens" ? (
+                <ScreensManager notify={notify} />
+              ) : currentTab === "frames" ? (
+                <FramesManager notify={notify} initialTheme={framesTheme} />
+              ) : currentTab === "themes" ? (
+                <ThemesManager
+                  notify={notify}
+                  onOpenFrames={(themeName) => {
+                    setFramesTheme(themeName || "all");
+                    open("frames");
+                  }}
+                />
+              ) : currentTab === "stickers" ? (
+                <StickersManager notify={notify} />
+              ) : currentTab === "filters" ? (
+                <FiltersManager notify={notify} />
+              ) : currentTab === "kiosk-texts" ? (
+                <KioskTextsManager notify={notify} />
+              ) : currentTab === "rx1-output" ? (
+                <Rx1OutputManager notify={notify} />
+              ) : definitions[currentTab] ? (
+                <ResourceManager
+                  key={currentTab}
+                  resource={currentTab}
+                  notify={notify}
+                  me={user}
+                />
+              ) : null}
+            </Suspense>
           </div>
         </div>
 

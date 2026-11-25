@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   PiArrowsClockwiseBold as RefreshCw,
@@ -11,8 +11,13 @@ import { labels, formatDate, formatDateTime } from "./api";
 import { useLiveData } from "./use-live-data";
 import { isConnectivityError } from "./network.js";
 import { AlbumViewer } from "./album/AlbumViewer.jsx";
-import { SelfboothAlbum } from "./album/selfbooth/SelfboothAlbum.jsx";
 import { isSelfboothSize } from "./print-sizes.js";
+
+const SelfboothAlbum = lazy(() =>
+  import("./album/selfbooth/SelfboothAlbum.jsx").then((m) => ({
+    default: m.SelfboothAlbum,
+  })),
+);
 
 // Album coi là đã đủ khi đứng yên 3 phút (không thêm / bớt ảnh, video, ảnh ghép, không đổi trạng thái).
 const ALBUM_SETTLE_MS = 3 * 60000;
@@ -127,7 +132,15 @@ function AlbumSession({ token }) {
       )}
       {ready && studio && (
         // Phòng Selfbooth: album như web Selfbooth (đầu trang "Ảnh của bạn", 4 bước Ảnh → Chủ đề → Ghép ảnh → Kết quả).
-        <SelfboothAlbum token={token} booking={booking} setBooking={setBooking} reload={reload} />
+        <Suspense
+          fallback={
+            <div className="center page-loading" role="status">
+              <span className="spinner" aria-hidden="true" /> Đang mở album…
+            </div>
+          }
+        >
+          <SelfboothAlbum token={token} booking={booking} setBooking={setBooking} reload={reload} />
+        </Suspense>
       )}
       {ready && !studio && (
         <>

@@ -26,10 +26,6 @@ import { RESOURCE_LABELS, RESOURCE_RULES, ROOM_KIND_NAMES, definitions, DEFAULT_
 import { PriceEditor } from "../extra-prints";
 import { TableHeading } from "./table-heading";
 import { Guide } from "../guide";
-import { download, macScript, windowsScript } from "./kiosk-autostart";
-import dnpAgent from "./installers/print-agent-dnp.ps1?raw";
-import rx1Color from "./installers/configure-rx1-color.ps1?raw";
-import { printerColorInstaller, printerInstaller, printerInstallerName } from "./printer-installer";
 import { CatalogToolbar } from "./catalog-toolbar";
 import { PackageCatalog } from "./package-catalog";
 import { ResourceEditor } from "./resource-editor";
@@ -324,13 +320,18 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
   async function downloadPrinter() {
     setPrinterBusy(true);
     try {
-      const d = await api(`/admin/rooms/${device.room._id}/printer`, { method: "POST", body: {} });
+      const [d, { default: dnpAgent }, { printerInstaller, printerInstallerName }, { download }] = await Promise.all([
+        api(`/admin/rooms/${device.room._id}/printer`, { method: "POST", body: {} }),
+        import("./installers/print-agent-dnp.ps1?raw"),
+        import("./printer-installer"),
+        import("./kiosk-autostart"),
+      ]);
       download(printerInstallerName(d.name), printerInstaller({
         script: dnpAgent, api: window.location.origin, token: d.token, room: d.name,
       }));
       notify("Đã tải file cài máy in. Mở file trên mini PC cắm máy DNP của phòng (Windows hỏi: “Thêm thông tin” → “Vẫn chạy”, rồi bấm Yes).");
     } catch (e) {
-      toast.error(e.message);
+      toast.error(e.message || "Không tạo được file cài máy in. Vui lòng thử lại.");
     } finally {
       setPrinterBusy(false);
     }
@@ -689,28 +690,38 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
               <div className="kiosk-autostart-actions">
                 <Button
                   className="outline small"
-                  onClick={() => {
-                    download(
-                      "cai-kiosk-NXC.bat",
-                      windowsScript(device.url, device.name, device.kind),
-                    );
-                    notify(
-                      "Đã tải file cài cho Windows. Mở file trên máy trong phòng (nếu Windows hỏi: “Thêm thông tin” → “Vẫn chạy”).",
-                    );
+                  onClick={async () => {
+                    try {
+                      const { download, windowsScript } = await import("./kiosk-autostart");
+                      download(
+                        "cai-kiosk-NXC.bat",
+                        windowsScript(device.url, device.name, device.kind),
+                      );
+                      notify(
+                        "Đã tải file cài cho Windows. Mở file trên máy trong phòng (nếu Windows hỏi: “Thêm thông tin” → “Vẫn chạy”).",
+                      );
+                    } catch (e) {
+                      toast.error(e.message || "Không tải được file cài cho Windows. Vui lòng thử lại.");
+                    }
                   }}
                 >
                   <Download size={15} /> File cài cho Windows
                 </Button>
                 <Button
                   className="outline small"
-                  onClick={() => {
-                    download(
-                      "cai-kiosk-NXC.command",
-                      macScript(device.url, device.name, device.kind),
-                    );
-                    notify(
-                      "Đã tải file cài cho Mac. Mở Terminal, gõ “bash ” rồi kéo file vào và bấm Enter.",
-                    );
+                  onClick={async () => {
+                    try {
+                      const { download, macScript } = await import("./kiosk-autostart");
+                      download(
+                        "cai-kiosk-NXC.command",
+                        macScript(device.url, device.name, device.kind),
+                      );
+                      notify(
+                        "Đã tải file cài cho Mac. Mở Terminal, gõ “bash ” rồi kéo file vào và bấm Enter.",
+                      );
+                    } catch (e) {
+                      toast.error(e.message || "Không tải được file cài cho Mac. Vui lòng thử lại.");
+                    }
                   }}
                 >
                   <Download size={15} /> File cài cho Mac
@@ -750,9 +761,18 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
                   <Button className="outline small" disabled={printerBusy} onClick={downloadPrinter}>
                     <Download size={15} /> {printerBusy ? "Đang tạo file…" : "File cài máy in (Windows)"}
                   </Button>
-                  <Button className="outline small" onClick={() => {
-                    download("cai-mau-RX1.bat", printerColorInstaller(rx1Color));
-                    notify("Đã tải công cụ đồng bộ ICM. Chạy trên PC cắm RX1 bằng tài khoản Windows đang dùng kiosk; công cụ sao lưu trước khi sửa.");
+                  <Button className="outline small" onClick={async () => {
+                    try {
+                      const [{ default: rx1Color }, { printerColorInstaller }, { download }] = await Promise.all([
+                        import("./installers/configure-rx1-color.ps1?raw"),
+                        import("./printer-installer"),
+                        import("./kiosk-autostart"),
+                      ]);
+                      download("cai-mau-RX1.bat", printerColorInstaller(rx1Color));
+                      notify("Đã tải công cụ đồng bộ ICM. Chạy trên PC cắm RX1 bằng tài khoản Windows đang dùng kiosk; công cụ sao lưu trước khi sửa.");
+                    } catch (e) {
+                      toast.error(e.message || "Không tải được công cụ đồng bộ màu. Vui lòng thử lại.");
+                    }
                   }}>
                     <Download size={15} /> Đồng bộ màu RX1 (Windows)
                   </Button>

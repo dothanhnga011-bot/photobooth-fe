@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import postcss from 'postcss';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -20,7 +20,10 @@ function albumRoutePreload() {
       order: 'post',
       handler(html, ctx) {
         const chunks = Object.values(ctx.bundle || {}).filter((c) => c.type === 'chunk');
-        const pages = chunks.find((c) => c.facadeModuleId?.replace(/\\/g, '/').endsWith('/src/pages.jsx'));
+        const pages = chunks.find((c) =>
+          c.facadeModuleId?.replace(/\\/g, '/').endsWith('/src/pages.jsx') ||
+          c.moduleIds?.some((id) => id.replace(/\\/g, '/').endsWith('/src/pages.jsx')),
+        );
         if (!pages) return html;
         const files = new Set();
         const visit = (name) => {
@@ -64,12 +67,46 @@ function printAgentDownload() {
     },
   };
 }
-// Album pages never render .admin-shell / .admin-login, yet about 45 % of the stylesheet is scoped
-// to them, and a guest on 4G must download and parse the whole file before the album can paint.
-// The build also emits a guest copy without those rules (every other rule kept, in its original
-// order, so album pages render exactly the same) and the page picks it on /album/ paths. Admin,
-// kiosk and all other pages keep the full stylesheet.
-const ADMIN_ONLY = /^\.admin-(?:shell|login)(?![\w-])/;
+// Album pages never render admin or kiosk screens, yet a large part of the stylesheet is
+// scoped to them, and a guest on 4G must download and parse the whole file before painting.
+// The build also emits a guest copy without admin-only or kiosk-only rules (every shared rule
+// kept, in its original order, so album pages render identically) and picks it on /album/ paths.
+// Admin and kiosk pages keep (or load via ensureFullStylesheet) the full stylesheet.
+const GUEST_UNUSED_ROOT = /^(?:\.admin-(?:shell|login|content|sidebar|main|header|user|nav|menu|toolbar|eyebrow|role|table|page-description)(?![\w-])|\.login-(?:page|art|form|guest)(?![\w-])|\.stats-grid(?![\w-])|\.stat-card(?![\w-])|\.dashboard-grid(?![\w-])|\.welcome-banner(?![\w-])|\.today-booking(?![\w-])|\.occupancy-|\.revenue-|\.storage-|\.order-|\.frames-|\.frame-(?:region|image|editor|board|zone|slot-preview)(?![\w-])|\.counter-(?:ticket|receipt|compose)(?![\w-])|\.rx1-|\.quick-kiosk(?![\w-])|\.selfbooth-import(?![\w-])|\.booking-table(?![\w-])|\.printer-status(?![\w-])|\.catalog-(?:toolbar|loading|results|counts|search|editor)(?![\w-])|\.package-catalog(?![\w-])|\.package-card(?![\w-])|\.extra-price(?![\w-])|\.resource-editor(?![\w-])|\.service-tabs(?![\w-])|\.theme-manager(?![\w-])|:root\[data-kiosk-theme|\.kiosk-(?!confirm(?:-card)?(?![\w-]))|\.shoot-|\.ptb-frame(?![\w-])|\.select-(?:screen|panel|preview|grid|shot|tabs|tab-panel|adjust|decor|layout|empty)(?![\w-])|\.code-(?:screen|card|keypad)(?![\w-])|\.voucher-keypad(?![\w-])|\.done-(?:screen|cards|card|title|print|sync|qr|empty)(?![\w-])|\.decor-(?:canvas|tools|tabs|panel|fonts|symbols|presets|palette|stickers)(?![\w-])|\.adjust-(?:photo|controls|sliders|grid)(?![\w-])|\.flow-(?:head|foot)(?![\w-]))/;
+
+function splitCommaTopLevel(text) {
+  const parts = [];
+  let depth = 0, start = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "(" || ch === "[") depth++;
+    else if (ch === ")" || ch === "]") depth = Math.max(0, depth - 1);
+    else if (ch === "," && depth === 0) {
+      parts.push(text.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  parts.push(text.slice(start).trim());
+  return parts.filter(Boolean);
+}
+
+function isGuestUnused(selector) {
+  const s = selector.trim();
+  const pseudo = /^:(?:is|where)\(/.exec(s);
+  if (pseudo) {
+    let depth = 0, end = -1;
+    for (let i = pseudo[0].length - 1; i < s.length; i++) {
+      if (s[i] === "(") depth++;
+      else if (s[i] === ")" && --depth === 0) { end = i; break; }
+    }
+    if (end > 0) {
+      const inner = splitCommaTopLevel(s.slice(pseudo[0].length, end));
+      if (inner.length && inner.every((branch) => isGuestUnused(branch))) return true;
+    }
+  }
+  return GUEST_UNUSED_ROOT.test(s);
+}
+
 function guestStylesheet() {
   return {
     name: 'guest-stylesheet',
@@ -83,7 +120,7 @@ function guestStylesheet() {
       if (!link || !bundle[link[1]]) this.error('guest-stylesheet: main stylesheet not found in index.html');
       const root = postcss.parse(String(bundle[link[1]].source));
       root.walkRules((rule) => {
-        if (rule.selectors.every((selector) => ADMIN_ONLY.test(selector.trim()))) rule.remove();
+        if (rule.selectors.every((selector) => isGuestUnused(selector))) rule.remove();
       });
       // @media / @layer / @supports blocks left empty.
       for (let emptied = true; emptied; ) {
@@ -98,6 +135,12 @@ function guestStylesheet() {
       const source = root.toString();
       const fileName = `assets/guest-${createHash('sha256').update(source).digest('hex').slice(0, 8)}.css`;
       this.emitFile({ type: 'asset', fileName, source });
+      // pages.jsx lazy-loads SelfboothAlbum; Vite lists the entry CSS (link[1]) in its __vite__mapDeps
+      // preload array. On /album/ paths the guest copy is already active in <head>, so pointing
+      // pages's preload dep at fileName avoids downloading the discarded full stylesheet when opening
+      // a Selfbooth album. Rollup writes chunks from an internal snapshot before user generateBundle
+      // hooks mutate chunk.code, so we patch the emitted file on disk in writeBundle instead.
+      this._guestPatch = { indexCss: link[1], guestCss: fileName };
       // Written by the parser while it reads <head>, so either file blocks rendering like the
       // original <link> did (no flash of unstyled content). If the stylesheet does not arrive (a page
       // opened while Cloudflare is switching to a new version: new HTML, CSS not there yet), fetch it
@@ -112,6 +155,24 @@ function guestStylesheet() {
       const choose = `<script>${retry}window.__fullStylesheet="/${link[1]}";document.write('<link rel="stylesheet" crossorigin onload="__cssRetry(this)" onerror="__cssRetry(this)" href="'+(location.pathname.indexOf("/album/")===0?"/${fileName}":window.__fullStylesheet)+'">')</script>` +
         `<noscript>${link[0]}</noscript>`;
       html.source = page.replace(link[0], choose);
+    },
+    writeBundle(options, bundle) {
+      // Patch the emitted pages-*.js on disk: replace the full index-*.css reference inside
+      // __vite__mapDeps with the lighter guest-*.css so /album/ routes never download the
+      // admin-heavy full stylesheet. We do this in writeBundle because Rollup writes chunks
+      // from an internal snapshot; mutations to chunk.code in generateBundle are not reflected
+      // in the output file.
+      if (!this._guestPatch) return;
+      const { indexCss, guestCss } = this._guestPatch;
+      const outDir = options.dir || 'dist';
+      for (const chunk of Object.values(bundle)) {
+        if (chunk.type === 'chunk' && chunk.moduleIds?.some((id) => id.replace(/\\/g, '/').endsWith('/src/pages.jsx'))) {
+          const filePath = `${outDir}/${chunk.fileName}`;
+          const original = readFileSync(filePath, 'utf8');
+          const patched = original.replaceAll(indexCss, guestCss);
+          if (patched !== original) writeFileSync(filePath, patched);
+        }
+      }
     },
   };
 }

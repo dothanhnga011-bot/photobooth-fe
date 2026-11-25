@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowLeft,
@@ -22,9 +22,14 @@ import { Button, ErrorBox, useStudio, useToast } from "../studio";
 import { compareFrameOrder } from "../frame-catalog-data";
 import { detectSlots, frameCapacity, isPhotoRegion, printDate } from "../frame-utils";
 import { ServiceTabs, serviceOf, useServiceTab } from "./service-tabs";
-import { SelfboothImport } from "./selfbooth-import.jsx";
-import { SelfboothFrameEditor } from "./selfbooth-frame-editor.jsx";
 import { isSelfboothSize } from "../print-sizes.js";
+
+const SelfboothImport = lazy(() =>
+  import("./selfbooth-import.jsx").then((m) => ({ default: m.SelfboothImport })),
+);
+const SelfboothFrameEditor = lazy(() =>
+  import("./selfbooth-frame-editor.jsx").then((m) => ({ default: m.SelfboothFrameEditor })),
+);
 
 // Khung phòng Selfbooth (tờ 20 × 30 máy DS820) gom theo chủ đề như web Selfbooth: khách chọn cả bộ trên điện thoại.
 const isSelfboothFrame = (frame) => isSelfboothSize(frame.printSize);
@@ -182,23 +187,27 @@ export function FramesManager({ notify, initialTheme = "all" }) {
   return (
     <div className="frames-manager">
       {selfboothEditing && (
-        <SelfboothFrameEditor frame={editing} themes={themes} themeKinds={themeKinds}
-          onClose={() => setEditing(null)} onSaved={saved} />
+        <Suspense fallback={null}>
+          <SelfboothFrameEditor frame={editing} themes={themes} themeKinds={themeKinds}
+            onClose={() => setEditing(null)} onSaved={saved} />
+        </Suspense>
       )}
       <ErrorBox error={error} />
       {importing && (
-        <SelfboothImport
-          onClose={() => setImporting(false)}
-          onDone={async ({ created = [], skipped = [] }) => {
-            setImporting(false);
-            await load();
-            reloadCatalog?.();
-            notify([
-              created.length && `Đã chép ${created.length} khung từ Selfbooth: ${created.join(", ")}.`,
-            ].filter(Boolean).join(" ") ||
-              `Các khung đã chọn đều đã chép trước đó${skipped.length ? `: ${skipped.join(", ")}` : ""}.`);
-          }}
-        />
+        <Suspense fallback={null}>
+          <SelfboothImport
+            onClose={() => setImporting(false)}
+            onDone={async ({ created = [], skipped = [] }) => {
+              setImporting(false);
+              await load();
+              reloadCatalog?.();
+              notify([
+                created.length && `Đã chép ${created.length} khung từ Selfbooth: ${created.join(", ")}.`,
+              ].filter(Boolean).join(" ") ||
+                `Các khung đã chọn đều đã chép trước đó${skipped.length ? `: ${skipped.join(", ")}` : ""}.`);
+            }}
+          />
+        </Suspense>
       )}
       <ServiceTabs value={service} onChange={switchService} counts={frames ? counts : {}} />
       <div className="frames-toolbar">
