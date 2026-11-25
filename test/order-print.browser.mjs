@@ -21,15 +21,15 @@ const fixture = `
 import React from 'react'; import {createRoot} from 'react-dom/client';
 import {MemoryRouter} from 'react-router-dom'; import {StudioContext,ToastProvider} from '/src/studio.jsx';
 import {PrintOrderDialog} from '/src/admin/print-order-dialog.jsx'; import '/src/tailwind.css';
-import {directKioskPrint,kioskPrintState,runKioskPrints} from '/src/kiosk/compose.js';
+import {stageKioskPrint,kioskPrintState,runKioskPrints} from '/src/kiosk/compose.js';
 import {readSetting,saveSetting,savePending,removePending} from '/src/capture-store.js';
-window.runLocalKioskPrint=directKioskPrint;window.kioskPrintState=kioskPrintState;window.readSetting=readSetting;window.flushKioskPrints=runKioskPrints;
+window.runLocalKioskPrint=async job=>(await stageKioskPrint(job)).printing;window.kioskPrintState=kioskPrintState;window.readSetting=readSetting;window.flushKioskPrints=runKioskPrints;
 window.savePending=savePending;window.removePending=removePending;
 window.saveSetting=saveSetting;
 const booking=${JSON.stringify(BOOKING)};
 const frame={_id:'frame',name:'Khung thử',active:true,printSize:'full',image:'/frame.png',slots:[{x:.05,y:.05,w:.9,h:.9,kind:'photo',photo:1}]};
 function App(){const [open,setOpen]=React.useState(true); return React.createElement('main',{className:'admin-shell'},
-open?React.createElement(PrintOrderDialog,{booking,onClose:()=>setOpen(false),onExtra:b=>{window.selling=b;setOpen(false)},onPrinted:()=>window.printed=(window.printed||0)+1}):React.createElement('p',null,'Đã đóng'));}
+open?React.createElement(PrintOrderDialog,{booking,initialCopies:window.purchasedCopies,onClose:()=>setOpen(false),onExtra:b=>{window.selling=b;setOpen(false)},onPrinted:()=>window.printed=(window.printed||0)+1}):React.createElement('p',null,'Đã đóng'));}
 createRoot(document.getElementById('root')).render(React.createElement(MemoryRouter,null,
 React.createElement(StudioContext.Provider,{value:{frames:[frame]}},React.createElement(ToastProvider,null,React.createElement(App)))));
 `;
@@ -80,11 +80,12 @@ before(async () => {
   await mkdir(captures, { recursive: true });
 });
 after(async () => { await page?.close(); await browser?.close(); await new Promise((resolve) => server.close(resolve)); });
-async function mount({ jobs = [JOB], width = 1440, readError = false, archiveError = false, printError = false, composite = false, booking = {} } = {}) {
+async function mount({ jobs = [JOB], width = 1440, readError = false, archiveError = false, printError = false, composite = false, booking = {}, purchasedCopies } = {}) {
   await page?.close(); requests = []; local = []; errors = []; failRead = readError; failArchive = archiveError; failPrint = printError;
   detail = { booking: { ...BOOKING, photoCount: 4, ...booking,
     ...(composite && { composite: { url: "/api/albums/album-token/composite", frameName: "Khung hồng" } }) }, jobs: structuredClone(jobs) };
   page = await browser.newPage({ viewport: { width, height: width < 600 ? 844 : 1000 }, reducedMotion: "reduce" });
+  if (purchasedCopies != null) await page.addInitScript(copies => { window.purchasedCopies = copies; }, purchasedCopies);
   page.setDefaultTimeout(12000);
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route("http://127.0.0.1:8789/**", async (route) => {
@@ -121,6 +122,19 @@ test("empty state offers composition, while server errors never pretend that the
   await mount({ jobs: [], readError: true });
   await page.getByText("Không tải được file in", { exact: true }).waitFor();
   assert.equal(await page.getByText("Chưa có file in đã lưu", { exact: true }).count(), 0);
+  assert.deepEqual(errors, []);
+});
+
+test("printing one purchased extra sheet from a legacy multi-sheet job sends only the viewed page", async () => {
+  await mount({ purchasedCopies: 1 });
+  await page.getByRole("button", { name: "Tờ sau" }).click();
+  assert.equal(await page.getByLabel("Tờ cần in").inputValue(), "current");
+  await page.getByRole("button", { name: "In lại qua RX1" }).click();
+  await page.getByText("Đã gửi 1 tờ tới hàng in RX1.", { exact: true }).waitFor();
+  const sent = local.filter(entry => entry.path === "/print");
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].headers["x-print-sheets"].split(",").length, 1);
+  assert.equal(requests.find(entry => entry.path.endsWith("/reprint")).body.sheet, 1);
   assert.deepEqual(errors, []);
 });
 
@@ -258,19 +272,20 @@ test("direct kiosk prints archive in the background; a failed upload never resen
   assert.deepEqual(errors, []);
 });
 
-test("a print archive waits for its guest's previews, not the camera originals or another album", async () => {
+test("print history receives one master even while guest previews and originals are pending", async () => {
   await mount({ jobs: [] });
   await page.evaluate(async () => {
     await window.savePending({ id: 'current-preview', token: 'album-token', stage: 'preview' });
     await window.savePending({ id: 'current-original', token: 'album-token', stage: 'original' });
     await window.savePending({ id: 'older-preview', token: 'older-album', stage: 'preview' });
   });
-  await page.evaluate((image) => window.runLocalKioskPrint({ token: 'album-token', printSize: 'full', frameName: 'Pink', images: [image] }), `data:image/png;base64,${png.toString('base64')}`);
-  await page.waitForTimeout(150);
-  assert.equal(requests.filter((entry) => entry.path.endsWith('/print-archive')).length, 0, 'the album previews go first');
-  await page.evaluate(async () => { await window.removePending('current-preview'); await window.flushKioskPrints(); });
-  assert.equal(requests.filter((entry) => entry.path.endsWith('/print-archive')).length, 1,
-    'the 15 MB originals still uploading, or another album, do not hold the print file back');
+  await page.evaluate((image) => window.runLocalKioskPrint({ token: 'album-token', printSize: 'full', frameName: 'Pink', images: [image, image, image] }), `data:image/png;base64,${png.toString('base64')}`);
+  await page.evaluate(() => window.flushKioskPrints());
+  const archives = requests.filter((entry) => entry.path.endsWith('/print-archive'));
+  assert.equal(archives.length, 1);
+  assert.equal(archives[0].search, '?copies=3');
+  assert.deepEqual(archives[0].body, png);
+  assert.equal(local.find(entry => entry.path === "/print").headers["x-print-sheets"].split(",").length, 3);
   assert.equal(local.filter((entry) => entry.path === '/print').length, 1);
   assert.deepEqual(errors, []);
 });

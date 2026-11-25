@@ -103,11 +103,12 @@
   .frame-region-box {
     position: absolute;
     box-sizing: border-box;
-    border: 2px solid #c34343;
-    background: #cd47471c;
+    border: 1px solid #bc3939;
     pointer-events: none;
   }
-  .frame-region-box.is-selected { border-color: #9b2222; box-shadow: 0 0 0 1px #fff; z-index: 1; }
+  .frame-region-box.is-selected { border-color: #9b2222; z-index: 1; }
+  .frame-region-stage.is-drawing .frame-region-box { border-color: #bc393973; }
+  .frame-region-stage.is-drawing .frame-region-box.is-draft { border-color: #a32323; }
   .frame-image-field .frame-region-hit {
     position: absolute;
     inset: 0;
@@ -121,49 +122,56 @@
     border-radius: 0;
     background: transparent;
     color: #992d2d;
-    font-size: 19px;
+    font-size: 11px;
     font-weight: 700;
     text-shadow: 0 1px 3px #fff;
     cursor: move;
     pointer-events: auto;
     touch-action: none;
   }
-  .frame-region-stage.is-drawing .frame-region-hit { cursor: crosshair; }
+  .frame-region-stage.is-drawing .frame-region-hit { visibility: hidden; pointer-events: none; }
   .frame-image-field .frame-region-handle {
     position: absolute;
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     padding: 0;
-    border: 2px solid #fff;
-    border-radius: 3px;
-    background: #ad3232;
+    border: 0;
+    background: transparent;
     pointer-events: auto;
     touch-action: none;
   }
-  .frame-region-handle.nw { top: -9px; left: -9px; cursor: nwse-resize; }
-  .frame-region-handle.ne { top: -9px; right: -9px; cursor: nesw-resize; }
-  .frame-region-handle.sw { bottom: -9px; left: -9px; cursor: nesw-resize; }
-  .frame-region-handle.se { bottom: -9px; right: -9px; cursor: nwse-resize; }
-  /* Side handles: a bar in the middle of each side, so one side can be pulled on its own. */
-  .frame-image-field .frame-region-side { border-radius: 5px; }
+  .frame-image-field .frame-region-handle::after {
+    content: "";
+    position: absolute;
+    inset: 50% auto auto 50%;
+    transform: translate(-50%, -50%);
+    width: 5px;
+    height: 5px;
+    border: 1px solid #a32323;
+    background: #fff;
+  }
+  .frame-region-handle.nw { top: -8px; left: -8px; cursor: nwse-resize; }
+  .frame-region-handle.ne { top: -8px; right: -8px; cursor: nesw-resize; }
+  .frame-region-handle.sw { bottom: -8px; left: -8px; cursor: nesw-resize; }
+  .frame-region-handle.se { bottom: -8px; right: -8px; cursor: nwse-resize; }
   .frame-image-field .frame-region-side.n, .frame-image-field .frame-region-side.s {
-    left: 50%; width: 26px; height: 12px; transform: translateX(-50%); cursor: ns-resize;
+    left: 50%; width: 14px; height: 12px; transform: translateX(-50%); cursor: ns-resize;
   }
   .frame-image-field .frame-region-side.e, .frame-image-field .frame-region-side.w {
-    top: 50%; width: 12px; height: 26px; transform: translateY(-50%); cursor: ew-resize;
+    top: 50%; width: 12px; height: 14px; transform: translateY(-50%); cursor: ew-resize;
   }
   .frame-region-side.n { top: -7px; }
   .frame-region-side.s { bottom: -7px; }
   .frame-region-side.w { left: -7px; }
   .frame-region-side.e { right: -7px; }
   /* The rotate knob sits above the top side; keep it clear of the top bar. */
-  .frame-image-field .frame-region-rotate-handle { top: -42px; }
   .frame-image-field .frame-region-rotate-handle {
-    position: absolute; top: -34px; left: 50%; transform: translateX(-50%);
-    display: grid; place-items: center; width: 26px; height: 26px; padding: 0;
-    border: 2px solid #fff; border-radius: 50%; background: #ad3232; color: #fff;
+    position: absolute; top: -24px; left: 50%; transform: translateX(-50%);
+    display: grid; place-items: center; width: 16px; height: 16px; padding: 0;
+    border: 1px solid #a32323; border-radius: 50%; background: #fff; color: #a32323;
     cursor: grab; pointer-events: auto; touch-action: none;
   }
+  .frame-image-field .frame-region-rotate-handle svg { width: 10px; height: 10px; }
   .frame-region-selection strong { margin-right: auto; color: var(--ink); font-size: 13px; }
   .frame-image-field .frame-drop-meta { flex-wrap: wrap; font-size: 12px; line-height: 1.6; }
   /* On the narrowest phones the print size gets a row of its own, so it reads in full. */

@@ -8,6 +8,7 @@ import { useLiveData } from "../use-live-data";
 import { Button, ErrorBox, useToast } from "../studio";
 import { CounterTicket } from "../counter-ticket";
 import { ExtraPrints } from "../extra-prints";
+import { isSelfboothSize } from "../print-sizes.js";
 import { PrintOrderDialog } from "./print-order-dialog.jsx";
 import { QuickKiosk } from "./quick-kiosk.jsx";
 import { ordersChanged } from "./nav-badges";
@@ -136,6 +137,7 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState("");
   const [selling, setSelling] = useState(null);
+  const [extraCopies, setExtraCopies] = useState(null);
   const [printing, setPrinting] = useState(null);
   const [albumQr, setAlbumQr] = useState(null);
   const params = new URLSearchParams({
@@ -244,7 +246,7 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
             <div className="order-main"><div className="order-when"><time>{formatDateTime(booking.createdAt)}</time>{booking.status !== "completed" && <span className={`badge ${booking.status}`}>{labels[booking.status]}</span>}{awaitingPayment(booking) && <span className="badge unpaid">Selfbooth · chưa thu tiền</span>}</div><strong>#{booking.code} · {customerLabel(booking)}</strong><small>{booking.roomName || "Chưa chọn máy"} · {booking.packageName || "Gói chụp"}</small>
               <div className="order-card-actions">{booking.accessToken && <>
                 <a className="order-album-link" href={albumUrl(booking)} target="_blank" rel="noreferrer">Link ảnh <ExternalLink size={14} /></a>
-                {canPrint && <button onClick={() => setPrinting(booking)}>In ảnh <Printer size={14} /></button>}
+                {canPrint && <button onClick={() => { setExtraCopies(null); setPrinting(booking); }}>In ảnh <Printer size={14} /></button>}
                 <DownloadMenu booking={booking} />
               </>}</div>
             </div>
@@ -285,7 +287,15 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
         <a className="button outline small" href={albumUrl(albumQr)} target="_blank" rel="noreferrer">Mở album <ExternalLink size={15} /></a>
       </div>
     </section></div>}
-    {printing && <PrintOrderDialog booking={printing} onClose={() => setPrinting(null)} onExtra={(latest) => { setSelling(latest); setPrinting(null); }} onPrinted={() => load()} />}
-    {selling && <ExtraPrints booking={selling} canEditPrice={canSeeMoney} onClose={() => setSelling(null)} onSold={(updated, sheets) => { setSelling(null); load(); notify(`Đã cộng ${sheets} tờ in cho đơn #${updated.code}.`); }} />}
+    {printing && <PrintOrderDialog booking={printing} initialCopies={extraCopies} onClose={() => setPrinting(null)} onExtra={(latest) => { setSelling(latest); setPrinting(null); }} onPrinted={() => load()} />}
+    {selling && <ExtraPrints booking={selling} canEditPrice={canSeeMoney} onClose={() => setSelling(null)} onSold={(updated, sheets) => {
+      if (!isSelfboothSize(selling.printSize)) {
+        setExtraCopies(sheets);
+        setPrinting({ ...selling, ...updated });
+      }
+      setSelling(null);
+      load();
+      notify(`Đã cộng ${sheets} tờ in cho đơn #${updated.code}.`);
+    }} />}
   </>;
 }

@@ -27,7 +27,7 @@ before(async () => {
 });
 after(async()=>{await browser?.close();await new Promise(resolve=>server?.close(resolve));});
 
-async function mount({hold=false}={}) {
+async function mount({hold=false,holdLocal=false}={}) {
   const context=await browser.newContext();
   const calls=[], held=[], errors=[];
   let blocking=hold;
@@ -36,6 +36,7 @@ async function mount({hold=false}={}) {
   await context.route(/\/api\/|127\.0\.0\.1:8789\//,async route=>{
     const request=route.request();
     calls.push({url:request.url(),method:request.method(),key:request.headers()["x-print-key"]});
+    if(holdLocal && request.url().endsWith(":8789/print")) return;
     if(blocking && request.url().includes("/api/")) held.push(route);
     else await fulfill(route);
   });
@@ -64,6 +65,25 @@ test("queue updates from two kiosk tabs commit atomically and a failed edit reta
       return window.outbox.readSetting("atomic");
     });
     assert.deepEqual(after,rows);assert.deepEqual(f.errors,[]);
+  }finally{await f.close();}
+});
+
+test("reloading during a local print keeps its sheet and does not send RX1 a second request",async()=>{
+  const f=await mount({holdLocal:true});
+  try{
+    const job={token:"interrupted",images:["data:image/png;base64,AQID"],frameName:"Pink",printSize:"full"};
+    await f.page.evaluate(job=>{
+      return window.outbox.stageKioskPrint(job).then(result=>{result.printing.catch(()=>{});});
+    },job);
+    for(let i=0;i<50&&!f.calls.some(call=>call.url.endsWith(":8789/print"));i++) await f.page.waitForTimeout(20);
+    assert.equal(f.calls.filter(call=>call.url.endsWith(":8789/print")).length,1);
+    await f.page.close();
+    const reopened=await f.newPage();
+    await reopened.evaluate(()=>window.outbox.runKioskPrints());
+    assert.equal(f.calls.filter(call=>call.url.endsWith("/print-archive?result=failed")).length,1);
+    assert.equal(f.calls.filter(call=>call.url.endsWith(":8789/print")).length,1);
+    assert.deepEqual(await reopened.evaluate(()=>window.outbox.readSetting("kiosk-print-queue")),[]);
+    assert.deepEqual(f.errors,[]);
   }finally{await f.close();}
 });
 
@@ -124,22 +144,20 @@ for(const kind of ["composite","print"])test(`concurrent ${kind} enqueues and ac
   }finally{await f.close();}
 });
 
-test("a failed album prerequisite leaves an acknowledged RX1 print successful; concurrent attempts share its durable ID",async()=>{
+test("concurrent kiosk attempts stage one archive and send only once to RX1",async()=>{
   const f=await mount();
   try{
     const result=await f.page.evaluate(async()=>{
       const api=window.outbox,states=[];
       const unwatch=api.watchKioskPrint((token,state)=>states.push(state.status));
       const job={token:"same-guest",images:["data:image/png;base64,AQID"],frameName:"Pink",printSize:"strip"};
-      await Promise.all([
-        api.directKioskPrint(job,{archiveAfter:Promise.reject(new Error("album preparation failed"))}),
-        api.directKioskPrint(job),
-      ]);
+      const results=await Promise.all([api.stageKioskPrint(job),api.stageKioskPrint(job)]);
+      await Promise.all(results.map(result=>result.printing));
       await api.runKioskPrints();unwatch();
       return {states,final:api.kioskPrintState(job.token),saved:await api.readSetting(`kiosk-direct-request:${job.token}`)};
     });
     const sends=f.calls.filter(call=>call.url.endsWith(":8789/print"));
-    assert.equal(sends.length,2);assert.equal(new Set(sends.map(call=>call.key)).size,1);
+    assert.equal(sends.length,1);
     assert.equal(sends[0].key,result.saved.requestKey);
     assert.equal(result.final.status,"printed");assert.equal(result.states.includes("failed"),false);
     assert.deepEqual(f.errors,[]);

@@ -55,7 +55,7 @@ function Latest({ shot, number, receiving, full = false }) {
           Ảnh vừa chụp sẽ hiện ở đây
         </span>
       )}
-      {src && <b className="shoot-latest-no">Ảnh {number}</b>}
+      {src && !full && <b className="shoot-latest-no">Ảnh {number}</b>}
       {receiving && (
         <span className="shoot-latest-pending" role="status">
           <span className="spinner" aria-hidden="true" /> Đang nhận ảnh…
@@ -68,7 +68,7 @@ const clock = (s) =>
   `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
 // PTB: live view + captured photos. Selfbooth with its own HDMI monitor: latest
-// JPEG + timer and thumbnails. The explicit flag prevents room flows leaking.
+// JPEG + timer and finish control.
 // minShots: số ảnh layout cần — chưa đủ thì chưa bấm "Chụp xong" được.
 export function KioskShoot({
   showLive = true,
@@ -187,8 +187,7 @@ export function KioskShoot({
         )}
       </div>
 
-      {/* Rail phía dưới: đồng hồ, thumbnail nhỏ, nút Chụp xong */}
-      <aside className="shoot-rail" aria-label="Thời gian và ảnh đã chụp">
+      <aside className="shoot-rail" aria-label={showLive ? "Thời gian và ảnh đã chụp" : "Thời gian và nút chụp xong"}>
           {showLatest && <Latest shot={shots[shots.length - 1]} number={shots.length} receiving={receiving} />}
           {/* Còn dưới 1 phút: đồng hồ đỏ, nhấp nháy. */}
           <div className={`shoot-timer${phase === "shoot" && sessionLeft < 60 ? " is-urgent" : ""}`} role="timer">
@@ -206,7 +205,7 @@ export function KioskShoot({
               )}
             </div>
           </div>
-          <ol className="shoot-thumbs" ref={rail}
+          {showLive && <ol className="shoot-thumbs" ref={rail}
             aria-label="Ảnh vừa chụp, mới nhất ở trên">
             {receiving && (
               <li className="shoot-thumb-pending" role="status">
@@ -226,7 +225,7 @@ export function KioskShoot({
                 Ảnh vừa chụp sẽ hiện ở đây
               </li>
             )}
-          </ol>
+          </ol>}
           {phase === "shoot" && !ending && (
             <div className="shoot-end-wrap">
               <button type="button" className="shoot-end" onClick={onEnd} disabled={!enough} aria-label="Chụp xong, chọn ảnh">

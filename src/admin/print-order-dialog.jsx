@@ -15,13 +15,14 @@ const SIZES = { full: "10 × 15 cm", strip: "2 dải 5 × 15 cm / tờ", large: 
 const STATES = { idle: "Chưa gửi máy in", queued: "Đang chờ máy in", sending: "Đang gửi máy in", sent: "Đã gửi tới hàng in", failed: "Lỗi hoặc mất xác nhận in" };
 const sheetUrl = (job, sheet, thumbnail = false) => assetUrl(`${job.image}?sheet=${sheet}${thumbnail ? "&size=thumbnail" : ""}`);
 
-export function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
+export function PrintOrderDialog({ booking, initialCopies, onClose, onExtra, onPrinted }) {
   const toast = useToast();
   const [details, setDetails] = useState(booking);
   const [jobs, setJobs] = useState([]);
   const [selected, setSelected] = useState("");
   const [page, setPage] = useState(0);
-  const [copies, setCopies] = useState(1);
+  const [copies, setCopies] = useState(initialCopies ?? 1);
+  const [onlyPage, setOnlyPage] = useState(initialCopies != null);
   const [loading, setLoading] = useState(true);
   const [refresh, setRefresh] = useState(0);
   const [error, setError] = useState("");
@@ -39,7 +40,9 @@ export function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
   const printSize = job?.printSize || details.printSize || "full";
   // Phòng Selfbooth (tờ 20 × 30): in ở quầy bằng cửa sổ in ra máy DNP DS820, không qua RX1.
   const selfbooth = isSelfboothSize(printSize);
-  const maximum = selfbooth ? 20 : Math.min(20, Math.floor(20 / count));
+  const sheet = !selfbooth && onlyPage && count > 1 ? Math.min(page, count - 1) : undefined;
+  const perCopy = sheet === undefined ? count : 1;
+  const maximum = selfbooth ? 20 : Math.floor(20 / perCopy);
   const locked = busy || archivePending;
   const canOperate = !details.mediaDeleted && ["checked_in", "completed"].includes(details.status);
   const canSell = !details.mediaDeleted && details.paid && ["confirmed", "checked_in", "completed"].includes(details.status);
@@ -80,7 +83,7 @@ export function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
     return () => { active = false; controller.abort(); clearTimeout(timer); document.removeEventListener("visibilitychange", visible); };
   }, [booking._id, refresh, manual, busy]);
   useEffect(() => { setPage(0); }, [job?._id]);
-  useEffect(() => { if (!locked && maximum > 0) setCopies((value) => Math.min(value, maximum)); }, [maximum, locked]);
+  useEffect(() => { if (!loading && !locked && maximum > 0) setCopies((value) => Math.min(value, maximum)); }, [maximum, loading, locked]);
 
   function choose(id) {
     setSelected(id); setPage(0); setCopies(1); setError(""); imageCache.current = null;
@@ -94,14 +97,15 @@ export function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
         toast.info(`Đang mở bản in vé #${details.code}. Chọn máy in DNP DS820, giấy 8 × 12 inch (20 × 30 cm).`);
       } else {
         if (!archivePending) await checkDirectPrinter();
-        if (imageCache.current?.id !== job._id) {
+        if (imageCache.current?.id !== job._id || imageCache.current?.sheet !== sheet) {
           const images = [];
-          for (let index = 0; index < count; index++) images.push(await fetchMediaBlob(sheetUrl(job, index)));
-          imageCache.current = { id: job._id, images };
+          if (sheet !== undefined) images.push(await fetchMediaBlob(sheetUrl(job, sheet)));
+          else for (let index = 0; index < count; index++) images.push(await fetchMediaBlob(sheetUrl(job, index)));
+          imageCache.current = { id: job._id, sheet, images };
         }
         await operatorPrint({ booking: details, images: imageCache.current.images,
-          sourceJob: job, printSize, frameName: job.frameName, copies });
-        toast.success(`Đã gửi ${count * copies} tờ tới hàng in RX1.`);
+          sourceJob: job, sheet, printSize, frameName: job.frameName, copies });
+        toast.success(`Đã gửi ${perCopy * copies} tờ tới hàng in RX1.`);
       }
       setArchivePending(false); imageCache.current = null;
       onPrinted?.();
@@ -154,9 +158,9 @@ export function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
             {preview && failedImage !== preview ? <img src={preview} alt={`Tờ ${page + 1} của đơn ${booking.code}`} onError={() => setFailedImage(preview)} />
               : <p role="status"><ImageIcon /> Không tải được ảnh xem trước. Hãy làm mới hoặc tải file đầy đủ.</p>}
             {count > 1 && <div className="order-print-pages">
-              <button className="icon-button" aria-label="Tờ trước" disabled={page === 0 || busy} onClick={() => setPage((value) => value - 1)}><ChevronLeft size={18} /></button>
+              <button className="icon-button" aria-label="Tờ trước" disabled={page === 0 || locked} onClick={() => setPage((value) => value - 1)}><ChevronLeft size={18} /></button>
               <span>Tờ {page + 1}/{count}</span>
-              <button className="icon-button" aria-label="Tờ sau" disabled={page >= count - 1 || busy} onClick={() => setPage((value) => value + 1)}><ChevronRight size={18} /></button>
+              <button className="icon-button" aria-label="Tờ sau" disabled={page >= count - 1 || locked} onClick={() => setPage((value) => value + 1)}><ChevronRight size={18} /></button>
             </div>}
             <a href={sheetUrl(job, page)} target="_blank" rel="noreferrer">Xem bản đầy đủ <ExternalLink size={14} /></a>
           </div>
@@ -169,11 +173,15 @@ export function PrintOrderDialog({ booking, onClose, onExtra, onPrinted }) {
               {job.expiresAt && <div><dt>Lưu đến</dt><dd>{formatDateTime(job.expiresAt)}</dd></div>}
             </dl>
             {job.spoolStatus === "failed" && job.spoolMessage && <p className="soft-note">{job.spoolMessage}</p>}
+            {!selfbooth && count > 1 && <label>Tờ cần in<select value={onlyPage ? "current" : "all"} disabled={locked} onChange={(event) => setOnlyPage(event.target.value === "current")}>
+              <option value="current">Tờ đang xem</option>
+              <option value="all">Tất cả các tờ trong bộ</option>
+            </select></label>}
             <label>Số bộ in lại<select value={copies} disabled={locked || !maximum} onChange={(event) => setCopies(Number(event.target.value))}>
               {Array.from({ length: maximum }, (_, i) => i + 1).map((value) => <option key={value} value={value}>{value}</option>)}
             </select></label>
-            <p className="order-print-total"><b>{count * copies} {selfbooth ? selfboothUnit(printSize) : "tờ 10 × 15 cm"}</b>
-              {printSize === "strip" && <span>Máy cắt thành {count * copies * 2} dải nhỏ.</span>}</p>
+            <p className="order-print-total"><b>{perCopy * copies} {selfbooth ? selfboothUnit(printSize) : "tờ 10 × 15 cm"}</b>
+              {printSize === "strip" && <span>Máy cắt thành {perCopy * copies * 2} dải nhỏ.</span>}</p>
             {selfbooth && <p className="soft-note">Bấm In mở cửa sổ in: chọn máy DNP DS820 ở quầy, giấy 8 × 12 inch, lề Không có.</p>}
             {!selfbooth && <p className="soft-note">In trên PC đang cắm RX1 và chạy chương trình in. Màu, độ nét và cắt giấy theo bộ in RX1 của máy đó.</p>}
             {!maximum && <p className="soft-note">File vượt 20 tờ. Tải các tờ để chia lượt in.</p>}

@@ -10,11 +10,12 @@ const MAX_BYTES = 8_000_000;
 export function detectFrameSlots(image) {
   const probe = document.createElement("canvas");
   const width = image.naturalWidth || image.width, height = image.naturalHeight || image.height;
-  const scale = Math.min(1, 800 / Math.max(width, height));
-  probe.width = Math.round(width * scale); probe.height = Math.round(height * scale);
+  const scale = Math.min(1, 1200 / Math.max(width, height));
+  probe.width = Math.max(1, Math.round(width * scale)); probe.height = Math.max(1, Math.round(height * scale));
   const ctx = probe.getContext("2d", { willReadFrequently: true });
   ctx.drawImage(image, 0, 0, probe.width, probe.height);
-  return detectSlots(ctx.getImageData(0, 0, probe.width, probe.height));
+  try { return detectSlots(ctx.getImageData(0, 0, probe.width, probe.height)); }
+  finally { probe.width = probe.height = 0; }
 }
 
 // Coordinates and the saved image always share one canvas and one aspect ratio.
@@ -29,9 +30,11 @@ export async function prepareFrame(file) {
     canvas.height = Math.round(im.naturalHeight * scale);
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     ctx.drawImage(im, 0, 0, canvas.width, canvas.height);
-    const image = encodeFrameCanvas(canvas, file.type === "image/png");
-    // Detect on the actual saved representation, including opaque JPEG fallback.
-    return { image, slots: detectFrameSlots(await loadFrameImage(image)) };
+    try {
+      return { image: encodeFrameCanvas(canvas, file.type === "image/png"), slots: detectFrameSlots(canvas) };
+    } finally {
+      canvas.width = canvas.height = 0;
+    }
   } finally {
     URL.revokeObjectURL(url);
   }

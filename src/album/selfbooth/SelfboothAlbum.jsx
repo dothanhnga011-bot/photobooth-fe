@@ -14,7 +14,7 @@ import {
   PiUploadSimpleBold, PiWarningCircleDuotone, PiXBold,
 } from "react-icons/pi";
 import { RefreshCw } from "lucide-react";
-import { api, assetUrl, formatDateTime, getApiUrl } from "../../api";
+import { api, assetUrl, formatDateTime } from "../../api";
 import { Button, ErrorBox, useStudio, useToast } from "../../studio";
 import { DEFAULT_ADJUST, FILTER_CSS, isNeutral } from "../../beauty.js";
 import { renderPrintFrame } from "../../kiosk/compose.js";
@@ -28,7 +28,7 @@ import { prepareCameraImageAsync } from "../../image-processing.js";
 import { PhotoThumb, photoUrl } from "../photo-thumb.jsx";
 import { printPackUpload } from "../print-upload.js";
 import { mergeUploadedPhotos, uploadPhotos } from "../upload-photos.js";
-import { downloadEach } from "../save-to-phone.js";
+import { downloadEach, fetchFiles, usesShareSheet } from "../save-to-phone.js";
 import { createStudioMedia } from "../studio-media.js";
 import { createCanvasCache } from '../../canvas-cache.js';
 
@@ -45,6 +45,7 @@ const STEPS = [
 ];
 const ACCEPTED = /^image\/(jpeg|png|webp)$/;
 const MAX_UPLOAD_MB = 40;
+const SHARE_BATCH = 8;
 const pad = (n) => String(n).padStart(2, "0");
 const slotsOf = (frame) => photoLayout(frame).slots;
 const capacityOf = (pack) => (pack?.frames || []).reduce((n, f) => n + slotsOf(f).length, 0);
@@ -56,15 +57,6 @@ function autoLayouts(frames, pool, { repeat = false } = {}) {
   }))]));
 }
 const isFilled = (frame, slots) => slots?.length === slotsOf(frame).length && slots.every((s) => s.photo);
-const download = (url, name) => {
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-};
-
 // Trạng thái lưu trên máy (tải lại trang vẫn giữ). save(changes | (v) => changes).
 function useSaved(key, initial) {
   const [value, setValue] = useState(() => {
@@ -122,7 +114,7 @@ function EditedThumb({ token, photo, adjust, small, suspended, alt, loading }) {
   </>;
 }
 
-function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, frozen, uploadProgress, selectedPack, downloadingId,
+function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, frozen, uploadProgress, selectedPack, downloadingId, saveProgress, readyToSave, onSaveAll, onShare,
   suggestions = [], capacity = 0, suggestProgress = null, onHeartMany, onFavorite, onDelete, onDownload, onEdit, onUpload, onNext }) {
   const [selecting, setSelecting] = useState(false);
   // Gợi ý ảnh đẹp: chỉ xem các ảnh gợi ý (hết gợi ý thì về xem tất cả).
@@ -160,11 +152,18 @@ function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, f
             <span className="gallery-selected-pack">Bộ đã chọn: <strong>{selectedPack.name}</strong></span>
           )}
         </div>
-        <Button className="outline small" disabled={!photos.length}
-          onClick={() => download(getApiUrl(`/api/albums/${token}/download`), "anh-goc.zip")}>
-          <PiDownloadSimpleBold aria-hidden="true" /> Tải tất cả
+        <Button className="outline small" disabled={!photos.length || Boolean(downloadingId) || photos.some(p => p.originalPending)}
+          onClick={onSaveAll}>
+          <PiDownloadSimpleBold aria-hidden="true" /> {saveProgress || "Lưu tất cả ảnh"}
         </Button>
       </div>
+      {readyToSave && <div className="suggest-bar" role="status">
+        <span>{readyToSave.files.length} ảnh đã sẵn sàng{readyToSave.remaining.length > 0 && ` · còn ${readyToSave.remaining.length} ảnh`}.
+          {!readyToSave.download && " Chọn Lưu hình ảnh trong bảng chia sẻ."}</span>
+        <Button className="small" disabled={Boolean(downloadingId)} onClick={onShare}>
+          {readyToSave.download ? "Tải JPG" : "Mở bảng lưu ảnh"}
+        </Button>
+      </div>}
       {suggestProgress && (
         <div className="suggest-bar is-working" role="status">
           <PiSparkleFill aria-hidden="true" />
@@ -219,7 +218,7 @@ function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, f
                   </button>
                 ) : (
                   <>
-                    <button type="button" className="tile-btn" disabled={Boolean(downloadingId)} aria-busy={downloadingId === p.id}
+                    <button type="button" className="tile-btn" disabled={Boolean(downloadingId) || p.originalPending} aria-busy={downloadingId === p.id}
                       aria-label={`Tải ảnh ${number} về máy`} title="Tải ảnh về máy" onClick={() => onDownload(p)}>
                       <PiDownloadSimpleBold />
                     </button>
@@ -489,6 +488,10 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
   const [busy, setBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
+  const [saveProgress, setSaveProgress] = useState("");
+  const [readyToSave, setReadyToSave] = useState(null);
+  const [shareSheet] = useState(usesShareSheet);
+  const savingPhotos = useRef(false);
   const [printing, setPrinting] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
@@ -573,31 +576,89 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
       setUploadProgress(null);
     }
   }
-  async function downloadOne(photo) {
-    if (downloadingId) return;
-    setDownloadingId(photo.id);
-    const name = `anh-${pad(photo.number)}.jpg`;
+  const photoEntry = photo => ({
+    url: `${photoUrl(token, photo.id)}?download=1`,
+    link: storageLink(photo, "download"),
+    name: `anh-${pad(photo.number)}.jpg`,
+    type: "image/jpeg",
+  });
+
+  async function savePhotos(scope, work) {
+    if (savingPhotos.current) return;
+    savingPhotos.current = true;
+    setDownloadingId(scope);
     try {
-      const adjust = adjustOf(photo.id);
-      if (isNeutral(adjust))
-        await downloadEach([{ url: `${photoUrl(token, photo.id)}?download=1`, link: storageLink(photo, "download"), name, type: "image/jpeg" }]);
+      await work();
+    } catch (e) {
+      if (e.name !== "AbortError") toast.error(`Không lưu được ảnh: ${e.message}`);
+    } finally {
+      savingPhotos.current = false;
+      setDownloadingId(null);
+      setSaveProgress("");
+    }
+  }
+  async function prepareShare(scope, entries) {
+    const batch = entries.slice(0, SHARE_BATCH);
+    setSaveProgress(`Đang chuẩn bị 0/${batch.length} ảnh…`);
+    const files = await fetchFiles(batch, new Map(), done => setSaveProgress(`Đang chuẩn bị ${done}/${batch.length} ảnh…`));
+    setReadyToSave({ scope, files, remaining: entries.slice(batch.length), download: !navigator.canShare({ files }) });
+  }
+  async function downloadFiles(files) {
+    const entries = files.map(file => ({ url: URL.createObjectURL(file), name: file.name }));
+    try { await downloadEach(entries); }
+    finally { setTimeout(() => entries.forEach(entry => URL.revokeObjectURL(entry.url)), 30_000); }
+  }
+  function sharePrepared() {
+    const prepared = readyToSave;
+    if (!prepared) return;
+    return savePhotos(prepared.scope, async () => {
+      const { files, remaining, download: downloadMode } = prepared;
+      if (downloadMode) await downloadFiles(files);
       else {
+        try { await navigator.share({ files }); }
+        catch (e) {
+          if (e.name === "AbortError") return;
+          setReadyToSave({ ...prepared, download: true });
+          toast.info("Không mở được bảng lưu ảnh. Bấm Tải JPG để lưu từng tệp.");
+          return;
+        }
+      }
+      setReadyToSave(null);
+      if (remaining.length) await prepareShare(prepared.scope, remaining);
+    });
+  }
+  function downloadAll() {
+    if (!photos.length || photos.some(photo => photo.originalPending)) return;
+    return savePhotos("all", async () => {
+      const entries = photos.map(photoEntry);
+      setReadyToSave(null);
+      if (shareSheet) await prepareShare("all", entries);
+      else await downloadEach(entries);
+    });
+  }
+  function downloadOne(photo, { inEditor = false } = {}) {
+    if (photo.originalPending) return;
+    const adjust = adjustOf(photo.id);
+    const scope = inEditor ? `edit:${photo.id}:${JSON.stringify(adjust)}` : photo.id;
+    if (readyToSave?.scope === scope) return sharePrepared();
+    return savePhotos(scope, async () => {
+      setReadyToSave(null);
+      const entry = photoEntry(photo);
+      if (isNeutral(adjust)) {
+        if (shareSheet) await prepareShare(scope, [entry]);
+        else await downloadEach([entry]);
+      } else {
         // Render the guest JPEG from camera pixels, at up to 20MP, independently
         // of both the interactive preview and the 3000px print source.
         const canvas = await media.edited(photo, adjust, "download");
         let blob;
         try { blob = await new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("máy không đủ bộ nhớ"))), "image/jpeg", 0.95)); }
         finally { canvas.width = canvas.height = 0; }
-        const url = URL.createObjectURL(blob);
-        download(url, name);
-        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        const file = new File([blob], entry.name, { type: entry.type });
+        if (shareSheet) setReadyToSave({ scope, files: [file], remaining: [], download: !navigator.canShare({ files: [file] }) });
+        else await downloadFiles([file]);
       }
-      toast.success("Đã lưu ảnh về máy.");
-    } catch (e) {
-      toast.error(`Không lưu được ảnh: ${e.message}`);
-    } finally {
-      setDownloadingId(null);
-    }
+    });
   }
 
   // ── Chủ đề & ghép ảnh ──
@@ -790,6 +851,8 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
       ) : step === 0 ? (
         <Gallery token={token} photos={newestFirst} favorites={favorites.length} adjustOf={adjustOf} small={small} suspended={Boolean(editing)} busy={busy} frozen={frozen}
           uploadProgress={uploadProgress} selectedPack={pack} downloadingId={downloadingId} onFavorite={toggleHeart}
+          saveProgress={downloadingId === "all" ? (saveProgress || "Đang tải ảnh…") : ""}
+          readyToSave={readyToSave} onShare={sharePrepared} onSaveAll={downloadAll}
           suggestions={suggestedIds} capacity={pack ? required : 0} suggestProgress={suggestProgress} onHeartMany={heartMany}
           onDelete={removePhotos} onDownload={downloadOne} onEdit={(p) => setEditing(p.id)} onUpload={upload}
           onNext={() => go(1)} />
@@ -814,7 +877,9 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
       {editPhoto && (
         <BeautyEditor token={token} media={media} photo={editPhoto} photos={newestFirst} adjust={saved.adjusts[editPhoto.id]} disabled={frozen}
           onChange={(adjust) => save((v) => ({ adjusts: { ...v.adjusts, [editPhoto.id]: adjust } }))}
-          onNavigate={setEditing} onDownload={downloadOne} downloading={Boolean(downloadingId)}
+          onNavigate={setEditing} onDownload={photo => downloadOne(photo, { inEditor: true })} downloading={Boolean(downloadingId)}
+          downloadLabel={readyToSave?.scope === `edit:${editPhoto.id}:${JSON.stringify(adjustOf(editPhoto.id))}`
+            ? readyToSave.download ? "Tải JPG" : "Mở bảng lưu ảnh" : undefined}
           onApplyAll={(adjust) => {
             if (frozen) return;
             save((v) => ({ adjusts: { ...v.adjusts, ...Object.fromEntries(photos.map(p => [p.id, { ...adjust }])) } }));

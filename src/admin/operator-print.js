@@ -17,7 +17,7 @@ function remember(id, attempt, storage) {
 // photos: photo regions of the sheet (RX1 sharpens photos fully, text / frame half), as the kiosk sends.
 // saveOnly: a new sheet saved to the order without printing (no RX1 on this computer) — printed later
 // with "In lại qua RX1".
-export async function operatorPrint({ booking, images, frameName = "", printSize, copies = 1, sourceJob, photos, saveOnly = false }, {
+export async function operatorPrint({ booking, images, frameName = "", printSize, copies = 1, sourceJob, sheet, photos, saveOnly = false }, {
   send = sendDirectPrint, request = api, storage = globalThis.sessionStorage,
 } = {}) {
   const size = printSize || booking.printSize || "full";
@@ -28,7 +28,7 @@ export async function operatorPrint({ booking, images, frameName = "", printSize
   const bytes = new Blob(images);
   const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", await bytes.arrayBuffer()))]
     .map((n) => n.toString(16).padStart(2, "0")).join("");
-  const identity = JSON.stringify([sourceJob?._id || "manual", size, copies, frameName, digest, saveOnly ? "save" : "print"]);
+  const identity = JSON.stringify([sourceJob?._id || "manual", size, copies, frameName, digest, saveOnly ? "save" : "print", ...(sheet === undefined ? [] : [sheet])]);
   let attempt = attempts.get(booking._id);
   try { attempt = JSON.parse(storage?.getItem(storageKey(booking._id)) || "null") || attempt; } catch {}
   if (attempt?.identity !== identity) attempt = { identity, requestKey: crypto.randomUUID(), sent: false };
@@ -43,7 +43,7 @@ export async function operatorPrint({ booking, images, frameName = "", printSize
     let result;
     if (sourceJob) {
       result = await request(`/admin/bookings/${booking._id}/reprint`, { method: "POST",
-        body: { jobId: sourceJob._id, copies, requestKey: attempt.requestKey, delivery: "local" } });
+        body: { jobId: sourceJob._id, copies, requestKey: attempt.requestKey, delivery: "local", ...(sheet !== undefined && { sheet }) } });
     } else {
       const upload = printPackUpload({ images, frameName, printSize: size, requestKey: attempt.requestKey });
       result = await request(`/admin/bookings/${booking._id}/print-file`, {

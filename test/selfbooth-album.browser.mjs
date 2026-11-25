@@ -81,17 +81,25 @@ const fixture = `
   import { MemoryRouter, Route, Routes } from 'react-router-dom';
   import { StudioContext, ToastProvider } from '/src/studio.jsx';
   import { AlbumPage } from '/src/pages.jsx';
+  import { FrameImageField } from '/src/admin/frame-image-field.jsx';
   import '/src/kiosk/decor-fonts.js';
   import '/src/tailwind.css';
   (async () => {
     const frames = ${JSON.stringify(FRAMES)};
     window.fixtureFrames = frames;
     const studio = { settings: {}, packages: [], frames };
+    const FrameFixture = () => {
+      const [frame, setFrame] = React.useState({ image: '', slots: [] });
+      return React.createElement('div', { className: 'admin-shell' },
+        React.createElement('div', { className: 'catalog-editor' },
+          React.createElement(FrameImageField, { value: frame, onChange: setFrame })));
+    };
+    const view = location.search === '?frame-editor' ? React.createElement(FrameFixture) : React.createElement(AlbumPage);
     createRoot(document.getElementById('root')).render(
       React.createElement(MemoryRouter, { initialEntries: ['/album/fixture-album'] },
         React.createElement(StudioContext.Provider, { value: studio },
           React.createElement(ToastProvider, null,
-            React.createElement(Routes, null, React.createElement(Route, { path: '/album/:token', element: React.createElement(AlbumPage) }))))));
+            React.createElement(Routes, null, React.createElement(Route, { path: '/album/:token', element: view }))))));
   })();
 `;
 
@@ -136,8 +144,9 @@ before(async () => {
 after(async () => { await browser?.close(); await new Promise((resolve) => server?.close(resolve)); });
 
 async function phone({ faces = null, hashes = null, originalPending = false, photoCount = 4, printError = null, lostReply = false,
-  viewport = { width: 390, height: 844 }, realPhoto = false, prints: quota = 1, desktop = false, size = "large" } = {}) {
-  const page = await browser.newPage(desktop ? { viewport } : { viewport, isMobile: true, hasTouch: true });
+  viewport = { width: 390, height: 844 }, realPhoto = false, prints: quota = 1, desktop = false, size = "large", ios = false } = {}) {
+  const page = await browser.newPage(desktop ? { viewport } : { viewport, isMobile: true, hasTouch: true,
+    ...(ios && { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1" }) });
   const errors = [], prints = [], mediaRequests = [], deletes = [], uploads = [], asked = [];
   let savedJob = null, failedOnce = false;
   page.on("pageerror", (e) => errors.push(e.message));
@@ -166,10 +175,13 @@ async function phone({ faces = null, hashes = null, originalPending = false, pho
       booking.photos = [...booking.photos, { id: "p9", number: n, kind: "original", clientKey: "upload" }];
       return route.fulfill({ status: 201, json: booking });
     }
-    const media = path.match(/\/albums\/fixture-album\/photos\/p(\d)/);
+    const media = path.match(/\/albums\/fixture-album\/photos\/p(\d+)$/);
     if (media) {
       mediaRequests.push(url.searchParams.get('size'));
-      return route.fulfill({ body: realPhoto ? portrait : photos[media[1]], contentType: realPhoto ? 'image/jpeg' : "image/png" });
+      const downloadable = url.searchParams.get("download") === "1";
+      return route.fulfill({ body: realPhoto ? portrait : photos[media[1]] || photos[1],
+        headers: downloadable ? { "Content-Disposition": `attachment; filename="anh-${media[1].padStart(2, '0')}.jpg"` } : {},
+        contentType: realPhoto ? 'image/jpeg' : "image/png" });
     }
     if (path.endsWith('/albums/fixture-album/print')) return route.fulfill({json:savedJob});
     if (path.endsWith("/albums/fixture-album/print-pack")) {
@@ -188,6 +200,14 @@ async function phone({ faces = null, hashes = null, originalPending = false, pho
   });
   if (faces) await page.addInitScript((value) => { window.fixtureFaces = value; }, faces);
   if (hashes) await page.addInitScript((value) => { window.fixtureHashes = value; }, hashes);
+  if (ios) await page.addInitScript(() => {
+    window.sharedBatches = [];
+    navigator.canShare = ({ files }) => files.every(f => f.type === "image/jpeg");
+    navigator.share = async ({ files }) => {
+      if (!navigator.userActivation.isActive) throw new DOMException("Gesture needed", "NotAllowedError");
+      window.sharedBatches.push(files.map(f => f.name));
+    };
+  });
   await page.goto(`${base}/album/fixture-album`);
   return { page, errors, prints, mediaRequests, deletes, uploads, booking, asked,
     originalsReady:()=>{booking.photos.forEach(p=>delete p.originalPending)} };
@@ -231,6 +251,59 @@ const tap = async (page, label, fx, fy) => {
   const box = await page.getByLabel(label).boundingBox();
   await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
 };
+
+test("Selfbooth phone downloads individual JPEG files without a ZIP request", async () => {
+  const { page, asked, errors } = await phone({ photoCount: 2, realPhoto: true });
+  try {
+    const files = [];
+    page.on("download", file => files.push(file.suggestedFilename()));
+    await page.getByRole("button", { name: "Lưu tất cả ảnh" }).click();
+    for (let i = 0; i < 50 && files.length < 2; i++) await page.waitForTimeout(100);
+    assert.deepEqual(files.sort(), ["anh-01.jpg", "anh-02.jpg"]);
+    assert.equal(asked.some(path => path.endsWith("/download")), false);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("iPhone-style saving shares JPEG files in batches from explicit taps", async () => {
+  const { page, asked, errors } = await phone({ ios: true, photoCount: 9, realPhoto: true });
+  try {
+    await page.getByRole("button", { name: "Lưu tất cả ảnh" }).click();
+    const share = page.getByRole("button", { name: "Mở bảng lưu ảnh" });
+    await share.click();
+    await share.click();
+    const batches = await page.evaluate(() => window.sharedBatches);
+    assert.deepEqual(batches.map(batch => batch.length), [8, 1]);
+    assert.equal(new Set(batches.flat()).size, 9);
+    assert.ok(batches.flat().every(name => name.endsWith(".jpg")));
+    assert.equal(asked.some(path => path.endsWith("/download")), false);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("adding a Selfbooth frame finds its windows and lets the operator draw a small third slot", async () => {
+  const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+  try {
+    await page.goto(`${base}/album/fixture-album?frame-editor`);
+    const art = png(360, 240, (x, y) => inside(x / 360, y / 240) ? [0, 0, 0, 0] : [82, 41, 22, 255]);
+    await page.getByLabel("Chọn file ảnh khung").setInputFiles({ name: "frame.png", mimeType: "image/png", buffer: art });
+    await page.getByText("2 ô ảnh", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Ô ảnh 1", exact: true }).click();
+    const box = page.locator('[data-region-index="0"]');
+    assert.equal(await box.evaluate(node => getComputedStyle(node).borderTopWidth), "1px");
+    const corner = box.locator(".frame-region-handle.nw");
+    assert.equal(await corner.evaluate(node => getComputedStyle(node, "::after").width), "5px");
+    await page.getByRole("button", { name: "Vẽ vùng ảnh" }).click();
+    assert.equal(await box.locator(".frame-region-hit").isVisible(), false);
+    const stage = await page.locator(".frame-region-stage").boundingBox();
+    const x = stage.x + stage.width / 2, y = stage.y + 5;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 4, y + 4);
+    await page.mouse.up();
+    await page.getByText("3 ô ảnh", { exact: true }).waitFor();
+  } finally { await page.close(); }
+});
 
 test("album like Selfbooth: 01 Ảnh → 02 Chủ đề → 03 Ghép ảnh → 04 Kết quả, one 20 × 30 sheet per frame of the set", async () => {
   const { page, errors, prints } = await phone({ prints: 2 });

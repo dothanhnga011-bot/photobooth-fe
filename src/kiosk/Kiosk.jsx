@@ -29,7 +29,7 @@ import {
 } from "./folder.js";
 import { cameraPhotoId, prepareCameraPhoto } from "./photo.js";
 import { cameraProfile } from "./camera-profile.js";
-import { directMediaUrl } from "../media-delivery.js";
+import { storageLink } from "../media-delivery.js";
 import { saveOriginal, savePhoto, savePreview, saveVideo } from "./direct-upload.js";
 import { priority, whenUplinkIdle } from "./uplink.js";
 import { watchCameraFolder } from "./watch-camera-folder.js";
@@ -50,14 +50,13 @@ import { drawLiveCapture, previewRotation, previewRotationKey, readPreviewRotati
 import { buildTimelapse, createClipRecorder } from "./clip-recorder.js";
 import {
   compositeJpeg,
-  composePreview,
   previewBitmap,
   frameCandidates,
   preloadFrameTiles,
   frameNeed,
   printSheets,
   queueKioskComposite,
-  directKioskPrint,
+  stageKioskPrint,
   printPhotoRegions,
   renderPrintFrame,
   runKioskComposites,
@@ -67,7 +66,6 @@ import {
 } from "./compose.js";
 import { billAcceptor } from "./bill-acceptor.js";
 import { KioskDone } from "./KioskDone.jsx";
-import { checkDirectPrinter } from "./direct-print.js";
 import { KioskEntry } from "./KioskEntry.jsx";
 import { KioskSettings } from "./KioskSettings.jsx";
 import { KioskShoot, useObjectUrl } from "./KioskShoot.jsx";
@@ -967,10 +965,13 @@ export function Kiosk() {
         return {
           key: shotKey,
           preview: local?.preview ||
-            directMediaUrl(getApiUrl(`/api/albums/${s.accessToken}/photos/${server.id}?size=preview`)),
+            getApiUrl(`/api/albums/${s.accessToken}/photos/${server.id}?size=preview`),
+          media: server,
+          thumbnail: !local?.preview && server ? storageLink(server, "thumbnail") : null,
           image: local?.image,
           mirrored: local ? local.mirrored : Boolean(server?.mirrored),
           serverId: server?.id,
+          originalPending: !local?.image && server?.originalPending,
         };
       })
       .filter(Boolean);
@@ -1040,8 +1041,8 @@ export function Kiosk() {
     }),
     [catalogFrames, selectCount, shots.length, session?.booking.printSize, settings.themes],
   );
-  const flowShots = ["select", "frame"].includes(phase) ? shots : [];
-  const bitmaps = useShotBitmaps(flowShots, session?.accessToken);
+  const flowShots = PICK_PHASES.includes(phase) ? shots : [];
+  const { bitmaps, retryPreviews } = useShotBitmaps(flowShots, session?.accessToken, session?.selected);
   const frameIndex = Math.min(session?.frameIndex || 0, Math.max(0, frames.length - 1));
   // Nạp ảnh khung trong lúc chụp; màn khung riêng dùng trực tiếp ảnh danh mục.
   // Khóa theo danh sách khung để không nạp lại sau mỗi tấm máy ảnh gửi về.
@@ -1088,8 +1089,7 @@ export function Kiosk() {
   const filters = useMemo(() => filterChoices(settings), [settings]);
   const changeDecor = (changes) =>
     current.current && patch({ decor: { ...NO_DECOR, ...current.current.decor, ...changes } });
-  // Bấm "In ảnh": hiện màn QR ngay với ảnh ghép xem trước; bản in chất lượng cao ghép và gửi máy in
-  // ở phía sau.
+  // Ghép và lưu tờ in trước khi hiện QR. Việc gửi RX1 và tải album chạy riêng sau đó.
   async function confirmFrame() {
     const s = current.current;
     if (!s || composing || !PICK_PHASES.includes(phaseOf(s))) return;
@@ -1114,74 +1114,55 @@ export function Kiosk() {
       // Save the finished sheet even when the room printer is disconnected.
       let composite = "";
       const albumLink = `${window.location.origin}/album/${s.accessToken}`;
-      const temporary = [];
-      try {
-        // A timeout on the blank-frame screen can precede preview decoding.
-        // Decode the chosen photos only; print/album sources remain unchanged.
-        const images = [];
-        for (const shot of chosenShots) {
-          const cached = bitmaps.get(shot.key);
-          const image = cached || await previewBitmap(shot, s.accessToken);
-          images.push(image); if (!cached) temporary.push(image);
-        }
-        if (frame) {
-          const canvas = await composePreview(frame, images, "print", albumLink, look);
-          try { composite = canvas.toDataURL("image/jpeg", 0.92); }
-          finally { canvas.width = canvas.height = 0; }
-        } else {
-          notifyOnce("no-frame", "warning", "Chưa có khung ảnh nào đang bật — thêm khung ở Quản lý → Khung ảnh để ghép và in.", 15000);
-          if (images[0]) {
-            const canvas = document.createElement("canvas");
-            canvas.width = 700;
-            canvas.height = Math.round((700 * images[0].height) / images[0].width);
-            canvas.getContext("2d").drawImage(images[0], 0, 0, canvas.width, canvas.height);
-            composite = canvas.toDataURL("image/jpeg", 0.9);
-            canvas.width = canvas.height = 0;
-          }
-        }
-      } finally { temporary.forEach(image => image.close()); }
+      function qrPreview(image) {
+        const preview = document.createElement("canvas");
+        const scale = Math.min(1, 1000 / Math.max(image.width, image.height));
+        preview.width = Math.max(1, Math.round(image.width * scale));
+        preview.height = Math.max(1, Math.round(image.height * scale));
+        const ctx = preview.getContext("2d");
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(image, 0, 0, preview.width, preview.height);
+        try { return preview.toDataURL("image/jpeg", 0.92); }
+        finally { preview.width = preview.height = 0; }
+      }
       const printsCount = Number(s.booking.prints) || 0;
-      transition(() => showDone(s.booking, s.accessToken, { composite, framed: Boolean(frame), prints: printsCount }), "zoom");
+      const frameName = frame?.themeName?.trim() || frame?.name || "Khung ảnh";
+      let printJob;
       if (frame) {
-        if (printsCount) setPrint({ status: "sending" });
-        const frameName = frame.themeName?.trim() || frame.name || "Khung ảnh";
+        const printScale = 2;
+        const canvas = await renderPrintFrame(frame, chosenShots, s.accessToken, albumLink, {
+          ...look, scale: printScale, strict: true, sharp: true,
+        });
+        try {
+          composite = qrPreview(canvas);
+          printJob = {
+            token: s.accessToken, frameName,
+            images: await printSheets(canvas, frame, Math.max(1, printsCount), s.booking.printSize, printScale),
+            printSize: frame.printSize === "strip" ? "strip" : "full",
+            photos: printPhotoRegions(frame, canvas),
+          };
+        } finally {
+          canvas.width = canvas.height = 0;
+        }
+      } else {
+        notifyOnce("no-frame", "warning", "Chưa có khung ảnh nào đang bật — thêm khung ở Quản lý → Khung ảnh để ghép và in.", 15000);
+        const first = chosenShots[0];
+        if (first) {
+          const cached = bitmaps.get(first.key);
+          const image = cached || await previewBitmap(first, s.accessToken).catch(() => null);
+          try { if (image) composite = qrPreview(image); }
+          finally { if (!cached) image?.close(); }
+        }
+      }
+      // Keep the exact sheet on disk before leaving the editor. RX1 and the
+      // photo album can then finish independently of the QR screen.
+      const staged = printJob ? await stageKioskPrint(printJob, { saveOnly: !printsCount }) : null;
+      const printing = staged?.printing.catch((e) => setPrint({ status: "failed", message: e.message }));
+      transition(() => showDone(s.booking, s.accessToken, { composite, framed: Boolean(frame), prints: printsCount }), "zoom");
+      if (printJob) {
         // Bản ghép chất lượng in: gửi vào album (khách xem / tải) và, nếu gói có in, ra máy in.
         (async () => {
-          let printFrame = null, albumFrame = null;
-          let printing = Promise.resolve();
-          try {
-            if (printsCount) {
-              // QR-only sessions need only the guest composite, with no spare RX1 render.
-              const printScale = 2;
-              printFrame = await renderPrintFrame(frame, chosenShots, s.accessToken, albumLink, {
-                ...look, scale: printScale, strict: true,
-                // Tờ DNP: Lanczos3 một lần từ ảnh gốc vào ô (nét hơn rõ ở tóc, mi mắt, chữ trên khung).
-                sharp: true,
-              });
-              const images = await printSheets(printFrame, frame, printsCount, s.booking.printSize, printScale);
-              // Ô ảnh trên tờ (máy DNP): bộ in làm nét đủ phần ảnh, chữ / khung một nửa.
-              const photos = printPhotoRegions(frame, printFrame);
-              // Retain encoded bytes, not two large canvases. Printing/spooling can run while the
-              // guest composite is rendered, so a slow RX1 never holds the album back.
-              printFrame.width = printFrame.height = 0;
-              printFrame = null;
-              printing = directKioskPrint({
-                token: s.accessToken,
-                images,
-                frameName,
-                // Khung nhỏ → máy cắt đôi; khung lớn → nguyên tờ (kể cả khi gói ảnh nhỏ chưa có khung
-                // nhỏ nên dùng khung lớn).
-                printSize: frame.printSize === "strip" ? "strip" : "full",
-                photos,
-              }).catch((e) => setPrint({ status: "failed", message: e.message }));
-            }
-          } catch (e) {
-            if (printsCount) setPrint({ status: "failed", message: e.message });
-          } finally {
-            // Release the RX1 canvas before allocating the larger guest composite.
-            if (printFrame) printFrame.width = printFrame.height = 0;
-            printFrame = null;
-          }
+          let albumFrame = null;
           try {
             // Guest composites target 20 MP, drawn directly from the full camera sources.
             // Physical RX1 sheets retain their existing dimensions.
@@ -1442,6 +1423,7 @@ export function Kiosk() {
       <KioskSelect
         shots={shots}
         bitmaps={bitmaps}
+        retryPreviews={retryPreviews}
         count={need}
         selected={selected}
         onPick={pickShot}

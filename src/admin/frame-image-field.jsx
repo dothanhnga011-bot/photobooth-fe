@@ -77,7 +77,8 @@ export function FrameImageField({ value, onChange, onBusyChange = () => {} }) {
           return;
         }
       }
-      setHistory([]); latestChange.current(frame);
+      if (value.image) changeFrame(frame);
+      else { setHistory([]); latestChange.current(frame); }
       if (!frame.slots.length) toast.info("Chưa tự tìm được ô ảnh. Bấm Vẽ vùng ảnh để đánh dấu các ô.");
       else toast.success(`Đã nhận diện ${frame.slots.length} ô ảnh. Kiểm tra và chỉnh vùng đỏ nếu cần.`);
     });
@@ -100,8 +101,12 @@ export function FrameImageField({ value, onChange, onBusyChange = () => {} }) {
         <button type="button" disabled={busy} onClick={() => work(async () => {
           const slots = detectFrameSlots(await loadFrameImage(value.image));
           if (!mounted.current) return;
+          if (!slots.length) {
+            toast.info("Chưa tự tìm được ô ảnh. Các ô hiện có vẫn được giữ, bạn có thể vẽ thêm.");
+            return;
+          }
           changeSlots(slots);
-          if (!slots.length) toast.info("Chưa tự tìm được ô ảnh. Bạn có thể vẽ vùng ảnh thủ công.");
+          toast.success(`Đã tìm thấy ${slots.length} ô ảnh.`);
         })}><ScanSearch size={15} /> Tự nhận diện</button>
         <button type="button" disabled={busy} onClick={() => input.current.click()}><Upload size={15} /> Thay ảnh</button>
         {[false, true].map(clockwise => <button type="button" key={String(clockwise)} disabled={busy}

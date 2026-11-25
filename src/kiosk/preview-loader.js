@@ -36,7 +36,7 @@ export function createPreviewLoader({
     }
   };
   return {
-    setShots(shots, token) {
+    setShots(shots, token, priorityKeys = []) {
       if (closed) return;
       if (state.token !== token || (!shots.length && state.known.size)) {
         release(state);
@@ -48,6 +48,8 @@ export function createPreviewLoader({
         state.known.add(shot.key);
         state.queue.push(shot);
       }
+      const preferred = new Set(priorityKeys);
+      state.queue.sort((a, b) => Number(preferred.has(b.key)) - Number(preferred.has(a.key)));
       pump();
     },
     close() {

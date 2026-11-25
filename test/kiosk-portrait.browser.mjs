@@ -251,12 +251,13 @@ test("selfbooth (Selfbooth) room: plain Mellow code card, big keypad", async () 
   assert.equal(wide.pageScrolls, false);
 });
 
-test("Selfbooth with external HDMI, landscape: latest JPEG in the main stage, no browser live view", async () => {
+test("Selfbooth with external HDMI, landscape: one full-width photo stage and no thumbnails", async () => {
   const m = await portrait("selfbooth-shoot", {
     stage: ".shoot-stage", latest: ".shoot-latest-full", rail: ".shoot-rail", thumbs: ".shoot-thumbs img", end: ".shoot-end", live: ".shoot-stage video",
   }, { width: 1920, height: 1080 });
   assert.equal(m.pageScrolls, false);
-  assert.ok(m.rail.minWidth >= 440 && m.rail.minWidth <= 470, `cột ảnh rộng ${m.rail.minWidth} px`);
+  assert.equal(m.rail.minWidth, 1920);
+  assert.equal(m.thumbs, null);
   assert.equal(m.live, null);
   assert.ok(Math.abs(m.latest.minWidth - m.stage.minWidth) <= 4);
   assert.ok(m.end.minHeight >= 64, `nút Chụp xong cao ${m.end.minHeight} px`);
@@ -295,9 +296,10 @@ test("PTB shoot, landscape: the photo column is twice as wide; a new photo goes 
 });
 
 test("Selfbooth with external HDMI, portrait: large latest JPEG and compact controls below", async () => {
-  const m = await portrait("selfbooth-shoot", { stage: ".shoot-stage", latest: ".shoot-latest-full img", end: ".shoot-end", live: ".shoot-stage video" });
+  const m = await portrait("selfbooth-shoot", { stage: ".shoot-stage", latest: ".shoot-latest-full img", thumbs: ".shoot-thumbs img", end: ".shoot-end", live: ".shoot-stage video" });
   assert.equal(m.pageScrolls, false);
   assert.equal(m.live, null);
+  assert.equal(m.thumbs, null);
   assert.ok(m.stage.minHeight > 1500, JSON.stringify(m.stage));
   assert.ok(m.latest.minHeight >= 600, JSON.stringify(m.latest));
   assert.ok(m.end.minHeight >= 56, `nút Chụp xong cao ${m.end.minHeight} px`);

@@ -1,7 +1,7 @@
 import { useLayoutEffect, useState } from 'react';
 import { fitGrid } from './fit-grid.js';
 
-// Share the measured grid between captured photos and blank frame choices.
+// Fit the captured photos to the available editor space.
 export function useFitGrid(count, { aspect = 3 / 2, frame = 8, min = 120 } = {}) {
   const [element, ref] = useState(null), [layout, setLayout] = useState(null);
   useLayoutEffect(() => {

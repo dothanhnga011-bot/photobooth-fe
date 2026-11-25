@@ -49,8 +49,8 @@ import {
 import { useObjectUrl } from "./KioskShoot.jsx";
 import { useKioskText } from "./use-kiosk-text.js";
 
-// Giải mã ảnh khách khi vào màn ghép; màn chọn khung riêng chỉ dùng ảnh danh mục.
-export function useShotBitmaps(shots, token) {
+// Tải trước khi khách đang chọn khung. Ảnh đã chọn được xếp trước các ảnh chưa bắt đầu tải.
+export function useShotBitmaps(shots, token, selected) {
   const [loaded, setLoaded] = useState(() => ({ token, map: new Map() }));
   const loader = useRef(null);
   useEffect(() => {
@@ -62,9 +62,12 @@ export function useShotBitmaps(shots, token) {
     return () => { next.close(); if (loader.current === next) loader.current = null; };
   }, []);
   useEffect(() => {
-    loader.current?.setShots(shots, token);
-  }, [shots, token]);
-  return loaded.token === token ? loaded.map : new Map();
+    loader.current?.setShots(shots, token, selected);
+  }, [shots, token, selected]);
+  return {
+    bitmaps: loaded.token === token ? loaded.map : new Map(),
+    retryPreviews: () => loader.current?.setShots(shots, token, selected),
+  };
 }
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
@@ -298,7 +301,9 @@ function DecorStage({
 }
 
 function Pick({ shot, slots, onPick, disabled }) {
-  const src = useObjectUrl(shot.preview);
+  const preview = useObjectUrl(shot.preview);
+  const [retry, setRetry] = useState(false);
+  const src = !retry && shot.thumbnail ? shot.thumbnail : preview;
   const picked = slots.length > 0;
   return (
     <button
@@ -309,7 +314,7 @@ function Pick({ shot, slots, onPick, disabled }) {
       disabled={disabled}
       onClick={() => onPick(shot.key)}
     >
-      {src && <img src={src} alt="" loading="lazy" />}
+      {src && <img src={src} alt="" loading="lazy" onError={() => setRetry(true)} />}
       {picked ? <span className={`select-order${slots.length > 1 ? " is-many" : ""}`}>{slots.join("·")}</span> : null}
     </button>
   );
@@ -397,7 +402,7 @@ function OnScreenKeyboard({ onKey, onBackspace, onSpace, caps, onToggleCaps }) {
 export function KioskSelect({
   shots, bitmaps, count, selected, onPick, onRemove, onClear, secondsLeft,
   frames, index, onBack, onConfirm, busy, prints, qrUrl,
-  filters = [], decor, onDecor, shopStickers = [], counter = false, confirmLabel,
+  filters = [], decor, onDecor, shopStickers = [], counter = false, confirmLabel, retryPreviews,
 }) {
   const toast = useToast();
   const t = useKioskText();
@@ -405,6 +410,7 @@ export function KioskSelect({
   const ready = photoSlots(selected, count).map(key => bitmaps.has(key) ? key : null);
   const images = ready.map((key) => bitmaps.get(key) || null);
   const filled = selectedCount(selected);
+  const waiting = filled - selectedCount(ready);
   const full = count > 0 && filled >= count;
   // Một ảnh có thể nằm ở nhiều ô: danh sách ảnh khác nhau (chỉnh ảnh, màu riêng) và các ô của từng ảnh.
   const uniqueReady = [...new Set(ready.filter(Boolean))];
@@ -561,6 +567,9 @@ export function KioskSelect({
             <> · <button type="button" className="select-clear" onClick={onClear}>Chọn lại</button></>
           )}
         </p>
+        {frame && waiting > 0 && <p role="status">Đang nạp {waiting} ảnh đã chọn vào khung.
+          {retryPreviews && <> <button type="button" className="select-clear" onClick={retryPreviews}>Tải lại ảnh</button></>}
+        </p>}
       </header>
       <div className="select-layout">
         <div className="select-preview">

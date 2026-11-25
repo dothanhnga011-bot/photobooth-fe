@@ -60,17 +60,6 @@
     font-size: clamp(48px, 8vh, 80px);
     opacity: 0.5;
   }
-  .shoot-latest-full .shoot-latest-no {
-    position: absolute;
-    top: 14px;
-    left: 14px;
-    z-index: 2;
-    padding: 4px 12px;
-    border-radius: 999px;
-    background: rgb(33 23 19 / 78%);
-    color: #fff;
-    font-size: clamp(14px, 1.8vh, 18px);
-  }
   .shoot-latest-full .shoot-latest-pending {
     position: absolute;
     right: 14px;

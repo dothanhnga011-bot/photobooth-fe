@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { PiFloppyDiskBold, PiPrinterBold } from "react-icons/pi";
 import { ImagePlus, X } from "lucide-react";
 import { api, getApiUrl } from "../api.js";
-import { directMediaUrl } from "../media-delivery.js";
+import { storageLink } from "../media-delivery.js";
 import { ErrorBox, useStudio, useToast } from "../studio.jsx";
 import { KioskFrames } from "../kiosk/KioskFrames.jsx";
 import { KioskSelect, useShotBitmaps } from "../kiosk/KioskSelect.jsx";
@@ -48,7 +48,9 @@ export function CounterCompose({ booking, onClose, onSaved }) {
   const shots = useMemo(() => [
     ...(albumPhotos || []).map((p) => ({
       key: String(p.id), serverId: p.id, mirrored: Boolean(p.mirrored), originalPending: p.originalPending,
-      preview: directMediaUrl(getApiUrl(`/api/albums/${token}/photos/${p.id}?size=preview`)),
+      media: p,
+      thumbnail: storageLink(p, "thumbnail"),
+      preview: getApiUrl(`/api/albums/${token}/photos/${p.id}?size=preview`),
     })),
     ...added,
   ], [albumPhotos, added, token]);
@@ -59,7 +61,7 @@ export function CounterCompose({ booking, onClose, onSaved }) {
   const frame = frames[index];
   const needOf = (f) => frameNeed(f, { count: Math.max(1, shots.length), printSize: booking.printSize, shots: shots.length });
   const need = needOf(frame);
-  const bitmaps = useShotBitmaps(step === "select" ? shots : [], token);
+  const { bitmaps, retryPreviews } = useShotBitmaps(shots, token, selected);
   const filters = useMemo(() => filterChoices(settings), [settings]);
 
   const changeFrame = (i) => {
@@ -169,6 +171,7 @@ export function CounterCompose({ booking, onClose, onSaved }) {
           counter
           shots={shots}
           bitmaps={bitmaps}
+          retryPreviews={retryPreviews}
           count={need}
           selected={selected.slice(0, need)}
           onPick={(key) => setSelected((list) => togglePhotoSlot(list, need, key))}

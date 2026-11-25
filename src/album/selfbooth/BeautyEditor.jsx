@@ -8,7 +8,7 @@ import { PhotoThumb } from '../photo-thumb.jsx';
 // Selfbooth's photo + scroll panel, in Mellow's existing espresso/ivory tokens.
 // Serif 24px heading, 12–14px controls, 44px targets; footer stays on screen.
 export function BeautyEditor({ token, media, photo, photos = [photo], adjust, onChange, onClose,
-  onFavorite, onDelete, onNavigate, onApplyAll, onDownload, downloading = false, disabled }) {
+  onFavorite, onDelete, onNavigate, onApplyAll, onDownload, downloading = false, downloadLabel = 'Tải ảnh về', disabled }) {
   const dialog = useRef(null), view = useRef(null), original = useRef(null), edited = useRef(null), turn = useRef(0);
   const originalId = useRef('');
   const publish = useRef(onChange), requested = useRef('');
@@ -140,7 +140,7 @@ export function BeautyEditor({ token, media, photo, photos = [photo], adjust, on
           </div>
           <div className="sb-beauty-below">
             <button type="button" aria-pressed={compare} disabled={isNeutral(a)} {...holdCompare}><PiEyeBold /> Giữ để so sánh</button>
-            {onDownload && <button type="button" disabled={!canCommit || downloading || photo.originalPending} aria-busy={downloading} onClick={() => onDownload(photo)}><PiDownloadSimpleBold />{downloading ? 'Đang lưu…' : 'Tải ảnh về'}</button>}
+            {onDownload && <button type="button" disabled={!canCommit || downloading || photo.originalPending} aria-busy={downloading} onClick={() => onDownload(photo)}><PiDownloadSimpleBold />{downloading ? 'Đang chuẩn bị…' : downloadLabel}</button>}
           </div>
         </div>
         <section className="sb-beauty-panel" aria-label="Công cụ làm đẹp">

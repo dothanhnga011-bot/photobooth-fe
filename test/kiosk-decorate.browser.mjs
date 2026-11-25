@@ -130,10 +130,10 @@ before(async () => {
 
 after(async () => { await browser?.close(); await new Promise((resolve) => server?.close(resolve)); });
 
-async function selectScreen({ query = "", shots = 3, prints = 1, viewport = { width: 1366, height: 768 }, holdPrint = false, phase = "select", seconds = 150 } = {}) {
+async function selectScreen({ query = "", shots = 3, prints = 1, viewport = { width: 1366, height: 768 }, holdPrint = false, phase = "select", seconds = 150, failPreview = false } = {}) {
   const page = await browser.newPage({ viewport });
-  const errors = [], photoReads = [], uploads = { composite: null, print: null, printCalls: 0 };
-  let releasePrint;
+  const errors = [], photoReads = [], uploads = { composite: null, print: null, printCalls: 0, archive: null };
+  let releasePrint, failedThumbnail = false;
   const printerReady = new Promise((resolve) => { releasePrint = resolve; });
   page.on("pageerror", (e) => errors.push(e.message));
   await page.route('http://127.0.0.1:8789/**', async route => {
@@ -156,11 +156,20 @@ async function selectScreen({ query = "", shots = 3, prints = 1, viewport = { wi
     const url = new URL(route.request().url());
     const path = url.pathname;
     if (/\/albums\/fixture-album\/photos\//.test(path)) {
-      photoReads.push(path); return route.fulfill({ body: photoImage, contentType: "image/png" });
+      photoReads.push(path);
+      if (failPreview && /\/p1$/.test(path) && url.searchParams.get("direct")) {
+        if (url.searchParams.get("size") === "thumbnail") failedThumbnail = true;
+        return route.fulfill({ status: 404, json: { message: "Preview unavailable" } });
+      }
+      return route.fulfill({ body: photoImage, contentType: "image/png" });
     }
     if (path.endsWith("/kiosk/composite")) {
       uploads.composite = route.request().postDataBuffer();
       return route.fulfill({ json: { ok: true } });
+    }
+    if (path.endsWith("/print-archive")) {
+      uploads.archive = { result: url.searchParams.get("result"), bytes: route.request().postDataBuffer() };
+      return route.fulfill({ json: { _id: "saved-job" } });
     }
     if (path.endsWith("/albums/fixture-album/print-pack")) {
       uploads.print = route.request().headers()["x-print-sheets"];
@@ -179,7 +188,8 @@ async function selectScreen({ query = "", shots = 3, prints = 1, viewport = { wi
     }));
   }, {booking,phase,seconds});
   await page.goto(base + query);
-  return { page, errors, uploads, releasePrint, photoReads };
+  return { page, errors, uploads, releasePrint, photoReads, failedThumbnail: () => failedThumbnail,
+    recoverPreview: () => { failPreview = false; } };
 }
 const saved = (page) => page.evaluate(() => JSON.parse(sessionStorage.getItem("photo-capture-fixture-device")));
 
@@ -214,7 +224,7 @@ async function samples(page, jpeg, points) {
   }, { b64: jpeg.toString("base64"), points });
 }
 
-test("QR-only sessions render the 20 MP guest composite without allocating an unused RX1 sheet", async () => {
+test("QR-only sessions save a master for the counter and a 20 MP album composite without sending paper", async () => {
   const { page, errors, uploads } = await selectScreen({ prints: 0 });
   try {
     await page.evaluate(() => {
@@ -228,11 +238,13 @@ test("QR-only sessions render the 20 MP guest composite without allocating an un
     const photos = page.getByRole("group", { name: "Ảnh đã chụp" }).getByRole("button");
     await photos.nth(0).click(); await photos.nth(1).click();
     await page.getByRole("button", { name: "Nhận ảnh", exact: true }).click();
-    for (let i = 0; i < 100 && !uploads.composite; i++) await page.waitForTimeout(100);
+    for (let i = 0; i < 100 && (!uploads.composite || !uploads.archive); i++) await page.waitForTimeout(100);
     assert.ok(uploads.composite);
     assert.equal(uploads.print, null);
     const targets = await page.evaluate(() => window.renderTargets);
-    assert.equal(targets.some(([w, h]) => w === 2400 && h === 3600), false);
+    assert.equal(targets.some(([w, h]) => w === 2400 && h === 3600), true);
+    assert.equal(uploads.archive?.result, "saved");
+    assert.ok(uploads.archive.bytes.length > 0);
     const { width, height } = await samples(page, uploads.composite, []);
     assert.ok(width * height > 19_980_000 && width * height <= 20_000_000);
     assert.deepEqual(errors, []);
@@ -429,7 +441,7 @@ test("the first screen shows blank catalog frames only, then photos appear besid
     assert.equal(await choices.count(),2);
     await page.waitForFunction(()=>[...document.querySelectorAll(".ptb-frame-art img")].every(img=>img.naturalWidth>0));
     assert.equal(await page.locator("canvas").count(),0,"the frame step never composes customer photos");
-    assert.equal(photoReads.length,0,"frame selection does not fetch customer previews");
+    assert.ok(photoReads.length > 0,"frame selection preloads customer previews without showing them");
     const colors=await page.locator(".ptb-frame-art img").evaluateAll(images=>images.map(img=>{
       const c=document.createElement("canvas");c.width=img.naturalWidth;c.height=img.naturalHeight;
       const ctx=c.getContext("2d");ctx.drawImage(img,0,0);
@@ -457,32 +469,55 @@ test("the first screen shows blank catalog frames only, then photos appear besid
   } finally {await page.close()}
 });
 
-test("all 16 blank frames fit the full screen, with optional theme filtering", async () => {
+test("the featured frame can be changed with arrows or any of the 16 thumbnails", async () => {
   const {page,errors}=await selectScreen({query:"/?frames=16",phase:"frame-pick",viewport:{width:1920,height:1080}});
   try {
-    await page.waitForFunction(()=>document.querySelector(".ptb-frames-grid.is-fitted"));
+    await page.locator(".ptb-frame-feature img").waitFor();
     const choices=page.getByRole("radiogroup",{name:"Chọn khung"}).getByRole("radio");
     assert.equal(await choices.count(),16);
     for (const viewport of [{width:1366,height:768},{width:1920,height:1080}]) {
       await page.setViewportSize(viewport);
       await page.waitForTimeout(200);
       const layout=await page.evaluate(()=>{
-        const grid=document.querySelector(".ptb-frames-grid").getBoundingClientRect();
-        const cells=[...document.querySelectorAll(".ptb-frame-choice")].map(c=>c.getBoundingClientRect());
-        return {all:cells.every(c=>c.top>=grid.top-1&&c.bottom<=grid.bottom+1),minimum:Math.min(...cells.map(c=>c.width)),scroll:document.documentElement.scrollHeight>innerHeight+1};
+        const rail=document.querySelector(".ptb-frame-rail").getBoundingClientRect();
+        const feature=document.querySelector(".ptb-frame-feature").getBoundingClientRect();
+        return {above:feature.bottom<=rail.top+1, larger:feature.height>rail.height,scroll:document.documentElement.scrollHeight>innerHeight+1};
       });
-      assert.equal(layout.all,true,`all frames fit at ${viewport.width}`);
-      assert.ok(layout.minimum>=120);assert.equal(layout.scroll,false);
+      assert.deepEqual(layout,{above:true,larger:true,scroll:false});
       await page.screenshot({path:join(tmpdir(),`photobooth-fe-ptb-frames16-${viewport.width}.png`)});
     }
-    const chips=page.getByRole("group",{name:"Chủ đề khung"}).getByRole("button");
-    assert.deepEqual(await chips.allInnerTexts(),["Tất cả","LIMIT","Noel"]);
-    await chips.nth(2).click();assert.equal(await choices.count(),8);
-    await choices.first().click();assert.equal((await saved(page)).frameIndex,8);
-    await chips.first().click();assert.equal(await choices.count(),16);
+    await page.getByRole("button",{name:"Khung sau"}).click();
+    assert.equal(await choices.nth(1).getAttribute("aria-checked"),"true");
+    await page.getByRole("button",{name:"Khung trước"}).click();
+    assert.equal(await choices.first().getAttribute("aria-checked"),"true");
+    await choices.last().click();
+    assert.equal((await saved(page)).frameIndex,15);
     await page.screenshot({path:join(tmpdir(),"photobooth-fe-ptb-frames16-1920.png")});
     assert.deepEqual(errors,[]);
   } finally {await page.close()}
+});
+
+test("when a thumbnail is visible but both preview requests fail, retry fills the selected slot", async () => {
+  const { page, errors, failedThumbnail, recoverPreview } = await selectScreen({ failPreview: true, phase: "frame-pick" });
+  try {
+    for (let i = 0; i < 50 && !failedThumbnail(); i++) await page.waitForTimeout(100);
+    assert.ok(failedThumbnail());
+    await page.getByRole("button", { name: "Tiếp tục" }).click();
+    await page.locator(".select-shot").first().click();
+    await page.waitForFunction(() => document.querySelector(".select-shot img")?.naturalWidth > 0);
+    const retry = page.getByRole("button", { name: "Tải lại ảnh" });
+    await retry.waitFor();
+    recoverPreview();
+    await retry.click();
+    await page.waitForFunction(() => {
+      const canvas = document.querySelector(".decor-canvas");
+      if (!canvas?.width) return false;
+      const [r, g, b] = canvas.getContext("2d").getImageData(Math.round(canvas.width * .5), Math.round(canvas.height * .26), 1, 1).data;
+      return r > 150 && g < 100 && b < 100;
+    });
+    assert.equal(await retry.count(), 0);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
 });
 
 test("portrait keeps all 12 photos in the editor and all 16 frames in the separate frame step", async () => {
@@ -490,6 +525,10 @@ test("portrait keeps all 12 photos in the editor and all 16 frames in the separa
   try {
     await page.waitForFunction(()=>document.querySelector(".select-grid.is-fitted"));
     await page.waitForFunction(()=>document.querySelector(".decor-canvas:not(.is-loading)"));
+    await page.waitForFunction(() => {
+      const grid = document.querySelector(".select-grid").getBoundingClientRect();
+      return [...document.querySelectorAll(".select-shot")].every(cell => cell.getBoundingClientRect().bottom <= grid.bottom + 1);
+    });
     const layout=await page.evaluate(()=>{
       const image=document.querySelector(".decor-canvas").getBoundingClientRect();
       const panel=document.querySelector(".select-panel").getBoundingClientRect();
@@ -502,12 +541,9 @@ test("portrait keeps all 12 photos in the editor and all 16 frames in the separa
     assert.deepEqual(layout,{above:true,rows:1,photos:true,scroll:false});
     await page.screenshot({path:join(tmpdir(),"photobooth-fe-ptb-photos-second-portrait.png")});
     await page.getByRole("button",{name:"Đổi khung",exact:true}).click();
-    await page.waitForFunction(()=>document.querySelector(".ptb-frames-grid.is-fitted"));
-    const allVisible=await page.evaluate(()=>{
-      const grid=document.querySelector(".ptb-frames-grid").getBoundingClientRect();
-      return [...document.querySelectorAll(".ptb-frame-choice")].every(c=>{const r=c.getBoundingClientRect();return r.top>=grid.top-1&&r.bottom<=grid.bottom+1});
-    });
-    assert.equal(allVisible,true);
+    await page.locator(".ptb-frame-feature img").waitFor();
+    assert.equal(await page.getByRole("radiogroup",{name:"Chọn khung"}).getByRole("radio").count(),16);
+    assert.equal(await page.getByRole("button",{name:"Tiếp tục"}).isVisible(),true);
     await page.screenshot({path:join(tmpdir(),"photobooth-fe-ptb-frames-first-portrait.png")});
     assert.deepEqual(errors,[]);
   } finally {await page.close()}

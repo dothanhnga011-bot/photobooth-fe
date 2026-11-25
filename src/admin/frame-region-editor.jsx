@@ -4,6 +4,7 @@ import { fitRegion, moveRegion, regionFromPoints, resizeRegion, rotateRegion, tu
 
 // Side handles move one side only, in the slot's own (possibly rotated) directions.
 const SIDES = { n: "trên", e: "phải", s: "dưới", w: "trái" };
+const MIN_REGION_SIZE = .001;
 
 const rectangleStyle = region => ({ left: `${region.x * 100}%`, top: `${region.y * 100}%`,
   width: `${region.w * 100}%`, height: `${region.h * 100}%`,
@@ -51,7 +52,7 @@ export function FrameRegionEditor({ image, slots, disabled, onChange }) {
     return op.slots.map((region, i) => {
       if (i !== op.index) return region;
       if (op.kind === "move") return moveRegion(region, dx, dy, op.size);
-      if (op.kind === "resize") return resizeRegion(region, op.corner, dx, dy, .01, op.size);
+      if (op.kind === "resize") return resizeRegion(region, op.corner, dx, dy, MIN_REGION_SIZE, op.size);
       const cx = region.x + region.w / 2, cy = region.y + region.h / 2;
       const bearing = p => Math.atan2((p.y - cy) * op.size.height, (p.x - cx) * op.size.width);
       const angle = (region.angle || 0) + (bearing(end) - bearing(op.start)) * 180 / Math.PI;
@@ -63,7 +64,7 @@ export function FrameRegionEditor({ image, slots, disabled, onChange }) {
     if (!op || op.pointerId !== event.pointerId) return;
     if (!cancel) {
       const next = nextDraft(event), region = next.at(-1), rect = stage.current.getBoundingClientRect();
-      if (op.kind !== "draw" || (region.w * rect.width >= 8 && region.h * rect.height >= 8)) {
+      if (op.kind !== "draw" || (region.w * rect.width >= 3 && region.h * rect.height >= 3)) {
         onChange(next);
         if (op.kind === "draw") setDrawing(false);
       } else setSelected(null);
@@ -83,7 +84,7 @@ export function FrameRegionEditor({ image, slots, disabled, onChange }) {
     const dx = direction[0] * step / picture.current.naturalWidth;
     const dy = direction[1] * step / picture.current.naturalHeight;
     onChange(slots.map((s, n) => n !== i ? s : corner
-      ? resizeRegion(s, corner, dx, dy, .01, dimensions) : moveRegion(s, dx, dy, dimensions)));
+      ? resizeRegion(s, corner, dx, dy, MIN_REGION_SIZE, dimensions) : moveRegion(s, dx, dy, dimensions)));
   };
   const reorder = direction => {
     const next = [...slots], target = index + direction;
@@ -108,7 +109,7 @@ export function FrameRegionEditor({ image, slots, disabled, onChange }) {
       ? "Kéo từ góc này sang góc kia để thêm một ô ảnh."
       : "Chọn ô để kéo vị trí; kéo góc hoặc cạnh để chỉnh kích thước, nút tròn để xoay."}</p>
     <label className="frame-region-zoom">Phóng to khung
-      <input type="range" aria-label="Phóng to khung" min="100" max="200" step="25" value={zoom}
+      <input type="range" aria-label="Phóng to khung" min="100" max="400" step="10" value={zoom}
         onChange={event => setZoom(Number(event.target.value))} /> <output>{zoom}%</output>
     </label>
     <div className="frame-region-viewport"><div className="frame-region-preview"
@@ -126,7 +127,7 @@ export function FrameRegionEditor({ image, slots, disabled, onChange }) {
         <img ref={picture} src={image} alt="Khung ảnh để đánh dấu vị trí" draggable={false}
           onLoad={event => setDimensions({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })} />
         {shown.map((region, i) => <div key={i} data-region-index={i}
-          className={`frame-region-box${selected === i ? " is-selected" : ""}`}
+          className={`frame-region-box${selected === i ? " is-selected" : ""}${drawing && i === slots.length ? " is-draft" : ""}`}
           style={rectangleStyle(region)}>
           <button type="button" className="frame-region-hit" aria-label={`Ô ảnh ${i + 1}`}
             disabled={disabled} aria-pressed={selected === i}
