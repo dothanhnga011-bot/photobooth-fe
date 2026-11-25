@@ -258,9 +258,15 @@ test('Selfbooth rotated low-power preview and webcam capture stay upright with s
     });
     const input=await b.page.locator('.shoot-stage video').evaluate(v=>[v.videoWidth,v.videoHeight]);
     await b.page.keyboard.press('Space');
-    const latest=b.page.locator('.shoot-latest img');await latest.waitFor({timeout:15000});
-    await b.page.waitForFunction(()=>document.querySelector('.shoot-latest img')?.naturalWidth>0);
+    const latest=b.page.locator('.shoot-latest-full img');await latest.waitFor({timeout:15000});
+    await b.page.waitForFunction(()=>document.querySelector('.shoot-latest-full img')?.naturalWidth>0);
     assert.deepEqual(await latest.evaluate(img=>[img.naturalWidth,img.naturalHeight]),[input[1],input[0]]);
+    assert.equal(await b.page.locator('.shoot-thumbs').count(),0);
+    const preview=b.page.locator('.camera-preview-viewport');
+    assert.equal(await preview.evaluate(node=>getComputedStyle(node).opacity),'0');
+    await b.page.getByRole('button',{name:'Xem webcam',exact:true}).click();
+    assert.equal(await latest.count(),0);
+    assert.equal(await preview.evaluate(node=>getComputedStyle(node).opacity),'1');
     assert.deepEqual(b.errors,[]);
   } finally {await b.close()}
 });
@@ -381,12 +387,16 @@ for (const count of [1, 2]) test(`Selfbooth room (${count}-photo layout): 12 Fuj
     assert.equal(await end.isDisabled(), true);
     await b.page.getByText(`Chụp ít nhất ${count} tấm`).waitFor();
     await b.page.evaluate(() => window.deliverCanonPhoto(1));
-    await b.page.waitForFunction(() => document.querySelectorAll('.shoot-thumbs .shoot-thumb-no').length === 1, null, { timeout: 15000 });
+    const first = b.page.getByRole('img', { name: 'Ảnh 1 vừa chụp' });
+    await first.waitFor({ timeout: 15000 });
     assert.equal(await end.isDisabled(), count > 1);
     await b.page.evaluate(async () => {
       for (let i = 2; i <= 12; i++) await window.deliverCanonPhoto(i);
     });
-    await b.page.waitForFunction(() => document.querySelectorAll('.shoot-thumbs .shoot-thumb-no').length === 12, null, { timeout: 30000 });
+    const latest = b.page.getByRole('img', { name: 'Ảnh 12 vừa chụp' });
+    await latest.waitFor({ timeout: 30000 });
+    assert.equal(await b.page.locator('.shoot-latest-full img').count(), 1);
+    assert.equal(await b.page.locator('.shoot-thumbs').count(), 0);
     assert.equal(await b.page.locator('.shoot-screen.phase-shoot').count(), 1, 'does not auto-finish at the legacy quota');
     // Chụp xong: không chọn ảnh ở máy chụp — hiện mã QR để khách chọn ảnh, làm đẹp và in trên điện thoại.
     await end.click();
@@ -415,7 +425,7 @@ test("a resumed Selfbooth (X-T3) session stays a shutter-cable session and recei
     // Chưa có phản hồi ping: vẫn nhận ra phiên phòng Selfbooth (bấm dây, không có nút chạm để chụp).
     assert.equal(await b.page.getByRole("button", { name: "Chạm để chụp" }).count(), 0);
     await b.page.evaluate(() => window.deliverCanonPhoto(1));
-    await b.page.waitForFunction(() => document.querySelectorAll('.shoot-thumbs .shoot-thumb-no').length === 1, null, { timeout: 15000 });
+    await b.page.getByRole('img', { name: 'Ảnh 1 vừa chụp' }).waitFor({ timeout: 15000 });
     assert.deepEqual(b.errors, []);
   } finally { await b.close(); }
 });

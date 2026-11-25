@@ -301,8 +301,11 @@ test("adding a Selfbooth frame finds its windows and lets the operator draw a sm
     await page.getByRole("button", { name: "Ô ảnh 1", exact: true }).click();
     const box = page.locator('[data-region-index="0"]');
     assert.equal(await box.evaluate(node => getComputedStyle(node).borderTopWidth), "1px");
+    assert.equal(await box.locator(".frame-region-hit span").isVisible(), false);
     const corner = box.locator(".frame-region-handle.nw");
-    assert.equal(await corner.evaluate(node => getComputedStyle(node, "::after").width), "5px");
+    assert.equal(await corner.evaluate(node => getComputedStyle(node, "::after").width), "4px");
+    const [slotBounds, handleBounds] = await Promise.all([box.boundingBox(), corner.boundingBox()]);
+    assert.ok(handleBounds.x + handleBounds.width / 2 < slotBounds.x);
     await page.getByRole("button", { name: "Vẽ vùng ảnh" }).click();
     assert.equal(await box.locator(".frame-region-hit").isVisible(), false);
     const stage = await page.locator(".frame-region-stage").boundingBox();

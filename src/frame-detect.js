@@ -1,27 +1,37 @@
 // Transparent windows and opaque white placeholders are detected separately.
 export function detectSlots({ data, width, height }, limit = 40) {
   const alpha = new Uint8Array(width * height), white = new Uint8Array(width * height);
+  let hasSoftAlpha = false;
   for (let i = 0; i < alpha.length; i++) {
     const p = i * 4, a = data[p + 3];
     const lo = Math.min(data[p], data[p + 1], data[p + 2]);
     const hi = Math.max(data[p], data[p + 1], data[p + 2]);
     alpha[i] = a < 112 ? 1 : 0;
+    hasSoftAlpha ||= a >= 112 && a < 160;
     white[i] = a >= 240 && lo >= 246 && hi - lo <= 6 ? 1 : 0;
   }
   // Alpha windows can be small or oval. Light erosion removes thin connections
   // between openings without shrinking the bounds used for photos.
-  const cutouts = detectMaskSlots(alpha, width, height, {
+  const cutoutOptions = {
     radius: Math.max(1, Math.round(Math.min(width, height) * .003)),
-    minArea: .005, minFill: .55, enclosed: true,
-  });
-  const whites = detectMaskSlots(white, width, height).filter(s =>
-    // The entire white page or white bands across its edges are not photo windows.
-    !(s.x === 0 && s.x + s.w === 1) && !(s.y === 0 && s.y + s.h === 1));
+    minArea: .0015, minFill: .55, minSideRatio: .025, enclosed: true,
+  };
+  const cutouts = detectMaskSlots(alpha, width, height, cutoutOptions);
   const overlaps = (a, b) => {
     const w = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
     const h = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
     return w * h > .05 * Math.min(a.w * a.h, b.w * b.h);
   };
+  if (hasSoftAlpha) {
+    // A tint can hide a window in the first pass. Keep the stronger cutout when
+    // the relaxed pass expands it or joins it to another opening.
+    for (let i = 0; i < alpha.length; i++) alpha[i] = data[i * 4 + 3] < 160 ? 1 : 0;
+    const tinted = detectMaskSlots(alpha, width, height, { ...cutoutOptions, minArea: .005 });
+    cutouts.push(...tinted.filter(slot => !cutouts.some(cutout => overlaps(slot, cutout))));
+  }
+  const whites = detectMaskSlots(white, width, height).filter(s =>
+    // The entire white page or white bands across its edges are not photo windows.
+    !(s.x === 0 && s.x + s.w === 1) && !(s.y === 0 && s.y + s.h === 1));
   const detected = [...cutouts, ...whites.filter(s => !cutouts.some(a => overlaps(a, s)))].sort((a, b) => a.y - b.y);
   const rows = [];
   for (const slot of detected) {
@@ -34,7 +44,7 @@ export function detectSlots({ data, width, height }, limit = 40) {
 
 function detectMaskSlots(raw, width, height, {
   radius: r = Math.max(2, Math.round(Math.min(width, height) * .012)),
-  minArea = .03, minFill = .85, enclosed = false,
+  minArea = .03, minFill = .85, minSideRatio = .035, enclosed = false,
 } = {}) {
   const erode = (src, horizontal) => {
     const out = new Uint8Array(src.length);
@@ -57,7 +67,7 @@ function detectMaskSlots(raw, width, height, {
   const seen = new Uint8Array(hole.length);
   const stack = new Int32Array(hole.length);
   const slots = [];
-  const minSide = Math.min(width, height) * .035;
+  const minSide = Math.min(width, height) * minSideRatio;
   for (let start = 0; start < hole.length; start++) {
     if (!hole[start] || seen[start]) continue;
     let top = 0,

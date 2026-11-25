@@ -24,7 +24,8 @@ function RegionNumber({ label, value, disabled, onCommit, min, max, step = 1 }) 
 }
 
 export function FrameRegionEditor({ image, slots, disabled, onChange }) {
-  const [drawing, setDrawing] = useState(!slots.length);
+  const [drawingMode, setDrawing] = useState(null);
+  const drawing = drawingMode ?? !slots.length;
   const [selected, setSelected] = useState(null);
   const [draft, setDraft] = useState(null);
   const [dimensions, setDimensions] = useState({ width: 1, height: 1 });

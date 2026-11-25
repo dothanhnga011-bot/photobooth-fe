@@ -1448,6 +1448,7 @@ export function Kiosk() {
       <>
         <KioskShoot
           showLive={showLive}
+          selfbooth={selfbooth}
           videoRef={video$}
           zoom={zoom}
           ready={ready}

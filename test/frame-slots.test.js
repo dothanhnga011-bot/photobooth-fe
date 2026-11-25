@@ -98,16 +98,18 @@ test("frame slot detection finds small, oval and partly transparent windows and 
     const rectangle = x >= 50 && x < 116 && y >= 100 && y < 154;
     const oval = ((x - 268) / 50) ** 2 + ((y - 160) / 60) ** 2 <= 1;
     const second = x >= 50 && x < 116 && y >= 180 && y < 234;
+    const tiny = x >= 325 && x < 353 && y >= 260 && y < 292;
     const connector = x === 78 && y >= 154 && y < 180;
+    const tintedBridge = x >= 50 && x < 116 && y >= 154 && y < 180;
     const white = x >= 90 && x < 270 && y >= 360 && y < 510;
     const decoration = x >= 40 && x < 55 && y >= 40 && y < 55;
-    const pixel = rectangle || second || connector || decoration ? [0, 0, 0, 0]
-      : oval ? [0, 0, 0, 64] : white ? [255, 255, 255, 255] : [82, 46, 34, 255];
+    const pixel = rectangle || second || tiny || connector || decoration ? [0, 0, 0, 0]
+      : oval || tintedBridge ? [0, 0, 0, 128] : white ? [255, 255, 255, 255] : [82, 46, 34, 255];
     data.set(pixel, (y * width + x) * 4);
   }
   const slots = detectSlots({ data, width, height });
-  assert.equal(slots.length, 4);
-  for (const [i, [x, y, w, h]] of [[50, 100, 66, 54], [218, 100, 101, 121], [50, 180, 66, 54], [90, 360, 180, 150]].entries()) {
+  assert.equal(slots.length, 5);
+  for (const [i, [x, y, w, h]] of [[50, 100, 66, 54], [218, 100, 101, 121], [50, 180, 66, 54], [325, 260, 28, 32], [90, 360, 180, 150]].entries()) {
     const slot = slots[i];
     assert.ok(Math.abs(slot.x * width - x) <= 3 && Math.abs(slot.y * height - y) <= 3, JSON.stringify(slot));
     assert.ok(Math.abs(slot.w * width - w) <= 4 && Math.abs(slot.h * height - h) <= 4, JSON.stringify(slot));

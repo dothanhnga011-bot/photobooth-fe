@@ -72,6 +72,7 @@ const clock = (s) =>
 // minShots: số ảnh layout cần — chưa đủ thì chưa bấm "Chụp xong" được.
 export function KioskShoot({
   showLive = true,
+  selfbooth = false,
   videoRef,
   zoom,
   ready,
@@ -97,7 +98,11 @@ export function KioskShoot({
 }) {
   const portrait = usePortrait();
   const enough = taken >= Math.max(1, minShots);
-  const showLatest = showLive && portrait;
+  const photoStage = selfbooth || !showLive;
+  const latestShot = shots.at(-1);
+  const [webcamPreviewShot, setWebcamPreviewShot] = useState(null);
+  const showPhoto = photoStage && (!showLive || (latestShot && latestShot.key !== webcamPreviewShot));
+  const showLatest = !photoStage && portrait;
   const shooting = phase === "shoot" && !ending;
   const full = Boolean(quota) && taken >= quota;
   const testing = Boolean(webcam?.on && ready);
@@ -149,11 +154,11 @@ export function KioskShoot({
     return () => clearTimeout(timer);
   }, [flash]);
   return (
-    <section className={`shoot-screen phase-${phase}${showLive ? ' has-live' : ' is-external-live'}${showLive && !ready ? ' no-live' : ''}${portrait ? " is-portrait" : ""}`}>
+    <section className={`shoot-screen phase-${phase}${photoStage ? ' is-photo-stage' : ' has-live'}${!showLive ? ' is-external-live' : ''}${showLive && !ready && !showPhoto ? ' no-live' : ''}${showPhoto ? ' is-showing-photo' : ''}${portrait ? " is-portrait" : ""}`}>
       <div className="shoot-stage">
-        {showLive ? <>
+        {showLive && <>
           <CameraPreview videoRef={videoRef} zoom={zoom} canvas={canvasPreview} fit="contain" mirror={mirror} rotation={rotation} />
-          {!ready && <div className="shoot-no-camera" role="status">
+          {!ready && !showPhoto && <div className="shoot-no-camera" role="status">
             <span className="shoot-no-camera-icon" aria-hidden="true"><PiVideoCameraSlashDuotone /></span>
             <strong>Chưa có hình trực tiếp</strong>
             <p>{cameraIssue?.message || 'Máy ảnh chưa gửi hình qua thẻ ghi hình HDMI. Ảnh gốc vẫn được nhận khi bấm dây chụp.'}</p>
@@ -169,9 +174,11 @@ export function KioskShoot({
           {webcam?.on && <div className="shoot-webcam-badge" role="status">
             <PiWebcamBold aria-hidden="true" />
             <span>Thử máy bằng webcam{webcam.label ? ` · ${webcam.label}` : ''} · phím Space để chụp</span>
+            {showPhoto && <button type="button" onClick={() => setWebcamPreviewShot(latestShot.key)}>Xem webcam</button>}
             <button type="button" onClick={() => webcam.onToggle(false)}>Tắt</button>
           </div>}
-        </> : <Latest shot={shots[shots.length - 1]} number={shots.length} receiving={receiving} full />}
+        </>}
+        {showPhoto && <Latest shot={latestShot} number={shots.length} receiving={receiving} full />}
         {centerCount ? (
           <strong className="shoot-count" key={`${phase}-${webcam?.count ? "snap" : ""}${centerCount}`} role="timer" aria-live="assertive">
             {centerCount}
@@ -187,8 +194,8 @@ export function KioskShoot({
         )}
       </div>
 
-      <aside className="shoot-rail" aria-label={showLive ? "Thời gian và ảnh đã chụp" : "Thời gian và nút chụp xong"}>
-          {showLatest && <Latest shot={shots[shots.length - 1]} number={shots.length} receiving={receiving} />}
+      <aside className="shoot-rail" aria-label={photoStage ? "Thời gian và nút chụp xong" : "Thời gian và ảnh đã chụp"}>
+          {showLatest && <Latest shot={latestShot} number={shots.length} receiving={receiving} />}
           {/* Còn dưới 1 phút: đồng hồ đỏ, nhấp nháy. */}
           <div className={`shoot-timer${phase === "shoot" && sessionLeft < 60 ? " is-urgent" : ""}`} role="timer">
             <span>THỜI GIAN CÒN LẠI</span>
@@ -205,7 +212,7 @@ export function KioskShoot({
               )}
             </div>
           </div>
-          {showLive && <ol className="shoot-thumbs" ref={rail}
+          {!photoStage && <ol className="shoot-thumbs" ref={rail}
             aria-label="Ảnh vừa chụp, mới nhất ở trên">
             {receiving && (
               <li className="shoot-thumb-pending" role="status">
