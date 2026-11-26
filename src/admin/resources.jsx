@@ -368,6 +368,7 @@ Liên kết máy chụp của phòng này sẽ không mở được nữa. Đơn
             "Trên máy chụp: mở “Cài đặt máy chụp (nhân viên)”, làm theo hướng dẫn kết nối máy ảnh.",
             "Muốn bật máy tính là tự mở máy chụp: trong hộp “Cài máy chụp” tải “File cài cho Windows / Mac”, chạy 1 lần trên máy trong phòng.",
             "Phòng Photobooth: cũng trong hộp đó tải “File cài máy in” và chạy 1 lần trên mini PC cắm máy DNP — khách bấm “In ảnh” là máy tự in (tờ nhỏ tự cắt đôi).",
+            "Phòng Photobooth có máy nhận tiền: trên máy chụp mở “Cài đặt máy chụp (nhân viên)” → Máy nhận tiền → bấm “Kết nối máy nhận tiền”. Hướng dẫn lắp dây, tải chương trình mạch và gỡ lỗi nằm ngay trong khung đó.",
           ]}
           note="Liên kết máy chụp có hạn 1 năm, chỉ gửi cho nhân viên."
         />

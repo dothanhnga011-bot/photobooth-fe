@@ -64,6 +64,12 @@ function printAgentDownload() {
         fileName: 'downloads/rx1-sharpness-sample.jpg',
         source: readFileSync(new URL('./src/admin/assets/rx1-preview-default.jpg', import.meta.url)),
       });
+      // Chương trình mạch Arduino đếm xung máy nhận tiền: tải từ Cài đặt máy chụp → Máy nhận tiền → Hướng dẫn.
+      this.emitFile({
+        type: 'asset',
+        fileName: 'downloads/bill-acceptor-pulse.ino',
+        source: readFileSync(new URL('./hardware/bill-acceptor-pulse/bill-acceptor-pulse.ino', import.meta.url)),
+      });
     },
   };
 }

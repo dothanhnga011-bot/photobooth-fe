@@ -29,10 +29,17 @@
 //   Trên máy ảnh: MIC/REMOTE RELEASE = REMOTE (nếu có mục này), SHUTTER TYPE = MECHANICAL (màn
 //   trập điện tử không nháy flash), RELEASE/FOCUS PRIORITY = RELEASE (không lấy nét được vẫn chụp).
 //
+// Nạp chương trình: Arduino IDE → Tools → Board: "Arduino Leonardo" (Pro Micro 5V / 16 MHz;
+// Nano / Uno chọn đúng tên board) → Port: cổng của mạch → Upload. Đổi PULSE_VALUE nếu DIP switch máy
+// ICT đặt mỗi xung khác 10.000 đ.
+//
 // Lệnh (mỗi lệnh một dòng):
-//   máy chụp → mạch: ENABLE / DISABLE (mở / khóa nhận tiền), FOCUS (nhấn nửa, tự nhả sau
-//                    FOCUS_HOLD_MS), SHOOT (nhấn hết rồi nhả).
-//   mạch → máy chụp: READY khi khởi động, "BILL <số tiền>" khi nhận xong một tờ, SHOT sau khi bấm.
+//   máy chụp → mạch: ENABLE / DISABLE (mở / khóa nhận tiền), PING (kiểm tra mạch còn chạy),
+//                    FOCUS (nhấn nửa, tự nhả sau FOCUS_HOLD_MS), SHOOT (nhấn hết rồi nhả).
+//   mạch → máy chụp: "READY pulse=<PULSE_VALUE>" khi khởi động và mỗi lần máy chụp mở cổng,
+//                    "PONG pulse=<PULSE_VALUE>" trả lời PING, "BILL <số tiền>" khi nhận xong một tờ,
+//                    SHOT sau khi bấm. Máy chụp dùng READY / PONG để tự nhận ra mạch này (bấm
+//                    "Kết nối máy nhận tiền" trong Cài đặt máy chụp) và báo mỗi xung bao nhiêu tiền.
 
 const byte PULSE_PIN = 2;
 const byte INHIBIT_PIN = 4;
@@ -50,6 +57,13 @@ volatile unsigned long lastPulse = 0;
 String line;
 bool focusing = false;
 unsigned long focusSince = 0;
+bool hostOpen = false; // máy chụp đang mở cổng (DTR) — Pro Micro không tự khởi động lại khi mở cổng
+
+void announce(const char* word) {
+  Serial.print(word);
+  Serial.print(" pulse=");
+  Serial.println(PULSE_VALUE);
+}
 
 void onPulse() {
   unsigned long now = millis();
@@ -98,10 +112,15 @@ void setup() {
   release();
   setInhibit(true); // mặc định không nhận tiền cho tới khi máy chụp gửi ENABLE
   attachInterrupt(digitalPinToInterrupt(PULSE_PIN), onPulse, FALLING);
-  Serial.println("READY");
+  announce("READY");
+  hostOpen = (bool)Serial; // Uno / Nano: luôn true — không báo READY lần hai ở vòng lặp đầu
 }
 
 void loop() {
+  // Máy chụp vừa mở cổng: báo READY để nó biết mạch đang chạy (Uno / Nano đã báo lúc khởi động lại).
+  bool hostNow = (bool)Serial;
+  if (hostNow && !hostOpen) announce("READY");
+  hostOpen = hostNow;
   noInterrupts();
   unsigned int count = pulses;
   unsigned long last = lastPulse;
@@ -120,6 +139,7 @@ void loop() {
       line.trim();
       if (line == "ENABLE") setInhibit(false);
       else if (line == "DISABLE") setInhibit(true);
+      else if (line == "PING") announce("PONG");
       else if (line == "FOCUS") focus();
       else if (line == "SHOOT") shoot();
       line = "";

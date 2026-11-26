@@ -634,7 +634,7 @@ test("Selfbooth staff setup and startup scripts select the Fujifilm X-T3 like Ph
     assert.ok(!(await page.locator('.guide-body').innerText()).includes('EOS Utility'));
     assert.equal(await page.getByRole('link', { name: 'Tải FUJIFILM X Acquire' }).count(), 1);
     assert.equal(await page.getByRole('link', { name: 'Tải Canon EOS Utility' }).count(), 0);
-    assert.equal(await page.getByText('Máy đọc tiền (ICT)', { exact: true }).count(), 0);
+    assert.equal(await page.getByText('Máy nhận tiền (ICT)', { exact: true }).count(), 0);
     const selfbooth = await page.evaluate(() => window.makeKioskScripts('selfbooth'));
     const payload = /rem NXC_FUJI_ACQUIRE_BASE64:([A-Za-z0-9+/=]+)/.exec(selfbooth.windows);
     assert.ok(payload);
@@ -643,10 +643,39 @@ test("Selfbooth staff setup and startup scripts select the Fujifilm X-T3 like Ph
     assert.ok(selfbooth.mac.includes('FUJIFILM X Acquire'));
     await page.evaluate(() => window.showCameraSetup('photobooth'));
     assert.equal(await page.getByRole('link', { name: 'Tải FUJIFILM X Acquire' }).count(), 1);
-    assert.equal(await page.getByText('Máy đọc tiền (ICT)', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Máy nhận tiền (ICT)', { exact: true }).count(), 1);
     const fuji = await page.evaluate(() => window.makeKioskScripts('photobooth'));
     assert.ok(fuji.windows.includes('NXC_FUJI_ACQUIRE_BASE64:'));
     assert.ok(!fuji.windows.includes('NXC_EOS_UTILITY_BASE64:'));
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("the bill acceptor box: one connect button, a 4-step self-check, a setup guide with the circuit program, and fixes", async () => {
+  const page = await browser.newPage({ viewport: { width: 1080, height: 1920 } });
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  try {
+    await page.goto(base);
+    await page.evaluate(() => window.showCameraSetup('photobooth'));
+    await page.locator('.kiosk-settings > summary').click();
+    const box = page.locator('.bill-setup');
+    await box.waitFor();
+    const checks = box.getByRole('list', { name: 'Kiểm tra máy nhận tiền' }).getByRole('listitem');
+    assert.equal(await checks.count(), 4);
+    assert.match(await checks.nth(1).innerText(), /Chưa kết nối — bấm “Kết nối máy nhận tiền”/);
+    assert.match(await checks.nth(3).innerText(), /Bấm “Thử nhận tiền” rồi đút một tờ/);
+    assert.equal(await box.getByRole('button', { name: 'Kết nối máy nhận tiền', exact: true }).count(), 1);
+    // Chưa kết nối thì chưa thử nhận tiền được (trước đây bấm được, không có gì xảy ra).
+    assert.equal(await box.getByRole('button', { name: 'Thử nhận tiền' }).isDisabled(), true);
+    await box.getByRole('button', { name: /Hướng dẫn: lắp & kết nối máy nhận tiền/ }).click();
+    const guide = box.locator('.guide-body');
+    assert.equal(await guide.locator('ol > li').count(), 5);
+    assert.equal(await guide.getByRole('link', { name: /bill-acceptor-pulse\.ino/ }).getAttribute('href'), '/downloads/bill-acceptor-pulse.ino');
+    assert.match(await guide.innerText(), /Không nối 12V vào Arduino/);
+    await box.getByText('Gỡ lỗi thường gặp').click();
+    assert.equal(await box.locator('.bill-troubles dt').count(), 5);
+    await page.screenshot({ path: join(tmpdir(), 'photobooth-fe-bill-setup-portrait.png'), fullPage: true });
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });
