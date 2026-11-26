@@ -4,6 +4,7 @@ import { photoSlots, selectedCount } from "./photo-selection.js";
 import { TimedTitle } from "./timed-title.jsx";
 import {
   PiArrowClockwiseBold,
+  PiArrowCounterClockwiseBold,
   PiArrowLeftBold,
   PiArrowRightBold,
   PiArrowsOutCardinalBold,
@@ -23,6 +24,7 @@ import {
   PiStickerBold,
   PiTextTBold,
   PiTrashBold,
+  PiArrowUUpLeftBold,
 } from "react-icons/pi";
 import { Button, useToast } from "../studio";
 import { PHOTO_ZOOM, clampZoom } from "../frame-utils.js";
@@ -338,9 +340,11 @@ function TargetChip({ shot, number, active, label, css, onPick }) {
 }
 
 // Ảnh nhỏ chọn để chỉnh (tab Chỉnh ảnh).
-function AdjustThumb({ shot }) {
+// Ảnh nhỏ để chọn ảnh cần chỉnh: xoay theo góc khách đã chọn (xoay 90° thì phóng 1,5 lần để vẫn phủ kín ô 3 : 2).
+function AdjustThumb({ shot, rotate = 0 }) {
   const src = useObjectUrl(shot?.preview);
-  return src ? <img src={src} alt="" /> : <i aria-hidden="true" />;
+  const style = rotate ? { transform: `rotate(${rotate}deg)${rotate % 180 ? " scale(1.5)" : ""}` } : undefined;
+  return <span className="adjust-thumb">{src ? <img src={src} alt="" style={style} /> : <i aria-hidden="true" />}</span>;
 }
 
 // Màu ảnh: mỗi lựa chọn hiện ảnh khách đã chọn với màu đó (CSS filter cùng công thức với ảnh in).
@@ -484,8 +488,8 @@ export function KioskSelect({
     setPicked(null);
   };
 
-  // #4 — Phóng / dời ảnh trong ô (giữ nét vì vẽ từ ảnh gốc). Lưu theo mã tấm ảnh.
-  const DEFAULT_T = { zoom: 1, x: 0, y: 0 };
+  // #4 — Phóng / dời / xoay ảnh trong ô (giữ nét vì vẽ từ ảnh gốc). Lưu theo mã tấm ảnh.
+  const DEFAULT_T = { zoom: 1, x: 0, y: 0, rotate: 0 };
   const [draftTransform, setDraftTransform] = useState(null); // { key, t } khi đang kéo / chụm
   const savedTransforms = decor?.transforms || {};
   const transforms = draftTransform
@@ -493,7 +497,7 @@ export function KioskSelect({
     : savedTransforms;
   const readyTransforms = ready.map((key) => transforms[key]);
   const transformKey = ready
-    .map((key) => { const tf = transforms[key]; return tf ? `${tf.zoom}|${tf.x}|${tf.y}` : "·"; })
+    .map((key) => { const tf = transforms[key]; return tf ? `${tf.zoom}|${tf.x}|${tf.y}|${tf.rotate || 0}` : "·"; })
     .join();
   const [adjustKey, setAdjustKey] = useState(null);
   const adjustIndex = adjustKey ? ready.indexOf(adjustKey) : -1;
@@ -525,6 +529,10 @@ export function KioskSelect({
       x: Math.max(-1, Math.min(1, (transforms[key]?.x || 0) + dx)),
       y: Math.max(-1, Math.min(1, (transforms[key]?.y || 0) + dy)),
     });
+  // Xoay 90° (vd. ảnh ngang 3 người vào ô dọc): xoay xong ảnh về 100 % và giữa ô, để luôn phủ kín ô —
+  // không hở viền trắng, khách chỉnh tiếp từ đó.
+  const rotatePhoto = (key, step) =>
+    setTransform(key, { rotate: ((((transforms[key]?.rotate || 0) + step) % 360) + 360) % 360, zoom: 1, x: 0, y: 0 });
   const resetPhoto = (key) => onDecor({ transforms: { ...transforms, [key]: DEFAULT_T } });
   const adjustZoom = transforms[adjustKey]?.zoom || 1;
 
@@ -553,7 +561,7 @@ export function KioskSelect({
   const lead = {
     photos: <><strong className={`select-progress${full ? " is-full" : ""}`}>Đã chọn {filled}/{count} ô</strong>
       {" · chạm lại ảnh để dùng thêm · chạm ô trên khung để bỏ"}</>,
-    adjust: "Kéo ảnh trên khung để dời, chụm / mở hai ngón để thu nhỏ / phóng to (vẫn giữ nét)",
+    adjust: "Kéo để dời, chụm / mở hai ngón để phóng to, bấm Xoay để xoay 90°",
     color: "Chọn màu cho tất cả ảnh hoặc từng ảnh — khung và nhãn dán giữ nguyên màu",
     text: "Gõ chữ muốn thêm vào khung, chọn kiểu chữ & màu rồi bấm “Thêm chữ”",
     stickers: "Chạm nhãn dán để dán lên khung · kéo trên khung để di chuyển",
@@ -678,7 +686,7 @@ export function KioskSelect({
                   <div className="adjust-photos" role="group" aria-label="Chọn ảnh để chỉnh">
                     {uniqueReady.map((key) => (
                       <button key={key} type="button" className={`adjust-photo${adjustKey === key ? " is-active" : ""}`} onClick={() => setAdjustKey(key)}>
-                        <AdjustThumb shot={shots.find((s) => s.key === key)} />
+                        <AdjustThumb shot={shots.find((s) => s.key === key)} rotate={transforms[key]?.rotate || 0} />
                         <b>{slotsOf(key).join("·")}</b>
                       </button>
                     ))}
@@ -694,17 +702,26 @@ export function KioskSelect({
                           <PiMagnifyingGlassPlusBold aria-hidden="true" /> Phóng to
                         </button>
                       </div>
-                      <div className="adjust-pan" aria-label="Dời ảnh trong ô">
-                        <button type="button" className="pan-up" onClick={() => panPhoto(adjustKey, 0, -0.08)} aria-label="Dời lên"><PiCaretUpBold /></button>
-                        <button type="button" className="pan-left" onClick={() => panPhoto(adjustKey, -0.08, 0)} aria-label="Dời trái"><PiCaretLeftBold /></button>
-                        <span className="pan-mid" aria-hidden="true"><PiArrowsOutCardinalBold /></span>
-                        <button type="button" className="pan-right" onClick={() => panPhoto(adjustKey, 0.08, 0)} aria-label="Dời phải"><PiCaretRightBold /></button>
-                        <button type="button" className="pan-down" onClick={() => panPhoto(adjustKey, 0, 0.08)} aria-label="Dời xuống"><PiCaretDownBold /></button>
+                      {/* Xoay trái — nút dời — Xoay phải: hai nút xoay nằm hai bên, không làm khung chỉnh dài thêm. */}
+                      <div className="adjust-move">
+                        <button type="button" className="adjust-rotate" onClick={() => rotatePhoto(adjustKey, -90)}>
+                          <PiArrowCounterClockwiseBold aria-hidden="true" /> Xoay trái
+                        </button>
+                        <div className="adjust-pan" aria-label="Dời ảnh trong ô">
+                          <button type="button" className="pan-up" onClick={() => panPhoto(adjustKey, 0, -0.08)} aria-label="Dời lên"><PiCaretUpBold /></button>
+                          <button type="button" className="pan-left" onClick={() => panPhoto(adjustKey, -0.08, 0)} aria-label="Dời trái"><PiCaretLeftBold /></button>
+                          <span className="pan-mid" aria-hidden="true"><PiArrowsOutCardinalBold /></span>
+                          <button type="button" className="pan-right" onClick={() => panPhoto(adjustKey, 0.08, 0)} aria-label="Dời phải"><PiCaretRightBold /></button>
+                          <button type="button" className="pan-down" onClick={() => panPhoto(adjustKey, 0, 0.08)} aria-label="Dời xuống"><PiCaretDownBold /></button>
+                        </div>
+                        <button type="button" className="adjust-rotate" onClick={() => rotatePhoto(adjustKey, 90)}>
+                          <PiArrowClockwiseBold aria-hidden="true" /> Xoay phải
+                        </button>
                       </div>
                       <button type="button" className="text-link" onClick={() => resetPhoto(adjustKey)}>
-                        <PiArrowClockwiseBold aria-hidden="true" /> Về mặc định
+                        <PiArrowUUpLeftBold aria-hidden="true" /> Về mặc định
                       </button>
-                      <small>Kéo ảnh trên khung để dời, chụm / mở hai ngón để thu nhỏ / phóng to. Thu nhỏ dưới 100% để thấy cả ảnh — ảnh in vẫn giữ nguyên độ nét.</small>
+                      <small>Ảnh chưa vừa ô (vd. chụp 3 người)? Bấm Xoay trái / Xoay phải: ảnh xoay 90° và tự phủ kín ô, không hở viền trắng. Thu nhỏ dưới 100% để thấy cả ảnh — ảnh in vẫn giữ nguyên độ nét.</small>
                     </div>
                   ) : (
                     <p className="soft-note">Chạm một ảnh ở trên (hoặc chạm ảnh trên khung) để chỉnh.</p>

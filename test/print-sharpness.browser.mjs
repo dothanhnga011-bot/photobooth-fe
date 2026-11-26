@@ -46,6 +46,29 @@ const fixture = `
       frame: peak(row(Math.round(1600 / 1800 * devH), 30, DEVICE - 30), 0.4) / 100,
     };
   };
+  // Khách bấm Xoay phải (90°): ảnh gốc có sọc theo chiều dọc ở nửa trái (thành sọc ngang trên tờ, nửa trên ô)
+  // và nửa phải: trên tối / dưới sáng (thành trái sáng / phải tối ở nửa dưới ô nếu xoay đúng chiều kim đồng hồ).
+  let turnedPhoto;
+  window.turned = async (sharp) => {
+    const { frame } = await setup();
+    const perDev = 4160 / (SLOT.w * 2400 * devScale);
+    turnedPhoto ||= await gray(6240, 4160, (x, y) => x < 3120 ? Math.round(128 + 100 * Math.sin(2 * Math.PI * (0.4 / perDev) * y)) : (y < 2080 ? 40 : 220))
+      .convertToBlob({ type: 'image/png' });
+    const sheet = await renderPrintFrame(frame, [{ key: 'a', image: turnedPhoto, mirrored: false }], 'tok', '',
+      { scale: 2, strict: true, sharp, transforms: [{ zoom: 1, x: 0, y: 0, rotate: 90 }] });
+    const ctx = sheet.getContext('2d');
+    const data = ctx.getImageData(0, 0, sheet.width, sheet.height).data;
+    const devH = Math.round(sheet.height * devScale);
+    const dev = lanczosResample(data, sheet.width, sheet.height, DEVICE, devH);
+    const row = (y, x0, x1) => { const r = []; for (let x = x0; x < x1; x++) r.push(dev[(y * DEVICE + x) * 4 + 1]); return r; };
+    const sx0 = Math.ceil(SLOT.x * DEVICE) + 20, sx1 = Math.floor((SLOT.x + SLOT.w) * DEVICE) - 20;
+    const at = (fx, fy) => ctx.getImageData(Math.round(fx * sheet.width), Math.round(fy * sheet.height), 1, 1).data[1];
+    const low = SLOT.y + SLOT.h * 0.8;
+    return {
+      photo: peak(row(Math.round((SLOT.y + SLOT.h / 4) * devH), sx0, sx1), 0.4) / 100,
+      sides: [at(SLOT.x + SLOT.w * 0.25, low), at(SLOT.x + SLOT.w * 0.75, low)],
+    };
+  };
   // Khung nhỏ 2 dải: 4 ô + 4 ô bản sao, ảnh co gần 6 lần (đi đường gộp 2 × 2), ảnh thứ hai lật gương.
   window.strip = async () => {
     const { photo, frame } = await setup();
@@ -111,6 +134,17 @@ test("DNP sheets: photos and frame art keep far more fine detail with one Lanczo
   assert.ok(after.frame >= 0.6, `frame ${after.frame.toFixed(3)}`);
   assert.ok(after.photo - before.photo >= 0.05, JSON.stringify({ before, after }));
   assert.ok(after.frame - before.frame >= 0.15, JSON.stringify({ before, after }));
+});
+
+test("a photo turned 90° by the guest prints as sharp as a straight one, in the same place as the canvas path", async () => {
+  const canvasPath = await page.evaluate(() => window.turned(false));
+  const lanczos = await page.evaluate(() => window.turned(true));
+  console.log("turned", JSON.stringify({ canvasPath, lanczos }));
+  // Xoay đúng chiều kim đồng hồ: nửa dưới ô trái sáng, phải tối — giống hệt đường canvas (drawSlot).
+  assert.ok(lanczos.sides[0] > 180 && lanczos.sides[1] < 80, JSON.stringify(lanczos.sides));
+  lanczos.sides.forEach((v, i) => assert.ok(Math.abs(v - canvasPath.sides[i]) <= 2, JSON.stringify({ canvasPath, lanczos })));
+  assert.ok(lanczos.photo >= 0.79, `photo ${lanczos.photo.toFixed(3)}`);
+  assert.ok(lanczos.photo - canvasPath.photo >= 0.03, JSON.stringify({ canvasPath, lanczos }));
 });
 
 test("strip sheets: copies match their slot and a mirrored photo stays mirrored", async () => {

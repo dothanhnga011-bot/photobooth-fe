@@ -880,6 +880,50 @@ test("a photo is dragged on the frame and shrunk below 100%; the print shows the
 });
 
 
+test("Xoay trái / Xoay phải turn a photo 90° in its slot, refill the slot, and the print shows it turned", async () => {
+  const { page, errors, uploads } = await selectScreen();
+  try {
+    const shots = page.getByRole("group", { name: "Ảnh đã chụp" }).getByRole("button");
+    await shots.nth(0).click();
+    await shots.nth(1).click();
+    await page.getByRole("tab", { name: /Chỉnh ảnh/ }).click();
+    await page.locator(".adjust-photo").first().click();
+    const [first] = (await saved(page)).selected;
+    const transform = async () => (await saved(page)).decor?.transforms?.[first];
+    // Đã thu nhỏ rồi mới xoay: xoay xong ảnh về 100 % và giữa ô (phủ kín ô, không hở viền).
+    await page.getByRole("button", { name: /Thu nhỏ/ }).click();
+    await page.getByRole("button", { name: "Xoay phải" }).click();
+    assert.deepEqual(await transform(), { zoom: 1, x: 0, y: 0, rotate: 90 });
+    await page.locator(".adjust-zoom span", { hasText: "100%" }).waitFor();
+    await page.getByRole("button", { name: "Xoay trái" }).click();
+    await page.getByRole("button", { name: "Xoay trái" }).click();
+    assert.equal((await transform()).rotate, 270);
+    // Ảnh nhỏ để chọn ảnh xoay theo.
+    assert.match(await page.locator(".adjust-photo.is-active img").getAttribute("style"), /rotate\(270deg\) scale\(1\.5\)/);
+    // Nút xoay nằm hai bên nút dời, cùng một hàng.
+    const [left, pad, right] = await Promise.all([
+      page.getByRole("button", { name: "Xoay trái" }).boundingBox(),
+      page.locator(".adjust-pan").boundingBox(),
+      page.getByRole("button", { name: "Xoay phải" }).boundingBox(),
+    ]);
+    assert.ok(left.x + left.width <= pad.x && pad.x + pad.width <= right.x, JSON.stringify({ left, pad, right }));
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: join(tmpdir(), "photobooth-fe-adjust-rotate.png") });
+    // Thu nhỏ 50 %: ảnh ngang 3 : 2 xoay thành dọc nên vẫn phủ hết chiều cao ô ngang (ảnh thẳng chỉ cao nửa ô).
+    const zoomOut = page.getByRole("button", { name: /Thu nhỏ/ });
+    for (let i = 0; i < 10 && await zoomOut.isEnabled(); i++) await zoomOut.click();
+    await page.locator(".adjust-zoom span", { hasText: "50%" }).waitFor();
+
+    await page.getByRole("button", { name: "In ảnh" }).click();
+    for (let i = 0; i < 100 && !uploads.composite; i++) await page.waitForTimeout(100);
+    assert.ok(uploads.composite, "chưa gửi ảnh ghép vào album");
+    const { colors: [top, side] } = await samples(page, uploads.composite, [[0.5, 0.07], [0.2, 0.26]]);
+    assert.ok(top[0] > 180 && top[1] < 80, `ảnh xoay phủ tới mép trên của ô: ${top}`);
+    assert.ok(side.slice(0, 3).every((v) => v > 200), `hai bên ảnh xoay là nền trắng của khung: ${side}`);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
 test("12 photos fill the 'Chọn ảnh' panel on the shop's 1920 × 1080 screen: big, all visible, no scrolling", async () => {
   const { page, errors } = await selectScreen({ shots: 12, viewport: { width: 1920, height: 1080 } });
   try {

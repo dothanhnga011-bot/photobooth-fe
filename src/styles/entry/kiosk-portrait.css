@@ -490,6 +490,17 @@
       grid-template-columns: repeat(3, 80px);
       grid-template-rows: repeat(3, 80px);
     }
+    .adjust-move {
+      gap: 28px;
+    }
+    .adjust-rotate {
+      width: 132px;
+      min-height: 132px;
+      font-size: 19px;
+    }
+    .adjust-rotate svg {
+      font-size: 40px;
+    }
     .adjust-pan button,
     .adjust-pan .pan-mid {
       font-size: 30px;

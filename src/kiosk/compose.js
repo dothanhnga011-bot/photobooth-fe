@@ -281,6 +281,25 @@ async function drawLanczosSlot(ctx, source, rect, t, cache) {
 }
 const rotated = (t) => Boolean(((t?.rotate || 0) % 360 + 360) % 360);
 
+// Khách bấm Xoay trái / phải (máy chụp): góc là bội số 90°. Số lần xoay 1/4 vòng (0–3), góc lẻ → -1.
+export function quarterTurns(t) {
+  const angle = (((t?.rotate || 0) % 360) + 360) % 360;
+  return angle % 90 ? -1 : angle / 90;
+}
+// Xoay sẵn điểm ảnh 1/4 vòng (cùng chiều ctx.rotate trong drawSlot), chép đúng từng điểm, không nội suy.
+// Ảnh đã xoay + góc 0 cho cùng vị trí / phóng / dời như ảnh gốc + góc xoay đó.
+export function turnImage(image, turns) {
+  const canvas = document.createElement("canvas");
+  canvas.width = turns % 2 ? image.height : image.width;
+  canvas.height = turns % 2 ? image.width : image.height;
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate((turns * Math.PI) / 2);
+  ctx.drawImage(image, -image.width / 2, -image.height / 2);
+  return canvas;
+}
+
 // Ghép bản in: đúng kích thước in của khung, mỗi ô vẽ từ ảnh chất lượng cao, lần lượt từng ảnh
 // (ảnh 26 MP giải mã ~100 MB nên không giữ nhiều ảnh cùng lúc). filters (màu từng ảnh, cùng thứ tự
 // shots) / stickers: màu ảnh và nhãn dán khách chọn, vẽ giống hệt ảnh xem trước.
@@ -308,22 +327,48 @@ export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filter
       { x: 0, y: 0, w: background.naturalWidth, h: background.naturalHeight });
     ctx.putImageData(new ImageData(art.data, art.width, art.height), 0, 0);
   } else ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
-  const sources = new Map();
+  // Chỉ giữ một tấm ảnh trong bộ nhớ: loaded = mã tấm đó, variants = số lần xoay 1/4 vòng → ảnh (0: gốc).
+  // Tờ in DNP (sharp): ảnh khách xoay 90° / 180° / 270° được xoay sẵn một lần để ô vẫn đi qua Lanczos
+  // như ảnh thẳng (trước đây ô xoay rơi về canvas, mờ hơn các ô khác trên cùng tờ).
+  let loaded = null;
+  const variants = new Map();
   const fitted = new Map();
-  const draw = (source, rect, t) =>
-    sharp && !rotated(t) && !rect.angle ? drawLanczosSlot(ctx, source, rect, t, fitted) : drawSharpSlot(ctx, source, rect, t);
+  const turnsAt = (index) => {
+    const turns = sharp ? quarterTurns(transforms[index % shots.length]) : 0;
+    return turns > 0 ? turns : 0;
+  };
+  async function sourceAt(index, shot) {
+    if (loaded !== shot.key) {
+      for (const image of variants.values()) release(image);
+      variants.clear();
+      fitted.clear();
+      loaded = shot.key;
+      variants.set(0, await sourceFor(shot, token, { strict }));
+    }
+    const turns = turnsAt(index);
+    if (!variants.has(turns)) {
+      const original = variants.get(0);
+      variants.set(turns, turnImage(original, turns));
+      // Mọi ô của tấm này đều xoay cùng góc: trả ngay bộ nhớ ảnh gốc (~100 MB với ảnh 26 MP).
+      const needed = new Set(layout.slots.flatMap((_, i) => (shots[i % shots.length]?.key === shot.key ? [turnsAt(i)] : [])));
+      if (needed.size === 1) {
+        release(original);
+        variants.delete(0);
+      }
+    }
+    if (!fitted.has(turns)) fitted.set(turns, new Map());
+    return { source: variants.get(turns), turns, cache: fitted.get(turns) };
+  }
+  const draw = ({ source, turns, cache }, rect, t) => {
+    if (turns) t = { ...t, rotate: 0 };
+    return sharp && !rotated(t) && !rect.angle ? drawLanczosSlot(ctx, source, rect, t, cache) : drawSharpSlot(ctx, source, rect, t);
+  };
   try {
     for (const [index, slot] of layout.slots.entries()) {
       const shot = shots.length ? shots[index % shots.length] : null;
       if (!shot) continue;
-      if (!sources.has(shot.key)) {
-        for (const image of sources.values()) release(image);
-        sources.clear();
-        fitted.clear();
-        sources.set(shot.key, await sourceFor(shot, token, { strict }));
-      }
-      const source = sources.get(shot.key);
-      // Ô in lại ảnh (khung nhiều ô hơn số ảnh): cùng phóng / dời khách đã chỉnh cho ảnh đó.
+      const source = await sourceAt(index, shot);
+      // Ô in lại ảnh (khung nhiều ô hơn số ảnh): cùng phóng / dời / xoay khách đã chỉnh cho ảnh đó.
       const t = transforms[index % shots.length];
       const rect = slotRect(slot, canvas.width, canvas.height);
       await draw(source, rect, t);
@@ -349,7 +394,7 @@ export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filter
     canvas.width = canvas.height = 0;
     throw error;
   } finally {
-    for (const image of sources.values()) release(image);
+    for (const image of variants.values()) release(image);
   }
   return canvas;
 }

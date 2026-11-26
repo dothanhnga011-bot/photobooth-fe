@@ -1421,10 +1421,12 @@
     box-shadow: 0 3px 10px rgb(74 50 38 / 12%);
   }
   .adjust-photo.is-active { border-color: #4caf6e; }
+  .adjust-thumb { display: block; overflow: hidden; border-radius: 9px; }
   .adjust-photo img, .adjust-photo i {
     display: block; width: 100%; aspect-ratio: 3 / 2;
     border-radius: 9px; object-fit: cover; background: #e9d8c8;
   }
+  .adjust-photo img { transition: transform .2s ease; }
   .adjust-photo b {
     position: absolute; top: 7px; left: 7px;
     display: grid; place-items: center; width: 22px; height: 22px;
@@ -1447,6 +1449,15 @@
     font-family: inherit; font-size: 16px; font-weight: 700; cursor: pointer;
   }
   .adjust-zoom button:disabled { opacity: .4; cursor: default; }
+  /* Xoay trái — nút dời — Xoay phải trên cùng một hàng. */
+  .adjust-move { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 18px; }
+  .adjust-rotate {
+    display: grid; place-items: center; gap: 4px; width: 96px; min-height: 96px; padding: 10px 6px;
+    border: 2px solid var(--mellow-cocoa, #522e22); border-radius: 20px;
+    background: #fffaf3; color: var(--mellow-cocoa, #522e22);
+    font-family: inherit; font-size: 15px; font-weight: 700; line-height: 1.2; cursor: pointer;
+  }
+  .adjust-rotate svg { font-size: 30px; }
   .adjust-pan {
     display: grid; gap: 6px;
     grid-template-columns: repeat(3, 56px); grid-template-rows: repeat(3, 56px);
