@@ -80,16 +80,37 @@ export function describePort(port) {
   return `${USB_VENDORS[vendor] || "thiết bị USB"} (${hex4(vendor)}:${hex4(product ?? 0)})`;
 }
 
+// Cổng máy nhận tiền đã chọn trên máy tính này (trình duyệt nhớ theo địa chỉ web), chưa cần mở cổng.
+export async function savedBillPortName() {
+  if (!billSupported) return "";
+  const port = await savedPort("bill").catch(() => null);
+  return port ? describePort(port) : "";
+}
+
 const PULSE_SERIAL = { baudRate: 9600, dataBits: 8, stopBits: 1, parity: "none" };
 const ictSerial = (config) => ({
   baudRate: Number(config.baud) || 9600, dataBits: 8, stopBits: 1, parity: config.parity || "even",
 });
 const decode = (bytes) => new TextDecoder().decode(new Uint8Array(bytes));
 
+// Một cổng COM chỉ một tab / một phần mềm mở được. Trang Thiết lập → Máy nhận tiền và tab máy chụp
+// trên cùng máy tính tranh cổng: báo rõ thay vì "thiết bị chưa trả lời".
+export const PORT_BUSY_MESSAGE =
+  "Cổng đang được tab máy chụp (hoặc phần mềm khác) dùng. Đóng tab máy chụp trên máy tính này rồi bấm Kết nối lại.";
+async function openPort(port, options) {
+  try {
+    await port.open(options);
+  } catch (error) {
+    if (["InvalidStateError", "NetworkError"].includes(error?.name) || /already open|failed to open/i.test(error?.message))
+      throw Object.assign(new Error(PORT_BUSY_MESSAGE), { busy: true });
+    throw error;
+  }
+}
+
 // Mở cổng, gửi các lệnh (mỗi lệnh sau `at` ms) rồi đọc tới khi accept(các byte đã nhận) đúng hoặc hết ms.
 // Trả các byte đã nhận, hoặc null khi không ai trả lời. Luôn đóng cổng lại.
 async function exchange(port, options, sends, accept, ms) {
-  await port.open(options);
+  await openPort(port, options);
   let reader;
   const timers = [];
   try {
@@ -125,9 +146,11 @@ async function exchange(port, options, sends, accept, ms) {
 // - máy ICT qua RS232 trả 0x3E / 0x5E cho lệnh hỏi trạng thái 0x0C (vừa bật nguồn thì báo 0x80 / 0x8F).
 // Trả { protocol, pulseValue? } hoặc null khi không có gì trả lời.
 export async function probeBillPort(port, config = readBillConfig(), { pulseMs = 3000, ictMs = 1500 } = {}) {
+  // Cổng bị tab khác giữ: báo ngay cho nhân viên; lỗi khác coi như thiết bị không trả lời.
+  const quiet = (error) => { if (error?.busy) throw error; return null; };
   const ping = new TextEncoder().encode("\nPING\n");
   const pulse = await exchange(port, PULSE_SERIAL, [[50, ping], [Math.min(2000, pulseMs * 0.6), ping]],
-    (bytes) => /READY|PONG/.test(decode(bytes)), pulseMs).catch(() => null);
+    (bytes) => /READY|PONG/.test(decode(bytes)), pulseMs).catch(quiet);
   if (pulse) {
     const value = Number(/pulse=(\d+)/.exec(decode(pulse))?.[1]);
     return { protocol: "pulse", ...(value > 0 && { pulseValue: value }) };
@@ -135,7 +158,7 @@ export async function probeBillPort(port, config = readBillConfig(), { pulseMs =
   const status = new Uint8Array([ICT.STATUS]);
   const ict = await exchange(port, ictSerial(config), [[50, status], [ictMs * 0.4, status]],
     (bytes) => bytes.some((b) => ICT_STATUS_REPLIES.includes(b) || b === ICT.POWER_UP || b === ICT.POWER_UP_2 || ICT_ERRORS[b]),
-    ictMs).catch(() => null);
+    ictMs).catch(quiet);
   return ict ? { protocol: "ict" } : null;
 }
 
@@ -221,7 +244,7 @@ class BillAcceptor {
     if (this.probing && !ask) return false;
     const port = ask ? await choosePort("bill") : await savedPort("bill");
     if (!port) return false;
-    await port.open({
+    await openPort(port, {
       baudRate: Number(config.baud) || 9600,
       dataBits: 8,
       stopBits: 1,
@@ -248,7 +271,13 @@ class BillAcceptor {
       await this.disconnect();
       this.setStatus("Đang nhận diện máy nhận tiền…");
       const config = readBillConfig();
-      found = await probeBillPort(port, config).catch(() => null);
+      found = await probeBillPort(port, config).catch((error) => {
+        if (error.busy) {
+          this.setStatus(PORT_BUSY_MESSAGE);
+          throw error;
+        }
+        return null;
+      });
       if (found) saveBillConfig({ ...config, ...found });
       if (found?.pulseValue) this.circuitPulse = found.pulseValue;
     } finally {

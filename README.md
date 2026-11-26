@@ -246,12 +246,13 @@ phiên bản và phần mềm Fujifilm đang cài, nên cần thử trên đúng
 Nhân viên bật PC, đăng nhập Windows, kiểm tra máy Fujifilm ON và cáp USB/HDMI/dây bấm, sau đó
 kiểm tra FUJIFILM X Acquire đã kết nối, Chrome mở kiosk và chụp thử một tấm. Windows Startup
 chỉ chạy sau khi đăng nhập; trước khi mở X Acquire, tác vụ này đặt thư mục lưu ảnh về
-`C:\PhotoBooth\Fujifilm`. Máy nhận tiền (ICT A7 / V7): trên máy chụp mở Cài đặt máy chụp → **Máy nhận
-tiền** → bấm **Kết nối máy nhận tiền** và chọn cổng USB; máy chụp tự nhận ra cách nối (cáp USB-RS232 của
-máy ICT, hoặc mạch Arduino Pro Micro đếm xung — chương trình `hardware/bill-acceptor-pulse`, tải ở
-`/downloads/bill-acceptor-pulse.ino`), lưu lại và tự mở lại cổng khi bật máy / cắm lại cáp. Bảng kiểm tra
-4 bước, hướng dẫn lắp dây và mục gỡ lỗi nằm ngay trong khung đó. Khi chưa lắp máy nhận tiền, bật chế độ
-thử của phòng để thử luồng tiền mặt bằng các nút giả lập (không tính doanh thu).
+`C:\PhotoBooth\Fujifilm`. Máy nhận tiền (ICT A7 / V7): trên **chính máy tính của phòng**, đăng nhập quản trị,
+mở **Thiết lập → Máy nhận tiền** (đóng tab máy chụp trước — một cổng chỉ một tab mở được) → bấm **Kết nối máy
+nhận tiền** và chọn cổng USB. Trang tự nhận ra cách nối (cáp USB-RS232 của máy ICT, hoặc mạch Arduino Pro Micro
+đếm xung — chương trình `hardware/bill-acceptor-pulse`, tải ở `/downloads/bill-acceptor-pulse.ino`) và lưu lại;
+máy chụp cùng địa chỉ web trên máy tính đó dùng lại cổng này, tự mở lại khi bật máy / cắm lại cáp. Trang có bảng
+kiểm tra 4 bước, hướng dẫn lắp dây và mục gỡ lỗi; trên máy chụp chỉ còn trạng thái và nút "Thử nhận tiền". Khi chưa
+lắp máy nhận tiền, bật chế độ thử của phòng để thử luồng tiền mặt bằng các nút giả lập (không tính doanh thu).
 
 X-T3, X-S10 và X-S20 dùng cùng phần mềm và thư mục ảnh trong kiosk; khi đổi thân máy, kiểm tra
 lại chế độ USB tether, đầu dây remote, hình HDMI và chụp thử. Việc dây bấm, USB, HDMI và flash

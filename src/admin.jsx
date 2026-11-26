@@ -24,6 +24,7 @@ const StickersManager = lazyNamed(() => import("./admin/stickers"), "StickersMan
 const FiltersManager = lazyNamed(() => import("./admin/filters"), "FiltersManager");
 const KioskTextsManager = lazyNamed(() => import("./admin/kiosk-texts"), "KioskTextsManager");
 const Rx1OutputManager = lazyNamed(() => import("./admin/rx1-output.jsx"), "Rx1OutputManager");
+const BillAcceptorManager = lazyNamed(() => import("./admin/bill-acceptor.jsx"), "BillAcceptorManager");
 const StorageAssistant = lazyNamed(() => import("./admin/storage-assistant"), "StorageAssistant");
 
 ensureFullStylesheet();
@@ -202,6 +203,8 @@ export function Admin() {
                 <KioskTextsManager notify={notify} />
               ) : currentTab === "rx1-output" ? (
                 <Rx1OutputManager notify={notify} />
+              ) : currentTab === "bill-acceptor" ? (
+                <BillAcceptorManager notify={notify} />
               ) : definitions[currentTab] ? (
                 <ResourceManager
                   key={currentTab}

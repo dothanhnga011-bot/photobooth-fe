@@ -68,6 +68,7 @@ const fixture = `
   import { Kiosk } from '/src/kiosk/Kiosk.jsx';
   import { KioskCode } from '/src/kiosk/KioskSale.jsx';
   import { KioskSettings } from '/src/kiosk/KioskSettings.jsx';
+  import { BillAcceptorManager } from '/src/admin/bill-acceptor.jsx';
   import { windowsScript, macScript } from '/src/admin/kiosk-autostart.js';
   import '/src/tailwind.css';
   import '/src/kiosk/decor-fonts.js';
@@ -90,6 +91,9 @@ const fixture = `
   window.showCameraSetup = kind => root.render(wrap(React.createElement('main', { className: 'kiosk-shell' },
     React.createElement(KioskSettings, { cameras: [{ deviceId: 'hdmi', label: 'USB Video' }], cameraId: 'hdmi',
       roomInfo: { kind }, zoom: 0, mirror: true, toast: { success() {}, error() {} } }))));
+  // Thiết lập → Máy nhận tiền (trang quản trị), như trong khung admin.
+  window.showBillPage = () => root.render(wrap(React.createElement('main', { className: 'admin-shell', style: { display: 'block', padding: 20 } },
+    React.createElement(BillAcceptorManager, { notify() {} }))));
   window.makeKioskScripts = kind => ({
     windows: windowsScript('https://studio.example/kiosk?device=fixture', 'Room', kind),
     mac: macScript('https://studio.example/kiosk?device=fixture', 'Room', kind),
@@ -651,7 +655,7 @@ test("Selfbooth staff setup and startup scripts select the Fujifilm X-T3 like Ph
   } finally { await page.close(); }
 });
 
-test("the bill acceptor box: one connect button, a 4-step self-check, a setup guide with the circuit program, and fixes", async () => {
+test("the kiosk keeps only the bill acceptor status and a quick test; setup lives in Thiết lập → Máy nhận tiền", async () => {
   const page = await browser.newPage({ viewport: { width: 1080, height: 1920 } });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -659,26 +663,46 @@ test("the bill acceptor box: one connect button, a 4-step self-check, a setup gu
     await page.goto(base);
     await page.evaluate(() => window.showCameraSetup('photobooth'));
     await page.locator('.kiosk-settings > summary').click();
-    const box = page.locator('.bill-setup');
+    const box = page.locator('.bill-kiosk');
     await box.waitFor();
-    const checks = box.getByRole('list', { name: 'Kiểm tra máy nhận tiền' }).getByRole('listitem');
-    assert.equal(await checks.count(), 4);
-    assert.match(await checks.nth(1).innerText(), /Chưa kết nối — bấm “Kết nối máy nhận tiền”/);
-    assert.match(await checks.nth(3).innerText(), /Bấm “Thử nhận tiền” rồi đút một tờ/);
-    assert.equal(await box.getByRole('button', { name: 'Kết nối máy nhận tiền', exact: true }).count(), 1);
-    // Chưa kết nối thì chưa thử nhận tiền được (trước đây bấm được, không có gì xảy ra).
-    assert.equal(await box.getByRole('button', { name: 'Thử nhận tiền' }).isDisabled(), true);
-    await box.getByRole('button', { name: /Hướng dẫn: lắp & kết nối máy nhận tiền/ }).click();
-    const guide = box.locator('.guide-body');
-    assert.equal(await guide.locator('ol > li').count(), 5);
-    assert.equal(await guide.getByRole('link', { name: /bill-acceptor-pulse\.ino/ }).getAttribute('href'), '/downloads/bill-acceptor-pulse.ino');
-    assert.match(await guide.innerText(), /Không nối 12V vào Arduino/);
-    await box.getByText('Gỡ lỗi thường gặp').click();
-    assert.equal(await box.locator('.bill-troubles dt').count(), 5);
-    await page.screenshot({ path: join(tmpdir(), 'photobooth-fe-bill-setup-portrait.png'), fullPage: true });
+    assert.match(await box.getByRole('status').innerText(), /Chưa kết nối/);
+    assert.match(await box.innerText(), /Quản trị → Thiết lập → Máy nhận tiền/);
+    assert.equal(await box.getByRole('button', { name: 'Kết nối máy nhận tiền' }).count(), 0, "connecting moved to the admin page");
+    assert.equal(await box.getByRole('button', { name: 'Thử nhận tiền' }).count(), 0, "no test before the port is open");
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });
+
+for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }])
+  test(`Thiết lập → Máy nhận tiền (${viewport.width} px): one connect button, a 4-step self-check, the setup guide with the circuit program, and fixes`, async () => {
+    const page = await browser.newPage({ viewport });
+    const errors = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    try {
+      await page.goto(base);
+      await page.evaluate(() => window.showBillPage());
+      const connect = page.getByRole('region', { name: 'Kết nối trên máy tính này' });
+      await connect.waitFor();
+      assert.match(await connect.innerText(), /trên chính máy tính của phòng chụp/);
+      const checks = connect.getByRole('list', { name: 'Kiểm tra máy nhận tiền' }).getByRole('listitem');
+      assert.equal(await checks.count(), 4);
+      assert.match(await checks.nth(1).innerText(), /Chưa chọn cổng — bấm “Kết nối máy nhận tiền”/);
+      assert.match(await checks.nth(3).innerText(), /Bấm “Thử nhận tiền” rồi đút một tờ/);
+      assert.equal(await connect.getByRole('button', { name: 'Kết nối máy nhận tiền', exact: true }).count(), 1);
+      // Chưa mở cổng thì chưa thử nhận tiền được.
+      assert.equal(await connect.getByRole('button', { name: 'Thử nhận tiền' }).isDisabled(), true);
+      const guide = page.getByRole('region', { name: 'Hướng dẫn lắp & kết nối' });
+      assert.equal(await guide.locator('.bill-steps > li').count(), 5);
+      assert.equal(await guide.getByRole('link', { name: /bill-acceptor-pulse\.ino/ }).getAttribute('href'), '/downloads/bill-acceptor-pulse.ino');
+      assert.equal(await guide.getByRole('link', { name: /Tải chương trình mạch Arduino/ }).getAttribute('href'), '/downloads/bill-acceptor-pulse.ino');
+      assert.match(await guide.innerText(), /Không nối 12V vào Arduino/);
+      assert.equal(await page.getByRole('region', { name: 'Gỡ lỗi thường gặp' }).locator('dt').count(), 7);
+      // Không tràn ngang trên điện thoại.
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1));
+      await page.screenshot({ path: join(tmpdir(), `photobooth-fe-bill-page-${viewport.width}.png`), fullPage: true });
+      assert.deepEqual(errors, []);
+    } finally { await page.close(); }
+  });
 
 test("a colour can go to one photo only (tap it in the frame or pick its number), or to all photos", async () => {
   const { page, errors, uploads } = await selectScreen();

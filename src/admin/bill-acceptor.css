@@ -1,0 +1,52 @@
+/* Thiết lập → Máy nhận tiền (bill-acceptor.jsx): kết nối + tự kiểm tra bên trái, hướng dẫn lắp bên phải,
+   gỡ lỗi bên dưới. Dấu ✓ / ✗ luôn đi kèm chữ, màu chỉ để liếc nhanh. */
+  .admin-shell .bill-page { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 22px; }
+  .admin-shell .bill-panel { min-width: 0; padding: 24px; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
+  .admin-shell .bill-troubles { grid-column: 1 / -1; }
+  .admin-shell .bill-panel h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
+  .admin-shell .bill-panel p { color: var(--muted); font-size: 13px; line-height: 1.6; }
+  .admin-shell .bill-where { margin: 0 0 16px; padding: 12px 14px; border-radius: 10px; background: #f7eee7; color: var(--ink) !important; }
+
+  .admin-shell .bill-checks { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .admin-shell .bill-check { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: start; gap: 10px;
+    padding: 10px 12px; border-radius: 10px; background: #f5f0ea; font-size: 14px; line-height: 1.5; }
+  .admin-shell .bill-check > b { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+    background: #e4d8cc; font-size: 13px; }
+  .admin-shell .bill-check.is-ok { background: #e8f3eb; color: #24563a; }
+  .admin-shell .bill-check.is-ok > b { background: #2f6b45; color: #fff; }
+  .admin-shell .bill-check.is-fail { background: #fbe9e7; color: #8f2a22; }
+  .admin-shell .bill-check.is-fail > b { background: #a52a29; color: #fff; }
+  .admin-shell .bill-check.is-wait { background: #fdf0dd; color: #7a4a10; }
+  .admin-shell .bill-check.is-wait > b { background: #c98a2b; color: #fff; }
+
+  .admin-shell .bill-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 10px; }
+  .admin-shell .bill-error { margin: 0 0 8px; padding: 10px 14px; border-radius: 10px; background: #fbe9e7; color: #8f2a22 !important; }
+  .admin-shell .bill-status { margin: 0; font-size: 12.5px !important; }
+
+  .admin-shell .bill-advanced { margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--line); }
+  .admin-shell .bill-advanced > summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .admin-shell .bill-advanced[open] { display: grid; gap: 12px; }
+  .admin-shell .bill-advanced label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+  .admin-shell .bill-advanced :is(input, select) { max-width: 420px; }
+  .admin-shell .bill-advanced .button { justify-self: start; }
+  .admin-shell .bill-advanced-row { display: flex; flex-wrap: wrap; gap: 12px; }
+  .admin-shell .bill-advanced-row input { width: 140px; }
+
+  .admin-shell .bill-steps { display: grid; gap: 12px; margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.65; }
+  .admin-shell .bill-steps a { color: var(--mellow-cocoa, #522e22); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+  .admin-shell .bill-wiring { display: grid; gap: 2px; margin: 6px 0; padding-left: 18px; }
+  .admin-shell .bill-download { display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; }
+  .admin-shell .bill-note { margin: 14px 0 0; }
+
+  .admin-shell .bill-troubles dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 28px; margin: 0; }
+  .admin-shell .bill-troubles dt { font-size: 14px; font-weight: 700; }
+  .admin-shell .bill-troubles dd { margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+
+  @media (max-width: 1100px) {
+    .admin-shell .bill-page { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .admin-shell .bill-panel { padding: 18px; }
+    .admin-shell .bill-actions .button { width: 100%; }
+    .admin-shell .bill-troubles dl { grid-template-columns: minmax(0, 1fr); }
+  }

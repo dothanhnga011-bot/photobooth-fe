@@ -1828,66 +1828,19 @@
   .kiosk-device-row input {
     width: 130px;
   }
-  /* Máy nhận tiền: bảng tự kiểm tra 4 bước (KioskDevices.jsx). Dấu luôn đi kèm chữ, màu chỉ để liếc nhanh. */
-  .bill-checks {
-    display: grid;
-    gap: 6px;
+  /* Máy nhận tiền ở máy chụp: chỉ trạng thái (kết nối / hướng dẫn ở Thiết lập → Máy nhận tiền). */
+  .bill-kiosk-status {
     margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .bill-check {
-    display: grid;
-    grid-template-columns: 26px minmax(0, 1fr);
-    align-items: start;
-    gap: 8px;
-    padding: 8px 10px;
+    padding: 8px 12px;
     border-radius: 10px;
-    background: rgb(120 90 72 / 8%);
-    font-size: 13.5px;
-    line-height: 1.45;
-  }
-  .bill-check > b {
-    display: grid;
-    place-items: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: rgb(120 90 72 / 18%);
+    background: #fdf0dd;
+    color: #7a4a10;
     font-size: 13px;
-  }
-  .bill-check.is-ok { background: #e8f3eb; color: #24563a; }
-  .bill-check.is-ok > b { background: #2f6b45; color: #fff; }
-  .bill-check.is-fail { background: #fbe9e7; color: #8f2a22; }
-  .bill-check.is-fail > b { background: #a52a29; color: #fff; }
-  .bill-check.is-wait { background: #fdf0dd; color: #7a4a10; }
-  .bill-check.is-wait > b { background: #c98a2b; color: #fff; }
-  .bill-setup .guide-body a {
-    color: var(--mellow-cocoa, #522e22);
-    font-weight: 700;
-    text-decoration: underline;
-    text-underline-offset: 3px;
-  }
-  .bill-wiring {
-    display: grid;
-    gap: 2px;
-    margin: 6px 0;
-    padding-left: 18px;
-  }
-  .bill-troubles dl {
-    display: grid;
-    gap: 8px;
-    margin: 0;
-  }
-  .bill-troubles dt {
-    font-weight: 700;
-    font-size: 13px;
-  }
-  .bill-troubles dd {
-    margin: 2px 0 0;
-    font-size: 12.5px;
     line-height: 1.5;
-    opacity: 0.9;
+  }
+  .bill-kiosk-status.is-ok {
+    background: #e8f3eb;
+    color: #24563a;
   }
 
   /* ── Album: ảnh đã ghép & video tua nhanh ── */

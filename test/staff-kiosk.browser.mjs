@@ -774,7 +774,7 @@ test("admin sidebar: one line per page, one icon column, 44 px rows, plain group
     return { items, labels, sidebar: Math.round(sidebar.width), mainLeft: Math.round(main.left) };
   });
   const wide = await measure();
-  assert.equal(wide.items.length, 15, JSON.stringify(wide.items.map((i) => i.label)));
+  assert.equal(wide.items.length, 16, JSON.stringify(wide.items.map((i) => i.label)));
   assert.deepEqual(wide.items.filter((i) => !i.oneLine).map((i) => i.label), [], "every page name fits on one line");
   assert.ok(wide.items.every((i) => i.height >= 44), JSON.stringify(wide.items.map((i) => [i.label, i.height])));
   assert.equal(new Set(wide.items.map((i) => i.iconLeft)).size, 1, "pages in a group line up with the other pages");
@@ -802,7 +802,7 @@ test("admin sidebar: one line per page, one icon column, 44 px rows, plain group
   }));
   await page.screenshot({ path: join(screenshots, "sidebar-390.png"), fullPage: true });
   assert.equal(phone.overflow, false);
-  assert.ok(phone.heights.length === 15 && phone.heights.every((h) => h >= 44), JSON.stringify(phone.heights));
+  assert.ok(phone.heights.length === 16 && phone.heights.every((h) => h >= 44), JSON.stringify(phone.heights));
   assertClean();
 });
 

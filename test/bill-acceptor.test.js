@@ -8,7 +8,7 @@ globalThis.localStorage = {
   setItem: (key, value) => store.set(key, String(value)),
   removeItem: (key) => store.delete(key),
 };
-const { billAcceptor, describePort, DEFAULT_BILL, probeBillPort } = await import("../src/kiosk/bill-acceptor.js");
+const { billAcceptor, describePort, DEFAULT_BILL, PORT_BUSY_MESSAGE, probeBillPort } = await import("../src/kiosk/bill-acceptor.js");
 
 // Cổng USB giả lập Web Serial: respond(byte đã ghi, cách mở cổng) trả các byte thiết bị gửi lại.
 class FakePort {
@@ -70,6 +70,13 @@ test("a device that answers nothing is reported as not recognised, and the port 
   assert.equal(await probeBillPort(port, DEFAULT_BILL, fast), null);
   assert.equal(port.isOpen, false);
   assert.equal(describePort(port), "cổng COM");
+});
+
+test("a port held by the kiosk tab is reported as busy, not as a device that does not answer", async () => {
+  // Chrome báo NetworkError khi hệ điều hành không mở được cổng (tab máy chụp đang giữ nó).
+  const port = new FakePort(arduino);
+  port.open = async () => { throw Object.assign(new Error("Failed to open serial port."), { name: "NetworkError" }); };
+  await assert.rejects(probeBillPort(port, DEFAULT_BILL, fast), (error) => error.busy === true && error.message === PORT_BUSY_MESSAGE);
 });
 
 test("the check button asks the open circuit and reads its pulse value; disconnect frees the port", async () => {

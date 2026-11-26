@@ -14,6 +14,7 @@ import {
   Type,
   Printer,
   Inbox,
+  Banknote,
 } from "lucide-react";
 import {
   custom,
@@ -107,6 +108,8 @@ export const NAV_TREE = [
     ["stickers", "Nhãn dán", Sticker],
     ["filters", "Quản lý filter", SlidersHorizontal],
     ["rx1-output", "Màu in RX1", Printer],
+    // Máy nhận tiền giấy (ICT) của phòng Photobooth: kết nối, tự kiểm tra, hướng dẫn lắp và gỡ lỗi.
+    ["bill-acceptor", "Máy nhận tiền", Banknote],
     ["kiosk-texts", "Chữ trên máy chụp", Type],
   ]],
   ["users", "Tài khoản", Users],
@@ -158,6 +161,7 @@ export const NAV_DESCRIPTIONS = {
   stickers: "Nhãn dán khách dán lên khung ở màn chọn ảnh của máy chụp.",
   filters: "Màu ảnh khách chọn ở màn chọn ảnh của máy chụp: bộ lọc có sẵn và filter riêng của tiệm.",
   "rx1-output": "Chỉnh độ tối và độ nét bản in RX1; lưu trên web để các máy in tự nhận.",
+  "bill-acceptor": "Kết nối và thử máy nhận tiền giấy của phòng Photobooth — mở trang trên chính máy tính phòng chụp; kèm hướng dẫn lắp và gỡ lỗi.",
   "kiosk-texts": "Thời gian khách chọn ảnh và chữ trên màn hình máy chụp: phòng photobooth, phòng Selfbooth và các màn chung.",
   users: "Tài khoản nhân viên, chi nhánh phụ trách và phân quyền truy cập.",
 };
