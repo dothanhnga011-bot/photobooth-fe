@@ -35,10 +35,13 @@ test("Selfbooth ưu tiên khung 20 × 30 đúng số ảnh của gói", () => {
   assert.deepEqual(names(list), ["20 × 30 2 ô"]);
 });
 
-test("số ảnh cần chọn theo số ô của khung đang xem, không quá số ảnh đã chụp", () => {
+test("số ô cần chọn đúng số ô của khung đang xem, kể cả khi chụp ít ảnh hơn (một ảnh dùng cho nhiều ô)", () => {
   assert.equal(frameNeed(big[0], { count: 4, printSize: "full", shots: 12 }), 5);
   assert.equal(frameNeed(big[3], { count: 4, printSize: "full", shots: 12 }), 6);
-  assert.equal(frameNeed(big[3], { count: 4, printSize: "full", shots: 4 }), 4);
+  // Khung đánh số 1–6, khách chụp 4 ảnh: vẫn chọn đủ 6 ô (không tự lặp ảnh 1–4 vào ô 5–6).
+  assert.equal(frameNeed(big[3], { count: 4, printSize: "full", shots: 4 }), 6);
+  assert.equal(frameNeed(big[3], { count: 4, printSize: "full", shots: 0 }), 0);
+  assert.equal(frameNeed(large[0], { count: 3, printSize: "large", shots: 2 }), 2);
   assert.equal(frameNeed(small[1], { count: 4, printSize: "strip", shots: 12 }), 3);
   assert.equal(frameNeed(large[0], { count: 1, printSize: "large", shots: 8 }), 1);
   assert.equal(frameNeed(undefined, { count: 4, printSize: "full", shots: 12 }), 4);

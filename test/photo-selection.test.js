@@ -37,6 +37,8 @@ test("when time runs out, empty slots are filled in place with photos not yet us
   assert.deepEqual(fillPhotoSlots([null, "b", null], 3, ["a", "b", "c", "d"]), ["a", "b", "c"]);
   // A photo that is no longer in the album leaves its slot to be refilled.
   assert.deepEqual(fillPhotoSlots(["gone", "b"], 2, ["a", "b"]), ["a", "b"]);
-  // Fewer photos than slots: the first photo repeats rather than leaving a hole.
+  // Fewer photos than slots: the photos cycle rather than leaving a hole (8 numbered slots, 4 shots).
   assert.deepEqual(fillPhotoSlots([], 3, ["a", "b"]), ["a", "b", "a"]);
+  assert.deepEqual(fillPhotoSlots([], 8, ["a", "b", "c", "d"]), ["a", "b", "c", "d", "a", "b", "c", "d"]);
+  assert.deepEqual(fillPhotoSlots(["c", null, "c"], 6, ["a", "b", "c"]), ["c", "a", "c", "b", "a", "b"]);
 });

@@ -14,9 +14,13 @@ export function addPhotoSlot(selected, count, key) {
   if (slot >= 0) next[slot] = key;
   return next;
 }
-// Timeout fills vacancies in place, preserving the customer's other choices.
+// Timeout fills vacancies in place, preserving the customer's other choices. Each empty slot takes the
+// least-used photo (unused first, in shooting order), so with more slots than photos they cycle
+// (8 slots, 4 photos → 1 2 3 4 1 2 3 4) instead of one photo over and over.
 export function fillPhotoSlots(selected, count, keys) {
   const next = photoSlots(selected, count).map(key => keys.includes(key) ? key : null);
-  for (let i = 0; i < count; i++) if (!next[i]) next[i] = keys.find(key => !next.includes(key)) || keys[0] || null;
+  const uses = (key) => next.filter((k) => k === key).length;
+  for (let i = 0; i < count; i++)
+    if (!next[i]) next[i] = keys.reduce((best, key) => (best === null || uses(key) < uses(best) ? key : best), null);
   return next;
 }

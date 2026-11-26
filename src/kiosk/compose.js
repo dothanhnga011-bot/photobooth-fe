@@ -119,11 +119,13 @@ export function frameCandidates(frames, { count, printSize, themeOrder = [] }) {
   return sameCount.length ? sameCount : sorted;
 }
 
-// Số ảnh khách chọn cho khung đang xem: khổ lớn / nhỏ theo số ô của khung, Selfbooth (và chưa có khung)
-// theo gói; không quá số ảnh đã chụp.
+// Số ô khách chọn cho khung đang xem. Khổ lớn / nhỏ: đúng số ô của khung (số thứ tự admin đặt, vd. 1–8),
+// kể cả khi khách chụp ít ảnh hơn — một ảnh dùng được cho nhiều ô, như ghép ở quầy. Selfbooth (và chưa có
+// khung): theo gói, không quá số ảnh đã chụp. Chưa có ảnh nào: 0.
 export function frameNeed(frame, { count, printSize, shots }) {
-  const wanted = frame && !isSelfboothSize(printSize) ? frameCapacity(frame) || count : count;
-  return Math.max(0, Math.min(wanted, shots));
+  if (!shots) return 0;
+  const slots = frame && !isSelfboothSize(printSize) ? frameCapacity(frame) : 0;
+  return slots || Math.max(0, Math.min(count, shots));
 }
 
 // Photo windows may be oval or irregular. After applying the guest's filter,
