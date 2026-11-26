@@ -38,6 +38,10 @@ const fixture = `
       {step === 'pay' && <KioskPayment pack={pack} total={saleTotal(pack, sheets, extraFor(pack))} sheets={sheets} bills={[]} onBill={() => {}}
         onPaid={() => {}} onSkip={() => {}} onBack={() => setStep('print')} onIdle={() => {}}
         testMode={false} busy={false} error='' cameraReady={true} cashReady={false} />}
+      {step === 'paid' && <KioskPayment pack={packs[0]} total={saleTotal(packs[0], 1, 20000)} sheets={1}
+        bills={(new URLSearchParams(location.search).get('bills') || '').split(',').filter(Boolean).map((amount) => ({ amount: Number(amount) }))}
+        onBill={() => {}} onPaid={() => { window.paidCalls = (window.paidCalls || 0) + 1; }} onSkip={() => {}}
+        onBack={() => {}} onIdle={() => {}} testMode={false} busy={false} error='' cameraReady={true} cashReady={false} />}
       <output data-testid="voucher-result">{voucher}</output>
     </>;
   }
@@ -153,6 +157,49 @@ test("prints are counted in pieces from a minimum of two; paying goes straight t
     assert.match(await page.locator(".pay-board").innerText(), /70\.000/);
     assert.equal(await page.evaluate(() => window.billEnabled()), false, "no serial port in the test browser");
     await shot(page, "pay");
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("exact cash opens the session at once; overpaid cash first tells the guest to collect the change at the counter", async () => {
+  const page = await browser.newPage({ viewport: { width: 1328, height: 639 } });
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const paidCalls = () => page.evaluate(() => window.paidCalls || 0);
+  try {
+    // Đút đúng 70.000 đ: mở lượt chụp ngay, không có lời nhắc tiền thừa.
+    await page.goto(base + "/?step=paid&bills=50000,20000");
+    await page.waitForFunction(() => window.paidCalls === 1);
+    assert.equal(await page.locator(".pay-machine.is-change").count(), 0);
+
+    // Đút 100.000 đ cho gói 70.000 đ: máy không trả tiền thừa — khách đọc lời nhắc trước, rồi mới vào chụp.
+    await page.clock.install();
+    await page.goto(base + "/?step=paid&bills=100000");
+    const notice = page.locator(".pay-machine.is-change p");
+    await notice.waitFor();
+    assert.match(await notice.innerText(), /đút dư 30\.000.*ra quầy để nhân viên thối lại/s);
+    assert.equal(await paidCalls(), 0, "the session waits while the guest reads about the change");
+    await page.clock.runFor(4000);
+    assert.equal(await paidCalls(), 0);
+    await shot(page, "pay-change");
+    await page.getByRole("button", { name: /Đã hiểu — vào chụp/ }).click();
+    assert.equal(await paidCalls(), 1);
+    await page.clock.runFor(15000);
+    assert.equal(await paidCalls(), 1, "the countdown never opens a second session");
+
+    // Không ai bấm: hết 10 giây thì tự vào chụp, đúng một lần.
+    await page.goto(base + "/?step=paid&bills=100000");
+    await notice.waitFor();
+    // Từng giây một: mỗi giây React vẽ lại nút đếm ngược rồi mới hẹn giây tiếp theo.
+    for (let left = 9; left >= 1; left--) {
+      await page.clock.runFor(1000);
+      await page.getByRole("button", { name: `Đã hiểu — vào chụp (${left}s)` }).waitFor();
+    }
+    assert.equal(await paidCalls(), 0);
+    await page.clock.runFor(1000);
+    await page.waitForFunction(() => window.paidCalls === 1);
+    await page.clock.runFor(15000);
+    assert.equal(await paidCalls(), 1);
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });

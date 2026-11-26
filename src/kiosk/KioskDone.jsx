@@ -4,6 +4,7 @@ import {
   PiWarningCircleDuotone,
 } from "react-icons/pi";
 import { QRCodeSVG } from "qrcode.react";
+import { money } from "../api";
 import { Brand, Button } from "../studio";
 import { useKioskText } from "./use-kiosk-text.js";
 
@@ -97,6 +98,12 @@ export function KioskDone({ done, pending, left, nextGuest }) {
       </p>
       {PRINT_WARN.has(print) && done.print?.message && (
         <p className="done-print is-warn" role="alert">{done.print.message}</p>
+      )}
+      {done.change > 0 && (
+        <p className="done-print is-warn" role="status">
+          <PiWarningCircleDuotone aria-hidden="true" />
+          Bạn đã đút dư {money(done.change)} — mời bạn ra quầy để nhân viên thối lại.
+        </p>
       )}
       {pending > 0 && <p className="done-sync">Đang tải {pending} ảnh gốc lên album — vui lòng giữ nguyên màn hình…</p>}
       <footer className="flow-foot">

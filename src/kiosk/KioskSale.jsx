@@ -28,6 +28,9 @@ import {
 } from "./print-count.js";
 
 const IDLE_SECONDS = 120;
+// Khách đút dư tiền: máy nhận tiền không trả tiền thừa. Màn trả tiền dừng lại chừng này giây (hoặc tới khi
+// khách bấm) để khách đọc lời nhắc ra quầy nhận tiền thừa, rồi mới mở lượt chụp. Giờ chụp chưa bắt đầu.
+const CHANGE_NOTICE_SECONDS = 10;
 const SIM_BILLS = [10000, 20000, 50000, 100000];
 const FOLDER_NOTE = "Máy chụp chưa đọc được thư mục ảnh của máy ảnh — nhờ nhân viên mở “Cài đặt máy chụp” để chọn / cho phép thư mục.";
 
@@ -227,7 +230,17 @@ export function KioskPayment({ pack, total, sheets, bills, onBill, onPaid, onSki
   const [simulated, setSimulated] = useState(0);
   const received = bills.reduce((sum, bill) => sum + bill.amount, 0) + simulated;
   const remaining = Math.max(0, total - received);
+  const change = Math.max(0, received - total);
   const paidOnce = useRef(false);
+  // Giây còn lại của lời nhắc tiền thừa (0: không hiện). Mở lượt chụp đúng một lần, dù khách bấm hay hết giờ.
+  const [changeNotice, setChangeNotice] = useState(0);
+  const opened = useRef(false);
+  const openSession = () => {
+    if (opened.current) return;
+    opened.current = true;
+    setChangeNotice(0);
+    onPaid();
+  };
   useEffect(() => billAcceptor.onStatus(setStatus), []);
   // Máy nhận tiền chỉ mở nhận tiền khi đang ở màn này.
   useEffect(() => {
@@ -255,8 +268,14 @@ export function KioskPayment({ pack, total, sheets, bills, onBill, onPaid, onSki
     paidOnce.current = true;
     billAcceptor.setEnabled(false).catch(() => {});
     if (simulated) onSkip();
-    else onPaid();
+    else if (received > total) setChangeNotice(CHANGE_NOTICE_SECONDS);
+    else openSession();
   }, [received, cameraReady]);
+  useEffect(() => {
+    if (!changeNotice) return;
+    const timer = setTimeout(() => (changeNotice <= 1 ? openSession() : setChangeNotice(changeNotice - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [changeNotice]);
   // Không ai thao tác: chưa đút tiền thì về màn chờ; đã đút tiền thì giữ lại (gọi nhân viên).
   useEffect(() => {
     const timer = setInterval(() => setIdle((n) => Math.max(0, n - 1)), 1000);
@@ -287,17 +306,22 @@ export function KioskPayment({ pack, total, sheets, bills, onBill, onPaid, onSki
           <strong>{remaining ? money(remaining) : "✓"}</strong>
         </div>
       </div>
-      <div className="pay-machine">
+      <div className={`pay-machine${change ? " is-change" : ""}`}>
         <PiMoneyWavyDuotone aria-hidden="true" />
-        <p>
-          {busy
-            ? "Đã đủ tiền — đang mở lượt chụp…"
-            : received > total
-              ? `Bạn đã đút dư ${money(received - total)} — máy không trả tiền thừa, nhờ nhân viên hỗ trợ nhé.`
+        <p role={change ? "alert" : undefined}>
+          {change
+            ? <>Bạn đã đút dư <strong>{money(change)}</strong> — máy không trả tiền thừa. Chụp xong, mời bạn ra quầy để nhân viên thối lại {money(change)} nhé.</>
+            : busy
+              ? "Đã đủ tiền — đang mở lượt chụp…"
               : "Máy nhận tiền ở phía dưới màn hình. Máy nhận các tờ 10.000 – 500.000 đ."}
         </p>
-        <small className={billAcceptor.connected ? "" : "is-warn"}>{status}</small>
+        <small className={billAcceptor.connected ? "" : "is-warn"}>{busy ? "Đang mở lượt chụp…" : status}</small>
       </div>
+      {changeNotice > 0 && !busy && (
+        <Button className="kiosk-next" onClick={openSession}>
+          Đã hiểu — vào chụp ({changeNotice}s) <PiArrowRightBold aria-hidden="true" />
+        </Button>
+      )}
       {received >= total && error && !busy && (
         <Button className="kiosk-next" onClick={simulated ? onSkip : onPaid}>
           Thử mở lượt chụp lại <PiArrowRightBold aria-hidden="true" />

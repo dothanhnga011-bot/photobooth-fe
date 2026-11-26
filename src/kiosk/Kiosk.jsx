@@ -45,7 +45,7 @@ import {
   sameKioskSession,
 } from "./network-tasks.js";
 import { readCrop } from "./live-preview-layout.js";
-import { fillPhotoSlots, removePhotoSlot, togglePhotoSlot } from "./photo-selection.js";
+import { addPhotoSlot, fillPhotoSlots, removePhotoSlot } from "./photo-selection.js";
 import { drawLiveCapture, previewRotation, previewRotationKey, readPreviewRotation } from './preview-orientation.js';
 import { buildTimelapse, createClipRecorder } from "./clip-recorder.js";
 import {
@@ -1068,10 +1068,11 @@ export function Kiosk() {
     const list = current.current?.selected || [];
     patch({ frameIndex: i, ...(list.length > keep && { selected: list.slice(0, keep) }) });
   };
-  // Chạm lại để bỏ; ảnh mới lấp ô trống đầu tiên, không dồn các ô còn lại.
+  // Ảnh lấp ô trống đầu tiên, không dồn các ô còn lại. Một ảnh dùng được cho nhiều ô (chạm lại ảnh đã
+  // chọn = thêm vào ô trống tiếp theo); bỏ ảnh bằng cách chạm ô đó trên khung.
   const pickShot = (shotKey) => {
     const list = current.current.selected || [];
-    patch({ selected: togglePhotoSlot(list, need, shotKey) });
+    patch({ selected: addPhotoSlot(list, need, shotKey) });
   };
   const removePick = (slot) => {
     const list = current.current.selected || [];
@@ -1205,6 +1206,9 @@ export function Kiosk() {
       prints: prints ?? 0,
       expired,
       studio,
+      // Khách đút dư ở máy nhận tiền (máy không trả tiền thừa): nhắc ra quầy nhận lại.
+      change: booking.source === "kiosk" && booking.paymentMethod === "cash" && booking.paid
+        ? Math.max(0, (Number(booking.cashReceived) || 0) - (Number(booking.total) || 0)) : 0,
     });
   }
   // Màn QR tự đóng sau 2 phút để phòng sẵn sàng cho khách tiếp theo.

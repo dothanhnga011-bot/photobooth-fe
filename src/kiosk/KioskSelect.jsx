@@ -300,12 +300,13 @@ function DecorStage({
   );
 }
 
-function Pick({ shot, slots, onPick, disabled, repeats }) {
+// Một ảnh dùng được cho nhiều ô: chạm lại ảnh đã chọn là thêm nó vào ô trống tiếp theo.
+function Pick({ shot, slots, onPick, disabled }) {
   const preview = useObjectUrl(shot.preview);
   const [retry, setRetry] = useState(false);
   const src = !retry && shot.thumbnail ? shot.thumbnail : preview;
   const picked = slots.length > 0;
-  const action = repeats ? " · chạm để thêm vào ô trống" : " · chạm để bỏ";
+  const action = " · chạm để thêm vào ô trống";
   return (
     <button
       type="button"
@@ -543,9 +544,7 @@ export function KioskSelect({
 
   const thumbShot = shots.find((s) => s.key === (target === "all" ? selected[0] : target)) || shots[0];
   const lead = {
-    photos: counter
-      ? `Đã chọn ${filled}/${count} ô · chạm lại ảnh để dùng thêm · chạm ô trên khung để bỏ`
-      : `Đã chọn ${filled}/${count} ô · chạm lại ảnh hoặc ô trên khung để bỏ, các ô khác giữ nguyên`,
+    photos: `Đã chọn ${filled}/${count} ô · chạm lại ảnh để dùng thêm · chạm ô trên khung để bỏ`,
     adjust: "Kéo ảnh trên khung để dời, chụm / mở hai ngón để thu nhỏ / phóng to (vẫn giữ nét)",
     color: "Chọn màu cho tất cả ảnh hoặc từng ảnh — khung và nhãn dán giữ nguyên màu",
     text: "Gõ chữ muốn thêm vào khung, chọn kiểu chữ & màu rồi bấm “Thêm chữ”",
@@ -658,8 +657,7 @@ export function KioskSelect({
                     key={shot.key}
                     shot={shot}
                     slots={slotsOf(shot.key)}
-                    disabled={busy || (full && (counter || !selected.includes(shot.key)))}
-                    repeats={counter}
+                    disabled={busy || full}
                     onPick={onPick}
                   />
                 ))}

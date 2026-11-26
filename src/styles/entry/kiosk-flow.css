@@ -740,6 +740,19 @@
   .pay-machine small.is-warn {
     color: #a36114;
   }
+  /* Khách đút dư tiền: lời nhắc ra quầy nhận tiền thừa phải đọc được từ xa. */
+  .pay-machine.is-change p {
+    max-width: 760px;
+    padding: 14px 20px;
+    border-radius: 14px;
+    background: #fdf1dc;
+    color: #6f4510;
+    font-size: 22px;
+    line-height: 1.4;
+  }
+  .pay-machine.is-change strong {
+    color: #b3402f;
+  }
   .pay-test {
     display: grid;
     justify-items: center;

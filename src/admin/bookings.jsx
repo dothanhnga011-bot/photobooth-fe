@@ -20,6 +20,11 @@ const paymentLabel = (method) => method === "cash" ? "Tiền mặt" : method ===
 // Lượt chụp phòng Selfbooth: khách trả tiền ở quầy sau khi chọn layout — nhân viên bấm "Đã thu".
 const awaitingPayment = (booking) =>
   booking.source === "selfbooth" && !booking.paid && ["checked_in", "completed"].includes(booking.status);
+// Máy nhận tiền không trả tiền thừa: khách đút dư ở máy chụp thì nhân viên thối lại ở quầy (như máy chủ tính).
+const kioskCash = (booking) => booking.source === "kiosk" && booking.paymentMethod === "cash" && booking.paid;
+const changeDue = (booking) =>
+  kioskCash(booking) ? Math.max(0, (Number(booking.cashReceived) || 0) - (Number(booking.total) || 0)) : 0;
+const owesChange = (booking) => changeDue(booking) > 0 && !booking.changeReturnedAt;
 // Đơn không có tên khách: ghi theo nơi khách trả tiền (quầy tạo mã / đút tiền ở máy chụp).
 const customerLabel = (booking) => booking.name
   || (booking.source === "kiosk" ? "Khách trả tiền mặt tại máy" : booking.source === "selfbooth" ? "Khách Selfbooth" : "Khách tại quầy");
@@ -175,7 +180,8 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
       await load();
       notify(body.status === "cancelled" ? `Đã hủy đơn #${booking.code}.`
         : body.collected ? `Đã ghi nhận thu ${money(booking.total)} (${paymentLabel(body.collected)}) cho đơn #${booking.code}.`
-          : `Đã cập nhật đơn #${booking.code}.`);
+          : body.changeReturned ? `Đã ghi nhận thối ${money(changeDue(booking))} cho đơn #${booking.code}.`
+            : `Đã cập nhật đơn #${booking.code}.`);
     } catch (updateError) { toast.error(updateError.message); }
     finally { setBusyId(""); }
   }
@@ -243,7 +249,7 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
         return <article className="order-card" key={booking._id} title={`Mã hệ thống: ${booking._id}`}>
           <div className="order-identity">
             <OrderThumb booking={booking} />
-            <div className="order-main"><div className="order-when"><time>{formatDateTime(booking.createdAt)}</time>{booking.status !== "completed" && <span className={`badge ${booking.status}`}>{labels[booking.status]}</span>}{awaitingPayment(booking) && <span className="badge unpaid">Selfbooth · chưa thu tiền</span>}</div><strong>#{booking.code} · {customerLabel(booking)}</strong><small>{booking.roomName || "Chưa chọn máy"} · {booking.packageName || "Gói chụp"}</small>
+            <div className="order-main"><div className="order-when"><time>{formatDateTime(booking.createdAt)}</time>{booking.status !== "completed" && <span className={`badge ${booking.status}`}>{labels[booking.status]}</span>}{awaitingPayment(booking) && <span className="badge unpaid">Selfbooth · chưa thu tiền</span>}{owesChange(booking) && <span className="badge unpaid">Khách đút dư {money(changeDue(booking))} · cần thối lại</span>}</div><strong>#{booking.code} · {customerLabel(booking)}</strong><small>{booking.roomName || "Chưa chọn máy"} · {booking.packageName || "Gói chụp"}</small>
               <div className="order-card-actions">{booking.accessToken && <>
                 <a className="order-album-link" href={albumUrl(booking)} target="_blank" rel="noreferrer">Link ảnh <ExternalLink size={14} /></a>
                 {canPrint && <button onClick={() => { setExtraCopies(null); setPrinting(booking); }}>In ảnh <Printer size={14} /></button>}
@@ -259,8 +265,12 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
             <div><dt>Giảm giá:</dt><dd>{money(booking.discount || 0)}</dd></div><div><dt>Tổng đơn:</dt><dd>{money(booking.total)}</dd></div></dl>}
           <dl className="order-payment"><div><dt>Thanh toán:</dt><dd>{awaitingPayment(booking) ? "Trả ở quầy" : paymentLabel(booking.paymentMethod)}</dd></div>
             {canSeeMoney && <div className={booking.paid ? "received" : "unpaid"}><dt>Thực nhận:</dt><dd>{money(booking.paid ? booking.total : 0)}</dd></div>}
+            {changeDue(booking) > 0 && <div className={booking.changeReturnedAt ? "received" : "unpaid"}><dt>Đút vào máy:</dt>
+              <dd>{money(booking.cashReceived)} · {booking.changeReturnedAt
+                ? `đã thối ${money(changeDue(booking))}${booking.changeReturnedBy ? ` (${booking.changeReturnedBy})` : ""}`
+                : `dư ${money(changeDue(booking))}`}</dd></div>}
           </dl>
-          {((booking.status === "completed" && !booking.mediaDeleted && booking.accessToken) || awaitingPayment(booking) ||
+          {((booking.status === "completed" && !booking.mediaDeleted && booking.accessToken) || awaitingPayment(booking) || owesChange(booking) ||
             (booking.status === "pending" && booking.source === "counter") ||
             (canCancel && booking.status === "confirmed")) && (
             <div className="order-more-actions">
@@ -268,6 +278,7 @@ export function BookingsManager({ notify, canSeeMoney, canExport = true, canCanc
                 <button className="order-collect" disabled={busyId === booking._id} onClick={() => update(booking, { collected: "cash" })}>Đã thu tiền mặt</button>
                 <button className="order-collect" disabled={busyId === booking._id} onClick={() => update(booking, { collected: "transfer" })}>Đã thu chuyển khoản</button>
               </>}
+              {owesChange(booking) && <button className="order-collect" disabled={busyId === booking._id} onClick={() => update(booking, { changeReturned: true })}>Đã thối {money(changeDue(booking))}</button>}
               {booking.status === "completed" && !booking.mediaDeleted && booking.accessToken && <button onClick={() => setAlbumQr(booking)}>QR ảnh</button>}
               {booking.status === "pending" && booking.source === "counter" && <button onClick={() => setCollecting(booking)}>Xác nhận đã thu</button>}
               {canCancel && booking.status === "confirmed" && <button disabled={busyId === booking._id} onClick={() => update(booking, { status: "cancelled" })}>Hủy đơn</button>}

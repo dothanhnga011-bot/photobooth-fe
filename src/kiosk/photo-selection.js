@@ -6,17 +6,12 @@ export function removePhotoSlot(selected, count, slot) {
   if (slot >= 0 && slot < count) next[slot] = null;
   return next;
 }
+// A photo may fill several slots (máy chụp và ghép ở quầy): tapping it again puts it in the next
+// empty slot. A slot is emptied only by tapping it on the frame (removePhotoSlot).
 export function addPhotoSlot(selected, count, key) {
   const next = photoSlots(selected, count);
   const slot = next.indexOf(null);
   if (slot >= 0) next[slot] = key;
-  return next;
-}
-export function togglePhotoSlot(selected, count, key) {
-  const next = photoSlots(selected, count);
-  const occupied = next.indexOf(key);
-  const slot = occupied >= 0 ? occupied : next.indexOf(null);
-  if (slot >= 0) next[slot] = occupied >= 0 ? null : key;
   return next;
 }
 // Timeout fills vacancies in place, preserving the customer's other choices.
