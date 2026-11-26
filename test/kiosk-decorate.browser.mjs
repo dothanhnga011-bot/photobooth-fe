@@ -697,6 +697,12 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       assert.equal(await guide.getByRole('link', { name: /Tải chương trình mạch Arduino/ }).getAttribute('href'), '/downloads/bill-acceptor-pulse.ino');
       assert.match(await guide.innerText(), /Không nối 12V vào Arduino/);
       assert.equal(await page.getByRole('region', { name: 'Gỡ lỗi thường gặp' }).locator('dt').count(), 7);
+      // Cài đặt nâng cao: nút "Chọn cổng" không dính sát ô chọn kiểu nối.
+      await connect.getByText('Cài đặt nâng cao (chọn kiểu nối thủ công)').click();
+      const select = await connect.getByLabel('Kiểu kết nối').boundingBox();
+      const pick = await connect.getByRole('button', { name: 'Chọn cổng (không tự nhận diện)' }).boundingBox();
+      assert.ok(pick.y - (select.y + select.height) >= 16, `the button sits ${pick.y - select.y - select.height}px under the select`);
+      await connect.screenshot({ path: join(tmpdir(), `photobooth-fe-bill-advanced-${viewport.width}.png`) });
       // Không tràn ngang trên điện thoại.
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1));
       await page.screenshot({ path: join(tmpdir(), `photobooth-fe-bill-page-${viewport.width}.png`), fullPage: true });

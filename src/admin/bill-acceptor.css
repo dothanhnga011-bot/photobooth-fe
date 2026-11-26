@@ -25,12 +25,15 @@
 
   .admin-shell .bill-advanced { margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--line); }
   .admin-shell .bill-advanced > summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
-  .admin-shell .bill-advanced[open] { display: grid; gap: 12px; }
-  .admin-shell .bill-advanced label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
-  .admin-shell .bill-advanced :is(input, select) { max-width: 420px; }
-  .admin-shell .bill-advanced .button { justify-self: start; }
-  .admin-shell .bill-advanced-row { display: flex; flex-wrap: wrap; gap: 12px; }
-  .admin-shell .bill-advanced-row input { width: 140px; }
+  /* Nội dung mở ra: các ô cách nhau rõ ràng, nút "Chọn cổng" tách hẳn khỏi ô chọn phía trên. */
+  .admin-shell .bill-advanced-body { display: grid; gap: 16px; margin-top: 14px; padding: 16px; border-radius: 12px; background: #faf6f1; }
+  .admin-shell .bill-advanced-body .bill-advanced-hint { margin: 0; }
+  .admin-shell .bill-advanced-body label { display: grid; gap: 8px; font-size: 13px; font-weight: 600; }
+  .admin-shell .bill-advanced-body :is(input, select) { width: 100%; max-width: 440px; }
+  .admin-shell .bill-advanced-row { display: flex; flex-wrap: wrap; gap: 16px; }
+  .admin-shell .bill-advanced-row label { flex: 0 1 180px; }
+  .admin-shell .bill-advanced-actions { display: flex; flex-wrap: wrap; gap: 10px; padding-top: 4px; border-top: 1px solid var(--line); }
+  .admin-shell .bill-advanced-actions .button { margin-top: 12px; }
 
   .admin-shell .bill-steps { display: grid; gap: 12px; margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.65; }
   .admin-shell .bill-steps a { color: var(--mellow-cocoa, #522e22); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }

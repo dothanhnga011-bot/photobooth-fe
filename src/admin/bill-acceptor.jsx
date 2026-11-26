@@ -205,12 +205,18 @@ export function BillAcceptorManager({ notify }) {
         <p className="bill-status" role="status">Trạng thái: {status}</p>
         <details className="bill-advanced">
           <summary><Wrench size={15} aria-hidden="true" /> Cài đặt nâng cao (chọn kiểu nối thủ công)</summary>
+          {/* Thẻ <details> không tự giãn cách các phần tử con: bọc trong một khối lưới riêng. */}
+          <div className="bill-advanced-body">
+          <p className="bill-advanced-hint">
+            Chỉ dùng khi nút “Kết nối máy nhận tiền” không tự nhận ra thiết bị: chọn kiểu nối, chỉnh thông số rồi bấm
+            “Chọn cổng”.
+          </p>
           <label>
             Kiểu kết nối
             <select value={bill.protocol} onChange={(e) => saveBill({ ...bill, protocol: e.target.value })}>
-              <option value="pulse">Xung qua Arduino Pro Micro — cổng COM</option>
-              <option value="ict">RS232 của máy ICT (cáp USB-RS232)</option>
-              <option value="keyboard">Xung qua Pro Micro giả lập bàn phím</option>
+              <option value="pulse">Mạch Arduino (xung)</option>
+              <option value="ict">Cáp USB-RS232 (máy ICT)</option>
+              <option value="keyboard">Arduino giả lập phím</option>
             </select>
           </label>
           {keyboard && (
@@ -247,16 +253,19 @@ export function BillAcceptorManager({ notify }) {
             </label>
           </>}
           {!keyboard && (
-            <Button type="button" className="outline small" disabled={!billSupported || busy}
-              onClick={() => run(async () => {
-                await billAcceptor.disconnect();
-                await billAcceptor.connect(true);
-                setSavedPort(billAcceptor.portName);
-                notify?.("Đã mở cổng theo kiểu nối đã chọn.");
-              })}>
-              Chọn cổng (không tự nhận diện)
-            </Button>
+            <div className="bill-advanced-actions">
+              <Button type="button" className="outline small" disabled={!billSupported || busy}
+                onClick={() => run(async () => {
+                  await billAcceptor.disconnect();
+                  await billAcceptor.connect(true);
+                  setSavedPort(billAcceptor.portName);
+                  notify?.("Đã mở cổng theo kiểu nối đã chọn.");
+                })}>
+                Chọn cổng (không tự nhận diện)
+              </Button>
+            </div>
           )}
+          </div>
         </details>
       </section>
 
