@@ -260,7 +260,7 @@ export function FrameEditor({ token, frame, title, slots, photos, small, photoOf
       <header className="frame-nav">
         <button type="button" className="icon-button" aria-label="Quay lại" onClick={onBack}><PiArrowLeftBold /></button>
         <strong>{title}</strong>
-        <span>{filledCount}/{slots.length} ô</span>
+        <span aria-label={`${filledCount} trên ${slots.length} ô đã có ảnh`}>{filledCount}/{slots.length} ô</span>
       </header>
       <div className="frame-workspace">
         <div className="frame-preview-panel">
@@ -282,7 +282,9 @@ export function FrameEditor({ token, frame, title, slots, photos, small, photoOf
               className={slot.photo ? "" : "is-empty"} aria-label={`Chọn ô ${i + 1}${slot.photo ? "" : " đang trống"}`}
               onClick={() => setSelected(i)}>{i + 1}</button>)}
           </div>}
-          <p className="frame-hint">Chọn ô rồi chạm ảnh bên dưới. Kéo ảnh trên khung để căn vị trí.</p>
+          <p className="frame-hint">
+            <strong>Ô {selected + 1} đang chọn.</strong> Chạm ảnh bên dưới để dùng cho ô này. Kéo ảnh trên khung để căn lại.
+          </p>
           <div className="photo-carousel" role="group" aria-label="Ảnh để ghép">
             {photos.map((p) => (
               <CarouselThumb key={p.id} token={token} photo={p} active={p.id === current.photo} count={usage(p.id)}

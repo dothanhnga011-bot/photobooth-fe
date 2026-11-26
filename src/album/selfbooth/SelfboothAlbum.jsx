@@ -28,7 +28,7 @@ import { prepareCameraImageAsync } from "../../image-processing.js";
 import { PhotoThumb, photoUrl } from "../photo-thumb.jsx";
 import { printPackUpload } from "../print-upload.js";
 import { mergeUploadedPhotos, uploadPhotos } from "../upload-photos.js";
-import { downloadEach, fetchFiles, usesShareSheet } from "../save-to-phone.js";
+import { downloadEach, fetchFiles, isIOS } from "../save-to-phone.js";
 import { createStudioMedia } from "../studio-media.js";
 import { createCanvasCache } from '../../canvas-cache.js';
 
@@ -50,6 +50,15 @@ const FIRST_GALLERY_PHOTOS = 4;
 const pad = (n) => String(n).padStart(2, "0");
 const slotsOf = (frame) => photoLayout(frame).slots;
 const capacityOf = (pack) => (pack?.frames || []).reduce((n, f) => n + slotsOf(f).length, 0);
+
+function canSharePhotos(files = [new File(["x"], "anh.jpg", { type: "image/jpeg" })]) {
+  try {
+    return typeof navigator.share === "function" && navigator.canShare?.({ files }) === true;
+  } catch {
+    return false;
+  }
+}
+
 // Ảnh của từng ô của mọi khung trong bộ: lấy lần lượt ảnh trong `pool`; repeat (tự động ghép) thì quay vòng.
 function autoLayouts(frames, pool, { repeat = false } = {}) {
   let k = 0;
@@ -119,7 +128,7 @@ function EditedThumb({ token, photo, adjust, small, suspended, alt, loading, fet
   </>;
 }
 
-function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, frozen, uploadProgress, selectedPack, downloadingId, saveProgress, readyToSave, shareSheet, onSaveAll,
+function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, frozen, uploadProgress, selectedPack, downloadingId, saveProgress, readyToSave, mobileSave, saveAvailable, saveHint, onSaveAll,
   suggestions = [], capacity = 0, suggestProgress = null, onFirstPhotosReady, onHeartMany, onFavorite, onDelete, onDownload, onEdit, onUpload, onNext }) {
   const [selecting, setSelecting] = useState(false);
   const [view, setView] = useState("all");
@@ -156,7 +165,7 @@ function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, f
   const pending = photos.filter(p => p.originalPending).length;
   const batchSuffix = batch?.remaining.length ? " của lượt này" : " còn lại";
   const saveLabel = batch?.files.length
-    ? `${batch.download ? "Tải" : "Lưu"} ${batch.files.length} ảnh${batch.total > batch.files.length ? batchSuffix : ""}`
+    ? `Lưu ${batch.files.length} ảnh${batch.total > batch.files.length ? batchSuffix : ""}`
     : batch ? "Tiếp tục lưu ảnh" : "Lưu tất cả ảnh";
   return (
     <>
@@ -166,21 +175,8 @@ function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, f
             <h2>Thư viện ảnh</h2>
             <span className="studio-photo-total">{photos.length} ảnh</span>
           </div>
-          {photos.length > 0 && <p>Chạm để chỉnh ảnh · Thả tim để ghép</p>}
+          {photos.length > 0 && <p>Chạm ảnh để chỉnh, thả tim để ghép.</p>}
         </div>
-        {photos.length > 0 && <div className="gallery-save">
-          <Button disabled={!photos.length || busy || Boolean(downloadingId) || pending > 0} onClick={onSaveAll}
-            aria-busy={downloadingId === "all"}>
-            <PiDownloadSimpleBold aria-hidden="true" /> {saveProgress || saveLabel}
-          </Button>
-          {photos.length > 0 && <small role="status" className={downloadingId === "all" ? "visually-hidden" : undefined}>
-            {downloadingId === "all" ? saveProgress
-              : pending ? `Đang nhận ${pending} ảnh gốc từ máy chụp.`
-              : batch?.download ? "Ảnh JPG sẽ vào Tệp → Tải về."
-              : batch?.files.length && batch.remaining.length ? `Còn ${batch.remaining.length} ảnh sau lượt này.`
-              : shareSheet ? "Chọn “Lưu hình ảnh” khi bảng lưu mở." : ""}
-          </small>}
-        </div>}
       </div>
       <div className="gallery-tools" role="group" aria-label="Công cụ thư viện">
         {selecting ? (
@@ -188,9 +184,10 @@ function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, f
             <PiSelectionAllBold aria-hidden="true" /> {allSelected ? "Bỏ chọn tất cả" : "Chọn tất cả"}
           </button>
         ) : <>
-          {(favorites > 0 || showFavorites) && <button type="button" aria-pressed={showFavorites}
-            onClick={() => setView(showFavorites ? "all" : "favorites")}>
-            <PiHeartBold aria-hidden="true" /> Ảnh đã thích
+          {photos.length > 0 && <button type="button" className={batch ? "is-save-ready" : undefined}
+            disabled={!saveAvailable || busy || Boolean(downloadingId) || pending > 0} onClick={onSaveAll} aria-busy={downloadingId === "all"}
+            aria-describedby="sb-gallery-save-hint">
+            <PiDownloadSimpleBold aria-hidden="true" /> {saveProgress || saveLabel}
           </button>}
           <button type="button" disabled={locked} onClick={() => input.current?.click()}>
             <PiUploadSimpleBold aria-hidden="true" /> Thêm ảnh
@@ -198,6 +195,16 @@ function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, f
           {photos.length > 0 && <button type="button" disabled={locked} onClick={() => {
             setView("all"); setSelecting(true);
           }}><PiSelectionAllBold aria-hidden="true" /> Chọn nhiều</button>}
+          {(favorites > 0 || showFavorites) && <button type="button" aria-pressed={showFavorites}
+            onClick={() => setView(showFavorites ? "all" : "favorites")}>
+            <PiHeartBold aria-hidden="true" /> Ảnh đã thích
+          </button>}
+          {photos.length > 0 && <small id="sb-gallery-save-hint" role="status" className={downloadingId === "all" ? "visually-hidden" : undefined}>
+            {downloadingId === "all" ? saveProgress
+              : pending ? `Đang nhận ${pending} ảnh gốc từ máy chụp.`
+              : batch?.files.length && batch.remaining.length ? `${saveHint} Còn ${batch.remaining.length} ảnh sau lượt này.`
+              : saveHint}
+          </small>}
         </>}
         {uploadProgress && <small role="status">Đang thêm ảnh {uploadProgress.done}/{uploadProgress.total}</small>}
       </div>
@@ -229,9 +236,12 @@ function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, f
           </div>
         </div>
       )}
-      {!shown.length && <p className="empty-state">
-        {showFavorites ? "Bạn chưa thả tim ảnh nào." : "Chưa có ảnh trong thư viện."}
-      </p>}
+      {!shown.length && <div className="empty-state">
+        <strong>{showFavorites ? "Bạn chưa thả tim ảnh nào." : "Thư viện chưa có ảnh"}</strong>
+        <p>{showFavorites ? "Về thư viện rồi chạm vào hình trái tim bên dưới ảnh bạn thích."
+          : "Ảnh từ máy chụp sẽ tự xuất hiện tại đây. Bạn cũng có thể bấm Thêm ảnh để lấy ảnh từ điện thoại."}</p>
+        {showFavorites && <Button className="outline" onClick={() => setView("all")}>Xem tất cả ảnh</Button>}
+      </div>}
       <div className={`studio-grid ${selecting ? "is-selecting" : ""}`}>
         {shown.map((p, i) => {
           const adjust = adjustOf(p.id);
@@ -239,6 +249,7 @@ function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, f
           return (
             <figure key={p.id} className={`${p.favorite ? "is-fav" : ""} ${selected.has(p.id) ? "is-picked" : ""} ${suggested.has(p.id) ? "is-suggested" : ""}`}>
               <button type="button" className="studio-photo" aria-label={selecting ? `Chọn ảnh ${number}` : `Xem & chỉnh ảnh ${number}`}
+                aria-pressed={selecting ? selected.has(p.id) : undefined}
                 onClick={() => (selecting ? toggle(p.id) : onEdit(p))}>
                 <EditedThumb photo={p} token={token} adjust={adjust} small={small} suspended={suspended} alt={`Ảnh ${number}`}
                   loading={i < FIRST_GALLERY_PHOTOS ? "eager" : "lazy"} fetchPriority={i === 0 ? "high" : undefined}
@@ -246,6 +257,7 @@ function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, f
                     settledThumbnails.current.add(p.id);
                     checkFirstPhotos();
                   } : undefined} />
+                {!selecting && <span className="photo-edit-label" aria-hidden="true"><PiSparkleFill /> Chỉnh ảnh</span>}
               </button>
               {!isNeutral(adjust) && <span className="photo-edited" title="Đã chỉnh sửa"><PiSparkleFill /></span>}
               {suggested.has(p.id) && <span className="photo-suggested" title="Gợi ý ảnh đẹp: cười tươi, rõ nét, không nhắm mắt">Gợi ý ảnh đẹp</span>}
@@ -258,9 +270,9 @@ function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, f
                 ) : (
                   <>
                     <button type="button" className={`tile-btn${readyToSave?.scope === p.id ? " is-save-ready" : ""}`}
-                      disabled={busy || Boolean(downloadingId) || p.originalPending} aria-busy={downloadingId === p.id}
-                      aria-label={readyToSave?.scope === p.id ? `Lưu ảnh ${number} đã sẵn sàng` : `Tải ảnh ${number} về máy`}
-                      title="Tải ảnh về máy" onClick={() => onDownload(p)}>
+                      disabled={!saveAvailable || busy || Boolean(downloadingId) || p.originalPending} aria-busy={downloadingId === p.id}
+                      aria-label={readyToSave?.scope === p.id ? `Lưu ảnh ${number} đã sẵn sàng` : mobileSave ? `Lưu ảnh ${number} vào thư viện` : `Tải ảnh ${number} về máy`}
+                      title={mobileSave ? "Lưu vào thư viện ảnh" : "Tải ảnh về máy"} onClick={() => onDownload(p)}>
                       {readyToSave?.scope === p.id ? <PiCheckBold /> : <PiDownloadSimpleBold />}
                     </button>
                     <button type="button" className="tile-btn tile-delete" disabled={locked} aria-label={`Xóa ảnh ${number}`}
@@ -310,7 +322,7 @@ function ThemePicker({ packs, selected, favorites, frozen, unit, onSelect, onBac
       <div className="studio-head theme-catalog-head">
         <div>
           <h2>Chọn bộ khung</h2>
-          <p>{packs.length > 1 ? "Chạm bộ bạn thích để chọn. " : ""}Mỗi khung in trên một {unit} cm.</p>
+          <p>Chọn một bộ bạn thích. Mỗi khung là một {unit} cm.</p>
         </div>
         <span className="theme-total">{packs.length} bộ khung</span>
       </div>
@@ -345,10 +357,11 @@ function ThemePicker({ packs, selected, favorites, frozen, unit, onSelect, onBac
       {!packs.length && <div className="empty-state">Studio chưa có bộ khung in {unit}. Vui lòng liên hệ lễ tân.</div>}
       <div className="studio-actions theme-action-bar">
         <Button className="outline" onClick={onBack}><PiArrowLeftBold aria-hidden="true" /> Quay lại</Button>
-        {pack && <span className="theme-action-summary" role="status">
-          <PiHeartFill aria-hidden="true" />
-          {missing ? `Còn thiếu ${missing} ảnh yêu thích, có thể ghép tự động.` : "Đủ ảnh yêu thích để ghép."}
-        </span>}
+        <span className="theme-action-summary" role="status">
+          {pack && <PiHeartFill aria-hidden="true" />}
+          {pack ? (missing ? `Còn thiếu ${missing} ảnh yêu thích. Bạn có thể ghép tự động.`
+            : "Đủ ảnh yêu thích để ghép.") : packs.length > 0 ? "Chạm vào một bộ khung để tiếp tục." : ""}
+        </span>
         <Button disabled={!pack || !capacity || frozen} onClick={onNext}>Ghép ảnh <PiArrowRightBold aria-hidden="true" /></Button>
       </div>
     </>
@@ -363,16 +376,15 @@ function ShortageDialog({ pack, required, favorites, totalPhotos, onMore, onAuto
         <button type="button" className="icon-button modal-close" aria-label="Đóng" onClick={onClose}><PiXBold /></button>
         <span className="favorite-shortage-icon" aria-hidden="true"><PiHeartDuotone /></span>
         <h2>Chưa đủ ảnh yêu thích</h2>
-        <p>Bộ “{pack.name}” có {required} ô ảnh. Bạn đã thích {favorites} ảnh.</p>
-        <p className="favorite-shortage-count">Còn thiếu {required - favorites} ảnh yêu thích ({favorites}/{required}).</p>
+        <p>Bộ “{pack.name}” có {required} ô. Bạn đã thích {favorites} ảnh.</p>
         <p>
           {totalPhotos < required
             ? `Thư viện có ${totalPhotos} ảnh cho ${required} ô. Tự động ghép sẽ dùng lại một số ảnh để lấp đầy các ô.`
-            : "Tự động ghép sẽ ưu tiên ảnh yêu thích và bổ sung từ ảnh còn lại trong thư viện."}
+            : "Ghép tự động sẽ dùng ảnh bạn thích trước và lấy thêm ảnh từ thư viện."}
         </p>
         <div className="favorite-shortage-actions">
           <Button onClick={onAutomatic} disabled={!totalPhotos}>Tự động ghép</Button>
-          <Button className="outline" onClick={onMore} autoFocus>Chọn thêm</Button>
+          <Button className="outline" onClick={onMore} autoFocus>Chọn thêm ảnh</Button>
         </div>
       </section>
     </div>
@@ -412,33 +424,38 @@ function PackEditor({ token, pack, layouts, index, photos, small, photoOf, adjus
 }
 
 // ─── 04 Kết quả: mỗi khung một tờ 20 × 30, chọn tờ muốn in ─────────────────────
-function Result({ booking, sheets, error, picked, remaining, quota, used, printing, unit, word, onToggle, onPrint, onBack, onRetry }) {
+function Result({ sheets, error, waiting, picked, remaining, quota, printing, failed, unit, word, onToggle, onPrint, onBack, onRetry }) {
+  const overQuota = picked.size > remaining;
   return (
     <>
       <div className="studio-head result-head">
         <div>
           <h2>Thành phẩm của bạn</h2>
-          <p>{error ? "Thử lại để tạo ảnh in." : sheets.length ? `Chạm vào ${word} bạn muốn in, rồi bấm Gửi in.` : "Đang tạo ảnh chất lượng cao…"}</p>
+          <p>{sheets.length && remaining > 0 ? `Chọn ${word} bạn muốn in, rồi bấm Gửi in.` : "Xem ảnh ghép trước khi gửi đến quầy."}</p>
         </div>
       </div>
-      <p className={`print-quota ${remaining ? "" : "empty"}`}>
+      <p className={`print-quota ${remaining ? "" : "empty"}`} role="status">
         <PiPrinterDuotone aria-hidden="true" />
         <span>
-          <b>{remaining ? `Còn ${remaining}/${quota} ${unit} cm` : "Đã dùng hết lượt in"}</b>
-          <small>Vé #{booking.code} · Đã gửi {used} {word}{!remaining && " · Mua thêm lượt tại quầy"}</small>
+          <b>{remaining ? `Vé còn ${remaining}/${quota} ${unit} cm` : "Vé đã dùng hết số tờ in"}</b>
+          <small>{!remaining ? "Bạn có thể mua thêm tờ in tại quầy."
+            : overQuota ? `Bỏ chọn ${picked.size - remaining} ${word} để gửi in.` : `Đã chọn ${picked.size} ${word}`}</small>
         </span>
       </p>
       {error && (
         <div className="error-box" role="alert">
-          {error} <button type="button" className="text-link" onClick={onRetry}>Thử lại</button>
+          <p>{error}</p>
+          <Button className="outline" onClick={onRetry}>Thử lại</Button>
         </div>
       )}
-      {!sheets.length && !error && <p className="center muted" role="status">Đang ghép ảnh vào khung…</p>}
+      {!sheets.length && !error && <p className="empty-state" role="status">
+        {waiting ? "Ảnh gốc đang tải lên. Bản in sẽ tự xuất hiện khi ảnh đã sẵn sàng." : "Đang chuẩn bị ảnh in chất lượng cao…"}
+      </p>}
       <div className="sheet-strip">
         {sheets.map((s, i) => (
           <figure key={s.frameId} className={picked.has(i) ? "is-picked" : "is-skipped"}>
             <button type="button" aria-pressed={picked.has(i)} aria-label={`Tấm in ${i + 1}: ${s.name}`}
-              disabled={printing || (!remaining && !picked.has(i))} onClick={() => onToggle(i)}>
+              disabled={printing || failed || (!remaining && !picked.has(i))} onClick={() => onToggle(i)}>
               <img src={s.preview} alt={`Tấm in ${i + 1}`} />
               <span className="sheet-pick">{picked.has(i) ? <><PiCheckBold aria-hidden="true" /> Đã chọn</> : remaining ? "Chọn để in" : "Xem trước"}</span>
             </button>
@@ -448,7 +465,7 @@ function Result({ booking, sheets, error, picked, remaining, quota, used, printi
       </div>
       <div className="studio-actions">
         <Button className="outline" disabled={printing} onClick={onBack}><PiArrowLeftBold aria-hidden="true" /> Sửa khung</Button>
-        <Button disabled={printing || !picked.size || !sheets.length} onClick={onPrint}>
+        <Button disabled={printing || failed || overQuota || !picked.size || !sheets.length} onClick={onPrint}>
           <PiPrinterBold aria-hidden="true" /> {printing ? "Đang gửi in…" : `Gửi in (${picked.size} ${word})`}
         </Button>
       </div>
@@ -492,7 +509,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
   const quota = Math.max(1, Number(booking.prints) || 1);
   const used = Number(booking.printSheets) || 0;
   const [result, setResult] = useState(null);
-  const submitted = result ? Math.max(used, result.usedBefore + (result.count || 0)) : used;
+  const submitted = result ? Math.max(used, result.printSheets) : used;
   const remaining = Math.max(0, quota - submitted);
   const [editing, setEditing] = useState(null);
   const [firstPhotosReady, setFirstPhotosReady] = useState(false);
@@ -502,7 +519,18 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
   const [downloadingId, setDownloadingId] = useState(null);
   const [saveProgress, setSaveProgress] = useState("");
   const [readyToSave, setReadyToSave] = useState(null);
-  const [shareSheet] = useState(usesShareSheet);
+  const [savePlatform] = useState(() => {
+    if (isIOS()) return "ios";
+    const android = /Android/i.test(navigator.userAgent) || navigator.userAgentData?.platform === "Android";
+    return android ? "android" : "desktop";
+  });
+  const mobileSave = savePlatform !== "desktop";
+  const [saveAvailable] = useState(() => !mobileSave || canSharePhotos());
+  const saveBrowser = savePlatform === "ios" ? "Safari" : "Chrome";
+  const saveHint = !mobileSave ? ""
+    : !saveAvailable ? `Mở liên kết album trong ${saveBrowser} để lưu vào thư viện ảnh.`
+    : savePlatform === "ios" ? "Chọn “Lưu hình ảnh” trong bảng chia sẻ để lưu vào ứng dụng Ảnh."
+    : "Chọn ứng dụng Thư viện ảnh trong bảng chia sẻ nếu điện thoại có tùy chọn này.";
   const savingPhotos = useRef(false);
   const [printing, setPrinting] = useState(false);
   const step = saved.step;
@@ -514,6 +542,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
   });
   const suggested = useMemo(() => new Set(suggestedIds), [suggestedIds]);
   const [error, setError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
   const mutating = useRef(false);
   const bookingRef = useRef(booking);
   bookingRef.current = booking;
@@ -631,9 +660,10 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
       count++;
     }
     let files = prepared.slice(0, count);
-    while (files.length > 1 && !navigator.canShare({ files })) files = files.slice(0, -1);
+    while (files.length > 1 && !canSharePhotos(files)) files = files.slice(0, -1);
+    if (!canSharePhotos(files)) throw new Error("Điện thoại chưa hỗ trợ lưu các ảnh này từ trình duyệt.");
     for (const entry of entries.slice(0, files.length)) cache.delete(entry.url);
-    return { scope, files, total, cache, remaining: entries.slice(files.length), download: !navigator.canShare({ files }) };
+    return { scope, files, total, cache, remaining: entries.slice(files.length) };
   }
   async function downloadFiles(files) {
     const entries = files.map(file => ({ url: URL.createObjectURL(file), name: file.name }));
@@ -642,19 +672,14 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
   }
   async function shareBatch(batch, fromPreparation = false) {
     setReadyToSave(batch);
-    const { scope, files, remaining, total, cache, download } = batch;
-    // Safari lets a quick fetch use the tap that started it. After a slow fetch,
+    const { scope, files, remaining, total, cache } = batch;
+    // The browser lets a quick fetch use the tap that started it. After a slow fetch,
     // keep the prepared bytes and let the same button open the system sheet.
-    if (fromPreparation && (download || navigator.userActivation?.isActive === false)) return;
-    if (download) await downloadFiles(files);
-    else {
-      try { await navigator.share({ files }); }
-      catch (e) {
-        if (e.name === "AbortError" || (fromPreparation && e.name === "NotAllowedError")) return;
-        setReadyToSave({ ...batch, download: true });
-        toast.info("Có thể tải các ảnh này vào thư mục Tải về.");
-        return;
-      }
+    if (fromPreparation && navigator.userActivation?.isActive === false) return;
+    try { await navigator.share({ files }); }
+    catch (e) {
+      if (e.name === "AbortError" || (fromPreparation && e.name === "NotAllowedError")) return;
+      throw new Error(`Chưa mở được bảng chia sẻ. Hãy thử lại trong ${saveBrowser}.`);
     }
     setReadyToSave(remaining.length ? { scope, files: [], remaining, total, cache } : null);
     if (remaining.length) setReadyToSave(await prepareShare(scope, remaining, total, cache));
@@ -666,17 +691,17 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
     });
   }
   function downloadAll() {
-    if (!photos.length || photos.some(photo => photo.originalPending)) return;
+    if (!saveAvailable || !photos.length || photos.some(photo => photo.originalPending)) return;
     if (readyToSave?.scope === "all") return resumeSave(readyToSave);
     return savePhotos("all", async () => {
       const entries = photos.map(photoEntry);
       setReadyToSave(null);
-      if (shareSheet) await shareBatch(await prepareShare("all", entries), true);
+      if (mobileSave) await shareBatch(await prepareShare("all", entries), true);
       else await downloadEach(entries);
     });
   }
   function downloadOne(photo, { inEditor = false } = {}) {
-    if (photo.originalPending) return;
+    if (!saveAvailable || photo.originalPending) return;
     const adjust = adjustOf(photo.id);
     const scope = inEditor ? `edit:${photo.id}:${JSON.stringify(adjust)}` : photo.id;
     if (readyToSave?.scope === scope) return resumeSave(readyToSave);
@@ -684,7 +709,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
       setReadyToSave(null);
       const entry = photoEntry(photo);
       if (isNeutral(adjust)) {
-        if (shareSheet) await shareBatch(await prepareShare(scope, [entry]), true);
+        if (mobileSave) await shareBatch(await prepareShare(scope, [entry]), true);
         else await downloadEach([entry]);
       } else {
         // Render the guest JPEG from camera pixels, at up to 20MP, independently
@@ -694,18 +719,31 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
         try { blob = await new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("máy không đủ bộ nhớ"))), "image/jpeg", 0.95)); }
         finally { canvas.width = canvas.height = 0; }
         const file = new File([blob], entry.name, { type: entry.type });
-        if (shareSheet) await shareBatch({ scope, files: [file], remaining: [], total: 1, download: !navigator.canShare({ files: [file] }) }, true);
+        if (mobileSave) await shareBatch({ scope, files: [file], remaining: [], total: 1 }, true);
         else await downloadFiles([file]);
       }
     });
   }
 
   // ── Chủ đề & ghép ảnh ──
+  const stepNav = useRef(null);
+  const lastStep = useRef(step);
+  useEffect(() => {
+    if (lastStep.current === step) return;
+    lastStep.current = step;
+    window.scrollTo({ top: 0 });
+    stepNav.current?.querySelector('[aria-current="step"]')?.focus({ preventScroll: true });
+  }, [step]);
   const go = (step) => {
     setError("");
     save(step === 1 && !pack && packs.length === 1 ? { step, packId: packs[0].id } : { step });
-    window.scrollTo?.({ top: 0, behavior: "smooth" });
   };
+  async function refreshAlbum() {
+    if (refreshing) return;
+    setRefreshing(true);
+    try { await reload?.(); }
+    finally { setRefreshing(false); }
+  }
   function choosePack(id) {
     if (frozen) return;
     for (const frame of packs.find((p) => p.id === id)?.frames || []) loadFrameImage(frame.image).catch(() => {});
@@ -743,6 +781,9 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
   const [picked, setPicked] = useState(() => new Set());
   const [renderTurn, setRenderTurn] = useState(0);
   const sheetKey = JSON.stringify([saved.packId, saved.layouts, saved.adjusts]);
+  const pendingPhotoIds = new Set(photos.filter((photo) => photo.originalPending).map((photo) => photo.id));
+  const waitingForOriginals = filled && pack.frames.some((frame) =>
+    saved.layouts[frame._id].some(({ photo }) => pendingPhotoIds.has(photo)));
   async function renderSheets(p, layouts, isLive = () => true) {
     const out = [];
     for (const frame of p.frames) {
@@ -772,16 +813,23 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
     let live = true;
     setSheets([]);
     setSheetError("");
+    if (waitingForOriginals) {
+      setPicked(new Set());
+      return;
+    }
     renderSheets(pack, saved.layouts, () => live).then((list) => {
       if (!live || !list) return;
       setSheets(list);
       setPicked(new Set(list.slice(0, remaining).map((_, i) => i)));
     }, (e) => live && setSheetError(e.message));
     return () => { live = false; };
-  }, [saved.step, sheetKey, filled, renderTurn, result]);
+  }, [saved.step, sheetKey, filled, renderTurn, result, waitingForOriginals]);
   function togglePick(i) {
     if (printing) return;
-    if (picked.has(i)) return setPicked((old) => new Set([...old].filter((k) => k !== i)));
+    if (picked.has(i)) {
+      setError("");
+      return setPicked((old) => new Set([...old].filter((k) => k !== i)));
+    }
     if (picked.size >= remaining)
       return toast.warning(remaining ? `Vé của bạn còn ${remaining} ${word} in — bỏ chọn một ${word} khác trước.` : `Vé đã dùng hết ${word} in.`);
     setPicked((old) => new Set(old).add(i));
@@ -793,23 +841,31 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
   const printLock = useRef(false);
   const prepared = useRef(null);
   const [failed, setFailed] = useState(false);
-  function confirmPrint() {
-    setResult({ usedBefore: used, ...prepared.current?.done });
+  function applyPrintQuota({ prints, printSheets }) {
+    if (!Number.isFinite(prints) || !Number.isFinite(printSheets)) return;
+    setBooking((current) => ({ ...current, prints, printSheets }));
+  }
+  function confirmPrint(job) {
+    const done = prepared.current?.done;
+    setResult({ previews: done?.previews, printSheets: job.printSheets ?? (used + (done?.count || 0)) });
+    applyPrintQuota(job);
     save({ step: 3 });
     prepared.current = null;
     reload?.();
   }
   async function print() {
-    if (printLock.current || result || !remaining) return;
+    if (printLock.current || result || (!remaining && !prepared.current)) return;
     printLock.current = true;
     setPrinting(true);
     setError("");
     setFailed(false);
     try {
       const lookup = () => api(`/albums/${token}/print?requestKey=${saved.requestKey}`, { allowNull: true });
-      if (await lookup()) { confirmPrint(); return; }
+      const existing = await lookup();
+      if (existing) { confirmPrint(existing); return; }
       if (!prepared.current) {
-        const chosen = [...picked].sort((a, b) => a - b).filter((i) => sheets[i]).slice(0, remaining);
+        if (picked.size > remaining) throw new Error(`Vé chỉ còn ${remaining} ${word}. Hãy bỏ chọn bớt trước khi gửi in.`);
+        const chosen = [...picked].sort((a, b) => a - b).filter((i) => sheets[i]);
         if (!chosen.length) throw new Error(`Chọn ít nhất 1 ${word} để in.`);
         prepared.current = {
           options: printPackUpload({
@@ -818,14 +874,17 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
           done: { count: chosen.length, previews: chosen.map((i) => sheets[i].preview) },
         };
       }
-      await api(`/albums/${token}/print-pack`, prepared.current.options);
-      confirmPrint();
+      confirmPrint(await api(`/albums/${token}/print-pack`, prepared.current.options));
     } catch (e) {
       // Mã 409 có thể là lệnh in trước đã tới (mất phản hồi): chỉ lệnh in đã lưu mới chứng minh điều đó.
       const previous = e.status === 409 && await api(`/albums/${token}/print?requestKey=${saved.requestKey}`, { allowNull: true }).catch(() => null);
-      if (previous) confirmPrint();
+      if (previous) confirmPrint(previous);
       else {
-        if (e.status === 400) prepared.current = null;
+        if (e.status === 409 && e.data?.code === "PRINT_QUOTA") {
+          prepared.current = null;
+          applyPrintQuota(e.data);
+          reload?.();
+        } else if (e.status === 400) prepared.current = null;
         setError(e.message || "Chưa gửi in được — thử lại nhé.");
         setFailed(Boolean(prepared.current));
       }
@@ -834,9 +893,9 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
       setPrinting(false);
     }
   }
-  const pendingOriginals = photos.filter((p) => p.originalPending).length;
+  const pendingOriginals = pendingPhotoIds.size;
 
-  const canOpen = (i) => i <= 1 || (i === 2 && ready) || (i === 3 && filled);
+  const canOpen = (i) => i === 0 || (i === 1 && photos.length > 0) || (i === 2 && ready) || (i === 3 && filled);
   const expires = formatDateTime(booking.mediaExpiresAt);
   const editPhoto = editing && photoOf(editing);
   return (
@@ -844,34 +903,34 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
       <div className="studio-meta">
         <div className="studio-meta-heading">
           <h1 className="studio-album-title">Ảnh <em>của bạn</em></h1>
-          <Button className="outline small studio-album-refresh" disabled={busy} onClick={() => reload?.()}>
-            <RefreshCw aria-hidden="true" /> Làm mới
+          <Button className="outline small studio-album-refresh" disabled={busy || refreshing} aria-busy={refreshing} onClick={refreshAlbum}>
+            <RefreshCw aria-hidden="true" /> {refreshing ? "Đang làm mới…" : "Làm mới"}
           </Button>
         </div>
         <p className="studio-album-facts">
           <span><PiTicketBold aria-hidden="true" /> Vé <strong>#{booking.code}</strong></span>
           <span>{expires ? <>Ảnh đầu tiên hết hạn lúc <strong>{expires}</strong></> : "Ảnh được lưu 3 ngày"}</span>
         </p>
-        {pendingOriginals > 0 && step !== 0 && !showReceipt && (
-          <p className="sb-timer" role="status">
+        {pendingOriginals > 0 && (step === 1 || step === 2) && (
+          <p className="studio-originals-note" role="status">
             Đang nhận {pendingOriginals} ảnh gốc để in.
           </p>
         )}
       </div>
-      <nav className="studio-steps" aria-label="Các bước">
+      <nav className="studio-steps" ref={stepNav} aria-label="Các bước làm ảnh">
         {STEPS.map(([label, Icon], i) => (
           <button key={label} type="button" className={i === step ? "active" : i < step ? "done" : ""}
-            aria-current={i === step ? "step" : undefined} disabled={frozen || !canOpen(i)}
-            onClick={() => (i === 2 && step < 2 ? toCompose() : go(i))}>
+            aria-current={i === step ? "step" : undefined} disabled={(frozen || !canOpen(i)) && i !== step}
+            onClick={() => { if (i !== step) go(i); }}>
             <span aria-hidden="true">{i < step ? <PiCheckBold /> : <Icon />}</span>
             {label}
           </button>
         ))}
       </nav>
       <ErrorBox error={error} />
-      {failed && !printing && !result && (
+      {failed && step === 3 && !printing && !result && (
         <div className="print-retry" role="alert">
-          <p>Chưa xác nhận được yêu cầu in. Bấm để kiểm tra lại — nếu máy in đã nhận thì không in thêm lần nữa.</p>
+          <p>Chưa có xác nhận từ quầy. Bấm để kiểm tra yêu cầu vừa gửi.</p>
           <Button className="outline" onClick={() => print()}>Kiểm tra và thử lại</Button>
         </div>
       )}
@@ -904,7 +963,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
         <Gallery token={token} photos={newestFirst} favorites={favorites.length} adjustOf={adjustOf} small={small} suspended={Boolean(editing)} busy={busy} frozen={frozen}
           uploadProgress={uploadProgress} selectedPack={pack} downloadingId={downloadingId} onFavorite={toggleHeart}
           saveProgress={downloadingId === "all" ? (saveProgress || "Đang tải ảnh…") : ""}
-          readyToSave={readyToSave} shareSheet={shareSheet} onSaveAll={downloadAll}
+          readyToSave={readyToSave} mobileSave={mobileSave} saveAvailable={saveAvailable} saveHint={saveHint} onSaveAll={downloadAll}
           onFirstPhotosReady={() => setFirstPhotosReady(true)}
           suggestions={suggestedIds} capacity={pack ? required : 0} suggestProgress={suggestProgress} onHeartMany={heartMany}
           onDelete={removePhotos} onDownload={downloadOne} onEdit={(p) => setEditing(p.id)} onUpload={upload}
@@ -919,8 +978,8 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
           onSlots={(frameId, slots) => save((v) => ({ layouts: { ...v.layouts, [frameId]: slots } }))}
           onReshuffle={reshuffle} onBack={() => go(1)} onNext={() => go(3)} />
       ) : step === 3 && filled ? (
-        <Result booking={booking} sheets={sheets} error={sheetError} picked={picked} remaining={remaining} quota={quota}
-          used={used} printing={printing} unit={unit} word={word} onToggle={togglePick} onPrint={() => print()} onBack={() => go(2)}
+        <Result sheets={sheets} error={sheetError} waiting={waitingForOriginals} picked={picked} remaining={remaining} quota={quota}
+          printing={printing} failed={failed} unit={unit} word={word} onToggle={togglePick} onPrint={() => print()} onBack={() => go(2)}
           onRetry={() => setRenderTurn((n) => n + 1)} />
       ) : null}
       {shortage && pack && (
@@ -930,9 +989,8 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
       {editPhoto && (
         <BeautyEditor token={token} media={media} photo={editPhoto} photos={newestFirst} adjust={saved.adjusts[editPhoto.id]} disabled={frozen}
           onChange={(adjust) => save((v) => ({ adjusts: { ...v.adjusts, [editPhoto.id]: adjust } }))}
-          onNavigate={setEditing} onDownload={photo => downloadOne(photo, { inEditor: true })} downloading={Boolean(downloadingId)}
-          downloadLabel={readyToSave?.scope === `edit:${editPhoto.id}:${JSON.stringify(adjustOf(editPhoto.id))}`
-            ? readyToSave.download ? "Tải JPG" : "Lưu vào Ảnh" : undefined}
+          onNavigate={setEditing} onDownload={saveAvailable ? photo => downloadOne(photo, { inEditor: true }) : undefined}
+          downloading={Boolean(downloadingId)} downloadLabel={mobileSave ? "Lưu vào thư viện" : undefined}
           onApplyAll={(adjust) => {
             if (frozen) return;
             save((v) => ({ adjusts: { ...v.adjusts, ...Object.fromEntries(photos.map(p => [p.id, { ...adjust }])) } }));

@@ -31,8 +31,7 @@ const albumSignature = (b) => [
   b.mediaDeleted ? 1 : 0,
 ].join("|");
 
-// Trang khách mở bằng mã QR trên máy chụp: xem và tải ảnh đã ghép khung, video và ảnh gốc. Chọn ảnh,
-// ghép khung và in đều làm xong ở máy chụp nên album không còn phần chỉnh / ghép ảnh.
+// Khách mở album bằng mã QR trên máy chụp. Album Selfbooth có thêm luồng ghép ảnh và gửi in.
 export function AlbumPage() {
   const { token } = useParams();
   return <AlbumSession key={token} token={token} />;
@@ -116,10 +115,22 @@ function AlbumSession({ token }) {
   // Phòng Selfbooth (tờ 20 × 30 máy DS820, có tờ in): khách chọn ảnh, làm đẹp, ghép khung và gửi in ngay trên điện thoại.
   const studio = ready && isSelfboothSize(booking.printSize) && Number(booking.prints) > 0;
   const expires = formatDateTime(booking?.mediaExpiresAt);
+  async function refreshAlbum() {
+    setRefreshing(true);
+    try { await reload(); }
+    finally { setRefreshing(false); }
+  }
   return (
     <section className={`page ${ready ? "studio-page" : "narrow"}`}>
       <ErrorBox error={error} />
-      {!booking && error && <StudioContact />}
+      {!booking && error && (
+        <>
+          <StudioContact />
+          <Button className="outline" disabled={refreshing} aria-busy={refreshing} onClick={refreshAlbum}>
+            <RefreshCw aria-hidden="true" /> {refreshing ? "Đang mở lại…" : "Thử mở lại album"}
+          </Button>
+        </>
+      )}
       {!booking && !error && (
         <div className="center" role="status">
           <p>Đang mở album…</p>
@@ -158,11 +169,7 @@ function AlbumSession({ token }) {
                 className="outline small studio-album-refresh"
                 disabled={refreshing}
                 aria-busy={refreshing}
-                onClick={async () => {
-                  setRefreshing(true);
-                  await reload();
-                  setRefreshing(false);
-                }}
+                onClick={refreshAlbum}
               >
                 <RefreshCw aria-hidden="true" />{" "}
                 {refreshing ? "Đang làm mới…" : "Làm mới ảnh"}
@@ -211,8 +218,13 @@ function AlbumSession({ token }) {
                   ? "Ảnh đã hết hạn lưu trữ (mỗi ảnh lưu 3 ngày kể từ lúc chụp)."
                   : booking.status === "cancelled"
                     ? "Vé đã được hủy. Vui lòng liên hệ lễ tân nếu cần hỗ trợ."
-                    : `Vào phòng chụp và nhập mã này trên máy. Ảnh sẽ hiện tại đây ngay khi bạn chụp xong. Vé gồm ${booking.prints ?? 1} tờ in 10 × 15 cm.`}
+                    : booking.status === "checked_in"
+                      ? "Ảnh sẽ tự xuất hiện tại đây khi bạn chụp xong."
+                      : "Nhập mã vé trên màn hình trong phòng chụp để bắt đầu."}
               </p>
+              {!booking.mediaDeleted && !["completed", "cancelled"].includes(booking.status) && (
+                <p>Vé gồm {booking.prints ?? 1} tờ in {isSelfboothSize(booking.printSize) ? "20 × 30" : "10 × 15"} cm.</p>
+              )}
               {!["completed", "cancelled"].includes(booking.status) && (
                 <Button
                   className="outline small"

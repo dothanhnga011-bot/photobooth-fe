@@ -153,9 +153,11 @@ after(async () => { await browser?.close(); await new Promise((resolve) => serve
 
 async function phone({ faces = null, hashes = null, originalPending = false, photoCount = 4, printError = null, lostReply = false,
   viewport = { width: 390, height: 844 }, realPhoto = false, prints: quota = 1, desktop = false, size = "large", ios = false,
-  holdThumbnail, restoreStep, tallFrame = false, expiredShareTap = false, maxShareFiles = null } = {}) {
+  android = false, shareUnavailable = false, shareError = null,
+  holdThumbnail, restoreStep, tallFrame = false, expiredShareTap = false, maxShareFiles = null, quotaConflictUsed = null } = {}) {
   const page = await browser.newPage(desktop ? { viewport } : { viewport, isMobile: true, hasTouch: true,
-    ...(ios && { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1" }) });
+    ...(ios && { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1" }),
+    ...(android && { userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36" }) });
   const errors = [], prints = [], mediaRequests = [], deletes = [], uploads = [], asked = [], downloads = [];
   let releaseThumbnail;
   const thumbnailGate = new Promise(resolve => { releaseThumbnail = resolve; });
@@ -202,6 +204,14 @@ async function phone({ faces = null, hashes = null, originalPending = false, pho
       prints.push({ sizes: headers["x-print-sheets"], frame: decodeURIComponent(headers["x-print-frame"]), key: headers["x-print-key"],
         body: route.request().postDataBuffer() });
       if(printError && !failedOnce){failedOnce=true;return route.fulfill({status:409,json:{message:printError}})}
+      if (quotaConflictUsed !== null && !failedOnce) {
+        failedOnce = true;
+        booking.printSheets = quotaConflictUsed;
+        return route.fulfill({ status: 409, json: {
+          code: "PRINT_QUOTA", message: "Vé còn 1 tờ in. Hãy bỏ chọn bớt.",
+          prints: booking.prints, printSheets: booking.printSheets,
+        } });
+      }
       const sheets = (headers["x-print-sheets"] || "").split(",").length;
       booking.printSheets += sheets;
       savedJob={_id:'job',status:'pending',printSheets:booking.printSheets};
@@ -216,20 +226,22 @@ async function phone({ faces = null, hashes = null, originalPending = false, pho
   if (restoreStep !== undefined) await page.addInitScript(step => {
     localStorage.setItem("selfbooth-album-v2-fixture-album", JSON.stringify({ step }));
   }, restoreStep);
-  if (ios) await page.addInitScript(({ expiredShareTap, maxShareFiles }) => {
+  if (ios || android) await page.addInitScript(({ expiredShareTap, maxShareFiles, shareUnavailable, shareError }) => {
     window.sharedBatches = [];
     window.allowShare = !expiredShareTap;
+    window.shareError = shareError;
     const activation = navigator.userActivation;
     Object.defineProperty(navigator, "userActivation", { value: {
       get isActive() { return window.allowShare && activation.isActive; },
     } });
-    navigator.canShare = ({ files }) => (maxShareFiles === null || files.length <= maxShareFiles)
+    navigator.canShare = ({ files }) => !shareUnavailable && (maxShareFiles === null || files.length <= maxShareFiles)
       && files.every(f => f.type === "image/jpeg");
     navigator.share = async ({ files }) => {
       if (!navigator.userActivation.isActive) throw new DOMException("Gesture needed", "NotAllowedError");
+      if (window.shareError) throw new DOMException("Unable to open the share sheet", window.shareError);
       window.sharedBatches.push(files.map(f => f.name));
     };
-  }, { expiredShareTap, maxShareFiles });
+  }, { expiredShareTap, maxShareFiles, shareUnavailable, shareError });
   await page.goto(`${base}/album/fixture-album${tallFrame ? "?tall-frame" : ""}`);
   return { page, errors, prints, mediaRequests, deletes, uploads, booking, asked, downloads, releaseThumbnail,
     originalsReady:()=>{booking.photos.forEach(p=>delete p.originalPending)} };
@@ -274,8 +286,8 @@ const tap = async (page, label, fx, fy) => {
   await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
 };
 
-test("Selfbooth phone downloads individual JPEG files without a ZIP request", async () => {
-  const { page, asked, errors } = await phone({ photoCount: 2, realPhoto: true });
+test("Selfbooth desktop downloads individual JPEG files without a ZIP request", async () => {
+  const { page, asked, errors } = await phone({ photoCount: 2, realPhoto: true, desktop: true });
   try {
     const files = [];
     page.on("download", file => files.push(file.suggestedFilename()));
@@ -290,6 +302,7 @@ test("Selfbooth phone downloads individual JPEG files without a ZIP request", as
 test("iPhone-style saving shares every JPEG in one batch even above the old 50-photo limit", async () => {
   const { page, asked, downloads, errors } = await phone({ ios: true, photoCount: 55, realPhoto: true });
   try {
+    await page.getByText(/Chọn “Lưu hình ảnh”/).waitFor();
     await page.getByRole("button", { name: "Lưu tất cả ảnh" }).click();
     await page.waitForFunction(() => window.sharedBatches.length === 1);
     await page.getByRole("button", { name: "Lưu tất cả ảnh", exact: true }).waitFor();
@@ -299,6 +312,51 @@ test("iPhone-style saving shares every JPEG in one batch even above the old 50-p
     assert.equal(downloads.length, 55);
     assert.ok(batches.flat().every(name => name.endsWith(".jpg")));
     assert.equal(asked.some(path => path.endsWith("/download")), false);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("Android opens the native share sheet without downloading to the Files app", async () => {
+  const { page, errors } = await phone({ android: true, photoCount: 2 });
+  try {
+    const downloads = [];
+    page.on("download", file => downloads.push(file.suggestedFilename()));
+    await page.getByText(/Chọn ứng dụng Thư viện ảnh/).waitFor();
+    await page.getByRole("button", { name: "Lưu tất cả ảnh" }).click();
+    await page.waitForFunction(() => window.sharedBatches.length === 1);
+    assert.deepEqual(await page.evaluate(() => window.sharedBatches[0]), ["anh-01.jpg", "anh-02.jpg"]);
+    assert.deepEqual(downloads, []);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("a mobile browser without file sharing is directed to Safari", async () => {
+  const { page, downloads, errors } = await phone({ ios: true, shareUnavailable: true });
+  try {
+    await page.getByText(/Mở liên kết album trong Safari/).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Lưu tất cả ảnh" }).isDisabled(), true);
+    assert.equal(await page.getByRole("button", { name: "Lưu ảnh 01 vào thư viện" }).isDisabled(), true);
+    assert.deepEqual(downloads, []);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("a mobile share error keeps the prepared photos and never falls back to file downloads", async () => {
+  const { page, downloads, errors } = await phone({ ios: true, photoCount: 2, shareError: "DataError" });
+  try {
+    const fileDownloads = [];
+    page.on("download", file => fileDownloads.push(file.suggestedFilename()));
+    await page.getByRole("button", { name: "Lưu tất cả ảnh" }).click();
+    await page.getByText(/Chưa mở được bảng chia sẻ/).waitFor();
+    const retry = page.getByRole("button", { name: "Lưu 2 ảnh", exact: true });
+    await retry.click();
+    await page.getByText(/Chưa mở được bảng chia sẻ/).first().waitFor();
+    await page.evaluate(() => { window.shareError = null; });
+    await retry.click();
+    await page.waitForFunction(() => window.sharedBatches.length === 1);
+    assert.deepEqual(await page.evaluate(() => window.sharedBatches[0]), ["anh-01.jpg", "anh-02.jpg"]);
+    assert.equal(downloads.length, 2, "the retry reuses the already prepared JPEGs");
+    assert.deepEqual(fileDownloads, []);
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });
@@ -417,6 +475,7 @@ test("Selfbooth from the gallery to print and back, one 20 × 30 sheet per frame
     await page.getByRole("button", { name: "Chọn khung in", exact: true }).click();
     await page.getByRole("heading", { name: "Chọn bộ khung" }).waitFor();
     assert.equal((await step(page)).trim(), "Chọn khung");
+    await page.waitForFunction(() => document.activeElement?.getAttribute("aria-current") === "step");
     await page.getByText("2 bộ khung").waitFor();
     await page.getByRole("button", { name: "Chọn bộ Hoa, 2 khung, 4 ô ảnh" }).click();
     await page.getByText(/Còn thiếu 1 ảnh yêu thích/).waitFor();
@@ -584,7 +643,6 @@ test("the finished sheet waits for camera originals instead of printing previews
     assert.equal(mediaRequests.includes("print"), false);
     originalsReady();
     await page.getByRole("button", { name: /Làm mới/ }).click();
-    await page.getByRole("button", { name: "Thử lại", exact: true }).click();
     await page.getByRole("button", { name: "Gửi in (1 tờ)" }).click();
     await page.getByRole("heading", { name: "Đã gửi in!" }).waitFor({ timeout: 30000 });
     assert.equal(prints.length, 1);
@@ -618,6 +676,28 @@ test("a lost print reply is recovered by looking up the job, without sending a s
     await page.getByRole("button", { name: "Kiểm tra và thử lại" }).click();
     await page.getByRole("heading", { name: "Đã gửi in!" }).waitFor();
     assert.equal(prints.length, 1);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("a changed print quota tells the guest how many sheets to deselect", async () => {
+  const { page, prints, errors } = await phone({ prints: 2, quotaConflictUsed: 1 });
+  try {
+    for (const n of ["04", "03", "02", "01"]) await page.getByRole("button", { name: `Thả tim ảnh ${n}` }).click();
+    await page.getByRole("button", { name: "Chọn khung in", exact: true }).click();
+    await page.getByRole("button", { name: "Chọn bộ Hoa, 2 khung, 4 ô ảnh" }).click();
+    await page.locator(".theme-action-bar").getByRole("button", { name: "Ghép ảnh" }).click();
+    await page.getByRole("button", { name: /Xem bản in/ }).click();
+    const sendBoth = page.getByRole("button", { name: "Gửi in (2 tờ)" });
+    await sendBoth.click();
+    await page.getByText("Bỏ chọn 1 tờ để gửi in.").waitFor();
+    assert.equal(await sendBoth.isDisabled(), true);
+    assert.equal(await page.getByRole("button", { name: "Kiểm tra và thử lại" }).count(), 0);
+    await page.getByRole("button", { name: "Tấm in 2: Hồng" }).click();
+    await page.getByRole("button", { name: "Gửi in (1 tờ)" }).click();
+    await page.getByRole("heading", { name: "Đã gửi in!" }).waitFor();
+    assert.equal(prints.length, 2);
+    assert.equal(sheetsOf(prints[1]).length, 1);
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });
@@ -731,6 +811,10 @@ test("the album fits phones (390, 320) and a desktop like the Selfbooth album; t
       await page.evaluate(() => document.fonts.ready);
       await page.waitForFunction(() => [...document.querySelectorAll(".studio-grid img")].every((img) => img.complete && img.naturalWidth > 0));
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "page fits the viewport");
+      for (const button of await page.locator(".studio-grid figure").first().locator(".tile-btn").all()) {
+        const target = await button.boundingBox();
+        assert.ok(target.width >= 44 && target.height >= 44, "photo tools have touch-sized targets");
+      }
       const bar = await page.locator(".gallery-bar").boundingBox();
       assert.ok(bar.y + bar.height <= viewport.height + 1, "the bottom bar stays on screen");
       await page.screenshot({ path: resolve(folder, `album-photos-${viewport.width}.png`), fullPage: !desktop });
