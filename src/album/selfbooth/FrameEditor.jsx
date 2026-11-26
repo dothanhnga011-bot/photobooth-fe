@@ -95,7 +95,7 @@ export function FrameEditor({ token, frame, title, slots, photos, small, photoOf
       composeLayout(c, bg, layout.slots, slots.map((s) => (s.photo && images[s.photo]) || null), slots,
         [], { frame: { ...layout, marks: [] }, overlay: true });
       const ctx = c.getContext("2d");
-      // Ô trống: nền hồng nhạt + dấu "+" để khách biết chạm vào chọn ảnh.
+      // Ô trống: nền hồng nhạt + dấu "+" để khách biết chạm vào chọn ảnh (không ghi số ô).
       layout.slots.forEach((slot, i) => {
         if (slots[i]?.photo && images[slots[i].photo]) return;
         const r = slotRect(slot, c.width, c.height);
@@ -108,9 +108,7 @@ export function FrameEditor({ token, frame, title, slots, photos, small, photoOf
         ctx.font = `600 ${size}px system-ui, sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText("+", r.x + r.w / 2, r.y + r.h / 2 - size * 0.3);
-        ctx.font = `500 ${Math.max(11, size * 0.32)}px system-ui, sans-serif`;
-        ctx.fillText(`Ô ${i + 1}`, r.x + r.w / 2, r.y + r.h / 2 + size * 0.55);
+        ctx.fillText("+", r.x + r.w / 2, r.y + r.h / 2);
         ctx.restore();
       });
       const slot = layout.slots[selected];
@@ -277,13 +275,9 @@ export function FrameEditor({ token, frame, title, slots, photos, small, photoOf
               <PiArrowCounterClockwiseBold aria-hidden="true" /> Thử lại
             </Button>
           )}
-          {slots.length > 1 && <div className="slot-selector" role="group" aria-label="Chọn ô trên khung">
-            {slots.map((slot, i) => <button key={i} type="button" aria-pressed={selected === i} disabled={frozen}
-              className={slot.photo ? "" : "is-empty"} aria-label={`Chọn ô ${i + 1}${slot.photo ? "" : " đang trống"}`}
-              onClick={() => setSelected(i)}>{i + 1}</button>)}
-          </div>}
+          {/* Không có hàng nút số ô: khách chạm thẳng vào ô trên khung (ô đang chọn có viền nét đứt). */}
           <p className="frame-hint">
-            <strong>Ô {selected + 1} đang chọn.</strong> Chạm ảnh bên dưới để dùng cho ô này. Kéo ảnh trên khung để căn lại.
+            Chạm một ô trên khung để chọn, rồi chạm ảnh bên dưới để đặt vào ô đó. Kéo ảnh trên khung để căn lại.
           </p>
           <div className="photo-carousel" role="group" aria-label="Ảnh để ghép">
             {photos.map((p) => (
@@ -296,7 +290,7 @@ export function FrameEditor({ token, frame, title, slots, photos, small, photoOf
         </div>
         <div className="slot-tools" aria-label={`Ô ${selected + 1}`}>
           <div className="slot-tools-head">
-            <strong>Ô {selected + 1}</strong>
+            <strong>Ô đang chọn</strong>
             <div className="slot-tools-actions">
               <button type="button" className="text-link slot-pick-action" disabled={frozen} onClick={() => {
                 setEverySlot(false); setPicking(selected);

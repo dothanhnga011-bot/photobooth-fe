@@ -44,8 +44,12 @@ const isStorageUrl = (src) => {
 };
 
 // path: "/kiosk/photo" during the session, "/albums/<token>/photos" afterwards.
+// guest: a guest adding a photo from their phone (album page): only that phone sees it. The booth never sets it.
 export async function savePhoto(path, image, options = {}) {
-  const replyHeaders = options.onlyNewPhoto ? { 'X-Photo-Reply': 'delta' } : {};
+  const replyHeaders = {
+    ...(options.onlyNewPhoto && { 'X-Photo-Reply': 'delta' }),
+    ...(options.guest && { 'X-Album-Guest': '1' }),
+  };
   const viaServer = () => {
     const request = photoUpload(image, options);
     return api(path, { ...request, headers: { ...request.headers, ...replyHeaders } });

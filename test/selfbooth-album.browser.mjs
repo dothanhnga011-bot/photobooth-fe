@@ -158,7 +158,7 @@ async function phone({ faces = null, hashes = null, originalPending = false, pho
   const page = await browser.newPage(desktop ? { viewport } : { viewport, isMobile: true, hasTouch: true,
     ...(ios && { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1" }),
     ...(android && { userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36" }) });
-  const errors = [], prints = [], mediaRequests = [], deletes = [], uploads = [], asked = [], downloads = [];
+  const errors = [], prints = [], mediaRequests = [], deletes = [], uploads = [], asked = [], downloads = [], guestHeaders = [];
   let releaseThumbnail;
   const thumbnailGate = new Promise(resolve => { releaseThumbnail = resolve; });
   let savedJob = null, failedOnce = false;
@@ -183,9 +183,12 @@ async function phone({ faces = null, hashes = null, originalPending = false, pho
     }
     // Thêm ảnh từ điện thoại (không phải JPEG: gửi qua máy chủ).
     if (path.endsWith("/albums/fixture-album/photos") && method === "POST") {
-      uploads.push(route.request().headers()["content-type"]);
+      const headers = route.request().headers();
+      uploads.push(headers["content-type"]);
+      guestHeaders.push(headers["x-album-guest"]);
       const n = booking.photos.length + 1;
-      booking.photos = [...booking.photos, { id: "p9", number: n, kind: "original", clientKey: "upload" }];
+      // Ảnh khách tự thêm: máy chủ đánh dấu mine (chỉ điện thoại này thấy).
+      booking.photos = [...booking.photos, { id: "p9", number: n, kind: "original", clientKey: "upload", mine: true }];
       return route.fulfill({ status: 201, json: booking });
     }
     const media = path.match(/\/albums\/fixture-album\/photos\/p(\d+)$/);
@@ -243,7 +246,7 @@ async function phone({ faces = null, hashes = null, originalPending = false, pho
     };
   }, { expiredShareTap, maxShareFiles, shareUnavailable, shareError });
   await page.goto(`${base}/album/fixture-album${tallFrame ? "?tall-frame" : ""}`);
-  return { page, errors, prints, mediaRequests, deletes, uploads, booking, asked, downloads, releaseThumbnail,
+  return { page, errors, prints, mediaRequests, deletes, uploads, guestHeaders, booking, asked, downloads, releaseThumbnail,
     originalsReady:()=>{booking.photos.forEach(p=>delete p.originalPending)} };
 }
 
@@ -496,10 +499,10 @@ test("Selfbooth from the gallery to print and back, one 20 × 30 sheet per frame
     assert.deepEqual(saved.layouts.pink.map((s) => s.photo), ["p4", "p3"]);
     assert.equal(await page.getByRole("tab").count(), 2, "one tab per frame of the set");
     await canvasReady(page);
-    // Chạm ô 2 của khung Trắng rồi chạm ảnh 4 bên dưới: một ảnh vào nhiều ô.
-    const slot = page.getByRole("button", { name: "Chọn ô 2", exact: true });
-    await slot.click();
-    assert.equal(await slot.getAttribute("aria-pressed"), "true");
+    // Không còn hàng nút số ô: chạm thẳng ô 2 trên khung Trắng rồi chạm ảnh 4 bên dưới (một ảnh vào nhiều ô).
+    assert.equal(await page.getByRole("group", { name: "Chọn ô trên khung" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: /^Chọn ô \d/ }).count(), 0);
+    await tap(page, "Khung Trắng", 0.74, 0.5);
     await page.getByLabel("Ô 2", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Dùng ảnh 04 cho ô đang chọn" }).click();
     await page.waitForFunction(() => JSON.parse(localStorage.getItem("selfbooth-album-v2-fixture-album")).layouts.white[1].photo === "p4");
@@ -589,12 +592,20 @@ test("a frame copied from Selfbooth with a tilted slot is composed and printed w
 });
 
 test("the library works like Selfbooth: delete one, delete several, add a photo from the phone", async () => {
-  const { page, errors, deletes, uploads } = await phone({ photoCount: 4 });
+  const { page, errors, deletes, uploads, guestHeaders } = await phone({ photoCount: 4 });
+  const questions = [];
+  page.on("dialog", (dialog) => questions.push(dialog.message()));
   try {
     await page.getByText("4 ảnh", { exact: true }).waitFor();
+    // "Thêm ảnh" là ô đầu tiên của lưới, ngay cạnh ảnh vừa chụp (không còn nút trên thanh công cụ).
+    const grid = page.locator(".studio-grid");
+    assert.equal(await grid.locator(":scope > *").first().getAttribute("class"), "studio-add-tile");
+    assert.equal(await page.getByRole("group", { name: "Công cụ thư viện" }).getByRole("button", { name: /Thêm ảnh/ }).count(), 0);
     await page.getByRole("button", { name: "Xóa ảnh 03" }).click();
     await page.getByText("3 ảnh", { exact: true }).waitFor();
     assert.deepEqual(deletes, [["p3"]]);
+    // Ảnh máy chụp chỉ ẩn trên điện thoại này: hỏi rõ trước khi xoá.
+    assert.match(questions[0], /chỉ ẩn trên điện thoại này/);
     // Chọn nhiều → đánh dấu 2 ảnh → Xóa (2).
     await page.getByRole("button", { name: /Chọn nhiều/ }).click();
     await page.getByRole("checkbox", { name: "Đánh dấu ảnh 01" }).click();
@@ -602,11 +613,19 @@ test("the library works like Selfbooth: delete one, delete several, add a photo 
     await page.getByRole("button", { name: "Xóa (2)" }).click();
     await page.getByText("1 ảnh", { exact: true }).waitFor();
     assert.deepEqual(deletes[1].sort(), ["p1", "p2"]);
-    // Thêm ảnh từ điện thoại.
-    await page.locator('input[type="file"]').setInputFiles({ name: "phone.png", mimeType: "image/png", buffer: photos[2] });
+    // Thêm ảnh từ điện thoại: chạm ô "Thêm ảnh" đầu lưới.
+    const [chooser] = await Promise.all([
+      page.waitForEvent("filechooser"),
+      grid.getByRole("button", { name: /Thêm ảnh/ }).click(),
+    ]);
+    await chooser.setFiles({ name: "phone.png", mimeType: "image/png", buffer: photos[2] });
     await page.getByText("2 ảnh", { exact: true }).waitFor();
     assert.equal(uploads.length, 1);
+    // Ảnh khách tự thêm: gửi kèm X-Album-Guest để chỉ điện thoại này thấy, và có nhãn "Chỉ bạn thấy".
+    assert.deepEqual(guestHeaders, ["1"]);
     await page.getByText(/Đã thêm 1 ảnh vào thư viện/).waitFor();
+    assert.equal(await grid.locator(".photo-mine").innerText(), "Chỉ bạn thấy");
+    await page.screenshot({ path: resolve(".cache/main-flows/album-library-add-tile.png"), fullPage: true });
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });

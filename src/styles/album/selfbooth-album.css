@@ -378,6 +378,69 @@
     background: var(--wine);
     color: var(--paper);
   }
+  /* Ô đầu tiên của lưới: thêm ảnh từ điện thoại — cao bằng các ảnh cùng hàng, viền nét đứt. */
+  .sb-album .studio-add-tile {
+    display: flex;
+    min-height: 168px;
+  }
+  .sb-album .studio-add-tile button {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 14px 10px;
+    border: 1.5px dashed var(--line-strong);
+    border-radius: 12px;
+    background: var(--paper);
+    color: var(--ink);
+    font: inherit;
+    text-align: center;
+    cursor: pointer;
+  }
+  .sb-album .studio-add-tile button:hover:not(:disabled) {
+    border-color: var(--wine);
+    background: var(--hover);
+  }
+  .sb-album .studio-add-tile button:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+  .sb-album .studio-add-icon {
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: var(--wine);
+    color: var(--paper);
+    font-size: 22px;
+  }
+  .sb-album .studio-add-tile strong {
+    font-size: 15px;
+  }
+  .sb-album .studio-add-tile small {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  /* Ảnh khách tự thêm từ điện thoại: chỉ máy này thấy. */
+  .sb-album .photo-mine {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 7px;
+    border-radius: 6px;
+    background: rgb(246 239 229 / 0.94);
+    color: var(--ink);
+    font-size: 11px;
+    font-weight: 600;
+    pointer-events: none;
+  }
   .sb-album .photo-edited {
     position: absolute;
     right: 14px;
@@ -745,31 +808,6 @@
     color: var(--muted);
     font-size: 13px;
     text-align: center;
-  }
-  .sb-album .slot-selector {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 6px;
-  }
-  .sb-album .slot-selector button {
-    min-width: 44px;
-    min-height: 44px;
-    padding: 4px;
-    border: 1px solid var(--line-strong);
-    border-radius: 7px;
-    background: var(--paper);
-    color: var(--ink);
-    font: inherit;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    cursor: pointer;
-  }
-  .sb-album .slot-selector button.is-empty { border-style: dashed; }
-  .sb-album .slot-selector button[aria-pressed="true"] {
-    background: var(--wine);
-    border-color: var(--wine);
-    color: var(--paper);
   }
   .sb-album .photo-carousel {
     display: flex;

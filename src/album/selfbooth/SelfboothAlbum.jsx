@@ -9,9 +9,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   PiArrowLeftBold, PiArrowRightBold, PiCheckBold,
   PiCheckSquareBold, PiDownloadSimpleBold, PiHeartBold, PiHeartDuotone, PiHeartFill, PiImagesDuotone,
-  PiPrinterBold, PiPrinterDuotone, PiSelectionAllBold,
+  PiLockSimpleBold, PiPlusBold, PiPrinterBold, PiPrinterDuotone, PiSelectionAllBold,
   PiSparkleFill, PiSquareBold, PiStackDuotone, PiTicketBold, PiTrashBold,
-  PiUploadSimpleBold, PiXBold,
+  PiXBold,
 } from "react-icons/pi";
 import { RefreshCw } from "lucide-react";
 import { api, assetUrl, formatDateTime } from "../../api";
@@ -189,9 +189,6 @@ function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, f
             aria-describedby="sb-gallery-save-hint">
             <PiDownloadSimpleBold aria-hidden="true" /> {saveProgress || saveLabel}
           </button>}
-          <button type="button" disabled={locked} onClick={() => input.current?.click()}>
-            <PiUploadSimpleBold aria-hidden="true" /> Thêm ảnh
-          </button>
           {photos.length > 0 && <button type="button" disabled={locked} onClick={() => {
             setView("all"); setSelecting(true);
           }}><PiSelectionAllBold aria-hidden="true" /> Chọn nhiều</button>}
@@ -206,7 +203,6 @@ function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, f
               : saveHint}
           </small>}
         </>}
-        {uploadProgress && <small role="status">Đang thêm ảnh {uploadProgress.done}/{uploadProgress.total}</small>}
       </div>
       {!selecting && !showFavorites && suggestProgress && (
         <div className="suggest-bar is-working" role="status">
@@ -239,10 +235,23 @@ function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, f
       {!shown.length && <div className="empty-state">
         <strong>{showFavorites ? "Bạn chưa thả tim ảnh nào." : "Thư viện chưa có ảnh"}</strong>
         <p>{showFavorites ? "Về thư viện rồi chạm vào hình trái tim bên dưới ảnh bạn thích."
-          : "Ảnh từ máy chụp sẽ tự xuất hiện tại đây. Bạn cũng có thể bấm Thêm ảnh để lấy ảnh từ điện thoại."}</p>
+          : "Ảnh từ máy chụp sẽ tự xuất hiện tại đây. Bạn cũng có thể chạm Thêm ảnh để lấy ảnh từ điện thoại."}</p>
         {showFavorites && <Button className="outline" onClick={() => setView("all")}>Xem tất cả ảnh</Button>}
       </div>}
       <div className={`studio-grid ${selecting ? "is-selecting" : ""}`}>
+        {/* Ô đầu tiên, ngay cạnh các ảnh vừa chụp: thêm ảnh từ điện thoại (chỉ điện thoại này thấy). */}
+        {!selecting && !showFavorites && !showSuggested && (
+          <div className="studio-add-tile">
+            <button type="button" disabled={locked} aria-busy={Boolean(uploadProgress)} aria-describedby="sb-add-note"
+              onClick={() => input.current?.click()}>
+              <span className="studio-add-icon" aria-hidden="true"><PiPlusBold /></span>
+              <strong>Thêm ảnh</strong>
+              <small id="sb-add-note" role="status">
+                {uploadProgress ? `Đang thêm ${uploadProgress.done}/${uploadProgress.total}…` : "Từ điện thoại · chỉ bạn thấy"}
+              </small>
+            </button>
+          </div>
+        )}
         {shown.map((p, i) => {
           const adjust = adjustOf(p.id);
           const number = pad(p.number || i + 1);
@@ -261,6 +270,8 @@ function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, f
               </button>
               {!isNeutral(adjust) && <span className="photo-edited" title="Đã chỉnh sửa"><PiSparkleFill /></span>}
               {suggested.has(p.id) && <span className="photo-suggested" title="Gợi ý ảnh đẹp: cười tươi, rõ nét, không nhắm mắt">Gợi ý ảnh đẹp</span>}
+              {p.mine && <span className="photo-mine" title="Ảnh bạn thêm từ điện thoại: người khác quét mã không thấy">
+                <PiLockSimpleBold aria-hidden="true" /> Chỉ bạn thấy</span>}
               <div className="tile-actions">
                 {selecting ? (
                   <button type="button" className="tile-btn tile-check" role="checkbox" aria-checked={selected.has(p.id)}
@@ -577,7 +588,11 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
     toast.success(`Đã thả tim ${list.length} ảnh đẹp được gợi ý.`);
   }
   async function removePhotos(list) {
-    if (mutating.current || frozen || !list.length || !window.confirm(`Xóa ${list.length} ảnh khỏi thư viện?`)) return false;
+    // Ảnh máy chụp chỉ ẩn trên điện thoại này (người đi cùng quét mã vẫn thấy); ảnh tự thêm thì xoá hẳn.
+    const shared = list.some((id) => !photoOf(id)?.mine);
+    const question = `Xóa ${list.length} ảnh khỏi thư viện của bạn?` +
+      (shared ? "\nẢnh chụp ở tiệm chỉ ẩn trên điện thoại này — người đi cùng quét mã vẫn thấy." : "");
+    if (mutating.current || frozen || !list.length || !window.confirm(question)) return false;
     mutating.current = true;
     setBusy(true);
     try {
@@ -608,7 +623,8 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
         upload: async (file) => {
           const clientKey = crypto.randomUUID();
           const preview = file.type === "image/jpeg" ? await prepareCameraImageAsync(file, false).catch(() => undefined) : undefined;
-          return savePhoto(`/albums/${token}/photos`, file, { name: file.name, clientKey, preview, onlyNewPhoto: true });
+          // guest: ảnh khách tự thêm chỉ điện thoại này thấy (máy chủ nhận ra máy qua cookie album_device).
+          return savePhoto(`/albums/${token}/photos`, file, { name: file.name, clientKey, preview, onlyNewPhoto: true, guest: true });
         },
         onSaved: (response) => {
           const next = mergeUploadedPhotos(bookingRef.current, response);
@@ -618,7 +634,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
         },
       });
       if (failed) toast.error(done ? `Đã thêm ${done}/${files.length} ảnh. Chưa tải xong: ${failed.message}` : failed.message);
-      else toast.success(`Đã thêm ${done} ảnh vào thư viện.`);
+      else toast.success(`Đã thêm ${done} ảnh vào thư viện. Chỉ điện thoại của bạn thấy ảnh này.`);
     } finally {
       mutating.current = false;
       setBusy(false);
