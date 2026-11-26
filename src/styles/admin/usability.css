@@ -19,9 +19,11 @@
     text-transform: uppercase;
   }
 
+  /* Thẳng hàng với tiêu đề: giao diện Mellow ẩn biểu tượng cạnh tiêu đề (admin-mellow.css), nên không thụt
+     lề 36 px dành cho biểu tượng nữa (trước đây dòng mô tả lệch sang phải so với tiêu đề). */
   .admin-shell .admin-page-description {
     max-width: 720px;
-    margin: 4px 0 0 36px;
+    margin: 4px 0 0;
     color: var(--muted);
     font-size: 14px;
     line-height: 1.55;
@@ -133,7 +135,6 @@
     }
 
     .admin-shell .admin-page-description {
-      margin-left: 30px;
       max-width: 52vw;
       font-size: 13px;
     }

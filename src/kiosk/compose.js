@@ -160,11 +160,16 @@ export async function composePreview(frame, images, width = 900, qrUrl = "",
   const canvas = document.createElement("canvas");
   canvas.width = width === "print" ? frameOutputSize(frame, background).width : width;
   canvas.height = Math.round((canvas.width * background.naturalHeight) / background.naturalWidth);
-  const filled = layout.slots.map((_, i) =>
-    placeholders ? images[i] || null : images.length ? images[i % images.length] : null);
+  // Khung nhiều ô hơn số ảnh cần chọn (khách chụp ít ảnh hơn số ô): ô thứ i in lại ảnh của ô i % n, như
+  // renderPrintFrame. Xem trước cũng vậy — ô chưa chọn hiện số của ô gốc, không hiện số 5, 6… khách không
+  // phải chọn. Ô đã chọn trong n ô đầu không bao giờ lấp bằng ảnh khác.
+  const n = images.length;
+  const sourceOf = (i) => (n ? i % n : i);
+  const filled = layout.slots.map((_, i) => (n ? images[sourceOf(i)] || null : null));
+  const slotTransforms = layout.slots.map((_, i) => transforms[sourceOf(i)]);
   // Ảnh trong ô → màu ảnh → mã QR / ngày in → nhãn dán (nhãn dán không bị đổi màu).
   // transforms: phóng/dời của từng ảnh (khách tự chỉnh); ô bản sao theo transform của ảnh gốc.
-  composeLayout(canvas, background, layout.slots, filled, transforms, [], { frame: { ...layout, marks: [] } });
+  composeLayout(canvas, background, layout.slots, filled, slotTransforms, [], { frame: { ...layout, marks: [] } });
   const ctx = canvas.getContext("2d");
   filterPhotos(ctx, layout, filters, canvas.width, canvas.height);
   if (overlay && filled.some(Boolean)) overlayPhotoWindows(ctx, background, layout, i => Boolean(filled[i]));
@@ -184,8 +189,8 @@ export async function composePreview(frame, images, width = 900, qrUrl = "",
     };
     layout.slots.forEach((slot, i) => {
       if (filled[i]) return;
-      empty(slot, i + 1);
-      for (const copy of layout.copies) if (copy.of === i) empty(copy.slot, i + 1);
+      empty(slot, sourceOf(i) + 1);
+      for (const copy of layout.copies) if (copy.of === i) empty(copy.slot, sourceOf(i) + 1);
     });
   }
   drawMarks(ctx, layout, qr, canvas.width, canvas.height);
@@ -318,7 +323,8 @@ export async function renderPrintFrame(frame, shots, token, qrUrl = "", { filter
         sources.set(shot.key, await sourceFor(shot, token, { strict }));
       }
       const source = sources.get(shot.key);
-      const t = transforms[index];
+      // Ô in lại ảnh (khung nhiều ô hơn số ảnh): cùng phóng / dời khách đã chỉnh cho ảnh đó.
+      const t = transforms[index % shots.length];
       const rect = slotRect(slot, canvas.width, canvas.height);
       await draw(source, rect, t);
       // Ô bản sao cùng số ảnh (vd. dải thứ hai của khung nhỏ).

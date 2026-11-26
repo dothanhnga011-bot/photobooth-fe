@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFitGrid } from "./use-fit-grid.js";
 import { photoSlots, selectedCount } from "./photo-selection.js";
+import { TimedTitle } from "./timed-title.jsx";
 import {
   PiArrowClockwiseBold,
   PiArrowLeftBold,
@@ -301,7 +302,8 @@ function DecorStage({
 }
 
 // Một ảnh dùng được cho nhiều ô: chạm lại ảnh đã chọn là thêm nó vào ô trống tiếp theo.
-function Pick({ shot, slots, onPick, disabled }) {
+// full: khung đã đủ ảnh — ảnh vẫn hiện rõ (không làm mờ như nút hỏng), chạm vào thì nhắc cách đổi ảnh.
+function Pick({ shot, slots, onPick, disabled, full, onFull }) {
   const preview = useObjectUrl(shot.preview);
   const [retry, setRetry] = useState(false);
   const src = !retry && shot.thumbnail ? shot.thumbnail : preview;
@@ -310,11 +312,12 @@ function Pick({ shot, slots, onPick, disabled }) {
   return (
     <button
       type="button"
-      className={`select-shot ${picked ? "is-picked" : ""}`}
+      className={`select-shot${picked ? " is-picked" : ""}${full ? " is-full" : ""}`}
       aria-pressed={picked}
-      aria-label={picked ? `Ảnh ở ô ${slots.join(", ")}${disabled ? "" : action}` : "Chọn ảnh này"}
+      aria-disabled={full || undefined}
+      aria-label={picked ? `Ảnh ở ô ${slots.join(", ")}${disabled || full ? "" : action}` : "Chọn ảnh này"}
       disabled={disabled}
-      onClick={() => onPick(shot.key)}
+      onClick={() => (full ? onFull() : onPick(shot.key))}
     >
       {src && <img src={src} alt="" loading="lazy" onError={() => setRetry(true)} />}
       {picked ? <span className={`select-order${slots.length > 1 ? " is-many" : ""}`}>{slots.join("·")}</span> : null}
@@ -410,6 +413,8 @@ export function KioskSelect({
   const t = useKioskText();
   const frame = frames[index];
   const ready = photoSlots(selected, count).map(key => bitmaps.has(key) ? key : null);
+  // Khung nhiều ô hơn số ảnh cần chọn: ô thứ i in lại ảnh của ô i % count (xem composePreview).
+  const sourceSlot = (photo) => (count > 0 && photo >= count ? photo % count : photo);
   const images = ready.map((key) => bitmaps.get(key) || null);
   const filled = selectedCount(selected);
   const waiting = filled - selectedCount(ready);
@@ -499,8 +504,9 @@ export function KioskSelect({
   // Kéo / chụm trên khung (mục Chỉnh ảnh): vẽ nháp tối đa ~12 lần mỗi giây, lưu khi nhấc tay.
   const draftAt = useRef(0);
   const photoGesture = {
-    get: (photo) => ({ ...DEFAULT_T, ...savedTransforms[ready[photo]] }),
+    get: (photo) => ({ ...DEFAULT_T, ...savedTransforms[ready[sourceSlot(photo)]] }),
     draft: (photo, t) => {
+      photo = sourceSlot(photo);
       if (!ready[photo]) return;
       const now = performance.now();
       if (now - draftAt.current < 80) return;
@@ -508,6 +514,7 @@ export function KioskSelect({
       setDraftTransform({ key: ready[photo], t });
     },
     commit: (photo, t) => {
+      photo = sourceSlot(photo);
       setDraftTransform(null);
       if (ready[photo]) setTransform(ready[photo], t);
     },
@@ -544,7 +551,8 @@ export function KioskSelect({
 
   const thumbShot = shots.find((s) => s.key === (target === "all" ? selected[0] : target)) || shots[0];
   const lead = {
-    photos: `Đã chọn ${filled}/${count} ô · chạm lại ảnh để dùng thêm · chạm ô trên khung để bỏ`,
+    photos: <><strong className={`select-progress${full ? " is-full" : ""}`}>Đã chọn {filled}/{count} ô</strong>
+      {" · chạm lại ảnh để dùng thêm · chạm ô trên khung để bỏ"}</>,
     adjust: "Kéo ảnh trên khung để dời, chụm / mở hai ngón để thu nhỏ / phóng to (vẫn giữ nét)",
     color: "Chọn màu cho tất cả ảnh hoặc từng ảnh — khung và nhãn dán giữ nguyên màu",
     text: "Gõ chữ muốn thêm vào khung, chọn kiểu chữ & màu rồi bấm “Thêm chữ”",
@@ -556,12 +564,7 @@ export function KioskSelect({
         <span className="ptb-flow-step">{counter ? "GHÉP ẢNH TẠI QUẦY" : "BƯỚC 2 / 2 · CHỌN ẢNH & TRANG TRÍ"}</span>
         <h1>
           {/* Tiêu đề sửa ở quản trị; {s} là số giây còn lại (gạch chân). */}
-          {counter ? "Chọn ảnh & trang trí" : (() => {
-            const [before, after] = t("select.title").split("{s}");
-            return after === undefined
-              ? <>{before} · <u>{secondsLeft}s</u></>
-              : <>{before}<u>{secondsLeft}</u>{after}</>;
-          })()}
+          {counter ? "Chọn ảnh & trang trí" : <TimedTitle text={t("select.title")} seconds={secondsLeft} />}
         </h1>
         <p>
           {lead}
@@ -592,9 +595,9 @@ export function KioskSelect({
                   : current === "adjust" ? adjustIndex : -1
                 }
                 onPhotoTap={
-                  current === "color" ? (photo) => ready[photo] && setColorTarget(ready[photo])
-                  : current === "adjust" ? (photo) => ready[photo] && setAdjustKey(ready[photo])
-                  : current === "photos" ? (photo) => selected[photo] && onRemove(photo)
+                  current === "color" ? (photo) => ready[sourceSlot(photo)] && setColorTarget(ready[sourceSlot(photo)])
+                  : current === "adjust" ? (photo) => ready[sourceSlot(photo)] && setAdjustKey(ready[sourceSlot(photo)])
+                  : current === "photos" ? (photo) => selected[sourceSlot(photo)] && onRemove(sourceSlot(photo))
                   : null
                 }
                 photoGesture={current === "adjust" ? photoGesture : null}
@@ -657,7 +660,9 @@ export function KioskSelect({
                     key={shot.key}
                     shot={shot}
                     slots={slotsOf(shot.key)}
-                    disabled={busy || full}
+                    disabled={busy}
+                    full={full}
+                    onFull={() => toast.info("Khung đã đủ ảnh. Muốn đổi ảnh, chạm ô đó trên khung bên trái để bỏ rồi chọn ảnh khác.")}
                     onPick={onPick}
                   />
                 ))}

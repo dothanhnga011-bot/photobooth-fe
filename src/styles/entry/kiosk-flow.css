@@ -539,6 +539,12 @@
   .flow-head h1 u {
     text-decoration-color: var(--mellow-blush, #ecb9c1);
     text-decoration-thickness: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Còn ≤ 30 giây chọn khung / chọn ảnh: số giây đỏ như đồng hồ màn chụp (timed-title.jsx). */
+  .flow-head h1 u.is-urgent {
+    color: #a52a29;
+    text-decoration-color: #e7a3a0;
   }
   .flow-head p {
     margin: 0;
@@ -815,9 +821,20 @@
     font-weight: 600;
     text-align: center;
   }
+  /* "Đã chọn 2/4 ô" dưới tiêu đề: tiến độ nổi hơn phần hướng dẫn đi kèm; đủ ô thì chuyển xanh. */
+  .select-progress {
+    color: var(--mellow-cocoa, #522e22);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .select-progress.is-full {
+    color: #2f6b45;
+  }
+  /* "Chọn thêm 2 tấm để in ảnh" — lý do nút In ảnh chưa bấm được: khách đứng xa màn ngang vẫn phải đọc được. */
   .select-hint {
-    color: var(--mellow-muted, #7a5a48);
-    font-size: 14px;
+    color: var(--mellow-cocoa, #522e22);
+    font-size: 17px;
+    font-weight: 600;
   }
   .select-screen .flow-foot {
     flex-direction: column;
@@ -872,6 +889,10 @@
     cursor: default;
     opacity: 0.45;
   }
+  /* Khung đã đủ ảnh: ảnh đã dùng giữ nguyên độ rõ, ảnh chưa dùng chỉ hơi nhạt (vẫn nhìn rõ mặt). */
+  .select-shot.is-full:not(.is-picked) {
+    opacity: 0.7;
+  }
   .select-order {
     position: absolute;
     top: 6px;
@@ -922,7 +943,7 @@
     font-size: clamp(56px, 7vw, 84px);
   }
   .kiosk-method.is-code svg {
-    color: #6d5bd0;
+    color: var(--mellow-cocoa, #522e22);
   }
   .kiosk-method.is-cash svg {
     color: #3d8a5a;
@@ -1674,6 +1695,23 @@
   }
   .done-print.is-warn {
     color: #a36114;
+  }
+  /* Màn ngang của tiệm (khách đứng cách ~1 m, cầm điện thoại quét): trạng thái in / mã vé đọc được từ xa,
+     mã QR lấp đầy thẻ thay vì 260 px cố định, nhãn "Quét QR" nổi hơn hai nhãn còn lại. Màn dọc có cỡ riêng. */
+  @media (orientation: landscape) and (min-width: 901px) {
+    .done-screen .done-print,
+    .done-screen .done-sync {
+      font-size: clamp(16px, 1.25vw, 22px);
+      line-height: 1.5;
+    }
+    .done-cards .done-qr svg {
+      width: min(100%, 42dvh);
+      height: auto;
+      aspect-ratio: 1;
+    }
+  }
+  .done-card.done-qr figcaption {
+    background: var(--mellow-cocoa, #522e22);
   }
 
   @media (max-width: 900px) {

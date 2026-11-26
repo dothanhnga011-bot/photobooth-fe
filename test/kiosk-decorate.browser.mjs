@@ -377,19 +377,48 @@ test("one photo can fill several slots; tapping a slot on the frame empties only
     assert.deepEqual((await saved(page)).selected, ["p1", "p1"]);
     assert.equal(await shots.nth(0).getAttribute("aria-label"), "Ảnh ở ô 1, 2");
     assert.equal(await shots.nth(0).locator(".select-order").innerText(), "1·2");
-    assert.equal(await shots.nth(2).isDisabled(), true, "every slot is filled");
+    assert.equal(await shots.nth(2).getAttribute("aria-disabled"), "true", "every slot is filled");
+    // Khung đủ ảnh: ảnh không bị khoá mờ như nút hỏng; chạm vào thì nhắc cách đổi ảnh, không đổi gì.
+    await shots.nth(2).click({ force: true }); // aria-disabled: trình đọc màn hình biết khung đã đủ
+    await page.getByText(/Khung đã đủ ảnh\. Muốn đổi ảnh, chạm ô đó trên khung/).waitFor();
+    assert.deepEqual((await saved(page)).selected, ["p1", "p1"]);
     // Chạm ô thứ hai trên khung xem trước: bỏ ảnh ở ô đó, ô 1 giữ nguyên.
     await page.waitForFunction(() => document.querySelector(".decor-canvas:not(.is-loading)"));
     const box = await page.getByRole("img", { name: /Khung ảnh xem trước/ }).boundingBox();
     await page.mouse.click(box.x + 0.5 * box.width, box.y + 0.74 * box.height);
     assert.deepEqual((await saved(page)).selected, ["p1", null]);
-    assert.equal(await shots.nth(2).isDisabled(), false);
+    assert.equal(await shots.nth(2).getAttribute("aria-disabled"), null);
     // Ảnh mới vào đúng ô trống.
     await shots.nth(2).click();
     assert.deepEqual((await saved(page)).selected, ["p1", "p3"]);
     await photosTab.click();
     await page.getByRole("button", { name: "Chọn lại", exact: true }).click();
     assert.deepEqual((await saved(page)).selected, []);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("a frame with more slots than photos previews the repeated photo in the extra slot, as it prints", async () => {
+  const { page, errors } = await selectScreen({ shots: 1 });
+  try {
+    // Màu điểm giữa ô trên (y 0.26) hoặc ô dưới (y 0.74) của khung xem trước.
+    const isRed = (y) => page.evaluate((y) => {
+      const canvas = document.querySelector("canvas.decor-canvas:not(.is-loading)");
+      if (!canvas) return false;
+      const [r, g, b] = canvas.getContext("2d").getImageData(Math.round(canvas.width / 2), Math.round(canvas.height * y), 1, 1).data;
+      return r > 180 && g < 80 && b < 80;
+    }, y);
+    // Khách chụp 1 ảnh, khung có 2 ô: chỉ chọn 1 ô, ô còn lại in lại ảnh đó (không hiện "ô 2" bắt chọn thêm).
+    await page.getByText(/Đã chọn 0\/1 ô/).waitFor();
+    await page.getByRole("group", { name: "Ảnh đã chụp" }).getByRole("button").nth(0).click();
+    await page.waitForFunction(() => document.querySelector("canvas.decor-canvas:not(.is-loading)"));
+    for (let i = 0; i < 50 && !(await isRed(0.74)); i++) await page.waitForTimeout(100);
+    assert.equal(await isRed(0.26), true, "the chosen slot shows the photo");
+    assert.equal(await isRed(0.74), true, "the extra slot shows the same photo, like the printed sheet");
+    // Chạm ô lặp trên khung: bỏ ảnh ở ô gốc.
+    const box = await page.getByRole("img", { name: /Khung ảnh xem trước/ }).boundingBox();
+    await page.mouse.click(box.x + 0.5 * box.width, box.y + 0.74 * box.height);
+    assert.deepEqual((await saved(page)).selected, [null]);
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });

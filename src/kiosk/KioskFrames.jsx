@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { PiArrowRightBold, PiCaretLeftBold, PiCaretRightBold, PiCheckBold } from 'react-icons/pi';
 import { Button } from '../studio.jsx';
 import { useKioskText } from './use-kiosk-text.js';
+import { TimedTitle } from './timed-title.jsx';
 
 // Catalog art only: customer bitmaps, colours and QR never enter this screen.
 function FrameChoice({ frame, number, need, active, onPick, busy }) {
@@ -37,7 +38,7 @@ export function KioskFrames({ frames, needs, index, onPick, onContinue, secondsL
   return <section className="kiosk-flow ptb-frames-screen">
     <header className="flow-head">
       <span className="ptb-flow-step">{counter ? 'GHÉP ẢNH TẠI QUẦY · CHỌN KHUNG' : 'BƯỚC 1 / 2 · CHỌN KHUNG'}</span>
-      <h1>{counter ? 'Chọn khung để in' : t('select.frameTitle', { s: secondsLeft })}</h1>
+      <h1>{counter ? 'Chọn khung để in' : <TimedTitle text={t('select.frameTitle')} seconds={secondsLeft} />}</h1>
       <p>{counter ? 'Chọn khung rồi bấm Tiếp tục để chọn ảnh, chỉnh ảnh, thêm chữ như ở máy chụp.' : t('select.frameSubtitle')}</p>
     </header>
     {chosen ? <>
