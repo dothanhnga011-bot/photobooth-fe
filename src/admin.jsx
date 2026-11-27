@@ -157,7 +157,7 @@ export function Admin() {
             </div>
           </header>
           <div className="admin-content">
-            <StorageWarning onOpenStorage={() => open("storage")} />
+            <StorageWarning onOpenStorage={currentTab === "storage" ? undefined : () => open("storage")} />
             <ErrorBox error={error} />
             <PrintAlerts />
             <Suspense fallback={<p className="muted" role="status">Đang tải…</p>}>

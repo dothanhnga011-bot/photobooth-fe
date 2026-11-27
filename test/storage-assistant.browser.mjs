@@ -215,6 +215,7 @@ before(async () => {
   const publicRoot = fileURLToPath(new URL("../public/", import.meta.url));
   for (const name of [
     "logo-m-384.jpg",
+    "tro-li-minh.webp",
     "fonts/be-vietnam-pro.css",
     ...[400, 500, 600, 700].map((weight) => `fonts/be-vietnam-pro-${weight}.woff2`),
   ])
@@ -311,6 +312,7 @@ before(async () => {
         "Content-Type",
         path.endsWith(".css") ? "text/css" :
           path.endsWith(".jpg") ? "image/jpeg" :
+            path.endsWith(".webp") ? "image/webp" :
             path.endsWith(".woff2") ? "font/woff2" : "text/javascript",
       );
       response.end(assets.get(path));
@@ -779,6 +781,7 @@ test("no expired files disables cleanup while refreshes retain the configured li
     await page.locator(".storage-cleanup-reason").innerText(),
     "Chưa có file hết hạn cần dọn.",
   );
+  assert.equal(await page.locator(".storage-expired-counts").count(), 0);
   const mongo = page.locator(".storage-mongo");
   assert.match(await mongo.innerText(), /Mức theo dõi: 60 MB/);
   const previous = storageReads().length;
@@ -794,9 +797,9 @@ test("no expired files disables cleanup while refreshes retain the configured li
 });
 
 test("the retention panel shows when the server automatically cleans unreferenced R2 files", async () => {
-  const data = summary(512);
+  const data = r2Summary(2);
   data.expired.orphans = 1;
-  data.r2 = { configured: true, autoCleanOrphans: true };
+  data.r2.autoCleanOrphans = true;
   await mount({ data });
   const panel = page.getByRole("region", { name: "Hạn lưu ảnh & dọn dẹp" });
   await panel.getByText(/dọn ảnh và file in hết hạn mỗi 15 phút/).waitFor();
@@ -1028,6 +1031,7 @@ test("warning persists across every admin page and its action opens the controll
     "Dung lượng ảnh",
   );
   assert.equal(await warning().count(), 1);
+  assert.equal(await assistantCTA().count(), 0, "the storage page does not offer to open itself");
   assert.equal(
     storageReads().length,
     initialReads,
@@ -1690,33 +1694,31 @@ test("R2 storage fits phones and staff cannot edit budgets", async () => {
   assertClean();
 });
 
-test("active R2 leads the photo area while MongoDB capacity and collapsed file totals stay separate", async () => {
+test("the cleanup panel leads the page and the two storage measurements stay separate", async () => {
   await mount({ data: r2Summary() });
-  const r2 = page.locator(".storage-photo-area .storage-r2");
-  const lifecycle = page.locator(".storage-photo-area .storage-lifecycle");
+  const r2 = page.locator(".storage-overview .storage-r2");
+  const lifecycle = page.locator(".storage-lifecycle");
   assert.equal(await r2.count(), 1);
   assert.equal(await lifecycle.count(), 1);
+  assert.ok(
+    await lifecycle.evaluate((element) =>
+      Boolean(
+        element.compareDocumentPosition(
+          document.querySelector(".storage-overview"),
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+    ),
+    "the expiry and cleanup panel comes before the storage measurements",
+  );
   assert.ok(
     await r2.evaluate((element) =>
       Boolean(
         element.compareDocumentPosition(
-          document.querySelector(".storage-lifecycle"),
+          document.querySelector(".storage-mongo"),
         ) & Node.DOCUMENT_POSITION_FOLLOWING,
       ),
     ),
-    "the R2 photo measurement must precede the expiry and cleanup area",
-  );
-  assert.ok(
-    await page
-      .locator(".storage-photo-area")
-      .evaluate((element) =>
-        Boolean(
-          element.compareDocumentPosition(
-            document.querySelector(".storage-mongo"),
-          ) & Node.DOCUMENT_POSITION_FOLLOWING,
-        ),
-      ),
-    "MongoDB capacity follows the photo storage area",
+    "MongoDB capacity follows the R2 measurement",
   );
   assert.equal(
     await r2
@@ -1902,7 +1904,7 @@ test("active R2 admin assistant keeps readable limits at all target widths with 
   ]) {
     await mountAdmin({ data: r2Summary(usedGB) });
     await openAssistant();
-    await page.locator(".storage-photo-area").waitFor();
+    await page.locator(".storage-overview").waitFor();
     assert.equal(
       await page.locator(".toast-error").count(),
       0,
@@ -2005,7 +2007,9 @@ test("stored photos per customer: an admin searches and deletes one customer aft
   await mount({ data: r2Summary(2) });
   // Ảnh đại diện Trợ lí Minh thay icon robot.
   assert.equal(await page.locator(".storage-heading img.assistant-avatar").getAttribute("src"), "/tro-li-minh.webp");
-  const list = page.locator(".storage-r2 .storage-customers");
+  await page.waitForFunction(() => document.querySelector(".storage-heading img.assistant-avatar")?.naturalWidth > 0);
+  const list = page.locator("details.storage-customers");
+  assert.equal(await list.evaluate((element) => element.closest(".storage-overview")), null);
   await list.locator("summary").click();
   await list.getByText("#111111", { exact: false }).waitFor();
   assert.match(await list.innerText(), /2 khách/);

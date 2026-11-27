@@ -1,4 +1,4 @@
-/* Kho ảnh, hạn xoá và MongoDB là các vùng nghiệp vụ riêng. */
+/* Bảng dung lượng dùng nền sáng, nhãn 13–14px và số liệu nâu đậm. */
 @layer components {
   .admin-shell .storage-assistant {
     --storage-warning-ink: #745315;
@@ -9,26 +9,25 @@
     --storage-critical-line: #d2a4a8;
     --storage-normal-ink: #386147;
     --storage-normal-surface: #edf4ee;
-    gap: 20px;
+    --storage-metric-surface: #fbf9f5;
+    gap: 16px;
     min-width: 0;
   }
 
   .admin-shell .storage-assistant .storage-heading {
-    align-items: flex-start;
-    gap: 16px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 4px 12px;
   }
 
   .admin-shell .storage-assistant .storage-heading-copy {
-    align-items: flex-start;
-  }
-
-  .admin-shell .storage-assistant .storage-heading p {
-    max-width: 70ch;
-    font-size: 14px;
-    line-height: 1.65;
+    align-items: center;
+    gap: 12px;
   }
 
   .admin-shell .storage-assistant .storage-updated {
+    grid-column: 1 / -1;
     align-items: flex-start;
     gap: 8px;
     margin: 0;
@@ -42,22 +41,22 @@
     color: var(--storage-warning-ink);
   }
 
-  .admin-shell .storage-assistant .storage-overview {
-    display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-    align-items: start;
-    gap: 20px;
+  @media (min-width: 601px) {
+    .admin-shell .storage-assistant .storage-updated {
+      margin-left: 58px;
+    }
   }
 
-  .admin-shell .storage-assistant .storage-photo-area {
+  .admin-shell .storage-assistant .storage-overview {
     display: grid;
-    gap: 20px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
     min-width: 0;
   }
 
   .admin-shell .storage-assistant .panel {
     min-width: 0;
-    padding: 24px;
+    padding: 20px;
     border: 1px solid var(--line);
     border-radius: 14px;
     background: var(--surface);
@@ -162,8 +161,8 @@
 
   .admin-shell .storage-assistant .storage-mongo .storage-metrics {
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
     margin: 0 0 20px;
     border: 0;
     border-radius: 0;
@@ -188,9 +187,8 @@
     .storage-mongo
     .storage-metric
     + .storage-metric {
-    margin-top: 20px;
-    padding-top: 20px;
-    border-top: 1px solid var(--line);
+    padding-left: 16px;
+    border-left: 1px solid var(--line);
   }
 
   .admin-shell .storage-assistant .storage-metric strong {
@@ -226,7 +224,11 @@
     color: var(--storage-warning-ink);
   }
 
-  .admin-shell .storage-assistant .storage-breakdown > summary {
+  .admin-shell .storage-assistant :is(.storage-breakdown, .storage-customers).panel {
+    padding-block: 8px;
+  }
+
+  .admin-shell .storage-assistant :is(.storage-breakdown, .storage-customers) > summary {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -243,12 +245,12 @@
 
   .admin-shell
     .storage-assistant
-    .storage-breakdown
+    :is(.storage-breakdown, .storage-customers)
     > summary::-webkit-details-marker {
     display: none;
   }
 
-  .admin-shell .storage-assistant .storage-breakdown > summary::marker {
+  .admin-shell .storage-assistant :is(.storage-breakdown, .storage-customers) > summary::marker {
     content: "";
   }
 
@@ -295,17 +297,16 @@
   .admin-shell .storage-assistant .storage-lifecycle-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 20px;
+    gap: 10px;
   }
 
   .admin-shell .storage-assistant .storage-expiry,
   .admin-shell .storage-assistant .storage-reclaim {
     min-width: 0;
-  }
-
-  .admin-shell .storage-assistant .storage-reclaim {
-    padding-left: 20px;
-    border-left: 1px solid var(--line);
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--storage-metric-surface);
   }
 
   .admin-shell .storage-assistant .storage-expiry > span,
@@ -321,9 +322,9 @@
   .admin-shell .storage-assistant .storage-expiry > strong,
   .admin-shell .storage-assistant .storage-reclaim > strong {
     display: block;
-    margin-top: 8px;
+    margin-top: 5px;
     color: var(--ink);
-    font-size: 22px;
+    font-size: clamp(18px, 3.5vw, 24px);
     font-weight: 600;
     line-height: 1.4;
     font-variant-numeric: tabular-nums;
@@ -331,7 +332,7 @@
   }
 
   .admin-shell .storage-assistant .storage-expiry-time {
-    margin: 8px 0 0;
+    margin: 4px 0 0;
     color: var(--muted);
     font-size: 13px;
     line-height: 1.65;
@@ -339,14 +340,8 @@
   }
 
   .admin-shell .storage-assistant .storage-lifecycle-copy {
-    margin: 16px 0 0;
+    margin: 0;
     color: var(--muted);
-    font-size: 13px;
-    line-height: 1.65;
-  }
-
-  .admin-shell .storage-assistant .storage-r2-advice {
-    margin: 14px 0 0;
     font-size: 13px;
     line-height: 1.65;
   }
@@ -376,8 +371,8 @@
   .admin-shell .storage-assistant .storage-expired-counts {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px 16px;
-    margin: 12px 0 0;
+    gap: 4px 12px;
+    margin: 8px 0 0;
     font-size: 13px;
     line-height: 1.65;
   }
@@ -394,14 +389,26 @@
 
   .admin-shell .storage-assistant .storage-cleanup-actions {
     display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 10px;
-    margin-top: 20px;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px 20px;
+    margin-top: 14px;
+  }
+
+  .admin-shell .storage-assistant .storage-cleanup-actions > .button {
+    flex: 0 0 auto;
+  }
+
+  .admin-shell .storage-assistant .storage-cleanup-actions > .button:disabled {
+    color: var(--muted);
+    border-color: var(--line);
+    background: var(--storage-metric-surface);
+    box-shadow: none;
+    opacity: 1;
   }
 
   .admin-shell .storage-assistant .storage-cleanup-reason {
-    margin: 12px 0 0;
+    margin: 3px 0 0;
     color: var(--muted);
     font-size: 13px;
     line-height: 1.65;
@@ -416,6 +423,10 @@
     line-height: 1.55;
     text-align: right;
     font-variant-numeric: tabular-nums;
+  }
+
+  .admin-shell .storage-assistant :is(.storage-detail-total, .storage-customers-count) + .storage-disclosure-icon {
+    margin-left: 4px;
   }
 
   .admin-shell .storage-assistant .storage-breakdown-content {
@@ -454,37 +465,20 @@
     overflow-wrap: anywhere;
   }
 
-  @media (max-width: 1100px) {
+  @media (max-width: 1040px) {
     .admin-shell .storage-assistant .storage-overview {
       grid-template-columns: minmax(0, 1fr);
     }
   }
 
   @media (max-width: 600px) {
-    .admin-shell .storage-assistant,
-    .admin-shell .storage-assistant .storage-overview,
-    .admin-shell .storage-assistant .storage-photo-area {
-      gap: 16px;
-    }
-
     .admin-shell .storage-assistant .panel {
       padding: 18px;
     }
 
-    .admin-shell .storage-assistant .storage-r2 .storage-r2-metrics,
-    .admin-shell .storage-assistant .storage-lifecycle-grid {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 20px;
-    }
-
-    .admin-shell .storage-assistant .storage-reclaim {
-      padding: 20px 0 0;
-      border-left: 0;
-      border-top: 1px solid var(--line);
-    }
-
-    .admin-shell .storage-assistant .storage-cleanup-actions > .button {
-      flex: 1 1 100%;
+    .admin-shell .storage-assistant .storage-cleanup-actions {
+      flex-direction: column;
+      align-items: stretch;
     }
 
     .admin-shell .storage-assistant .storage-breakdown > summary {
@@ -499,12 +493,30 @@
       order: 1;
     }
 
+    .admin-shell .storage-assistant .storage-detail-total + .storage-disclosure-icon {
+      margin-left: auto;
+    }
+
     .admin-shell .storage-assistant .storage-breakdown dl > div {
       flex-wrap: wrap;
     }
 
     .admin-shell .storage-assistant .storage-breakdown dd {
       margin-left: auto;
+    }
+  }
+
+  @media (max-width: 359px) {
+    .admin-shell .storage-assistant .storage-r2 .storage-r2-metrics,
+    .admin-shell .storage-assistant .storage-mongo .storage-metrics,
+    .admin-shell .storage-assistant .storage-lifecycle-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .admin-shell .storage-assistant .storage-mongo .storage-metric + .storage-metric {
+      padding: 14px 0 0;
+      border-left: 0;
+      border-top: 1px solid var(--line);
     }
   }
 
@@ -524,8 +536,8 @@
     vertical-align: middle;
   }
   .admin-shell .storage-heading .storage-avatar {
-    width: 58px;
-    height: 58px;
+    width: 46px;
+    height: 46px;
     padding: 0;
     border: 0;
     border-radius: 0;
@@ -536,45 +548,17 @@
     width: 100%;
     height: 100%;
   }
-  .admin-shell .storage-customers {
-    margin-top: 20px;
-    border-top: 1px solid var(--line);
-  }
-  .admin-shell .storage-customers > summary {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    min-height: 52px;
-    padding: 14px 0 0;
-    color: var(--ink);
-    font-size: 15px;
-    font-weight: 600;
-    list-style: none;
-    cursor: pointer;
-  }
-  .admin-shell .storage-customers > summary::-webkit-details-marker {
-    display: none;
-  }
   .admin-shell .storage-customers-count {
     margin-left: auto;
     color: var(--muted);
     font-size: 13px;
     font-weight: 500;
   }
-  .admin-shell .storage-customers > summary .storage-disclosure-icon {
-    margin-left: auto;
-    transition: transform 160ms ease-out;
-  }
-  .admin-shell .storage-customers-count + .storage-disclosure-icon {
-    margin-left: 0;
-  }
-  .admin-shell .storage-customers[open] > summary .storage-disclosure-icon {
-    transform: rotate(180deg);
-  }
   .admin-shell .storage-customers-body {
     display: grid;
     gap: 12px;
-    padding-top: 12px;
+    padding-block: 12px;
+    border-top: 1px solid var(--line);
   }
   .admin-shell .storage-customers-search {
     position: relative;

@@ -100,15 +100,15 @@ export function R2StorageWarning({ onOpenStorage }) {
             ? `Số liệu cũ · ${formatDateTime(summary.checkedAt)}. `
             : ""}
           {!high
-            ? "Mở trợ lí để xem trạng thái kết nối."
+            ? "Hệ thống sẽ cập nhật khi lấy được số liệu từ R2."
             : billing
               ? "R2 tính tiền theo trung bình dung lượng đỉnh mỗi ngày trong tháng, không theo số đang lưu lúc này. Dọn ảnh hết hạn để giảm."
               : "Dọn ảnh hết hạn để giảm dung lượng. Đây là mức theo dõi; phí R2 còn phụ thuộc sử dụng trong tháng."}
         </small>
       </div>
-      <Button className="outline small" onClick={onOpenStorage}>
+      {onOpenStorage && <Button className="outline small" onClick={onOpenStorage}>
         <AssistantAvatar size={24} /> Mở trợ lí để dọn ảnh
-      </Button>
+      </Button>}
     </div>
   );
 }
@@ -169,14 +169,12 @@ function R2Billing({ r2, level }) {
   );
 }
 
-// children: phần thêm cuối thẻ (vd. danh sách ảnh của từng khách cho quản trị viên).
-export function R2Storage({ children = null }) {
+export function R2Storage() {
   const { summary } = useStorageMonitor();
   const r2 = summary?.r2;
   if (!r2) return null;
   const level = r2StorageLevel(r2);
   const measured = r2.available && knownSize(r2.usedBytes);
-  const warning = ["critical", "warning"].includes(level);
   const billing = billingKnown(r2);
   return (
     <section className="panel storage-r2" aria-labelledby="r2-storage-title">
@@ -255,18 +253,6 @@ export function R2Storage({ children = null }) {
           )}
         </>
       )}
-      {warning && (
-        <p className={`storage-r2-advice storage-level-${level}`} role="alert">
-          {billing
-            ? level === "critical"
-              ? `Đã vượt ${number.format(r2.billing.limitGBMonths)} GB-tháng miễn phí: tiền R2 tháng này ${costText(r2.billing)}. Dọn file hết hạn bên dưới để giảm.`
-              : `Đã dùng ${number.format(r2.billing.usagePercent)}% mức miễn phí tháng này. Dọn file hết hạn bên dưới để giảm.`
-            : r2.quota.usagePercent >= 100
-              ? "Đã chạm hoặc vượt mức theo dõi. Nên dọn file hết hạn bên dưới."
-              : "Kho ảnh gần mức theo dõi. Bạn có thể dọn file hết hạn bên dưới."}
-        </p>
-      )}
-      {children}
     </section>
   );
 }

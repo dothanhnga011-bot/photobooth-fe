@@ -58,7 +58,7 @@ export function CustomerStorage({ canManageStorage = false }) {
     !term || searchable(`${row.code} ${row.name} ${row.phone}`).includes(term));
   return (
     <details
-      className="storage-customers"
+      className="panel storage-customers"
       onToggle={(e) => {
         if (e.currentTarget.open && !rows && !loading) load();
       }}

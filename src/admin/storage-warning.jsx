@@ -76,13 +76,13 @@ export function StorageWarning({ onOpenStorage }) {
               {loadError
                 ? `${needsCleanup ? `Số liệu cũ · ${formatDateTime(summary.checkedAt)}. ` : ""}Không cập nhật được dung lượng; hệ thống sẽ thử lại.`
                 : needsCleanup
-                  ? "Mở trợ lí để kiểm tra và dọn ảnh đã hết hạn."
-                  : "Mở trợ lí để kiểm tra kết nối và giới hạn lưu trữ."}
+                  ? "Kiểm tra mục Hạn lưu ảnh & dọn dẹp để xem dung lượng có thể giải phóng."
+                  : "Hệ thống sẽ cập nhật khi lấy được số liệu từ MongoDB Atlas."}
             </small>
           </div>
-          <Button className="outline small" onClick={onOpenStorage}>
+          {onOpenStorage && <Button className="outline small" onClick={onOpenStorage}>
             <AssistantAvatar size={24} /> Mở trợ lí để dọn ảnh
-          </Button>
+          </Button>}
         </div>
       )}
       <R2StorageWarning onOpenStorage={onOpenStorage} />

@@ -112,29 +112,15 @@ export function StorageAssistant({ canManageStorage = false }) {
       <header className="storage-heading">
         <div className="storage-heading-copy">
           <span className="storage-avatar">
-            <AssistantAvatar size={58} />
+            <AssistantAvatar size={46} />
           </span>
-          <div>
-            <h3 id="storage-assistant-title">Trợ lí Minh</h3>
-            <p>Xem ảnh đang lưu, hạn xoá gần nhất và file có thể dọn.</p>
-            {summary && (
-              <p
-                className={`storage-updated${loadError ? " is-stale" : ""}`}
-                role="status"
-              >
-                <Clock size={13} aria-hidden="true" />
-                <span>
-                  {loadError ? "Số liệu cũ · cập nhật lần cuối " : "Cập nhật "}
-                  {formatDateTime(summary.checkedAt)} · Tự làm mới mỗi 30 giây.
-                </span>
-              </p>
-            )}
-          </div>
+          <h3 id="storage-assistant-title">Trợ lí Minh</h3>
         </div>
         <Button
           className="outline small"
           onClick={refresh}
           disabled={refreshing || !!busy}
+          aria-busy={refreshing}
         >
           <RefreshCw
             size={15}
@@ -143,6 +129,18 @@ export function StorageAssistant({ canManageStorage = false }) {
           />{" "}
           Làm mới
         </Button>
+        {summary && (
+          <p
+            className={`storage-updated${loadError ? " is-stale" : ""}`}
+            role="status"
+          >
+            <Clock size={13} aria-hidden="true" />
+            <span>
+              {loadError ? "Số liệu cũ · cập nhật lần cuối " : "Cập nhật "}
+              {formatDateTime(summary.checkedAt)} · Tự làm mới mỗi 30 giây.
+            </span>
+          </p>
+        )}
       </header>
       <ErrorBox error={loadError} />
       <ErrorBox error={actionError} />
@@ -155,48 +153,41 @@ export function StorageAssistant({ canManageStorage = false }) {
         </div>
       ) : (
         <>
+          <StorageLifecycle
+            summary={summary}
+            loadError={loadError}
+            busy={busy}
+            canManageStorage={canManageStorage}
+            onCleanup={cleanup}
+          />
           <div className="storage-overview">
-            <div className="storage-photo-area">
-              {hasR2 ? (
-                <R2Storage>
-                  {canManageStorage && <CustomerStorage canManageStorage />}
-                </R2Storage>
-              ) : (
-                <section
-                  className="panel storage-photo-store"
-                  aria-labelledby="storage-photo-title"
+            {hasR2 ? (
+              <R2Storage />
+            ) : (
+              <section
+                className="panel storage-photo-store"
+                aria-labelledby="storage-photo-title"
+              >
+                <h4 id="storage-photo-title">
+                  <Image size={18} aria-hidden="true" /> Kho ảnh trong MongoDB
+                </h4>
+                <p className="storage-store-copy">
+                  Ảnh và file in dùng chung dung lượng MongoDB Atlas với dữ liệu vé và cài đặt.
+                </p>
+                <StorageMetric
+                  icon={Image}
+                  title="Ảnh và file trong MongoDB"
+                  value={measured ? storageMB(summary.media.bytes) : "Chưa đo đủ"}
                 >
-                  <h4 id="storage-photo-title">
-                    <Image size={18} aria-hidden="true" /> Kho ảnh trong MongoDB
-                  </h4>
-                  <p className="storage-store-copy">
-                    Ảnh và file in đang lưu trong MongoDB. Dung lượng này dùng
-                    chung gói dữ liệu bên cạnh.
-                  </p>
-                  <StorageMetric
-                    icon={Image}
-                    title="Ảnh và file trong MongoDB"
-                    value={
-                      measured ? storageMB(summary.media.bytes) : "Chưa đo đủ"
-                    }
-                  >
-                    {measured && knownSize(summary.media.files)
-                      ? `${storageCount.format(summary.media.files)} file đang lưu`
-                      : "Chờ số liệu đầy đủ"}
-                  </StorageMetric>
-                  {canManageStorage && <CustomerStorage canManageStorage />}
-                </section>
-              )}
-              <StorageLifecycle
-                summary={summary}
-                loadError={loadError}
-                busy={busy}
-                canManageStorage={canManageStorage}
-                onCleanup={cleanup}
-              />
-            </div>
+                  {measured && knownSize(summary.media.files)
+                    ? `${storageCount.format(summary.media.files)} file đang lưu`
+                    : "Chờ số liệu đầy đủ"}
+                </StorageMetric>
+              </section>
+            )}
             <MongoStorage />
           </div>
+          {canManageStorage && <CustomerStorage canManageStorage />}
           <details className="panel storage-breakdown">
             <summary>
               <Layers size={18} aria-hidden="true" />

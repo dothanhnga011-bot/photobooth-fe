@@ -29,9 +29,12 @@
   .ptb-frames-foot { flex: none; align-items: center; justify-content: space-between; padding-top: 12px; border-top: 1px solid rgb(82 46 34 / 18%); }
   .ptb-frames-foot p { margin: 0; color: var(--mellow-muted,#7a5a48); }
   .select-frame-stage.is-fixed { width: 100%; grid-template-columns: minmax(0,1fr); }
-  .select-screen .select-compose-foot { display: grid; grid-template-columns: auto minmax(0,1fr); flex-direction: row; gap: 8px 16px; }
-  .select-compose-foot .kiosk-next { justify-self: end; }
-  .select-compose-foot .select-hint { grid-column: 1 / -1; text-align: right; }
+  /* Đổi khung · "Còn … ô chưa có ảnh" · In ảnh trên một hàng (dòng nhắc từng chiếm riêng một hàng dưới nút,
+     lấy chỗ của lưới ảnh). */
+  .select-screen .select-compose-foot { display: grid; grid-template-columns: auto minmax(0,1fr) auto; flex-direction: row; align-items: center; gap: 8px 16px; }
+  .select-compose-foot > .button.outline { grid-column: 1; grid-row: 1; }
+  .select-compose-foot .kiosk-next { grid-column: 3; grid-row: 1; justify-self: end; }
+  .select-compose-foot .select-hint { grid-column: 2; grid-row: 1; text-align: right; text-wrap: balance; }
   @media (max-width:760px) {
     .ptb-frames-screen { padding: 18px; gap: 12px; }
     .ptb-frames-foot p { flex: 1; font-size: 13px; }
@@ -42,8 +45,12 @@
     .ptb-frames-screen { gap: 22px; }
     .ptb-flow-step { font-size: 17px; }
     .ptb-frames-screen .flow-head h1 { font-size: 48px; }
+    /* Màn dọc 1080 px: dòng hướng dẫn và thanh dưới trước đây chỉ 13–14 px, khách đứng xa không đọc được. */
+    .ptb-frames-screen .flow-head p { font-size: 22px; }
+    .ptb-frames-foot p { font-size: 20px; }
+    /* Ô khung nhỏ (~110 px): chỉ ghi tên khung cho đủ chỗ (trước đây "Khu… 2 ảnh"); số ảnh có ở thanh dưới. */
     .ptb-frame-caption { min-height: 44px; font-size: 17px; }
-    .ptb-frame-caption small { font-size: 15px; }
+    .ptb-frame-caption small { display: none; }
     .ptb-frame-art b, .ptb-frame-check { width: 38px; height: 38px; font-size: 18px; }
   }
   /* Màn ngang của tiệm (1366–1920 px, khách đứng cách màn ~1 m): dòng hướng dẫn dưới tiêu đề, chữ "Đã chọn" và tên
@@ -53,6 +60,18 @@
     .ptb-frames-foot p { font-size: clamp(16px, 1vw, 19px); }
     .ptb-frame-caption { font-size: clamp(14px, .85vw, 16px); }
     .ptb-frame-caption small { font-size: clamp(13px, .8vw, 15px); }
-    .kiosk-method small { text-wrap: balance; }
+    /* Thẻ Nhập mã / Tiền mặt rộng ~470 px: mô tả nằm một dòng thay vì hai dòng ngắn giữa thẻ. */
+    .kiosk-method small { max-width: 26em; text-wrap: balance; }
   }
+  /* Màn ngang 1920 × 1080 của tiệm: nút đi tiếp (Tiếp tục, In ảnh, Thanh toán…) và nút quay lại to như ở màn
+     dọc cho ngón tay (trước đây cao 52 px, chữ 16 px). Màn thấp hơn (1366 × 768) giữ cỡ cũ cho vừa màn. */
+  @media (orientation: landscape) and (min-width: 1200px) and (min-height: 900px) {
+    .kiosk-flow .flow-foot .button { min-height: 64px; padding-inline: 34px; border-radius: 14px; font-size: 20px; }
+    .kiosk-flow .flow-foot .button svg { font-size: 1.1em; }
+    /* Màn QR: "Đang làm video…" trong ô video trước đây 13 px. */
+    .done-empty { font-size: 18px; }
+    .done-empty svg { font-size: 44px; }
+  }
+  /* Dòng dưới tiêu đề xuống dòng cân đối (không để một chữ đứng trơ ở dòng dưới, vd. "Tiền mặt."). */
+  .kiosk-flow .flow-head p { text-wrap: balance; }
 }

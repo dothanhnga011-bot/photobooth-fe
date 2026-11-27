@@ -167,8 +167,9 @@ export function KioskPackages({ packages, onPick, onCode, onBack }) {
 
 // Khách đếm theo tờ cầm trên tay (khổ nhỏ: 1 tờ 10 × 15 cắt đôi = 2 tờ nhỏ; khổ to: mỗi tờ là một
 // tờ), tối thiểu 2. Giá gói đã gồm số tờ của gói; chỉ tờ in thêm mới cộng vào tổng tiền.
+// Khổ nhỏ không ghi ở dòng dưới tiêu đề: dòng dưới số lượng đã nói rõ tờ 10 × 15 cắt đôi (trước đây nói hai lần).
 const PRINT_NOTES = {
-  strip: "ảnh nhỏ: 1 tờ 10 × 15 cm cắt đôi thành 2 tờ",
+  strip: "",
   full: "ảnh lớn 10 × 15 cm nguyên tờ",
 };
 export function KioskPrintCount({ pack, sheets, extraPrintPrice, onChange, onNext, onBack }) {
@@ -186,7 +187,7 @@ export function KioskPrintCount({ pack, sheets, extraPrintPrice, onChange, onNex
         <Brand />
         <h1>{t("print.title")}</h1>
         <p>
-          {pack.name} · {PRINT_NOTES[printSizeOf(pack)]}
+          {pack.name}{PRINT_NOTES[printSizeOf(pack)] && ` · ${PRINT_NOTES[printSizeOf(pack)]}`}
         </p>
       </header>
       <div className="print-choice">
@@ -198,7 +199,7 @@ export function KioskPrintCount({ pack, sheets, extraPrintPrice, onChange, onNex
         <p className="print-unit">
           {unit}
           <small>Gợi ý: mỗi người một {word} — đi mấy người thì chọn bấy nhiêu {word}.</small>
-          {strip && <small>{sheets} tờ 10 × 15 cm cắt đôi · mỗi lần bấm + thêm 2 tờ nhỏ</small>}
+          {strip && <small>In {sheets} tờ 10 × 15 cm, cắt đôi thành {sheets * perSheet} tờ nhỏ · mỗi lần bấm + thêm 2 tờ nhỏ</small>}
         </p>
         <div className="kiosk-price">
           <span>Tổng tiền</span>
@@ -321,7 +322,12 @@ export function KioskPayment({ pack, total, sheets, bills, onBill, onPaid, onSki
               ? "Đã đủ tiền — đang mở lượt chụp…"
               : "Máy nhận tiền ở phía dưới màn hình. Máy nhận các tờ 10.000 – 500.000 đ."}
         </p>
-        <small className={billAcceptor.connected ? "" : "is-warn"}>{busy ? "Đang mở lượt chụp…" : status}</small>
+        {/* Khách không hiểu "Chưa kết nối" / lỗi cổng: chưa nối được máy nhận tiền thì nhờ nhân viên. */}
+        <small className={billAcceptor.connected ? "" : "is-warn"} title={status}>
+          {busy ? "Đang mở lượt chụp…"
+            : billAcceptor.connected ? status
+            : "Máy nhận tiền chưa sẵn sàng — vui lòng báo nhân viên."}
+        </small>
       </div>
       {changeNotice > 0 && !busy && (
         <Button className="kiosk-next" onClick={openSession}>

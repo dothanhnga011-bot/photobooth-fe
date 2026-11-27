@@ -559,8 +559,9 @@ export function KioskSelect({
 
   const thumbShot = shots.find((s) => s.key === (target === "all" ? selected[0] : target)) || shots[0];
   const lead = {
+    // Cách chọn / bỏ ảnh đã ghi ngay dưới khung: ở đây chỉ tiến độ và mẹo một ảnh cho nhiều ô.
     photos: <><strong className={`select-progress${full ? " is-full" : ""}`}>Đã chọn {filled}/{count} ô</strong>
-      {" · chạm lại ảnh để dùng thêm · chạm ô trên khung để bỏ"}</>,
+      {" · chạm lại một ảnh để dùng cho nhiều ô"}</>,
     adjust: "Kéo để dời, chụm / mở hai ngón để phóng to, bấm Xoay để xoay 90°",
     color: "Chọn màu cho tất cả ảnh hoặc từng ảnh — khung và nhãn dán giữ nguyên màu",
     text: "Gõ chữ muốn thêm vào khung, chọn kiểu chữ & màu rồi bấm “Thêm chữ”",
@@ -869,7 +870,7 @@ export function KioskSelect({
             <><PiCheckBold aria-hidden="true" /> Nhận ảnh</>
           )}
         </Button>
-        {!full && <small className="select-hint">{counter ? "Điền thêm" : "Chọn thêm"} {count - filled} {counter ? "ô" : "tấm"} để {frame && prints ? "in ảnh" : "tiếp tục"}</small>}
+        {!full && <small className="select-hint">Còn {count - filled} ô chưa có ảnh — chọn đủ để {frame && prints ? "in ảnh" : "tiếp tục"}</small>}
       </footer>
     </section>
   );
