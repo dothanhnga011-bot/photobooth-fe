@@ -151,7 +151,7 @@ before(async () => {
         response.statusCode = status;
         response.end(JSON.stringify(value));
       };
-      if (path === "/api/auth/me") {
+      if (path === "/api/auth/me" || path === "/api/auth/session") {
         send({
           _id: "fixture-user",
           name: role === "staff" ? "Lễ tân thử nghiệm" : "Quản trị thử nghiệm",

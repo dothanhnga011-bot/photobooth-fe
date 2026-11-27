@@ -234,10 +234,11 @@ before(async () => {
       };
       requests.push(entry);
       response.setHeader("Content-Type", "application/json; charset=utf-8");
-      if (path === "/api/auth/me") {
+      if (path === "/api/auth/me" || path === "/api/auth/session") {
         if (authError) {
-          response.statusCode = 401;
-          response.end(JSON.stringify({ message: "Chưa đăng nhập." }));
+          // /auth/session: chưa đăng nhập là null (200); /auth/me: lỗi 401.
+          response.statusCode = path === "/api/auth/session" ? 200 : 401;
+          response.end(JSON.stringify(path === "/api/auth/session" ? null : { message: "Chưa đăng nhập." }));
         } else {
           response.end(
             JSON.stringify({

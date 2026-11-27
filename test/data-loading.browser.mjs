@@ -217,7 +217,8 @@ test("hidden tabs pause polling and an online event resumes an idle visible read
 test("session startup shares its check and an old retry cannot overwrite a completed login", async () => {
   let failures = 0;
   const f = await setup(async (item) => {
-    if (item.path === '/api/auth/me' && failures < 2) {
+    // Trang quản trị hỏi /auth/session (null khi chưa đăng nhập; máy chủ cũ: /auth/me).
+    if (item.path === '/api/auth/session' && failures < 2) {
       failures++;
       await respond(item, { message: 'Fixture unavailable' }, 503);
     } else if (item.path === '/api/auth/login') {

@@ -7,20 +7,35 @@
     <!-- Hệ thống nội bộ của tiệm: không cho công cụ tìm kiếm lập chỉ mục (kể cả album khách). -->
     <meta name="robots" content="noindex, nofollow" />
     <meta name="referrer" content="no-referrer" />
+    <meta name="description" content="Mellow Photobooth — máy chụp ảnh tự phục vụ, album ảnh của khách và trang quản lý tiệm." />
     <title>NXC Photobooth</title>
     <link rel="icon" type="image/jpeg" href="/logo-m-384.jpg" />
     <link rel="apple-touch-icon" href="/logo-m-384.jpg" />
-    <!-- Album mở từ mã QR: hỏi máy chủ danh sách ảnh ngay khi trang vừa tới, song song với lúc tải mã JS
-         (~2 s trên 4G). Lần đọc album đầu tiên của ứng dụng dùng lại đúng phản hồi này (api.js), không hỏi lại. -->
+    <!-- Hỏi máy chủ ngay khi trang vừa tới, song song với lúc tải mã JS (~2 s trên 4G): album mở từ mã QR hỏi
+         danh sách ảnh, trang quản trị (và trang chủ, chuyển sang /admin) hỏi đã đăng nhập chưa. Lần đọc đầu tiên
+         đúng địa chỉ đó của ứng dụng dùng lại phản hồi này (api.js), không hỏi lại. -->
     <script>
       (function () {
-        var m = /^\/album\/([^/?#]+)/.exec(location.pathname);
-        if (!m || !window.fetch) return;
-        var path = "/albums/" + m[1];
-        window.__albumPrefetch = { path: path, response: fetch("/api" + path, { credentials: "include" }) };
-        window.__albumPrefetch.response.catch(function () {});
+        if (!window.fetch) return;
+        var early = {};
+        var ask = function (path) {
+          early[path] = fetch("/api" + path, { credentials: "include" });
+          early[path].catch(function () {});
+        };
+        var page = location.pathname, album = /^\/album\/([^/?#]+)/.exec(page);
+        if (album) ask("/albums/" + album[1]);
+        else if (page === "/" || /^\/admin(\/|$)/.test(page)) ask("/auth/session");
+        window.__apiPrefetch = early;
       })();
     </script>
+    <!-- Font chữ chính khai báo ngay trong trang (trước đây là tệp /fonts/be-vietnam-pro.css riêng: một lượt hỏi
+         chặn hiển thị, và đoạn script chọn tệp CSS bên dưới phải chờ tệp đó tải xong mới chạy). -->
+    <style>
+      @font-face { font-family: "Be Vietnam Pro"; font-style: normal; font-weight: 400; font-display: swap; src: url(/fonts/be-vietnam-pro-400.woff2) format("woff2"); }
+      @font-face { font-family: "Be Vietnam Pro"; font-style: normal; font-weight: 500; font-display: swap; src: url(/fonts/be-vietnam-pro-500.woff2) format("woff2"); }
+      @font-face { font-family: "Be Vietnam Pro"; font-style: normal; font-weight: 600; font-display: swap; src: url(/fonts/be-vietnam-pro-600.woff2) format("woff2"); }
+      @font-face { font-family: "Be Vietnam Pro"; font-style: normal; font-weight: 700; font-display: swap; src: url(/fonts/be-vietnam-pro-700.woff2) format("woff2"); }
+    </style>
     <link
       rel="preload"
       href="/fonts/be-vietnam-pro-400.woff2"
@@ -28,13 +43,9 @@
       type="font/woff2"
       crossorigin
     />
-    <!-- The bolder weights are used on every screen. Fetched early but at low priority: at normal
-         priority they took bandwidth from the app code on 4G and the album appeared ~0.5 s later
-         (measured); at low priority they still arrive well before the text needs them. -->
-    <link rel="preload" href="/fonts/be-vietnam-pro-600.woff2" as="font" type="font/woff2" crossorigin fetchpriority="low" />
-    <link rel="preload" href="/fonts/be-vietnam-pro-700.woff2" as="font" type="font/woff2" crossorigin fetchpriority="low" />
-    <link rel="preload" href="/fonts/be-vietnam-pro-500.woff2" as="font" type="font/woff2" crossorigin fetchpriority="low" />
-    <link rel="stylesheet" href="/fonts/be-vietnam-pro.css" />
+    <!-- Chỉ font thường được tải trước. Các độ đậm 500 / 600 / 700 (~112 KB) tải khi chữ cần tới: tải trước dù ở
+         mức ưu tiên thấp vẫn giành băng thông với mã JS trên 4G — đo 27/11 (CPU 4×, 1,6 Mbps): bỏ tải trước thì trang
+         đăng nhập hiện sớm hơn ~0,4 s, album ~0,6 s. Chữ đậm có thể hiện bằng font dự phòng một lúc rồi đổi. -->
   </head>
   <body>
     <div id="root"></div>

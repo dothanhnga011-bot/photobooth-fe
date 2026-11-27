@@ -27,7 +27,7 @@ import "./kiosk/decor-fonts.js";
 import "./tailwind.css";
 
 // An album opened from its QR code: index.html asks for the album as the page arrives
-// (window.__albumPrefetch), ~2 s before this code has downloaded on 4G. The album screen's first
+// (window.__apiPrefetch), ~2 s before this code has downloaded on 4G. The album screen's first
 // read adopts that response (api.js), so the photos list is never fetched twice.
 
 const AlbumPage = lazy(() =>

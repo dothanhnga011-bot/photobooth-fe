@@ -9,8 +9,25 @@
 /fonts/*
   Cache-Control: public, max-age=2592000
 
+# Ảnh tĩnh không có mã phiên bản trong tên: lưu vừa phải (đổi ảnh thì khách thấy ảnh mới sau tối đa chừng ấy ngày).
+# Trước đây logo 1 ngày, ảnh trang trí .svg không lưu (PageSpeed: "thời hạn bộ nhớ đệm không hiệu quả").
 /logo-m.jpg
-  Cache-Control: public, max-age=86400
+  Cache-Control: public, max-age=604800
 
 /logo-m-384.jpg
-  Cache-Control: public, max-age=86400
+  Cache-Control: public, max-age=604800
+
+/star-pattern-soft.svg
+  Cache-Control: public, max-age=2592000
+
+/star-pattern.svg
+  Cache-Control: public, max-age=2592000
+
+/studio-star-cluster.svg
+  Cache-Control: public, max-age=2592000
+
+/studio-star-divider.svg
+  Cache-Control: public, max-age=2592000
+
+/tro-li-minh.webp
+  Cache-Control: public, max-age=2592000

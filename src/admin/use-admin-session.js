@@ -47,7 +47,10 @@ export function useAdminSession(setTab) {
     const version = sessionVersion.current;
     sessionRequest.current = controller;
     const current = () => !controller.signal.aborted && version === sessionVersion.current;
-    return api("/auth/me", { signal: controller.signal, share: true })
+    // /auth/session trả null khi chưa đăng nhập (không có lỗi 401 trong console trình duyệt); index.html đã hỏi
+    // sẵn lúc trang vừa tới. Máy chủ cũ chưa có /auth/session (404): hỏi /auth/me như trước.
+    return api("/auth/session", { signal: controller.signal, share: true, allowNull: true })
+      .catch((e) => (e.status === 404 ? api("/auth/me", { signal: controller.signal, share: true }) : Promise.reject(e)))
       .then((me) => {
         if (!current()) return;
         meFailed.current = false;

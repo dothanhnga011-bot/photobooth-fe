@@ -41,6 +41,13 @@ before(async () => {
       res.setHeader("Content-Type", "application/json");
       return res.end(JSON.stringify({ rooms: [], packages: [], frames: [], settings: {}, stickers: [], screens: [] }));
     }
+    // Trang quản trị: chưa đăng nhập → null (200), không phải lỗi 401.
+    if (url.pathname === "/api/auth/session" || url.pathname === "/api/auth/me") {
+      (log.auth ||= []).push([url.pathname, at]);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      res.setHeader("Content-Type", "application/json");
+      return res.end("null");
+    }
     if (url.pathname.startsWith("/api/")) {
       res.statusCode = 404;
       res.setHeader("Content-Type", "application/json");
@@ -85,6 +92,23 @@ test("the album list is requested as the page arrives, before the app code, and 
     assert.ok(log.vendorSent > 0, "the slow app code was served");
     assert.ok(log.album[0] < log.vendorSent - 1000,
       `asked ${log.vendorSent - log.album[0]} ms before the app code finished downloading`);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("the home page (→ /admin) asks 'logged in?' as the page arrives, once, with no 401 error in the console", async () => {
+  log = { album: [], vendorSent: 0, auth: [] };
+  const page = await browser.newPage({ viewport: { width: 412, height: 823 } });
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+  try {
+    await page.goto(`${base}/`);
+    await page.getByRole("heading", { name: "Đăng nhập studio" }).waitFor({ timeout: 15000 });
+    assert.equal(new URL(page.url()).pathname, "/admin");
+    assert.deepEqual(log.auth.map(([path]) => path), ["/api/auth/session"], "one early check, no /auth/me");
+    assert.ok(log.auth[0][1] < log.vendorSent - 1000,
+      `asked ${log.vendorSent - log.auth[0][1]} ms before the app code finished downloading`);
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });

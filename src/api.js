@@ -79,13 +79,15 @@ function performRequest(path, options) {
   );
 }
 
-// index.html đã hỏi album ngay khi trang vừa tới (window.__albumPrefetch), trước khi mã JS tải xong: lần đọc
-// album đầu tiên dùng lại phản hồi đó. Chỉ một lần, chỉ khi API cùng địa chỉ web (bản Cloudflare luôn vậy).
+// index.html đã hỏi sẵn khi trang vừa tới (window.__apiPrefetch: album, hoặc "đã đăng nhập chưa?" ở trang quản
+// trị), trước khi mã JS tải xong: lần đọc đầu tiên đúng địa chỉ đó dùng lại phản hồi. Mỗi phản hồi một lần, chỉ
+// khi API cùng địa chỉ web (bản Cloudflare luôn vậy).
 function takeEarlyResponse(path, method) {
-  const early = typeof window === "undefined" ? null : window.__albumPrefetch;
-  if (!early || early.path !== path || method !== "GET" || API_BASE) return null;
-  window.__albumPrefetch = null;
-  return early.response;
+  const early = typeof window === "undefined" ? null : window.__apiPrefetch;
+  if (!early || !early[path] || method !== "GET" || API_BASE) return null;
+  const response = early[path];
+  delete early[path];
+  return response;
 }
 // Chờ phản hồi hỏi sớm nhưng vẫn dừng theo hạn giờ / huỷ của lần đọc này, như một fetch thường.
 const untilAborted = (promise, signal) => new Promise((resolve, reject) => {
