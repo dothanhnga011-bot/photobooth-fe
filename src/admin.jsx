@@ -4,7 +4,7 @@ import { PrintAlerts } from "./print-alerts";
 import { Brand, ErrorBox } from "./studio";
 import { transition } from "./transitions";
 import { ensureFullStylesheet } from "./full-stylesheet";
-import { NAV_TREE, nav, definitions, HIDDEN_PAGES, NAV_DESCRIPTIONS, STAFF_PAGES, can } from "./admin/config";
+import { NAV_TREE, NAV_SECTION_STARTS, nav, definitions, HIDDEN_PAGES, NAV_DESCRIPTIONS, STAFF_PAGES, can } from "./admin/config";
 import { useAdminSession } from "./admin/use-admin-session";
 import { LoginPage, PasswordDialog } from "./admin/auth";
 import { StorageMonitorProvider } from "./admin/storage-monitor";
@@ -36,7 +36,7 @@ function SidebarNav({ tree, currentTab, open }) {
   const navButton = ([key, label, Icon], child = false) => (
     <button
       key={key}
-      className={`${currentTab === key ? "active" : ""} ${child ? "admin-nav-child" : ""}`}
+      className={`${currentTab === key ? "active" : ""} ${child ? "admin-nav-child" : ""}${NAV_SECTION_STARTS.has(key) ? " starts-section" : ""}`}
       aria-current={currentTab === key ? "page" : undefined}
       title={notes[key]?.title || undefined}
       onClick={() => open(key)}

@@ -107,15 +107,19 @@ export const NAV_TREE = [
     ["packages", "Khổ ảnh & bảng giá", Package],
     ["stickers", "Nhãn dán", Sticker],
     ["filters", "Quản lý filter", SlidersHorizontal],
+    ["kiosk-texts", "Chữ trên máy chụp", Type],
+    // Cài đặt thiết bị (làm một lần lúc lắp máy, không có trong Snapbox) đứng cuối nhóm, sau vạch mảnh:
+    // các trang nội dung khách thấy (giữ thứ tự Snapbox) ở trên.
     ["rx1-output", "Màu in RX1", Printer],
     // Máy nhận tiền giấy (ICT) của phòng Photobooth: kết nối, tự kiểm tra, hướng dẫn lắp và gỡ lỗi.
     ["bill-acceptor", "Máy nhận tiền", Banknote],
-    ["kiosk-texts", "Chữ trên máy chụp", Type],
   ]],
   ["users", "Tài khoản", Users],
   // Trợ lí Minh: dung lượng kho ảnh, ảnh từng khách, dọn ảnh hết hạn.
   ["storage", "Dung lượng ảnh", AssistantAvatar],
 ];
+// Trang mở đầu một phần mới trong nhóm: thanh bên kẻ vạch mảnh phía trên (Thiết lập: phần cài đặt thiết bị).
+export const NAV_SECTION_STARTS = new Set(["rx1-output"]);
 // Danh sách phẳng các trang (mục lá) để tìm tên / icon theo mã.
 export const nav = NAV_TREE.flatMap(([key, label, Icon, children]) =>
   children ? children : [[key, label, Icon]],

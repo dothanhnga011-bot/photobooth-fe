@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { mkdir, readFile } from "node:fs/promises";
 import { createServer } from "node:http";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -925,6 +926,20 @@ const ADMIN_PAGES = [
   "Tài khoản",
   "Tổng hợp",
 ];
+
+test("Thiết lập: content pages (Snapbox order) first, then the device pages after a thin rule", async () => {
+  await mountAdmin();
+  const group = page.getByRole("group", { name: "Thiết lập" });
+  assert.deepEqual(await group.getByRole("button").evaluateAll((buttons) => buttons.map((b) => b.textContent.trim())), [
+    "Màn hình chờ", "Chủ đề", "Khung ảnh", "Khổ ảnh & bảng giá", "Nhãn dán", "Quản lý filter", "Chữ trên máy chụp",
+    "Màu in RX1", "Máy nhận tiền",
+  ]);
+  const rule = await navButton("Màu in RX1").evaluate((button) => getComputedStyle(button, "::before").borderTopStyle);
+  assert.equal(rule, "dashed");
+  assert.equal(await navButton("Chữ trên máy chụp").evaluate((button) => getComputedStyle(button, "::before").content), "none");
+  await page.locator(".admin-sidebar").screenshot({ path: join(tmpdir(), "photobooth-fe-admin-sidebar.png") });
+  assertClean();
+});
 
 test("the admin sets how long guests have to pick photos, and Ca trực / Đối soát are gone", async () => {
   await mountAdmin();

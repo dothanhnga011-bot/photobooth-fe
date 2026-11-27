@@ -119,6 +119,20 @@
       padding-top: 12px;
       border-top: 1px solid #cdb49c;
     }
+    /* Phần mới trong cùng một nhóm (Thiết lập: Màu in RX1, Máy nhận tiền — cài đặt thiết bị): vạch mảnh phía
+       trên, thụt vào như chữ của trang để không lẫn với vạch giữa các nhóm. */
+    .admin-shell .admin-sidebar .admin-nav-tree button.starts-section {
+      position: relative;
+      margin-top: 13px;
+    }
+    .admin-shell .admin-sidebar .admin-nav-tree button.starts-section::before {
+      content: "";
+      position: absolute;
+      top: -7px;
+      left: 12px;
+      right: 12px;
+      border-top: 1px dashed #cdb49c;
+    }
 
     .admin-shell .admin-sidebar .admin-nav-tree button,
     .admin-shell .admin-sidebar .admin-nav-tree button.admin-nav-child {
