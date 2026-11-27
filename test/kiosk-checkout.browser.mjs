@@ -97,10 +97,10 @@ test("photobooth: the guest picks how to pay — the code from the counter or ca
     await page.getByRole("button", { name: /Nhập mã/ }).click();
     await page.getByRole("heading", { name: "Nhập mã chụp" }).waitFor();
     await shot(page, "code");
-    assert.equal(await page.getByRole("button", { name: /Bắt đầu chụp/ }).isDisabled(), true);
+    assert.equal(await page.getByRole("button", { name: /Xác nhận mã/ }).isDisabled(), true);
     for (const n of "123456") await page.getByRole("button", { name: n, exact: true }).click();
     assert.equal(await page.getByRole("textbox", { name: "Mã chụp" }).inputValue(), "123456");
-    await page.getByRole("button", { name: /Bắt đầu chụp/ }).click();
+    await page.getByRole("button", { name: /Xác nhận mã/ }).click();
     assert.equal(await page.getByTestId("voucher-result").innerText(), "123456");
     assert.equal(await page.evaluate(() => window.billEnabled()), false, "a code never opens the bill acceptor");
     await page.getByRole("button", { name: /Quay lại/ }).click();

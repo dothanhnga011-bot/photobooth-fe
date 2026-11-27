@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   PiArrowClockwiseBold,
+  PiCameraBold,
   PiCheckBold,
   PiImagesDuotone,
   PiVideoCameraSlashDuotone,
@@ -9,6 +10,7 @@ import {
 import { Button } from '../studio';
 import { CameraPreview } from './CameraPreview.jsx';
 import { playCountdownBeep, playShutterSound } from "./kiosk-audio.js";
+import { useKioskText } from "./use-kiosk-text.js";
 
 // Ảnh trên máy (Blob) hoặc trên máy chủ (URL).
 export function useObjectUrl(source) {
@@ -70,6 +72,7 @@ const clock = (s) =>
 // PTB: live view + captured photos. Selfbooth with its own HDMI monitor: latest
 // JPEG + timer and finish control.
 // minShots: số ảnh layout cần — chưa đủ thì chưa bấm "Chụp xong" được.
+// waitingStart: lượt đã mở, chờ khách bấm "Bắt đầu chụp" (onBegin) — đồng hồ chưa chạy.
 export function KioskShoot({
   showLive = true,
   selfbooth = false,
@@ -77,6 +80,8 @@ export function KioskShoot({
   zoom,
   ready,
   phase,
+  waitingStart = false,
+  onBegin,
   preCount,
   showCountdown = true,
   sessionLeft,
@@ -97,6 +102,7 @@ export function KioskShoot({
   minShots = 1,
 }) {
   const portrait = usePortrait();
+  const t = useKioskText();
   const enough = taken >= Math.max(1, minShots);
   const photoStage = selfbooth || !showLive;
   const latestShot = shots.at(-1);
@@ -187,9 +193,21 @@ export function KioskShoot({
         {flashing > 0 && (
           <div className="camera-flash" key={flashing} aria-hidden="true" onAnimationEnd={() => setFlashing(0)} />
         )}
-        {(ending || (!showCountdown && phase === "ready")) && (
+        {(ending || (!showCountdown && phase === "ready" && !waitingStart)) && (
           <div className="shoot-ending" role="status" aria-label={ending ? "Đang nhận ảnh" : "Đang mở lượt chụp"}>
             <span className="spinner big" aria-hidden="true" />
+          </div>
+        )}
+        {/* Mã / tiền đã nhận: khách đứng vào vị trí (vẫn thấy hình trực tiếp phía sau) rồi tự bấm bắt đầu. */}
+        {waitingStart && (
+          <div className="shoot-start">
+            <div className="shoot-start-card" role="group" aria-labelledby="shoot-start-title">
+              <h2 id="shoot-start-title">{t("shoot.startTitle")}</h2>
+              <p>{t("shoot.startHint")}</p>
+              <Button className="shoot-start-button" onClick={onBegin}>
+                <PiCameraBold aria-hidden="true" /> {t("shoot.start")}
+              </Button>
+            </div>
           </div>
         )}
       </div>
@@ -199,7 +217,8 @@ export function KioskShoot({
           {/* Còn dưới 1 phút: đồng hồ đỏ, nhấp nháy. */}
           <div className={`shoot-timer${phase === "shoot" && sessionLeft < 60 ? " is-urgent" : ""}`} role="timer">
             <span>THỜI GIAN CÒN LẠI</span>
-            <strong>{phase === "ready" ? "—" : clock(sessionLeft)}</strong>
+            {/* Đang chờ bấm Bắt đầu chụp: hiện sẵn thời lượng của lượt (chưa chạy). */}
+            <strong>{phase === "ready" && !waitingStart ? "—" : clock(sessionLeft)}</strong>
             <div className="shoot-progress">
               <small>
                 {!quota ? <>Đã chụp <b>{taken}</b> ảnh</>

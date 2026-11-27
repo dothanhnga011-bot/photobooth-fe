@@ -159,6 +159,8 @@ export function Kiosk() {
     opening = useRef(false);
   current.current = session;
   const phase = phaseOf(session);
+  // Lượt đã mở nhưng khách chưa bấm "Bắt đầu chụp" (openSession).
+  const waitingStart = phase === "ready" && Boolean(session?.waitingStart);
   // Booking metadata also identifies Canon sessions before the room ping returns.
   const manualCapture = roomInfo?.kind === "selfbooth" ||
     session?.booking.source === "selfbooth" || isSelfbooth(session?.booking);
@@ -551,14 +553,22 @@ export function Kiosk() {
     recorder.current = createClipRecorder();
     setVideo(null);
     setPrint(null);
+    // Mọi phòng (27/11 chủ tiệm): nhập mã / trả tiền xong chưa vào chụp ngay — màn chụp chờ khách bấm "Bắt đầu
+    // chụp" (waitingStart). Đồng hồ của lượt chỉ chạy từ lúc bấm (máy chủ tính giờ ở /kiosk/start).
     transition(() => update({
       ...opened,
       mode: "remote",
       phase: "ready",
-      readyEndsAt: roomInfo?.kind === "selfbooth" || opened.booking.source === "selfbooth" || isSelfbooth(opened.booking)
-        ? undefined : Date.now() + READY_SECONDS * 1000,
+      waitingStart: true,
+      readyEndsAt: undefined,
     }), "zoom");
     shown.current = {};
+  }
+  // Khách bấm "Bắt đầu chụp": phòng photobooth đếm 3‑2‑1 rồi chụp; phòng Selfbooth (dây bấm) bắt đầu tính giờ ngay.
+  function beginShooting() {
+    const s = current.current;
+    if (!s?.waitingStart || phaseOf(s) !== "ready") return;
+    patch({ waitingStart: false, readyEndsAt: manualCapture ? undefined : Date.now() + READY_SECONDS * 1000 });
   }
   // Both rooms use the physical shutter cable and full-size JPEGs from transfer software.
   const needsFolder = () => !webcamRef.current;
@@ -711,7 +721,8 @@ export function Kiosk() {
   }, [session?.captureToken, liveCamera]);
   // Máy chủ bắt đầu tính giờ trước khi chụp; luồng đếm giờ chỉ đếm khi đã mở phiên thành công.
   useEffect(() => {
-    if (!session?.captureToken || (phase !== "shoot" && !(manualCapture && phase === "ready"))) return;
+    // Chưa bấm "Bắt đầu chụp": chưa báo máy chủ tính giờ.
+    if (!session?.captureToken || waitingStart || (phase !== "shoot" && !(manualCapture && phase === "ready"))) return;
     let stopped = false, running = false, timer, failures = 0;
     const resume = async () => {
       if (stopped || running || doneRef.current || !sameKioskSession(session, current.current)) return;
@@ -737,7 +748,7 @@ export function Kiosk() {
       unsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- bắt đầu tính giờ một lần mỗi lượt / bước; start / patch đọc phiên mới nhất qua current.current
-  }, [session?.captureToken, phase, manualCapture]);
+  }, [session?.captureToken, phase, manualCapture, waitingStart]);
   // Quay video tua nhanh trong lúc chụp (hình trực tiếp HDMI, hoặc webcam khi thử máy). Webcam máy
   // tính quay ở chế độ nhẹ (VP8 phần mềm, 720p): H.264 phần cứng với webcam laptop đã làm sập tab
   // Chrome (STATUS_BREAKPOINT). Phòng Selfbooth (tờ 20 × 30) không quay: khách nhận ảnh gốc qua QR.
@@ -758,9 +769,9 @@ export function Kiosk() {
   }, [phase, manualCapture]);
   const preCount = manualCapture ? 0 : secondsUntil(session?.readyEndsAt);
   useEffect(() => {
-    if (phase === "ready" && !manualCapture && !preCount) patch({ phase: "shoot" });
+    if (phase === "ready" && !waitingStart && !manualCapture && !preCount) patch({ phase: "shoot" });
   // eslint-disable-next-line react-hooks/exhaustive-deps -- patch tạo mới mỗi lần vẽ (ghi vào phiên mới nhất)
-  }, [phase, preCount, manualCapture]);
+  }, [phase, preCount, manualCapture, waitingStart]);
 
   // Ảnh gốc 15 MB của máy ảnh: gửi sau ảnh xem trước, tối đa hai tệp nền (chung với video), khi không có việc
   // khách đang chờ (ảnh xem trước, tờ in, ảnh ghép — uplink.js). Lỗi mạng: thử lại sau 20 giây.
@@ -1377,6 +1388,8 @@ export function Kiosk() {
           zoom={zoom}
           ready={ready}
           phase={phase}
+          waitingStart={waitingStart}
+          onBegin={beginShooting}
           preCount={preCount}
           showCountdown={!manualCapture}
           sessionLeft={session.booking.captureEndsAt ? remaining : (Number(session.booking.captureDuration) || 0) * 60}

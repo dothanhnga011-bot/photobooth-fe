@@ -241,6 +241,62 @@
     place-items: center;
     background: rgb(18 12 10 / 45%);
   }
+  /* Chờ khách bấm "Bắt đầu chụp": thẻ ở phần dưới khung hình (khách vẫn thấy mình để tạo dáng); phòng không có
+     hình trực tiếp trên máy (Selfbooth: màn HDMI riêng) thì thẻ ở giữa. */
+  .shoot-start {
+    position: absolute;
+    inset: auto 0 6%;
+    z-index: 6;
+    display: grid;
+    place-items: center;
+    padding: 0 24px;
+    pointer-events: none;
+  }
+  .shoot-screen.is-photo-stage .shoot-start,
+  .shoot-screen.no-live .shoot-start {
+    inset: 0;
+    background: rgb(18 12 10 / 35%);
+  }
+  .shoot-start-card {
+    display: grid;
+    justify-items: center;
+    gap: 12px;
+    max-width: 600px;
+    padding: 24px 32px;
+    border-radius: 24px;
+    background: #fffaf3;
+    color: var(--mellow-ink, #3f2c25);
+    text-align: center;
+    box-shadow: 0 14px 36px rgb(0 0 0 / 28%);
+    pointer-events: auto;
+  }
+  .shoot-start-card h2 {
+    margin: 0;
+    font: 700 clamp(28px, 3vw, 42px) / 1.15 var(--mellow-display, Georgia, serif);
+  }
+  .shoot-start-card p {
+    margin: 0;
+    color: var(--mellow-muted, #7a5a48);
+    font-size: clamp(16px, 1.3vw, 20px);
+    line-height: 1.45;
+    text-wrap: balance;
+  }
+  .shoot-start-card .shoot-start-button {
+    min-height: 76px;
+    margin-top: 4px;
+    padding-inline: 48px;
+    border-radius: 20px;
+    font-size: 26px;
+  }
+  .shoot-start-card .shoot-start-button svg {
+    font-size: 1.15em;
+  }
+  @media (orientation: portrait) and (min-width: 761px) {
+    .shoot-start-card { max-width: 820px; padding: 32px 44px; }
+    .shoot-start-card h2 { font-size: 52px; }
+    .shoot-start-card p { font-size: 24px; }
+    .shoot-start-card .shoot-start-button { min-height: 96px; padding-inline: 64px; font-size: 32px; }
+  }
   .shoot-rail {
     display: flex;
     flex-direction: column;
