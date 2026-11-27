@@ -793,6 +793,19 @@ test("no expired files disables cleanup while refreshes retain the configured li
   assert.deepEqual(mutations(), []);
 });
 
+test("the retention panel shows when the server automatically cleans unreferenced R2 files", async () => {
+  const data = summary(512);
+  data.expired.orphans = 1;
+  data.r2 = { configured: true, autoCleanOrphans: true };
+  await mount({ data });
+  const panel = page.getByRole("region", { name: "Hạn lưu ảnh & dọn dẹp" });
+  await panel.getByText(/dọn ảnh và file in hết hạn mỗi 15 phút/).waitFor();
+  await panel.getByText(/File R2 không còn dùng được dọn tự động mỗi giờ/).waitFor();
+  await panel.getByText("1 file không còn dùng", { exact: true }).waitFor();
+  assert.deepEqual(mutations(), [], "opening the panel does not initiate cleanup");
+  assertClean();
+});
+
 test("storage assistant fits narrow phones and desktop widths with the production styles", async () => {
   await mount({ limitMB: 60 });
   await openBreakdown();

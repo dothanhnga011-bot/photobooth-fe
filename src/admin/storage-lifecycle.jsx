@@ -26,6 +26,7 @@ export function StorageLifecycle({
   const expiry = imageRetention(summary, now, loadError);
   const measured = completeMediaMeasurements(summary);
   const expired = summary.expired;
+  const autoCleanOrphans = summary.r2?.autoCleanOrphans;
   const canClean =
     measured &&
     !loadError &&
@@ -38,7 +39,9 @@ export function StorageLifecycle({
       ? "Chưa đo đủ kho ảnh. Chờ kết nối lại rồi mới dọn."
       : expired.files === 0
         ? "Chưa có file hết hạn cần dọn."
-        : "Chỉ xoá ảnh và file in đã hết hạn; ảnh còn hạn được giữ lại.";
+        : expired.orphans > 0 && !autoCleanOrphans
+          ? "File R2 không còn dùng đang chờ quản trị viên dọn."
+          : "File đang chờ đợt dọn tự động. Bạn cũng có thể dọn ngay.";
   return (
     <section
       className="panel storage-lifecycle"
@@ -67,14 +70,14 @@ export function StorageLifecycle({
           <strong>{measured ? storageMB(expired.bytes) : "Chưa đo đủ"}</strong>
           <p className="storage-expiry-time">
             {measured && knownSize(expired.files)
-              ? `${storageCount.format(expired.files)} file đã hết hạn`
+              ? `${storageCount.format(expired.files)} file đủ điều kiện dọn`
               : "Chờ số liệu đầy đủ từ kho ảnh"}
           </p>
         </div>
       </div>
       <p className="storage-lifecycle-copy">
-        Ảnh lưu {storageNumber.format(summary.ttlHours)} giờ. File hết hạn được
-        xoá trong đợt dọn tự động tiếp theo.
+        Ảnh lưu {storageNumber.format(summary.ttlHours)} giờ. Hệ thống dọn ảnh và file in hết hạn mỗi 15 phút.
+        {autoCleanOrphans && " File R2 không còn dùng được dọn tự động mỗi giờ khi đủ hạn."}
       </p>
       <div className="storage-expired-counts">
         <span>
@@ -108,7 +111,7 @@ export function StorageLifecycle({
       <p className="storage-cleanup-reason" role="status">
         {canManageStorage
           ? reason
-          : "Bạn có thể xem dung lượng và hạn xoá. Quản trị viên thực hiện dọn file."}
+          : "Hệ thống tự dọn theo lịch. Quản trị viên có thể dọn ngay khi cần."}
       </p>
     </section>
   );
