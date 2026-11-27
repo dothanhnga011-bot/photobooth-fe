@@ -36,15 +36,16 @@ export function useReconnectProbe(enabled) {
 // Chỉ trong khung giờ mở cửa (giờ Việt Nam) để một tab bị bỏ quên qua đêm không giữ máy chủ
 // chạy 24/24 — hạn mức free là 750 giờ/tháng, 15 giờ × 31 ngày = 465 giờ.
 export function useKeepServerAwake(enabled = true, interval = KEEP_AWAKE_MS, hours = OPEN_HOURS) {
+  const { from, to } = hours;
   useEffect(() => {
     if (!enabled) return;
     // Hidden tabs are still pinged (a reception tab may sit in the background all day);
     // browsers slow their timers but never below once a minute.
     const ping = () => {
-      if (inOpenHours(new Date(), hours))
+      if (inOpenHours(new Date(), { from, to }))
         api("/health", { retry: 0, timeout: 15000 }).catch(() => {});
     };
     const timer = setInterval(ping, interval);
     return () => clearInterval(timer);
-  }, [enabled, interval, hours.from, hours.to]);
+  }, [enabled, interval, from, to]);
 }

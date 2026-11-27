@@ -45,20 +45,15 @@ import {
   sameKioskSession,
 } from "./network-tasks.js";
 import { readCrop } from "./live-preview-layout.js";
-import { addPhotoSlot, fillPhotoSlots, removePhotoSlot } from "./photo-selection.js";
+import { addPhotoSlot, removePhotoSlot } from "./photo-selection.js";
 import { drawLiveCapture, previewRotation, previewRotationKey, readPreviewRotation } from './preview-orientation.js';
 import { buildTimelapse, createClipRecorder } from "./clip-recorder.js";
 import {
-  compositeJpeg,
   previewBitmap,
   frameCandidates,
   preloadFrameTiles,
   frameNeed,
-  printSheets,
-  queueKioskComposite,
   stageKioskPrint,
-  printPhotoRegions,
-  renderPrintFrame,
   runKioskComposites,
   runKioskPrints,
   watchKioskPrint,
@@ -72,44 +67,15 @@ import { KioskShoot, useObjectUrl } from "./KioskShoot.jsx";
 import { noteServerTime, serverNow } from "./server-clock.js";
 import { KioskSelect, useShotBitmaps } from "./KioskSelect.jsx";
 import { KioskFrames } from './KioskFrames.jsx';
-import { NO_DECOR, filterChoices, filterStepsFor, photoFilterId } from "./decor.js";
+import { NO_DECOR, filterChoices } from "./decor.js";
 import { KioskCode, KioskPackages, KioskPayChoice, KioskPayment, KioskPrintCount } from "./KioskSale.jsx";
 import { extraPriceFor, isSelfbooth, minSheets, saleTotal } from "./print-count.js";
-
-// Các chỗ báo lỗi mạng ở màn chụp: mỗi lần mất kết nối chỉ báo một lần, có mạng lại thì xoá.
-const NET_SLOTS = ["poll", "sync", "start", "finish"];
-const PING_MS = 60_000;
-// Thời gian chuẩn bị trước khi khách bấm dây, chọn ảnh & khung.
-const READY_SECONDS = 3;
-// Chọn khung trước, rồi chọn ảnh và trang trí: dùng chung thời gian quản trị đặt ở Thiết lập → Chữ trên máy
-// chụp (settings.selectSeconds, 30–900 giây); chưa đặt thì 250 giây.
-const SELECT_SECONDS = 250;
-const PICK_PHASES = ['frame-pick', 'select', 'frame'];
-const selectSecondsOf = (settings) => {
-  const value = Number(settings?.selectSeconds);
-  return Number.isInteger(value) && value >= 30 && value <= 900 ? value : SELECT_SECONDS;
-};
-const SALE_KEY = "kiosk-sale";
-// Phòng của máy chụp đọc ngay từ liên kết cài máy (phần giữa của mã), trước khi máy chủ trả lời.
-function deviceRoom(token) {
-  try {
-    const part = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-    return JSON.parse(atob(part)).room || "";
-  } catch {
-    return "";
-  }
-}
-// Bước của lượt chụp (lưu cùng phiên để tải lại trang vẫn tiếp tục đúng chỗ).
-const phaseOf = (s) =>
-  !s ? null : s.phase || (s.booking.captureStartedAt ? "shoot" : "ready");
-const secondsUntil = (at) => Math.max(0, Math.ceil(((at || 0) - Date.now()) / 1000));
-function readSale() {
-  try {
-    return JSON.parse(localStorage.getItem(SALE_KEY)) || null;
-  } catch {
-    return null;
-  }
-}
+import {
+  NET_SLOTS, PICK_PHASES, PING_MS, READY_SECONDS, SALE_KEY,
+  deviceRoom, phaseOf, readSale, secondsUntil, selectSecondsOf,
+} from "./kiosk-session.js";
+import { chosenLook, qrPreview, renderPrintJob, saveAlbumComposite } from "./finish-frame.js";
+import { useWakeLock } from "./use-wake-lock.js";
 
 export function Kiosk() {
   const [params] = useSearchParams(),
@@ -161,11 +127,11 @@ export function Kiosk() {
     [pending, setPending] = useState([]),
     [ending, setEnding] = useState(false),
     [composing, setComposing] = useState(false),
-    [tick, setTick] = useState(0),
+    [, setTick] = useState(0),
     // Ảnh máy ảnh đang ghi vào thư mục / đang đọc để gửi lên (chế độ ảnh gốc máy ảnh).
     [detecting, setDetecting] = useState(0),
     [reading, setReading] = useState(0),
-    [scanInfo, setScanInfo] = useState(null),
+    [, setScanInfo] = useState(null),
     // Bán lượt chụp tại máy: gói đã chọn và các tờ tiền đã nhận (giữ lại khi tải lại trang).
     [sale, setSaleState] = useState(readSale),
     [video, setVideo] = useState(null),
@@ -231,6 +197,7 @@ export function Kiosk() {
       window.removeEventListener("pointerdown", reset);
       window.removeEventListener("keydown", reset);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- backToStart tạo mới mỗi lần vẽ; hẹn giờ về màn chờ chỉ đặt lại khi đổi màn / có tiền / đang bận
   }, [step, sale?.bills?.length, busy]);
   function applyFlip(flip) {
     setRemoteFlip(flip || "device");
@@ -342,8 +309,9 @@ export function Kiosk() {
   };
   // Thư mục ảnh của máy ảnh đã chọn trước đó (trình duyệt có thể hỏi lại quyền đọc).
   const cameraSetup = cameraProfile(roomInfo?.kind || (manualCapture ? "selfbooth" : undefined));
+  const folderReady = Boolean(roomInfo) || manualCapture;
   useEffect(() => {
-    if (!roomInfo && !manualCapture) return;
+    if (!folderReady) return;
     let active = true;
     setFolder(null);
     setFolderAccess("none");
@@ -358,7 +326,7 @@ export function Kiosk() {
       () => {},
     );
     return () => { active = false; };
-  }, [Boolean(roomInfo) || manualCapture, cameraSetup.folderKey]);
+  }, [folderReady, cameraSetup.folderKey]);
   async function pickFolder() {
     try {
       const handle = await window.showDirectoryPicker({
@@ -395,22 +363,8 @@ export function Kiosk() {
     if (access === "granted") toast.success("Đã cho phép đọc thư mục ảnh.");
     else toast.warning("Trình duyệt chưa cho phép đọc thư mục ảnh.");
   }
-  // Máy chụp mở cả ngày: giữ màn hình luôn sáng (trình duyệt hỗ trợ Wake Lock).
-  useEffect(() => {
-    let lock = null;
-    const keepAwake = () =>
-      document.visibilityState === "visible" &&
-      navigator.wakeLock?.request("screen").then(
-        (l) => (lock = l),
-        () => {},
-      );
-    keepAwake();
-    document.addEventListener("visibilitychange", keepAwake);
-    return () => {
-      document.removeEventListener("visibilitychange", keepAwake);
-      lock?.release().catch(() => {});
-    };
-  }, []);
+  // Máy chụp mở cả ngày: giữ màn hình luôn sáng.
+  useWakeLock();
   // PTB keeps live view on the kiosk. Selfbooth uses a separate HDMI monitor
   // and shows the latest JPEG here; webcam testing still needs a video element.
   const showLive = !manualCapture || webcamTest;
@@ -455,10 +409,12 @@ export function Kiosk() {
     } catch {}
     return () => {
       alive.current = false;
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- request là bộ đếm lượt (không phải phần tử DOM)
       request.current++;
       stream.current?.getTracks().forEach((t) => t.stop());
       billAcceptor.setEnabled(false).catch(() => {});
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ khi mở / đóng trang máy chụp
   }, []);
   function update(next) {
     if (!alive.current) return;
@@ -739,6 +695,7 @@ export function Kiosk() {
     if (roomKind !== "selfbooth" || !sale || sale.bills?.length) return;
     setSale(null);
     if (["method", "code", "package", "print", "pay"].includes(step)) transition(() => setStep("start"), "fade");
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ khi đổi loại phòng hoặc lượt mua dở; step / sale đọc lúc đó
   }, [roomKind, sale?.pack, sale?.bills?.length]);
   const cashReady = Boolean(roomInfo?.cashCheckoutReady);
   // Phòng photobooth bán tờ bé / tờ to (DNP RX1); gói 20 × 30 là của phòng Selfbooth.
@@ -750,6 +707,7 @@ export function Kiosk() {
     if (liveCamera) {
       if (!stream.current) openCamera();
     } else stop();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mở / tắt hình trực tiếp theo lượt chụp; openCamera tạo mới mỗi lần vẽ
   }, [session?.captureToken, liveCamera]);
   // Máy chủ bắt đầu tính giờ trước khi chụp; luồng đếm giờ chỉ đếm khi đã mở phiên thành công.
   useEffect(() => {
@@ -778,6 +736,7 @@ export function Kiosk() {
       clearTimeout(timer);
       unsubscribe();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- bắt đầu tính giờ một lần mỗi lượt / bước; start / patch đọc phiên mới nhất qua current.current
   }, [session?.captureToken, phase, manualCapture]);
   // Quay video tua nhanh trong lúc chụp (hình trực tiếp HDMI, hoặc webcam khi thử máy). Webcam máy
   // tính quay ở chế độ nhẹ (VP8 phần mềm, 720p): H.264 phần cứng với webcam laptop đã làm sập tab
@@ -785,6 +744,7 @@ export function Kiosk() {
   useEffect(() => {
     if (phase === "shoot" && ready && stream.current && !isSelfbooth(session?.booking))
       recorder.current.start(stream.current, { light: webcamRef.current });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- bắt đầu quay video khi vào bước chụp; loại phòng không đổi giữa lượt
   }, [phase, ready, webcamTest]);
   // Đồng hồ các bước chuẩn bị / chọn ảnh / chọn khung: kiểm tra 4 lần mỗi giây nhưng chỉ vẽ lại khi
   // số giây hiển thị đổi (vẽ lại cả màn hình liên tục tranh CPU với việc ghép video tua nhanh).
@@ -799,6 +759,7 @@ export function Kiosk() {
   const preCount = manualCapture ? 0 : secondsUntil(session?.readyEndsAt);
   useEffect(() => {
     if (phase === "ready" && !manualCapture && !preCount) patch({ phase: "shoot" });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- patch tạo mới mỗi lần vẽ (ghi vào phiên mới nhất)
   }, [phase, preCount, manualCapture]);
 
   // Ảnh gốc 15 MB của máy ảnh: gửi sau ảnh xem trước, tối đa hai tệp nền (chung với video), khi không có việc
@@ -834,6 +795,7 @@ export function Kiosk() {
       clearTimeout(originalRetry.current);
       unsubscribe();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- vòng gửi ảnh gốc chạy suốt; sendOriginals đọc hàng đợi mới nhất
   }, []);
   async function sync() {
     if (!current.current || !alive.current) return;
@@ -976,6 +938,7 @@ export function Kiosk() {
       })
       .filter(Boolean);
   };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- shotsOf đọc pending (ảnh còn trên máy): tính lại khi phiên hoặc ảnh chờ gửi đổi
   const shots = useMemo(() => shotsOf(session), [session, pending]);
   const taken = shots.length;
   const shotQuota = manualCapture ? 0 : Number(session?.booking.shots) || 0;
@@ -1029,6 +992,7 @@ export function Kiosk() {
       clearInterval(timer);
       unsubscribe();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- đồng bộ mỗi 5 giây trong bước chọn; sync tạo mới mỗi lần vẽ
   }, [phase, session?.accessToken]);
 
   // ─── Chọn ảnh & khung ────────────────────────────────────────────────────
@@ -1055,6 +1019,7 @@ export function Kiosk() {
       clearTimeout(timer);
       controller.abort();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- preloadKey = danh sách khung; khung đang xem đọc lúc bắt đầu nạp
   }, [preloadKey]);
   // Số ảnh cần chọn theo khung đang xem (khổ lớn / nhỏ: số ô của khung; Selfbooth: theo gói).
   const needOf = (frame) => frameNeed(frame, {
@@ -1085,6 +1050,7 @@ export function Kiosk() {
   // Hết giờ: tự chọn các tấm đầu cho đủ rồi in.
   useEffect(() => {
     if (choosing && (session.selectEndsAt || session.frameEndsAt) && !selectLeft && !composing) confirmFrame();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ khi hết giờ chọn; confirmFrame tự chặn khi đang ghép
   }, [phase, selectLeft]);
   // Màu ảnh (filter) và nhãn dán khách chọn, lưu cùng phiên để tải lại trang vẫn giữ.
   const filters = useMemo(() => filterChoices(settings), [settings]);
@@ -1094,57 +1060,19 @@ export function Kiosk() {
   async function confirmFrame() {
     const s = current.current;
     if (!s || composing || !PICK_PHASES.includes(phaseOf(s))) return;
-    // Chưa chọn đủ (hết giờ): thêm các tấm đầu tiên chưa chọn.
-    const all = shotsOf(s);
     const frame = frames[Math.min(s.frameIndex || 0, Math.max(0, frames.length - 1))];
-    const frameNeeds = needOf(frame);
-    const keys = fillPhotoSlots(s.selected, frameNeeds, all.map(shot => shot.key));
-    const chosenShots = keys.map((k) => all.find((x) => x.key === k)).filter(Boolean);
-    // Ảnh xem trước ở màn QR, ảnh trong album và ảnh in cùng màu ảnh và nhãn dán khách đã chọn.
-    // Màu từng ảnh (màu riêng của tấm đó, không có thì màu chung), cùng thứ tự ảnh đặt vào khung.
-    const stepsOf = (shot) => filterStepsFor(photoFilterId(s.decor, shot.key), settings);
-    // Phóng/dời của từng ảnh trong ô (khách tự chỉnh ở bước chọn ảnh), theo mã tấm ảnh.
-    const transformOf = (shot) => s.decor?.transforms?.[shot.key];
-    const look = {
-      filters: chosenShots.map(stepsOf),
-      stickers: s.decor?.stickers || [],
-      transforms: chosenShots.map(transformOf),
-    };
+    // Ảnh xem trước ở màn QR, ảnh trong album và ảnh in cùng ảnh, màu ảnh, nhãn dán và phóng / dời / xoay
+    // khách đã chọn; chưa chọn đủ (hết giờ) thì lấp ô trống (finish-frame.js).
+    const { chosenShots, look } = chosenLook(s, shotsOf(s), needOf(frame), settings);
     setComposing(true);
     try {
       // Save the finished sheet even when the room printer is disconnected.
       let composite = "";
       const albumLink = `${window.location.origin}/album/${s.accessToken}`;
-      function qrPreview(image) {
-        const preview = document.createElement("canvas");
-        const scale = Math.min(1, 1000 / Math.max(image.width, image.height));
-        preview.width = Math.max(1, Math.round(image.width * scale));
-        preview.height = Math.max(1, Math.round(image.height * scale));
-        const ctx = preview.getContext("2d");
-        ctx.imageSmoothingQuality = "high";
-        ctx.drawImage(image, 0, 0, preview.width, preview.height);
-        try { return preview.toDataURL("image/jpeg", 0.92); }
-        finally { preview.width = preview.height = 0; }
-      }
       const printsCount = Number(s.booking.prints) || 0;
-      const frameName = frame?.themeName?.trim() || frame?.name || "Khung ảnh";
       let printJob;
       if (frame) {
-        const printScale = 2;
-        const canvas = await renderPrintFrame(frame, chosenShots, s.accessToken, albumLink, {
-          ...look, scale: printScale, strict: true, sharp: true,
-        });
-        try {
-          composite = qrPreview(canvas);
-          printJob = {
-            token: s.accessToken, frameName,
-            images: await printSheets(canvas, frame, Math.max(1, printsCount), s.booking.printSize, printScale),
-            printSize: frame.printSize === "strip" ? "strip" : "full",
-            photos: printPhotoRegions(frame, canvas),
-          };
-        } finally {
-          canvas.width = canvas.height = 0;
-        }
+        ({ composite, printJob } = await renderPrintJob(frame, chosenShots, s, look, albumLink));
       } else {
         notifyOnce("no-frame", "warning", "Chưa có khung ảnh nào đang bật — thêm khung ở Quản lý → Khung ảnh để ghép và in.", 15000);
         const first = chosenShots[0];
@@ -1163,23 +1091,10 @@ export function Kiosk() {
       if (printJob) {
         // Bản ghép chất lượng in: gửi vào album (khách xem / tải) và, nếu gói có in, ra máy in.
         (async () => {
-          let albumFrame = null;
           try {
-            // Guest composites target 20 MP, drawn directly from the full camera sources.
-            // Physical RX1 sheets retain their existing dimensions.
-            albumFrame = await renderPrintFrame(frame, chosenShots, s.accessToken, albumLink, {
-              ...look, pixels: 20_000_000, strict: true,
-            });
-            await queueKioskComposite({
-              token: s.accessToken,
-              captureToken: s.captureToken,
-              image: await compositeJpeg(albumFrame),
-              frameName,
-            });
+            await saveAlbumComposite(frame, chosenShots, s, look, albumLink);
           } catch {
             toast.error("Chưa lưu được ảnh ghép vào album. Vui lòng báo nhân viên.");
-          } finally {
-            if (albumFrame) albumFrame.width = albumFrame.height = 0;
           }
           await printing;
         })();
@@ -1237,6 +1152,7 @@ export function Kiosk() {
   }, [done]);
   useEffect(() => {
     if (done && left <= 0) nextGuest();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- màn QR hết giờ thì sang khách mới; nextGuest tạo mới mỗi lần vẽ
   }, [done, left]);
   // Ảnh còn kẹt trên máy (mất mạng lúc chụp) được gửi tiếp vào album khi có mạng.
   useEffect(() => {
@@ -1267,6 +1183,7 @@ export function Kiosk() {
       clearInterval(timer);
       unsubscribe();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- gửi tiếp ảnh còn kẹt khi máy rảnh; sendOriginals tạo mới mỗi lần vẽ
   }, [session, done]);
   // Đồng hồ phiên chụp và báo trạng thái: chỉ chạy trong lúc chụp.
   useEffect(() => {
@@ -1316,6 +1233,7 @@ export function Kiosk() {
       clearInterval(poll);
       unsubscribe();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- đồng hồ phiên và báo trạng thái theo lượt / bước; các hàm gọi tới đọc phiên mới nhất qua current.current
   }, [session?.booking.captureEndsAt, phase, done]);
   // Tải lại trang giữa lượt chụp: ảnh chưa gửi lên vẫn còn trên máy, dùng lại để chọn và in.
   useEffect(() => {
@@ -1398,11 +1316,13 @@ export function Kiosk() {
       setScanInfo(null);
       scanRef.current = null;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- theo dõi thư mục ảnh theo lượt chụp; importCameraPhoto / notifyOnce tạo mới mỗi lần vẽ
   }, [webcamTest, done, phase, folder, folderAccess, cameraSetup.folder, session?.accessToken, session?.booking.captureStartedAt]);
   // Đủ số tấm của gói: sang chọn ảnh.
   useEffect(() => {
     if (phase !== "shoot" || !shotQuota || done || reading || detecting) return;
     if (taken >= shotQuota) endCapture();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- đủ số tấm thì sang chọn ảnh; endCapture tạo mới mỗi lần vẽ
   }, [phase, taken, shotQuota, reading, detecting, done]);
   // ─── Màn hình ────────────────────────────────────────────────────────────
   if (done)

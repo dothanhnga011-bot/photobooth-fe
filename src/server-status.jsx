@@ -26,6 +26,6 @@ export function ServerStatus({ error, quiet }) {
       shown.current = null;
       toast.success("Đã kết nối lại máy chủ.");
     }
-  }, [problem, quiet]);
+  }, [problem, quiet, toast]);
   return null;
 }

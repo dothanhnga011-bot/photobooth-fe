@@ -1,0 +1,117 @@
+/* Máy chụp PTB — Cài đặt thiết bị của máy chụp (máy ảnh, thư mục ảnh, lật / xoay hình). */
+@layer components {
+  /* ── Cài đặt thiết bị của máy chụp ── */
+  .kiosk-devices {
+    display: grid;
+    gap: 14px;
+  }
+  .kiosk-range {
+    display: grid;
+    gap: 4px;
+  }
+  .kiosk-range input {
+    width: 100%;
+    accent-color: var(--mellow-blush, #ecb9c1);
+  }
+  .kiosk-range small,
+  .kiosk-device-note {
+    margin: 0;
+    opacity: 0.8;
+    font-size: 12.5px;
+  }
+  .kiosk-settings-warn {
+    margin-left: auto;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: #fdf0dd;
+    color: #8a5414;
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 700;
+  }
+  .kiosk-shutter-status {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.5;
+  }
+  .kiosk-shutter-status.is-ok {
+    background: #e8f3eb;
+    color: #2f6b45;
+  }
+  .kiosk-shutter-status.is-warn {
+    background: #fdf0dd;
+    color: #8a5414;
+  }
+  .kiosk-shutter-log > summary {
+    cursor: pointer;
+    font-size: 12.5px;
+    font-weight: 600;
+    opacity: 0.85;
+  }
+  .kiosk-shutter-log pre {
+    margin: 6px 0 0;
+    padding: 10px 12px;
+    overflow-x: auto;
+    border-radius: 8px;
+    background: rgb(33 23 19 / 88%);
+    color: #f3e6da;
+    font-size: 11.5px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+  }
+  .kiosk-shutter-advanced {
+    display: grid;
+    gap: 10px;
+    padding-top: 6px;
+    border-top: 1px dashed rgb(120 90 72 / 35%);
+  }
+  .kiosk-shutter-advanced > summary {
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    opacity: 0.85;
+  }
+  .kiosk-device-box {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 12px;
+    border: 1px solid rgb(255 255 255 / 18%);
+    border-radius: 10px;
+  }
+  .kiosk-device-box legend {
+    padding: 0 4px;
+    font-weight: 700;
+  }
+  .kiosk-device-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 8px;
+  }
+  .kiosk-device-row label {
+    display: grid;
+    gap: 2px;
+    font-size: 12.5px;
+  }
+  .kiosk-device-row input {
+    width: 130px;
+  }
+  /* Máy nhận tiền ở máy chụp: chỉ trạng thái (kết nối / hướng dẫn ở Thiết lập → Máy nhận tiền). */
+  .bill-kiosk-status {
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: #fdf0dd;
+    color: #7a4a10;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .bill-kiosk-status.is-ok {
+    background: #e8f3eb;
+    color: #24563a;
+  }
+}

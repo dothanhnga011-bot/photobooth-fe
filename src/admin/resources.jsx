@@ -176,6 +176,7 @@ export function ResourceManager({ resource, notify, me }) {
     setQuery("");
     setStatus("all");
     load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- đổi mục quản lý thì xoá bộ lọc và tải lại; load tạo mới mỗi lần vẽ
   }, [resource]);
   useEffect(() => {
     if (resource !== "rooms") return;

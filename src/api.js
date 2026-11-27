@@ -79,11 +79,31 @@ function performRequest(path, options) {
   );
 }
 
+// index.html đã hỏi album ngay khi trang vừa tới (window.__albumPrefetch), trước khi mã JS tải xong: lần đọc
+// album đầu tiên dùng lại phản hồi đó. Chỉ một lần, chỉ khi API cùng địa chỉ web (bản Cloudflare luôn vậy).
+function takeEarlyResponse(path, method) {
+  const early = typeof window === "undefined" ? null : window.__albumPrefetch;
+  if (!early || early.path !== path || method !== "GET" || API_BASE) return null;
+  window.__albumPrefetch = null;
+  return early.response;
+}
+// Chờ phản hồi hỏi sớm nhưng vẫn dừng theo hạn giờ / huỷ của lần đọc này, như một fetch thường.
+const untilAborted = (promise, signal) => new Promise((resolve, reject) => {
+  const stop = () => reject(new DOMException("Request aborted", "AbortError"));
+  if (signal.aborted) return stop();
+  signal.addEventListener("abort", stop, { once: true });
+  promise.then(resolve, reject).finally(() => signal.removeEventListener("abort", stop));
+});
+
 async function sendRequest(path, options = {}) {
   const { timeout = 20000, signal, allowNull = false, retry = 0, ...request } = options;
   const binary = typeof Blob !== "undefined" && request.body instanceof Blob;
+  let early = takeEarlyResponse(path, (request.method || "GET").toUpperCase());
   return networkRequest(async (requestSignal) => {
-    const res = await fetch(`${API_BASE}/api${path}`, {
+    // Lần thử đầu: phản hồi đã hỏi sớm (lỗi mạng thì networkRequest thử lại bằng một yêu cầu thường).
+    const pending = early;
+    early = null;
+    const res = pending ? await untilAborted(pending, requestSignal) : await fetch(`${API_BASE}/api${path}`, {
       credentials: "include",
       ...request,
       signal: requestSignal,

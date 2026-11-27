@@ -266,7 +266,7 @@ class BillAcceptor {
     if (!billSupported) throw new Error("Trình duyệt không hỗ trợ cổng USB (Web Serial). Dùng Chrome hoặc Edge.");
     const port = await choosePort("bill"); // hỏi trước tiên: cần thao tác bấm của nhân viên
     this.probing = true;
-    let found = null;
+    let found;
     try {
       await this.disconnect();
       this.setStatus("Đang nhận diện máy nhận tiền…");

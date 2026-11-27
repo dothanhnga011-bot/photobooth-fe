@@ -94,7 +94,7 @@ test("the room's installer carries the agent and its settings, and its own comma
     { api: "https://photobooth.example.dev", token: "header.payload.sig", room: "Phòng 1" });
   const agent = field("NXC_PRINT_AGENT_BASE64");
   assert.deepEqual([...agent.subarray(0, 3)], [0xef, 0xbb, 0xbf], "one BOM so PowerShell 5.1 reads Vietnamese text");
-  assert.equal(agent.subarray(3).toString("utf8"), source.replace(/^﻿/, ""));
+  assert.equal(agent.subarray(3).toString("utf8"), source.replace(/^\uFEFF/, ""));
   assert.throws(() => printerInstaller({ script: source, api: "https://x.dev/\" & calc", token: "t", room: "r" }));
   if (process.platform !== "win32") return;
   // Chạy chính file cài bằng cmd như khi nhân viên bấm đúp file, chỉ bỏ bước xin quyền quản trị và thay

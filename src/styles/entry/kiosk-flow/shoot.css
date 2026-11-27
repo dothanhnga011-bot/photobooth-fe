@@ -1,0 +1,515 @@
+/* Máy chụp PTB — Màn chụp toàn màn hình (màn ngang): hình trực tiếp, cột phải có đồng hồ + ảnh vừa chụp. */
+@layer components {
+  /* ── Màn chụp toàn màn hình: không chữ trên hình, cột phải có đồng hồ + ảnh vừa chụp ── */
+  .shoot-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: grid;
+    /* Cột ảnh vừa chụp bên phải rộng gấp đôi trước (228 → 460 px ở màn 1920) để khách xem ảnh dễ hơn;
+       hình trực tiếp thu lại tương ứng (vẫn thấy đủ khung hình). */
+    grid-template-columns: minmax(0, 1fr) clamp(300px, 24vw, 460px);
+    background: #120c0a;
+    color: #faf2eb;
+    overflow: hidden;
+  }
+  .shoot-screen.phase-mode {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .shoot-stage {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+    background: #000;
+  }
+  /* Ảnh vừa chụp toàn màn shoot-stage (thay thế live view). */
+  .shoot-latest-full {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    margin: 0;
+    overflow: hidden;
+    background: #000;
+  }
+  .shoot-latest-full img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    animation: shoot-latest-in 0.4s ease-out both;
+  }
+  @keyframes shoot-latest-in {
+    from { opacity: 0; scale: 0.96; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .shoot-latest-full img { animation: none; }
+  }
+  .shoot-latest-full-empty {
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+    color: #cdb9a9;
+    font-size: clamp(14px, 2vh, 22px);
+  }
+  .shoot-latest-full-empty svg {
+    font-size: clamp(48px, 8vh, 80px);
+    opacity: 0.5;
+  }
+  .shoot-latest-full .shoot-latest-pending {
+    position: absolute;
+    right: 14px;
+    bottom: 14px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgb(255 250 243 / 92%);
+    color: var(--mellow-ink, #3f2c25);
+    font-size: 14px;
+    font-weight: 600;
+  }
+  /* Khung hình cố định cả màn: đổi tín hiệu HDMI lúc bấm chụp không làm hình xê dịch. */
+  .shoot-stage .camera-preview-viewport {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: 0;
+    background: #000;
+  }
+  .camera-preview-viewport.is-mirrored video,
+  .camera-preview-viewport.is-mirrored canvas {
+    transform: scaleX(-1);
+  }
+  .shoot-count {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: 3;
+    translate: -50% -50%;
+    color: #fff;
+    font: 700 clamp(88px, 17vh, 168px) / 1 var(--mellow-display, Georgia, serif);
+    text-shadow: 0 4px 28px rgb(0 0 0 / 55%);
+    pointer-events: none;
+    animation: shoot-count 1s ease-out both;
+  }
+  @keyframes shoot-count {
+    from {
+      opacity: 0;
+      scale: 1.35;
+    }
+    20% {
+      opacity: 1;
+      scale: 1;
+    }
+    to {
+      opacity: 0.85;
+      scale: 0.96;
+    }
+  }
+  .shoot-stage .camera-flash {
+    z-index: 4;
+  }
+  /* Chưa có hình trực tiếp: nền nâu tối thay cho màn đen trơn, thẻ báo ở giữa. */
+  .shoot-screen.no-live .shoot-stage {
+    background:
+      radial-gradient(circle at 50% 42%, rgb(122 75 54 / 32%), transparent 58%),
+      linear-gradient(#1c1310, #0d0907);
+  }
+  .shoot-screen.no-live .camera-preview-viewport {
+    opacity: 0;
+  }
+  .shoot-no-camera {
+    position: absolute;
+    top: 45%;
+    left: 50%;
+    z-index: 2;
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+    width: min(500px, calc(100% - 48px));
+    padding: 30px 32px 26px;
+    translate: -50% -50%;
+    border: 1px solid rgb(255 250 243 / 12%);
+    border-radius: 22px;
+    background: rgb(40 28 23 / 82%);
+    text-align: center;
+    box-shadow: 0 24px 60px rgb(0 0 0 / 45%);
+    backdrop-filter: blur(6px);
+  }
+  .shoot-no-camera-icon {
+    display: grid;
+    place-items: center;
+    width: 68px;
+    height: 68px;
+    margin-bottom: 4px;
+    border-radius: 50%;
+    background: rgb(255 250 243 / 10%);
+    color: #f1dccb;
+    font-size: 36px;
+  }
+  .shoot-no-camera > strong {
+    font: 700 clamp(22px, 2.4vw, 28px) / 1.2 var(--mellow-display, Georgia, serif);
+  }
+  .shoot-no-camera p {
+    max-width: 380px;
+    margin: 0;
+    color: #d9c4b4;
+    line-height: 1.5;
+  }
+  .shoot-no-camera-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .shoot-no-camera-actions .button {
+    min-height: 46px;
+    padding-inline: 18px;
+    border-radius: 999px;
+    font-size: 15px;
+  }
+  .shoot-no-camera-actions .button:not(.outline) {
+    border-color: #fffaf3;
+    background: #fffaf3;
+    color: var(--mellow-cocoa, #522e22);
+  }
+  .shoot-no-camera-actions .button.outline {
+    border-color: rgb(255 250 243 / 45%);
+    background: transparent;
+    color: #fffaf3;
+  }
+  /* Thử máy bằng webcam: nhãn nhỏ góc trên để nhân viên nhớ tắt trước khi đón khách. */
+  .shoot-webcam-badge {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: calc(100% - 32px);
+    padding: 7px 8px 7px 14px;
+    border-radius: 999px;
+    background: rgb(163 97 20 / 92%);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .shoot-webcam-badge span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .shoot-webcam-badge button {
+    flex: none;
+    padding: 4px 12px;
+    border: 0;
+    border-radius: 999px;
+    background: #fffaf3;
+    color: #7a4510;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .shoot-capture-status {
+    position: absolute;
+    bottom: 6%;
+    left: 50%;
+    z-index: 3;
+    display: grid;
+    justify-items: center;
+    gap: 12px;
+    width: min(540px, calc(100% - 32px));
+    padding: 18px 24px;
+    translate: -50% 0;
+    border-radius: 16px;
+    background: rgb(33 23 19 / 92%);
+    color: #fff;
+    text-align: center;
+  }
+  .shoot-capture-status p { margin: 0; color: inherit; }
+  .shoot-ending {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: grid;
+    place-items: center;
+    background: rgb(18 12 10 / 45%);
+  }
+  .shoot-rail {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+    padding: 16px 14px;
+    background: #f6eee6;
+    color: var(--mellow-ink, #3f2c25);
+  }
+  .shoot-timer {
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    padding: 12px 8px;
+    border: 1px solid #e3d4c6;
+    border-radius: 12px;
+    background: #fffaf3;
+    text-align: center;
+  }
+  .shoot-timer span {
+    color: var(--mellow-muted, #7a5a48);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+  }
+  .shoot-timer strong {
+    font: 700 clamp(30px, 3.4vw, 60px) / 1.05 var(--mellow-display, Georgia, serif);
+    font-variant-numeric: tabular-nums;
+  }
+  .shoot-timer small {
+    color: var(--mellow-muted, #7a5a48);
+    font-size: 12px;
+  }
+  .shoot-timer.is-urgent strong {
+    color: #c0392b;
+    animation: shoot-timer-pulse 0.8s ease-in-out infinite alternate;
+  }
+  @keyframes shoot-timer-pulse {
+    to { opacity: 0.45; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .shoot-timer.is-urgent strong { animation: none; }
+  }
+  .shoot-progress {
+    display: grid;
+    gap: 6px;
+    width: 100%;
+    margin-top: 4px;
+  }
+  .shoot-progress b {
+    color: var(--mellow-ink, #3f2c25);
+  }
+  .shoot-progress i {
+    display: block;
+    height: 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #eadfd3;
+  }
+  .shoot-progress i b {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--mellow-cocoa, #522e22);
+    transition: width 0.3s ease;
+  }
+  /* Chưa có ảnh: ô gợi ý thay cho cột trống. */
+  .shoot-thumbs-empty {
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 8px;
+    aspect-ratio: 3 / 2;
+    padding: 10px;
+    border: 2px dashed #d6c2b1;
+    border-radius: 10px;
+    color: var(--mellow-muted, #7a5a48);
+    font-size: 13px;
+    line-height: 1.35;
+    text-align: center;
+  }
+  .shoot-thumbs-empty svg {
+    font-size: 30px;
+    opacity: 0.7;
+  }
+  .shoot-thumbs {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    list-style: none;
+  }
+  .shoot-thumbs li {
+    position: relative;
+    flex: none;
+  }
+  /* Ảnh vừa chụp: trượt vào đầu cột, viền xanh một lúc. */
+  .shoot-thumbs li.is-newest img {
+    border-color: #4caf6e;
+    animation: shoot-thumb-in 0.45s ease-out both;
+  }
+  @keyframes shoot-thumb-in {
+    from {
+      opacity: 0;
+      translate: 0 -14px;
+      scale: 0.92;
+    }
+  }
+  .shoot-thumb-no {
+    position: absolute;
+    top: 7px;
+    left: 7px;
+    min-width: 22px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgb(33 23 19 / 72%);
+    color: #fff;
+    font-size: 12px;
+    text-align: center;
+  }
+  .shoot-thumb-pending {
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 6px;
+    aspect-ratio: 3 / 2;
+    border: 2px dashed #c9b3a2;
+    border-radius: 6px;
+    background: #fbf5ef;
+    color: var(--mellow-muted, #7a5a48);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .shoot-thumbs li.is-newest img {
+      animation: none;
+    }
+  }
+  .shoot-thumbs img,
+  .shoot-thumb-empty {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    border: 3px solid #fff;
+    border-radius: 6px;
+    object-fit: cover;
+    background: #e5d6c8;
+    box-shadow: 0 2px 6px rgb(74 50 38 / 18%);
+  }
+  /* Kết thúc sớm: nút có chữ, đủ lớn để chạm trên màn hình cảm ứng */
+  .shoot-end {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 64px;
+    margin: 0 auto;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 14px;
+    background: var(--mellow-cocoa, #522e22);
+    color: #fffaf3;
+    font-family: inherit;
+    font-size: 17px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 0 #2f1a12;
+  }
+  .shoot-end svg {
+    font-size: 22px;
+  }
+  .shoot-end:active:not(:disabled) {
+    translate: 0 3px;
+    box-shadow: 0 1px 0 #2f1a12;
+  }
+  .shoot-end:disabled {
+    background: #c9b3a2;
+    cursor: default;
+    box-shadow: none;
+  }
+  .shoot-end-wrap {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+  }
+  .shoot-end-wrap small {
+    color: var(--mellow-muted, #7a5a48);
+    font-size: 14px;
+  }
+  .shoot-error {
+    position: fixed;
+    bottom: 16px;
+    left: 16px;
+    z-index: 30;
+    max-width: min(560px, 70vw);
+  }
+  .shoot-mode {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgb(18 12 10 / 55%);
+  }
+  .shoot-mode-card {
+    display: grid;
+    justify-items: center;
+    gap: 14px;
+    width: min(760px, 100%);
+    padding: clamp(24px, 4vw, 40px);
+    border-radius: 18px;
+    background: #fffaf3;
+    color: var(--mellow-ink, #3f2c25);
+    box-shadow: 0 24px 60px rgb(0 0 0 / 35%);
+    text-align: center;
+  }
+  .shoot-mode-card h1 {
+    margin: 0;
+    font: 700 clamp(30px, 4vw, 44px) / 1.1 var(--mellow-display, Georgia, serif);
+  }
+  .shoot-mode-kicker,
+  .shoot-mode-card > small {
+    margin: 0;
+    color: var(--mellow-muted, #7a5a48);
+  }
+  .shoot-mode-card > small {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .shoot-mode-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    width: 100%;
+  }
+  .shoot-mode-options button {
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+    padding: 26px 18px;
+    border: 2px solid #e3d4c6;
+    border-radius: 16px;
+    background: #fff;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    transition: border-color 0.15s ease, translate 0.15s ease;
+  }
+  .shoot-mode-options button:hover,
+  .shoot-mode-options button:focus-visible {
+    border-color: var(--mellow-cocoa, #522e22);
+    translate: 0 -2px;
+  }
+  .shoot-mode-options svg {
+    color: var(--mellow-cocoa, #522e22);
+    font-size: 44px;
+  }
+  .shoot-mode-options strong {
+    font-size: 22px;
+  }
+  .shoot-mode-options span {
+    color: var(--mellow-muted, #7a5a48);
+    font-size: 14px;
+  }
+}

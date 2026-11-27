@@ -7,25 +7,21 @@
 // thong thả; chỉ khi khách bấm "Gửi in" thì lệnh in mới lên Hàng chờ in, nhân viên ở quầy bấm In.
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  PiArrowLeftBold, PiArrowRightBold, PiCheckBold,
-  PiCheckSquareBold, PiDownloadSimpleBold, PiHeartBold, PiHeartDuotone, PiHeartFill, PiImagesDuotone,
-  PiLockSimpleBold, PiPlusBold, PiPrinterBold, PiPrinterDuotone, PiSelectionAllBold,
-  PiSparkleFill, PiSquareBold, PiStackDuotone, PiTicketBold, PiTrashBold,
-  PiXBold,
+  PiCheckBold, PiImagesDuotone, PiPrinterDuotone, PiSelectionAllBold, PiStackDuotone, PiTicketBold,
 } from "react-icons/pi";
 import { RefreshCw } from "lucide-react";
-import { api, assetUrl, formatDateTime } from "../../api";
+import { api, formatDateTime } from "../../api";
 import { Button, ErrorBox, useStudio, useToast } from "../../studio";
-import { DEFAULT_ADJUST, FILTER_CSS, isNeutral } from "../../beauty.js";
+import { DEFAULT_ADJUST, isNeutral } from "../../beauty.js";
 import { renderPrintFrame } from "../../kiosk/compose.js";
 
 import {
-  groupFramePacks, largePrint, loadFrameImage, photoLayout,
+  groupFramePacks, largePrint, loadFrameImage,
 } from "../../frame-utils.js";
 import { storageLink } from "../../media-delivery.js";
 import { savePhoto } from "../../kiosk/direct-upload.js";
 import { prepareCameraImageAsync } from "../../image-processing.js";
-import { PhotoThumb, photoUrl } from "../photo-thumb.jsx";
+import { photoUrl } from "../photo-thumb.jsx";
 import { printPackUpload } from "../print-upload.js";
 import { mergeUploadedPhotos, uploadPhotos } from "../upload-photos.js";
 import { downloadEach, fetchFiles, isIOS } from "../save-to-phone.js";
@@ -33,9 +29,13 @@ import { createStudioMedia } from "../studio-media.js";
 import { createCanvasCache } from '../../canvas-cache.js';
 
 import { BeautyEditor } from './BeautyEditor.jsx';
-import { FrameEditor, NO_MOVE } from './FrameEditor.jsx';
+import { NO_MOVE } from './FrameEditor.jsx';
 import { usePhotoSuggestions } from './use-photo-suggestions.js';
 import { suggestionTarget } from './photo-suggestions.js';
+import { capacityOf, isFilled, pad, slotsOf } from './album-helpers.js';
+import { Gallery } from './Gallery.jsx';
+import { ShortageDialog, ThemePicker } from './ThemeStep.jsx';
+import { PackEditor, Result } from './ComposeSteps.jsx';
 
 const STEPS = [
   ["Ảnh", PiImagesDuotone],
@@ -46,10 +46,6 @@ const STEPS = [
 const ACCEPTED = /^image\/(jpeg|png|webp)$/;
 const MAX_UPLOAD_MB = 40;
 const SHARE_BATCH_BYTES = 128 * 1024 * 1024;
-const FIRST_GALLERY_PHOTOS = 4;
-const pad = (n) => String(n).padStart(2, "0");
-const slotsOf = (frame) => photoLayout(frame).slots;
-const capacityOf = (pack) => (pack?.frames || []).reduce((n, f) => n + slotsOf(f).length, 0);
 
 function canSharePhotos(files = [new File(["x"], "anh.jpg", { type: "image/jpeg" })]) {
   try {
@@ -66,7 +62,6 @@ function autoLayouts(frames, pool, { repeat = false } = {}) {
     photo: (repeat && pool.length ? pool[k++ % pool.length] : pool[k++]) || null, ...NO_MOVE,
   }))]));
 }
-const isFilled = (frame, slots) => slots?.length === slotsOf(frame).length && slots.every((s) => s.photo);
 // Trạng thái lưu trên máy (tải lại trang vẫn giữ). save(changes | (v) => changes).
 function useSaved(key, initial) {
   const [value, setValue] = useState(() => {
@@ -80,6 +75,7 @@ function useSaved(key, initial) {
 
 // Ảnh nhỏ đã làm đẹp (cạnh dài `edge` px) cho ô ghép / dải ảnh: ảnh xem trước cỡ lớn chỉ giữ trong lúc thu nhỏ.
 function useSmallEdits(media, adjustOf, edge = 720) {
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- bộ nhớ đệm mới khi đổi album (media) hoặc cỡ ảnh nhỏ (edge)
   const cache = useMemo(() => createCanvasCache({ maxPixels: 8_000_000, maxEntries: 24 }), [media, edge]);
   useEffect(() => () => {
     for (const key of [...cache.keys()]) cache.delete(key);
@@ -101,389 +97,6 @@ function useSmallEdits(media, adjustOf, edge = 720) {
   };
 }
 
-// ─── 01 Ảnh: thư viện ảnh ───────────────────────────────────────────────────────────────────────────────
-function EditedThumb({ token, photo, adjust, small, suspended, alt, loading, fetchPriority, onSettled }) {
-  const canvas=useRef(null),make=useRef(small);
-  const settled=useRef(onSettled);
-  make.current=small;
-  settled.current=onSettled;
-  const [ready,setReady]=useState(false);
-  const neutral=isNeutral(adjust),key=JSON.stringify(adjust);
-  useEffect(()=>{
-    if(suspended)return;
-    let alive=true;
-    setReady(false);
-    if(!neutral)make.current(photo).then(image=>{
-      const c=canvas.current;
-      if(!alive || !c || !image.width)return;
-      c.width=image.width;c.height=image.height;c.getContext('2d').drawImage(image,0,0);setReady(true);
-      settled.current?.();
-    }).catch(()=>{});
-    return ()=>{alive=false};
-  },[photo.id,key,suspended]);
-  return <>
-    {!ready && <PhotoThumb photo={photo} token={token} alt={alt} loading={loading} decoding="async"
-      fetchPriority={fetchPriority} onLoad={onSettled} onError={onSettled} style={{filter:FILTER_CSS[adjust.filter]||'none'}}/>}
-    <canvas ref={canvas} className="sb-edited-thumb" role="img" aria-label={`${alt} đã chỉnh`} style={{display:ready?'block':'none'}}/>
-  </>;
-}
-
-function Gallery({ token, photos, favorites, adjustOf, small, suspended, busy, frozen, uploadProgress, selectedPack, downloadingId, saveProgress, readyToSave, mobileSave, saveAvailable, saveHint, onSaveAll,
-  suggestions = [], capacity = 0, suggestProgress = null, onFirstPhotosReady, onHeartMany, onFavorite, onDelete, onDownload, onEdit, onUpload, onNext }) {
-  const [selecting, setSelecting] = useState(false);
-  const [view, setView] = useState("all");
-  const suggested = useMemo(() => new Set(suggestions), [suggestions]);
-  const showSuggested = view === "suggested" && suggested.size > 0;
-  const showFavorites = view === "favorites";
-  const shown = showSuggested ? photos.filter((p) => suggested.has(p.id))
-    : showFavorites ? photos.filter((p) => p.favorite) : photos;
-  const firstPhotos = shown.slice(0, FIRST_GALLERY_PHOTOS);
-  const settledThumbnails = useRef(new Set());
-  const firstPhotosReady = useRef(false);
-  function checkFirstPhotos() {
-    if (firstPhotosReady.current || !firstPhotos.length ||
-        !firstPhotos.every(p => settledThumbnails.current.has(p.id))) return;
-    firstPhotosReady.current = true;
-    onFirstPhotosReady();
-  }
-  // A photo may have been removed while the first row was loading.
-  useEffect(checkFirstPhotos);
-  // Đã chọn bộ khung: chỉ thả tim cho đủ số ô còn thiếu (ảnh đẹp nhất trước); chưa chọn bộ: cả loạt gợi ý.
-  const hearted = new Set(photos.filter((p) => p.favorite).map((p) => p.id));
-  const needed = capacity ? Math.max(0, capacity - favorites) : Infinity;
-  const unhearted = suggestions.filter((id) => !hearted.has(id)).slice(0, needed);
-  const [selected, setSelected] = useState(() => new Set());
-  const input = useRef(null);
-  const allSelected = selecting && photos.length > 0 && photos.every(p => selected.has(p.id));
-  const toggle = (id) => setSelected((old) => {
-    const next = new Set(old);
-    next.has(id) ? next.delete(id) : next.add(id);
-    return next;
-  });
-  const locked = busy || frozen || Boolean(downloadingId);
-  const batch = readyToSave?.scope === "all" ? readyToSave : null;
-  const pending = photos.filter(p => p.originalPending).length;
-  const batchSuffix = batch?.remaining.length ? " của lượt này" : " còn lại";
-  const saveLabel = batch?.files.length
-    ? `Lưu ${batch.files.length} ảnh${batch.total > batch.files.length ? batchSuffix : ""}`
-    : batch ? "Tiếp tục lưu ảnh" : "Lưu tất cả ảnh";
-  return (
-    <>
-      <div className="studio-head studio-gallery-head">
-        <div>
-          <div className="studio-title-row">
-            <h2>Thư viện ảnh</h2>
-            <span className="studio-photo-total">{photos.length} ảnh</span>
-          </div>
-          {photos.length > 0 && <p>Chạm ảnh để chỉnh, thả tim để ghép.</p>}
-        </div>
-      </div>
-      <div className="gallery-tools" role="group" aria-label="Công cụ thư viện">
-        {selecting ? (
-          <button type="button" onClick={() => setSelected(allSelected ? new Set() : new Set(photos.map(p => p.id)))}>
-            <PiSelectionAllBold aria-hidden="true" /> {allSelected ? "Bỏ chọn tất cả" : "Chọn tất cả"}
-          </button>
-        ) : <>
-          {photos.length > 0 && <button type="button" className={batch ? "is-save-ready" : undefined}
-            disabled={!saveAvailable || busy || Boolean(downloadingId) || pending > 0} onClick={onSaveAll} aria-busy={downloadingId === "all"}
-            aria-describedby="sb-gallery-save-hint">
-            <PiDownloadSimpleBold aria-hidden="true" /> {saveProgress || saveLabel}
-          </button>}
-          {photos.length > 0 && <button type="button" disabled={locked} onClick={() => {
-            setView("all"); setSelecting(true);
-          }}><PiSelectionAllBold aria-hidden="true" /> Chọn nhiều</button>}
-          {(favorites > 0 || showFavorites) && <button type="button" aria-pressed={showFavorites}
-            onClick={() => setView(showFavorites ? "all" : "favorites")}>
-            <PiHeartBold aria-hidden="true" /> Ảnh đã thích
-          </button>}
-          {photos.length > 0 && <small id="sb-gallery-save-hint" role="status" className={downloadingId === "all" ? "visually-hidden" : undefined}>
-            {downloadingId === "all" ? saveProgress
-              : pending ? `Đang nhận ${pending} ảnh gốc từ máy chụp.`
-              : batch?.files.length && batch.remaining.length ? `${saveHint} Còn ${batch.remaining.length} ảnh sau lượt này.`
-              : saveHint}
-          </small>}
-        </>}
-      </div>
-      {!selecting && !showFavorites && suggestProgress && (
-        <div className="suggest-bar is-working" role="status">
-          <PiSparkleFill aria-hidden="true" />
-          <span>Đang tìm ảnh đẹp… {suggestProgress.done}/{suggestProgress.total}</span>
-          <span className="suggest-progress" aria-hidden="true">
-            <span style={{ width: `${Math.round((100 * suggestProgress.done) / suggestProgress.total)}%` }} />
-          </span>
-        </div>
-      )}
-      {!selecting && !showFavorites && !suggestProgress && suggested.size > 0 && (
-        <div className="suggest-bar">
-          <PiSparkleFill aria-hidden="true" />
-          <span>
-            <strong>Gợi ý ảnh đẹp</strong>: {suggested.size} ảnh
-            {selectedPack && capacity ? <> · {capacity} ô trong bộ “{selectedPack.name}”</> : null}
-          </span>
-          <div className="suggest-actions">
-            <button type="button" aria-pressed={showSuggested} onClick={() => setView(showSuggested ? "all" : "suggested")}>
-              {showSuggested ? "Xem tất cả ảnh" : "Xem ảnh đẹp"}
-            </button>
-            {unhearted.length > 0 && (
-              <button type="button" className="is-primary" disabled={frozen} onClick={() => onHeartMany(unhearted)}>
-                <PiHeartFill aria-hidden="true" /> Thả tim {unhearted.length} ảnh đẹp
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-      {!shown.length && <div className="empty-state">
-        <strong>{showFavorites ? "Bạn chưa thả tim ảnh nào." : "Thư viện chưa có ảnh"}</strong>
-        <p>{showFavorites ? "Về thư viện rồi chạm vào hình trái tim bên dưới ảnh bạn thích."
-          : "Ảnh từ máy chụp sẽ tự xuất hiện tại đây. Bạn cũng có thể chạm Thêm ảnh để lấy ảnh từ điện thoại."}</p>
-        {showFavorites && <Button className="outline" onClick={() => setView("all")}>Xem tất cả ảnh</Button>}
-      </div>}
-      <div className={`studio-grid ${selecting ? "is-selecting" : ""}`}>
-        {/* Ô đầu tiên, ngay cạnh các ảnh vừa chụp: thêm ảnh từ điện thoại (chỉ điện thoại này thấy). */}
-        {!selecting && !showFavorites && !showSuggested && (
-          <div className="studio-add-tile">
-            <button type="button" disabled={locked} aria-busy={Boolean(uploadProgress)} aria-describedby="sb-add-note"
-              onClick={() => input.current?.click()}>
-              <span className="studio-add-icon" aria-hidden="true"><PiPlusBold /></span>
-              <strong>Thêm ảnh</strong>
-              <small id="sb-add-note" role="status">
-                {uploadProgress ? `Đang thêm ${uploadProgress.done}/${uploadProgress.total}…` : "Từ điện thoại · chỉ bạn thấy"}
-              </small>
-            </button>
-          </div>
-        )}
-        {shown.map((p, i) => {
-          const adjust = adjustOf(p.id);
-          const number = pad(p.number || i + 1);
-          return (
-            <figure key={p.id} className={`${p.favorite ? "is-fav" : ""} ${selected.has(p.id) ? "is-picked" : ""} ${suggested.has(p.id) ? "is-suggested" : ""}`}>
-              <button type="button" className="studio-photo" aria-label={selecting ? `Chọn ảnh ${number}` : `Xem & chỉnh ảnh ${number}`}
-                aria-pressed={selecting ? selected.has(p.id) : undefined}
-                onClick={() => (selecting ? toggle(p.id) : onEdit(p))}>
-                <EditedThumb photo={p} token={token} adjust={adjust} small={small} suspended={suspended} alt={`Ảnh ${number}`}
-                  loading={i < FIRST_GALLERY_PHOTOS ? "eager" : "lazy"} fetchPriority={i === 0 ? "high" : undefined}
-                  onSettled={i < FIRST_GALLERY_PHOTOS && !firstPhotosReady.current ? () => {
-                    settledThumbnails.current.add(p.id);
-                    checkFirstPhotos();
-                  } : undefined} />
-                {!selecting && <span className="photo-edit-label" aria-hidden="true"><PiSparkleFill /> Chỉnh ảnh</span>}
-              </button>
-              {!isNeutral(adjust) && <span className="photo-edited" title="Đã chỉnh sửa"><PiSparkleFill /></span>}
-              {suggested.has(p.id) && <span className="photo-suggested" title="Gợi ý ảnh đẹp: cười tươi, rõ nét, không nhắm mắt">Gợi ý ảnh đẹp</span>}
-              {p.mine && <span className="photo-mine" title="Ảnh bạn thêm từ điện thoại: người khác quét mã không thấy">
-                <PiLockSimpleBold aria-hidden="true" /> Chỉ bạn thấy</span>}
-              <div className="tile-actions">
-                {selecting ? (
-                  <button type="button" className="tile-btn tile-check" role="checkbox" aria-checked={selected.has(p.id)}
-                    aria-label={`Đánh dấu ảnh ${number}`} onClick={() => toggle(p.id)}>
-                    {selected.has(p.id) ? <PiCheckSquareBold /> : <PiSquareBold />}
-                  </button>
-                ) : (
-                  <>
-                    <button type="button" className={`tile-btn${readyToSave?.scope === p.id ? " is-save-ready" : ""}`}
-                      disabled={!saveAvailable || busy || Boolean(downloadingId) || p.originalPending} aria-busy={downloadingId === p.id}
-                      aria-label={readyToSave?.scope === p.id ? `Lưu ảnh ${number} đã sẵn sàng` : mobileSave ? `Lưu ảnh ${number} vào thư viện` : `Tải ảnh ${number} về máy`}
-                      title={mobileSave ? "Lưu vào thư viện ảnh" : "Tải ảnh về máy"} onClick={() => onDownload(p)}>
-                      {readyToSave?.scope === p.id ? <PiCheckBold /> : <PiDownloadSimpleBold />}
-                    </button>
-                    <button type="button" className="tile-btn tile-delete" disabled={locked} aria-label={`Xóa ảnh ${number}`}
-                      title="Xóa ảnh" onClick={() => onDelete([p.id])}>
-                      <PiTrashBold />
-                    </button>
-                  </>
-                )}
-                <button type="button" className="tile-btn tile-heart" disabled={frozen} aria-pressed={p.favorite}
-                  aria-label={`${p.favorite ? "Bỏ tim" : "Thả tim"} ảnh ${number}`} onClick={() => onFavorite(p)}>
-                  {p.favorite ? <PiHeartFill /> : <PiHeartBold />}
-                </button>
-              </div>
-            </figure>
-          );
-        })}
-      </div>
-      <input ref={input} hidden type="file" aria-label="Chọn ảnh từ điện thoại" accept="image/jpeg,image/png,image/webp"
-        multiple disabled={locked} onChange={(e) => {
-          if (e.target.files.length) { setView("all"); onUpload(Array.from(e.target.files)); }
-          e.target.value = "";
-        }} />
-      <div className="studio-actions gallery-bar">
-        {selecting ? <>
-          <Button className="outline" disabled={busy} aria-label="Thoát chế độ chọn"
-            onClick={() => { setSelecting(false); setSelected(new Set()); }}>Hủy chọn</Button>
-          <Button className="outline gallery-delete" disabled={!selected.size || locked}
-            onClick={async () => { if (await onDelete([...selected])) { setSelected(new Set()); setSelecting(false); } }}>
-            <PiTrashBold aria-hidden="true" /> Xóa ({selected.size})
-          </Button>
-        </> : <>
-          <span className="fav-count" aria-live="polite"><PiHeartFill aria-hidden="true" />{`Thích · ${favorites}`}</span>
-          <Button disabled={!photos.length || busy} onClick={onNext}>Chọn khung in <PiArrowRightBold aria-hidden="true" /></Button>
-        </>}
-      </div>
-    </>
-  );
-}
-
-// ─── 02 Chủ đề: chọn một bộ khung ───────────────────────────────────────────────────────────────────────
-function ThemePicker({ packs, selected, favorites, frozen, unit, onSelect, onBack, onNext }) {
-  const pack = packs.find((p) => p.id === selected);
-  const capacity = capacityOf(pack);
-  const missing = pack ? Math.max(0, capacity - favorites) : 0;
-  return (
-    <>
-      <div className="studio-head theme-catalog-head">
-        <div>
-          <h2>Chọn bộ khung</h2>
-          <p>Chọn một bộ bạn thích. Mỗi khung là một {unit} cm.</p>
-        </div>
-        <span className="theme-total">{packs.length} bộ khung</span>
-      </div>
-      <div className={`theme-catalog${packs.length === 1 ? " is-single" : ""}`}>
-        {packs.map((p) => (
-          <button key={p.id} type="button" className={p.id === selected ? "active" : ""} aria-pressed={p.id === selected}
-            disabled={frozen} aria-label={`Chọn bộ ${p.name}, ${p.frames.length} khung, ${capacityOf(p)} ô ảnh`}
-            onClick={() => onSelect(p.id)}>
-            <span className="theme-big-preview" aria-hidden="true" style={{
-              "--preview-columns": Math.min(3, p.frames.length),
-              "--preview-rows": Math.ceil(p.frames.length / 3),
-            }}>
-              {p.frames.map((f, index) => (
-                <span className="theme-preview-frame" key={f._id}>
-                  <img src={assetUrl(f.thumb || f.image)} alt="" loading={p === packs[0] && index === 0 ? "eager" : "lazy"} decoding="async" />
-                </span>
-              ))}
-            </span>
-            <span className="theme-list-info">
-              <span className="theme-card-title">
-                <strong>{p.name}</strong>
-                {p.id === selected && <span className="theme-choice"><PiCheckBold aria-hidden="true" /> Đã chọn</span>}
-              </span>
-              <span className="theme-card-meta">
-                <span><PiStackDuotone aria-hidden="true" /> {p.frames.length} khung</span>
-                <span><PiImagesDuotone aria-hidden="true" /> {capacityOf(p)} ô ảnh</span>
-              </span>
-            </span>
-          </button>
-        ))}
-      </div>
-      {!packs.length && <div className="empty-state">Studio chưa có bộ khung in {unit}. Vui lòng liên hệ lễ tân.</div>}
-      <div className="studio-actions theme-action-bar">
-        <Button className="outline" onClick={onBack}><PiArrowLeftBold aria-hidden="true" /> Quay lại</Button>
-        <span className="theme-action-summary" role="status">
-          {pack && <PiHeartFill aria-hidden="true" />}
-          {pack ? (missing ? `Còn thiếu ${missing} ảnh yêu thích. Bạn có thể ghép tự động.`
-            : "Đủ ảnh yêu thích để ghép.") : packs.length > 0 ? "Chạm vào một bộ khung để tiếp tục." : ""}
-        </span>
-        <Button disabled={!pack || !capacity || frozen} onClick={onNext}>Ghép ảnh <PiArrowRightBold aria-hidden="true" /></Button>
-      </div>
-    </>
-  );
-}
-
-function ShortageDialog({ pack, required, favorites, totalPhotos, onMore, onAutomatic, onClose }) {
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <section className="modal favorite-shortage" role="dialog" aria-modal="true" aria-label="Chưa đủ ảnh yêu thích"
-        onClick={(e) => e.stopPropagation()}>
-        <button type="button" className="icon-button modal-close" aria-label="Đóng" onClick={onClose}><PiXBold /></button>
-        <span className="favorite-shortage-icon" aria-hidden="true"><PiHeartDuotone /></span>
-        <h2>Chưa đủ ảnh yêu thích</h2>
-        <p>Bộ “{pack.name}” có {required} ô. Bạn đã thích {favorites} ảnh.</p>
-        <p>
-          {totalPhotos < required
-            ? `Thư viện có ${totalPhotos} ảnh cho ${required} ô. Tự động ghép sẽ dùng lại một số ảnh để lấp đầy các ô.`
-            : "Ghép tự động sẽ dùng ảnh bạn thích trước và lấy thêm ảnh từ thư viện."}
-        </p>
-        <div className="favorite-shortage-actions">
-          <Button onClick={onAutomatic} disabled={!totalPhotos}>Tự động ghép</Button>
-          <Button className="outline" onClick={onMore} autoFocus>Chọn thêm ảnh</Button>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-// ─── 03 Ghép ảnh: cả bộ — mọi khung đã có ảnh, chuyển tab để chỉnh (như PackEditor của web Selfbooth) ─────────
-function PackEditor({ token, pack, layouts, index, photos, small, photoOf, adjustOf, frozen, onIndex, onSlots, onReshuffle, onBack, onNext }) {
-  const toast = useToast();
-  const at = Math.min(index, pack.frames.length - 1);
-  const frame = pack.frames[at];
-  function next() {
-    const empty = pack.frames.findIndex((f) => !isFilled(f, layouts[f._id]));
-    if (empty < 0) return onNext();
-    onIndex(empty);
-    toast.warning(`Khung “${pack.frames[empty].name}” còn ô chưa có ảnh.`);
-  }
-  return (
-    <>
-      {pack.frames.length > 1 && (
-        <div className="frame-tabs" role="tablist" aria-label="Các khung trong bộ">
-          {pack.frames.map((f, i) => (
-            <button key={f._id} type="button" role="tab" aria-selected={i === at} aria-label={f.name}
-              className={isFilled(f, layouts[f._id]) ? "" : "missing"} onClick={() => onIndex(i)}>
-              <img src={assetUrl(f.thumb || f.image)} alt="" />
-              <span>{f.name}</span>
-            </button>
-          ))}
-        </div>
-      )}
-      <FrameEditor key={frame._id} token={token} frame={frame}
-        title={pack.frames.length > 1 ? `${frame.name} · ${at + 1}/${pack.frames.length}` : frame.name}
-        slots={layouts[frame._id] || []} photos={photos} small={small} photoOf={photoOf} adjustOf={adjustOf} frozen={frozen}
-        onSlots={(slots) => onSlots(frame._id, slots)} onReshuffle={onReshuffle} onBack={onBack} onNext={next} />
-    </>
-  );
-}
-
-// ─── 04 Kết quả: mỗi khung một tờ 20 × 30, chọn tờ muốn in ─────────────────────
-function Result({ sheets, error, waiting, picked, remaining, quota, printing, failed, unit, word, onToggle, onPrint, onBack, onRetry }) {
-  const overQuota = picked.size > remaining;
-  return (
-    <>
-      <div className="studio-head result-head">
-        <div>
-          <h2>Thành phẩm của bạn</h2>
-          <p>{sheets.length && remaining > 0 ? `Chọn ${word} bạn muốn in, rồi bấm Gửi in.` : "Xem ảnh ghép trước khi gửi đến quầy."}</p>
-        </div>
-      </div>
-      <p className={`print-quota ${remaining ? "" : "empty"}`} role="status">
-        <PiPrinterDuotone aria-hidden="true" />
-        <span>
-          <b>{remaining ? `Vé còn ${remaining}/${quota} ${unit} cm` : "Vé đã dùng hết số tờ in"}</b>
-          <small>{!remaining ? "Bạn có thể mua thêm tờ in tại quầy."
-            : overQuota ? `Bỏ chọn ${picked.size - remaining} ${word} để gửi in.` : `Đã chọn ${picked.size} ${word}`}</small>
-        </span>
-      </p>
-      {error && (
-        <div className="error-box" role="alert">
-          <p>{error}</p>
-          <Button className="outline" onClick={onRetry}>Thử lại</Button>
-        </div>
-      )}
-      {!sheets.length && !error && <p className="empty-state" role="status">
-        {waiting ? "Ảnh gốc đang tải lên. Bản in sẽ tự xuất hiện khi ảnh đã sẵn sàng." : "Đang chuẩn bị ảnh in chất lượng cao…"}
-      </p>}
-      <div className="sheet-strip">
-        {sheets.map((s, i) => (
-          <figure key={s.frameId} className={picked.has(i) ? "is-picked" : "is-skipped"}>
-            <button type="button" aria-pressed={picked.has(i)} aria-label={`Tấm in ${i + 1}: ${s.name}`}
-              disabled={printing || failed || (!remaining && !picked.has(i))} onClick={() => onToggle(i)}>
-              <img src={s.preview} alt={`Tấm in ${i + 1}`} />
-              <span className="sheet-pick">{picked.has(i) ? <><PiCheckBold aria-hidden="true" /> Đã chọn</> : remaining ? "Chọn để in" : "Xem trước"}</span>
-            </button>
-            <figcaption>{s.name}</figcaption>
-          </figure>
-        ))}
-      </div>
-      <div className="studio-actions">
-        <Button className="outline" disabled={printing} onClick={onBack}><PiArrowLeftBold aria-hidden="true" /> Sửa khung</Button>
-        <Button disabled={printing || failed || overQuota || !picked.size || !sheets.length} onClick={onPrint}>
-          <PiPrinterBold aria-hidden="true" /> {printing ? "Đang gửi in…" : `Gửi in (${picked.size} ${word})`}
-        </Button>
-      </div>
-    </>
-  );
-}
-
 export function SelfboothAlbum({ token, booking, setBooking, reload }) {
   const toast = useToast();
   const { frames: catalog = [], settings = {} } = useStudio();
@@ -496,6 +109,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
   const originals = useMemo(() => booking.photos.filter((p) => p.kind === "original"), [booking.photos]);
   const ids = new Set(originals.map((p) => String(p.id)));
   const hearts = saved.hearts.filter((id) => ids.has(id));
+  const heartsKey = hearts.join();
   const photos = originals.map((p) => ({ ...p, id: String(p.id), favorite: hearts.includes(String(p.id)) }));
   const photoOf = (id) => photos.find((p) => p.id === id);
   const newestFirst = [...photos].reverse();
@@ -569,10 +183,12 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
         [id, slots.map((s) => (s.photo && !ids.has(s.photo) ? { ...s, photo: null } : s))])),
       step: Math.min(v.step, 2),
     }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ khi ảnh bị xoá / đổi bộ khung / danh mục tải xong; save và các giá trị khác đọc mới nhất
   }, [idsKey, saved.packId, packs.length]);
   useEffect(() => {
     if (saved.step >= 2 && !ready) save({ step: pack ? 1 : 0 });
     if (saved.step === 3 && !filled && ready) save({ step: 2 });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- pack suy ra từ ready; save tạo mới mỗi lần vẽ
   }, [saved.step, ready, filled]);
 
   const frozen = printing || showReceipt;
@@ -695,7 +311,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
     try { await navigator.share({ files }); }
     catch (e) {
       if (e.name === "AbortError" || (fromPreparation && e.name === "NotAllowedError")) return;
-      throw new Error(`Chưa mở được bảng chia sẻ. Hãy thử lại trong ${saveBrowser}.`);
+      throw new Error(`Chưa mở được bảng chia sẻ. Hãy thử lại trong ${saveBrowser}.`, { cause: e });
     }
     setReadyToSave(remaining.length ? { scope, files: [], remaining, total, cache } : null);
     if (remaining.length) setReadyToSave(await prepareShare(scope, remaining, total, cache));
@@ -789,7 +405,8 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
   const carousel = useMemo(() => {
     const usedIds = new Set(Object.values(saved.layouts).flat().map((s) => s.photo));
     return saved.autoFill ? [...favorites, ...photos.filter((p) => !p.favorite)] : photos.filter((p) => p.favorite || usedIds.has(p.id));
-  }, [idsKey, hearts.join(), saved.layouts, saved.autoFill]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- theo mã ảnh và ảnh đã thả tim, không theo mảng photos mới mỗi lần hỏi lại
+  }, [idsKey, heartsKey, saved.layouts, saved.autoFill]);
 
   // ── Kết quả: dựng tờ in 20 × 30 cho từng khung của bộ ──
   const [sheets, setSheets] = useState([]);
@@ -839,6 +456,7 @@ export function SelfboothAlbum({ token, booking, setBooking, reload }) {
       setPicked(new Set(list.slice(0, remaining).map((_, i) => i)));
     }, (e) => live && setSheetError(e.message));
     return () => { live = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- sheetKey = bộ khung + bố cục + công thức làm đẹp; chỉ vẽ lại tờ in khi những thứ đó đổi
   }, [saved.step, sheetKey, filled, renderTurn, result, waitingForOriginals]);
   function togglePick(i) {
     if (printing) return;

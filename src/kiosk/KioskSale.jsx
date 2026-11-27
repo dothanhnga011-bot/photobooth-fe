@@ -232,6 +232,9 @@ export function KioskPayment({ pack, total, sheets, bills, onBill, onPaid, onSki
   const remaining = Math.max(0, total - received);
   const change = Math.max(0, received - total);
   const paidOnce = useRef(false);
+  // Tờ tiền về bất cứ lúc nào: luôn gọi onBill mới nhất mà không phải kết nối lại máy nhận tiền mỗi lần vẽ.
+  const latestOnBill = useRef(onBill);
+  useEffect(() => { latestOnBill.current = onBill; });
   // Giây còn lại của lời nhắc tiền thừa (0: không hiện). Mở lượt chụp đúng một lần, dù khách bấm hay hết giờ.
   const [changeNotice, setChangeNotice] = useState(0);
   const opened = useRef(false);
@@ -254,7 +257,7 @@ export function KioskPayment({ pack, total, sheets, bills, onBill, onPaid, onSki
     );
     const off = billAcceptor.onBill((amount) => {
       setIdle(IDLE_SECONDS);
-      onBill(amount);
+      latestOnBill.current(amount);
     });
     return () => {
       active = false;
@@ -270,11 +273,13 @@ export function KioskPayment({ pack, total, sheets, bills, onBill, onPaid, onSki
     if (simulated) onSkip();
     else if (received > total) setChangeNotice(CHANGE_NOTICE_SECONDS);
     else openSession();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ xét khi số tiền đã nhận / máy ảnh đổi; paidOnce chặn mở lượt chụp hai lần
   }, [received, cameraReady]);
   useEffect(() => {
     if (!changeNotice) return;
     const timer = setTimeout(() => (changeNotice <= 1 ? openSession() : setChangeNotice(changeNotice - 1)), 1000);
     return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- đếm ngược thông báo tiền thừa, mỗi giây một lần
   }, [changeNotice]);
   // Không ai thao tác: chưa đút tiền thì về màn chờ; đã đút tiền thì giữ lại (gọi nhân viên).
   useEffect(() => {
@@ -283,6 +288,7 @@ export function KioskPayment({ pack, total, sheets, bills, onBill, onPaid, onSki
   }, []);
   useEffect(() => {
     if (!idle && !bills.length && !busy) onIdle();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ khi hết giờ chờ; đã đút tiền / đang mở lượt thì không về màn chờ
   }, [idle]);
   return (
     <section className="kiosk-flow pay-screen">

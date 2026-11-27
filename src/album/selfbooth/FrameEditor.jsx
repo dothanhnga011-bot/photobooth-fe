@@ -3,7 +3,7 @@
 // để dời, chụm 2 ngón / lăn chuột để phóng to, kéo ảnh từ dải ảnh thả vào ô, Đổi ảnh / Dùng cho tất cả ô / Đặt lại,
 // thanh phóng to và thanh xoay ảnh trong ô. Khác Selfbooth: ảnh lấy từ bản đã làm đẹp cỡ nhỏ của album này (small),
 // phóng to tối đa ×3 như máy in (clampZoom), và đang gửi in / đã gửi in (frozen) thì khoá thao tác.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   PiArrowCounterClockwiseBold, PiArrowLeftBold, PiArrowRightBold, PiHeartFill,
   PiMinusBold, PiPlusBold, PiShuffleBold, PiXBold,
@@ -43,7 +43,7 @@ function CarouselThumb({ token, photo, active, count, disabled, onStart, onPick 
 export function FrameEditor({ token, frame, title, slots, photos, small, photoOf, adjustOf, frozen, onSlots, onReshuffle, onBack, onNext }) {
   const toast = useToast();
   const canvas = useRef(null);
-  const layout = photoLayout(frame);
+  const layout = useMemo(() => photoLayout(frame), [frame]);
   const [bg, setBg] = useState(null);
   const [bgError, setBgError] = useState("");
   const [images, setImages] = useState({});
@@ -77,6 +77,7 @@ export function FrameEditor({ token, frame, title, slots, photos, small, photoOf
       (e) => live && setImageState({ kind: "error", error: e.message }),
     );
     return () => { live = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- imageKey = danh sách ảnh cần vẽ (used / photoOf / small tạo mới mỗi lần vẽ)
   }, [imageKey, retry]);
 
   const error = bgError || imageState.error || "";
@@ -125,7 +126,7 @@ export function FrameEditor({ token, frame, title, slots, photos, small, photoOf
     // Nhiều lần kéo / phóng to trong một khung hình chỉ vẽ lại một lần.
     const request = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(request);
-  }, [bg, images, slots, selected, frame]);
+  }, [bg, images, slots, selected, layout]);
 
   const update = (i, changes) => !frozen && onSlots(slotsRef.current.map((s, j) => (j === i ? { ...s, ...changes } : s)));
   const assign = (i, photo) => update(i, { photo, ...NO_MOVE });
@@ -251,7 +252,7 @@ export function FrameEditor({ token, frame, title, slots, photos, small, photoOf
       toast.dismiss(missing.current);
       missing.current = null;
     }
-  }, [filledCount]);
+  }, [filledCount, slots.length, toast]);
 
   return (
     <>

@@ -6,7 +6,6 @@ import {
   PiArrowClockwiseBold,
   PiArrowCounterClockwiseBold,
   PiArrowLeftBold,
-  PiArrowRightBold,
   PiArrowsOutCardinalBold,
   PiBackspaceBold,
   PiCaretDownBold,
@@ -114,6 +113,7 @@ function DecorStage({
       controller.abort();
       cancelAnimationFrame(request);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- imageKey / filterKey / transformKey là nội dung của images / filters / transforms (mảng mới mỗi lần vẽ)
   }, [frame, imageKey, filterKey, transformKey, qrUrl]);
   useEffect(() => () => {
     if (latestBase.current) latestBase.current.width = latestBase.current.height = 0;
@@ -169,7 +169,7 @@ function DecorStage({
       }
     });
     return () => cancelAnimationFrame(request);
-  }, [base, stickers, picked, loads, area, highlight]);
+  }, [base, stickers, picked, loads, area, highlight, frame]);
 
   // Điểm chạm đổi sang px của canvas (canvas co giãn theo màn hình, giữ tỉ lệ).
   const point = (e) => {

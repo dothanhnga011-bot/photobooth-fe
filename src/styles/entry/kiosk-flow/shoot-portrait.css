@@ -1,0 +1,83 @@
+/* Màn chụp trên màn hình đứng: ảnh vừa chụp toàn shoot-stage (phần lớn màn, ~72%),
+   shoot-rail phía dưới nhỏ gọn: đồng hồ, dải thumbnail, nút Chụp xong. */
+@layer components {
+  .shoot-screen.is-portrait {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .shoot-screen.is-portrait .shoot-rail {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: #000;
+    color: #faf2eb;
+    min-height: 0;
+  }
+  .shoot-screen.is-portrait .shoot-timer {
+    flex: 0 0 auto;
+    align-self: stretch;
+    min-width: 110px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgb(255 250 243 / 10%);
+    border: 1px solid rgb(255 250 243 / 14%);
+    color: #faf2eb;
+  }
+  .shoot-screen.is-portrait .shoot-timer span {
+    color: #c5aa95;
+    font-size: 10px;
+  }
+  .shoot-screen.is-portrait .shoot-timer strong {
+    font-size: clamp(28px, 4vh, 44px);
+    color: #faf2eb;
+  }
+  .shoot-screen.is-portrait .shoot-timer small {
+    color: #c5aa95;
+    font-size: 11px;
+  }
+  .shoot-screen.is-portrait .shoot-thumbs {
+    flex: 1 1 0;
+    flex-direction: row;
+    align-self: stretch;
+    gap: 6px;
+    height: clamp(60px, 8vh, 90px);
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .shoot-screen.is-portrait .shoot-thumbs li {
+    height: 100%;
+  }
+  .shoot-screen.is-portrait .shoot-thumbs img,
+  .shoot-screen.is-portrait .shoot-thumb-empty,
+  .shoot-screen.is-portrait .shoot-thumbs-empty,
+  .shoot-screen.is-portrait .shoot-thumb-pending {
+    width: auto;
+    height: 100%;
+  }
+  .shoot-screen.is-portrait .shoot-thumbs-empty,
+  .shoot-screen.is-portrait .shoot-thumb-pending {
+    display: none;
+  }
+  .shoot-screen.is-portrait .shoot-end-wrap {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .shoot-screen.is-portrait .shoot-end {
+    min-width: 110px;
+    min-height: clamp(56px, 7vh, 76px);
+    padding: 0 16px;
+    border-radius: 16px;
+    font-size: clamp(16px, 2.2vh, 22px);
+  }
+  .shoot-screen.is-portrait .shoot-end svg {
+    font-size: 1.3em;
+  }
+  .shoot-screen.is-portrait .shoot-latest-full img {
+    object-fit: contain;
+  }
+}

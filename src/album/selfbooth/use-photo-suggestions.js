@@ -114,10 +114,12 @@ export function usePhotoSuggestions(token, photos, { limit, paused = false } = {
       for (const pending of queue) pending.then(({ bitmap }) => bitmap?.close?.());
     };
     // Chạy lại khi danh sách ảnh đổi (thêm / xoá ảnh) hoặc hết tạm dừng.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- ids là danh sách mã ảnh (missing / photos tạo mới mỗi lần album hỏi lại)
   }, [token, ids, enabled, paused, visible]);
   const suggested = useMemo(() => {
     if (!enabled || missing.length) return [];
     return pickSuggestions(photos.map((p) => ({ id: p.id, number: p.number, ...scores[p.id] })), photos.length, limit);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- như trên: theo danh sách mã ảnh, không theo mảng photos mới mỗi lần hỏi lại
   }, [enabled, ids, scores, missing.length, limit]);
   return {
     // Đang chấm: { done, total } để hiện tiến độ; xong (hoặc không gợi ý) thì null.

@@ -590,8 +590,8 @@ test("portrait keeps all 12 photos in the editor and all 16 frames in the separa
   } finally {await page.close()}
 });
 
-test("PROBE tabs", async () => {
-  const { page } = await selectScreen({ shots: 12, viewport: { width: 1080, height: 1920 } });
+test("portrait 1080 × 1920: every decorate tab fits inside its panel, above the footer buttons", async () => {
+  const { page, errors } = await selectScreen({ shots: 12, viewport: { width: 1080, height: 1920 } });
   try {
     const grid = page.getByRole("group", { name: "Ảnh đã chụp" });
     await grid.getByRole("button").nth(0).click();
@@ -605,9 +605,12 @@ test("PROBE tabs", async () => {
         const kids = [...document.querySelectorAll(".select-tab-panel *")].map((e) => e.getBoundingClientRect().bottom);
         return { panelBottom: Math.round(panel.bottom), contentBottom: Math.round(Math.max(...kids)), foot: Math.round(document.querySelector(".flow-foot").getBoundingClientRect().top) };
       });
-      console.log("PROBE", file, JSON.stringify(clip));
+      // Nội dung không tràn khỏi khung của mục, khung không đè lên thanh nút "Đổi khung / In ảnh".
+      assert.ok(clip.contentBottom <= clip.panelBottom + 1, `${file}: ${JSON.stringify(clip)}`);
+      assert.ok(clip.panelBottom <= clip.foot, `${file}: ${JSON.stringify(clip)}`);
       await page.screenshot({ path: join(tmpdir(), `photobooth-fe-portrait-${file}.png`) });
     }
+    assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });
 

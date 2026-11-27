@@ -1,3 +1,4 @@
+/* global gc -- có khi chạy node --expose-gc */
 // Synthetic camera-original benchmark. No personal photos, network service or .env is used.
 // Run from photobooth-fe: node scripts/bench-photo-clean.mjs --baseline=HEAD --iterations=20
 import assert from "node:assert/strict";

@@ -7,7 +7,7 @@ import { cleanJpegMetadata } from "../../photobooth-be/src/services/jpeg-metadat
 // The booth's cleaner must give exactly the bytes the server's would: the stored original is the
 // same whichever way a photo travelled. Sample JPEGs come from the server's own image library.
 const sharp = createRequire(new URL("../../photobooth-be/package.json", import.meta.url))("sharp");
-const base = (options = {}) => sharp({ create: { width: 320, height: 200, channels: 3,
+const base = () => sharp({ create: { width: 320, height: 200, channels: 3,
   noise: { type: "gaussian", mean: 120, sigma: 30 } } });
 const samples = async () => {
   const plain = await base().jpeg().toBuffer();

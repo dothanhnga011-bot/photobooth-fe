@@ -108,7 +108,7 @@ export function CounterCompose({ booking, onClose, onSaved }) {
       stickers: decor.stickers || [],
       transforms: chosen.map((shot) => decor.transforms?.[shot.key]),
     };
-    let canvas = await renderPrintFrame(frame, chosen, token, albumLink, { ...look, scale: 2, strict: true, sharp: true });
+    const canvas = await renderPrintFrame(frame, chosen, token, albumLink, { ...look, scale: 2, strict: true, sharp: true });
     let job;
     try {
       const [image] = await printSheets(canvas, frame, 1, booking.printSize, 2);
@@ -120,8 +120,8 @@ export function CounterCompose({ booking, onClose, onSaved }) {
         photos: printPhotoRegions(frame, canvas),
       };
     } finally {
+      // Trả bộ nhớ tờ in 2400 × 3600 ngay (canvas cỡ 0), trước khi chờ gửi lệnh in.
       canvas.width = canvas.height = 0;
-      canvas = null;
     }
     await submit(job);
   });

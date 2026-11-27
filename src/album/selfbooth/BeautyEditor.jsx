@@ -50,6 +50,7 @@ export function BeautyEditor({ token, media, photo, photos = [photo], adjust, on
       if (alive) setFaceState({ status: 'ready', faces });
     }).catch(error => { if (alive) setFaceState({ status: 'error', faces: [], message: error.message }); });
     return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- theo mã ảnh: photo là đối tượng mới mỗi lần album hỏi lại máy chủ
   }, [media, photo.id, attempt]);
   useEffect(() => {
     const current = ++turn.current;
@@ -74,7 +75,9 @@ export function BeautyEditor({ token, media, photo, photos = [photo], adjust, on
         if (isCurrent() && error.name !== 'AbortError') setRenderError(error.message);
       } finally { if (isCurrent()) setRendering(false); }
     }, 60);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- turn là bộ đếm lượt vẽ (không phải phần tử DOM): tăng để bỏ lượt đang chạy
     return () => { turn.current++; clearTimeout(timer); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- adjustKey = công thức làm đẹp a; renderKey suy ra từ photo.id + adjustKey
   }, [media, photo.id, adjustKey, attempt, edge]);
   useEffect(() => () => { turn.current++; if (edited.current) edited.current.width = edited.current.height = 0; }, []);
   useEffect(() => {

@@ -1,0 +1,163 @@
+/* Máy chụp PTB — Màn kết thúc: ảnh đã ghép & video tua nhanh, mã QR album. */
+@layer components {
+  /* ── Album: ảnh đã ghép & video tua nhanh ── */
+  /* Trang link ảnh (như Snapbox): ảnh lớn, nút Lưu / Lưu tất cả, dải ảnh nhỏ bên dưới. */
+  .album-viewer {
+    display: grid;
+    gap: 12px;
+    margin: 0 0 18px;
+    padding: 14px 0;
+    overflow: hidden;
+    border: 1px solid var(--line, #e5d9cf);
+    border-radius: 16px;
+    background: #fff;
+  }
+  .album-viewer-stage {
+    position: relative;
+    display: grid;
+    /* Hàng / cột có kích thước xác định để ảnh không tràn xuống dải ảnh nhỏ. */
+    grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+    place-items: center;
+    /* Chừa chỗ cho nút lưu, dải ảnh nhỏ và thanh công cụ dưới cùng của album. */
+    height: clamp(340px, calc(100dvh - 296px), 760px);
+    padding: 0 64px;
+    overflow: hidden;
+    touch-action: pan-y;
+  }
+  .album-viewer-stage img,
+  .album-viewer-stage video {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    box-shadow: 0 6px 22px rgb(47 30 23 / 14%);
+    -webkit-touch-callout: default;
+  }
+  .album-viewer-stage video {
+    width: 100%;
+    background: #000;
+  }
+  /* Ảnh nhỏ giữ chỗ và ảnh nét chồng lên nhau trong cùng một ô, cùng vị trí và kích thước hiển thị. */
+  .album-viewer-photo {
+    display: grid;
+    grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+  }
+  .album-viewer-photo > img {
+    grid-area: 1 / 1;
+  }
+  .album-viewer-stage .album-viewer-placeholder {
+    width: 100%;
+    height: 100%;
+    box-shadow: none;
+  }
+  .album-viewer-arrow {
+    position: absolute;
+    top: 50%;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    translate: 0 -50%;
+    border: 1px solid var(--line, #e5d9cf);
+    border-radius: 50%;
+    background: rgb(255 255 255 / 92%);
+    color: var(--mellow-cocoa, #4b332a);
+    font-size: 20px;
+    box-shadow: 0 4px 14px rgb(47 30 23 / 14%);
+    cursor: pointer;
+  }
+  .album-viewer-arrow.is-prev {
+    left: 12px;
+  }
+  .album-viewer-arrow.is-next {
+    right: 12px;
+  }
+  .album-viewer-note {
+    margin: 0;
+    padding: 0 14px;
+    color: var(--mellow-muted, #7a5a48);
+    font-size: 13px;
+    text-align: center;
+  }
+  .album-viewer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 14px;
+  }
+  .album-viewer-actions .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .album-viewer-rail {
+    display: flex;
+    gap: 8px;
+    padding: 4px 14px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+  }
+  .album-viewer-rail::before,
+  .album-viewer-rail::after {
+    flex: 1 0 0;
+    content: "";
+  }
+  .album-viewer-rail button {
+    flex: 0 0 auto;
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    overflow: hidden;
+    border: 2px solid transparent;
+    border-radius: 9px;
+    background: #f3ece6;
+    cursor: pointer;
+    scroll-snap-align: center;
+  }
+  .album-viewer-rail button.is-active {
+    border-color: var(--mellow-cocoa, #4b332a);
+  }
+  .album-viewer-rail img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .album-viewer-play {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    color: var(--mellow-cocoa, #4b332a);
+    font-size: 22px;
+  }
+  @media (max-width: 600px) {
+    .album-viewer-stage {
+      height: clamp(300px, calc(100dvh - 300px), 620px);
+      padding: 0 8px;
+    }
+    .album-viewer-arrow {
+      width: 36px;
+      height: 36px;
+      font-size: 16px;
+    }
+    .album-viewer-arrow.is-prev {
+      left: 4px;
+    }
+    .album-viewer-arrow.is-next {
+      right: 4px;
+    }
+    .album-viewer-rail button {
+      width: 48px;
+      height: 48px;
+    }
+  }
+}

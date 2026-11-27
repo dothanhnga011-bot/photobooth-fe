@@ -165,6 +165,8 @@ let requests = [];
 let unexpected = [];
 let pageErrors = [];
 let customers = [];
+// Đồng hồ giả đang đứng yên (createPage({ clock: true })): việc hẹn giờ của trang chỉ chạy khi test cho chạy.
+let pausedClock = false;
 
 async function readJson(request) {
   let body = "";
@@ -332,6 +334,7 @@ after(async () => {
 
 async function createPage({ clock = false } = {}) {
   await page?.close();
+  pausedClock = clock;
   page = await browser.newPage({
     viewport: { width: 1280, height: 900 },
     reducedMotion: "reduce",
@@ -1324,9 +1327,11 @@ const expiryLabel = () => nearestImage().locator("strong");
 // These tests open the assistant from the storage warning, so their summaries are near the limit.
 async function openAssistant() {
   await assistantCTA().click();
-  await page
-    .getByRole("heading", { name: "Trợ lí Minh", exact: true })
-    .waitFor();
+  const heading = page.getByRole("heading", { name: "Trợ lí Minh", exact: true });
+  // Trợ lí tải lười: React 19 hẹn giờ ~300 ms rồi mới hiện nội dung vừa tải xong. Đồng hồ giả đứng yên thì
+  // hẹn giờ đó không chạy — cho đồng hồ chạy từng 100 ms tới khi trợ lí hiện (không đủ tới lượt hỏi 30 giây).
+  for (let i = 0; pausedClock && i < 30 && !(await heading.isVisible()); i++) await page.clock.runFor(100);
+  await heading.waitFor();
 }
 
 async function assertRetentionFits() {

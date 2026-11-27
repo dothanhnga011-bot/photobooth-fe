@@ -56,10 +56,7 @@ export function PrintAlerts() {
       toast.error(text, 20000);
       notify("NXC — Lệnh in lỗi", text);
     };
-    const onUpdated = e => {
-      const job = JSON.parse(e.data);
-      window.dispatchEvent(new Event('nxc:print'));
-    };
+    const onUpdated = () => window.dispatchEvent(new Event('nxc:print'));
     const connect = () => {
       clearTimeout(timer);
       source?.close();
@@ -91,6 +88,6 @@ export function PrintAlerts() {
       unsubscribe();
       source.close();
     };
-  }, []);
+  }, [toast]); // toast không đổi (ToastProvider): kết nối mở một lần
   return null;
 }

@@ -4,7 +4,7 @@
 // quầy, nhân viên in ra máy DNP DS820). Không tính giờ: chỉ gửi in khi khách bấm Gửi in.
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from "node:test";
@@ -269,7 +269,7 @@ const sheetColor = (page, jpeg, fx, fy) => page.evaluate(async ([b64, fx, fy]) =
 }, [jpeg.toString("base64"), fx, fy]);
 const grey = ([r, g, b]) => Math.abs(r - g) < 14 && Math.abs(g - b) < 14 && r > 120;
 const isRed = ([r, g, b]) => r > 170 && g < 90 && b < 90;
-const isBlue = ([r, g, b]) => b > 170 && r < 90;
+const isBlue = ([r, , b]) => b > 170 && r < 90;
 const stored = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("selfbooth-album-v2-fixture-album")));
 const step = (page) => page.locator('.studio-steps [aria-current="step"]').textContent();
 

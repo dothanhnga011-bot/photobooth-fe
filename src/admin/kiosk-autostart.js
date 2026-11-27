@@ -18,7 +18,7 @@ const safe = (url) => {
 };
 
 // Launch the transfer application for this room's camera, alongside the kiosk.
-export function windowsScript(url, room, kind = "photobooth") {
+export function windowsScript(url, room, _kind = "photobooth") {
   // Từ 14/11 phòng Selfbooth cũng dùng Fujifilm X-T3 + X Acquire (như phòng Photobooth).
   const canon = false;
   const key = canon ? "EOS_UTILITY" : "FUJI_ACQUIRE";
@@ -67,7 +67,7 @@ export function windowsScript(url, room, kind = "photobooth") {
   return lines.join("\r\n");
 }
 
-export function macScript(url, room, kind = "photobooth") {
+export function macScript(url, room, _kind = "photobooth") {
   return `#!/bin/bash
 # NXC Photobooth - tự mở máy chụp phòng: ${room.replace(/[^\p{L}\p{N} .-]/gu, "")}
 # Chạy một lần: mỗi lần đăng nhập Mac sẽ tự mở Chrome toàn màn hình.

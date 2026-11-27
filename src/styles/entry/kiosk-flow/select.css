@@ -1,0 +1,562 @@
+/* Máy chụp PTB — Màn chọn ảnh & trang trí: các mục Chọn ảnh / Chỉnh ảnh / Màu ảnh / Thêm chữ / Nhãn dán. */
+@layer components {
+  /* ── Màn chọn ảnh: 3 mục Chọn ảnh / Màu ảnh / Nhãn dán bên phải khung xem trước ── */
+  .select-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    align-self: stretch;
+    min-height: 0;
+  }
+  .select-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 6px;
+    border-radius: 18px;
+    background: rgb(255 250 243 / 72%);
+    box-shadow: inset 0 0 0 1.5px #d9c6b6;
+  }
+  .select-tabs button {
+    display: inline-flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 58px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 13px;
+    background: transparent;
+    color: var(--mellow-ink, #3f2c25);
+    font-family: inherit;
+    font-size: 17px;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .select-tabs button svg {
+    flex: none;
+    font-size: 22px;
+  }
+  /* Màn nhỏ hơn 1920 (vd. 1366 × 768): 6 mục vẫn nằm một hàng — bỏ biểu tượng, chữ nhỏ hơn một chút. */
+  @media (max-width: 1700px) {
+    .select-tabs button {
+      gap: 6px;
+      padding: 0 8px;
+      font-size: 16px;
+    }
+    .select-tabs button svg {
+      display: none;
+    }
+  }
+  .select-tabs button[aria-selected="true"] {
+    background: var(--mellow-cocoa, #522e22);
+    color: #fff;
+    box-shadow: 0 4px 12px rgb(47 26 18 / 28%);
+  }
+  .select-tabs small {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgb(82 46 34 / 12%);
+    font-size: 13px;
+  }
+  .select-tabs [aria-selected="true"] small {
+    background: rgb(255 255 255 / 22%);
+  }
+  .select-tab-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: 1;
+    min-height: 0;
+  }
+  /* Lưới ảnh chiếm hết phần còn lại của ô "Chọn ảnh" (cao bằng cả hàng, theo khung xem trước bên
+     trái); số cột và cỡ ảnh do KioskSelect (useFitGrid) chọn để ảnh to nhất mà vẫn thấy hết.
+     contain: size — kích thước lưới không phụ thuộc vào ảnh bên trong, nên ảnh to lên không kéo cả
+     hàng cao thêm (và đo lại không bao giờ lặp vô hạn). */
+  .select-tab-panel .select-grid {
+    flex: 1 1 0;
+    min-height: 0;
+    max-height: none;
+    contain: size;
+    align-content: center;
+    justify-content: center;
+  }
+  .select-tab-panel .select-grid.is-fitted {
+    overflow: hidden;
+  }
+  .select-tab-panel .select-order {
+    width: clamp(32px, 2.4vw, 44px);
+    height: clamp(32px, 2.4vw, 44px);
+    font-size: clamp(16px, 1.3vw, 22px);
+  }
+  /* Một ảnh ở nhiều ô: nhãn "1·3" dài ra theo số ô. */
+  .select-tab-panel .select-order.is-many {
+    width: auto;
+    min-width: clamp(32px, 2.4vw, 44px);
+    padding: 0 0.6em;
+    border-radius: 999px;
+  }
+  /* "Chọn lại": bỏ hết ảnh đã chọn (nằm trong dòng hướng dẫn dưới tiêu đề). */
+  .select-clear {
+    /* Không làm dòng hướng dẫn cao lên (mục Chọn ảnh và Khung cao bằng nhau). */
+    padding: 0 12px;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--mellow-cocoa, #522e22);
+    font: inherit;
+    font-weight: 700;
+    line-height: 1.25;
+    cursor: pointer;
+  }
+  /* Mục "Khung": mọi khung của gói cùng lúc, mỗi khung ghép sẵn ảnh khách chọn. Số cột / cỡ ô do
+     KioskSelect (useFitGrid) chọn như lưới ảnh; ô nhỏ hơn 140 px thì lưới cuộn dọc. */
+  .frame-choices {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    flex: 1 1 0;
+    gap: 12px;
+    min-height: 0;
+    padding: 4px;
+    overflow-y: auto;
+    contain: size;
+    align-content: start;
+    justify-content: center;
+  }
+  .frame-choices.is-fitted {
+    align-content: center;
+    overflow: hidden;
+  }
+  .frame-choice {
+    position: relative;
+    padding: 4px;
+    border: 3px solid transparent;
+    border-radius: 12px;
+    background: #fffaf3;
+    cursor: pointer;
+    box-shadow: 0 3px 10px rgb(74 50 38 / 14%);
+  }
+  .frame-choice[aria-checked="true"] {
+    border-color: #4caf6e;
+    box-shadow: 0 0 0 3px rgb(76 175 110 / 28%);
+  }
+  .frame-choice-art {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    aspect-ratio: var(--frame-aspect, 2 / 3);
+    border-radius: 7px;
+    overflow: hidden;
+  }
+  .frame-choice.is-loading .frame-choice-art,
+  .frame-choice.is-failed .frame-choice-art {
+    background: #f3e8de;
+  }
+  .frame-choice-art img,
+  .frame-choice canvas {
+    grid-area: 1 / 1;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .frame-choice:not(.is-ready) canvas {
+    visibility: hidden;
+  }
+  .frame-choice-art em {
+    grid-area: 1 / 1;
+    padding: 8px;
+    color: var(--mellow-muted, #7a5a48);
+    font-size: 14px;
+    font-style: normal;
+    font-weight: 600;
+    text-align: center;
+  }
+  .frame-choice b {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    display: grid;
+    place-items: center;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--mellow-cocoa, #522e22);
+    color: #fff;
+    font-size: 14px;
+  }
+  .frame-choice[aria-checked="true"] b {
+    background: #4caf6e;
+  }
+  .frame-choice small {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgb(255 250 243 / 92%);
+    color: var(--mellow-ink, #3f2c25);
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .frame-themes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .frame-themes button {
+    min-height: 44px;
+    padding: 0 16px;
+    border: 2px solid #d9c6b6;
+    border-radius: 999px;
+    background: #fffaf3;
+    color: var(--mellow-ink, #3f2c25);
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .frame-themes button[aria-pressed="true"] {
+    border-color: var(--mellow-cocoa, #522e22);
+    background: var(--mellow-cocoa, #522e22);
+    color: #fff;
+  }
+  .frame-need {
+    margin: 0;
+    color: #a36114;
+    font-size: 15px;
+    font-weight: 600;
+    text-align: center;
+  }
+  /* Màn hẹp (một cột): khung xem trước ở trên, lưới ảnh bên dưới với chiều cao cố định. */
+  @media (max-width: 900px) {
+    .select-tab-panel .select-grid,
+    .frame-choices {
+      flex: none;
+      height: 56dvh;
+    }
+  }
+  /* Màu ảnh · áp dụng cho: "Tất cả ảnh" hoặc từng ảnh (số thứ tự trong khung) */
+  .color-targets {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .color-targets button {
+    position: relative;
+    border: 3px solid transparent;
+    border-radius: 12px;
+    background: #fffaf3;
+    color: var(--mellow-ink, #3f2c25);
+    font-family: inherit;
+    cursor: pointer;
+    box-shadow: 0 3px 10px rgb(74 50 38 / 12%);
+  }
+  .color-targets button[aria-checked="true"] {
+    border-color: #4caf6e;
+  }
+  .color-target-all {
+    min-height: 74px;
+    padding: 0 18px;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .color-target-photo {
+    width: 104px;
+    padding: 4px;
+  }
+  .color-target-photo img,
+  .color-target-photo i {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    border-radius: 7px;
+    object-fit: cover;
+    background: #e9d8c8;
+  }
+  .color-target-photo b {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--mellow-cocoa, #522e22);
+    color: #fff;
+    font-size: 13px;
+  }
+  .color-target-photo small {
+    display: block;
+    margin-top: 3px;
+    overflow: hidden;
+    color: #3d7a52;
+    font-size: 12px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .color-target-hint {
+    margin: 0;
+    color: var(--mellow-muted, #7a5a48);
+    font-size: 14px;
+  }
+  .select-frame-hint {
+    margin: 0;
+    max-width: 34ch;
+    color: var(--mellow-cocoa, #522e22);
+    font-size: clamp(17px, 1.4vw, 23px);
+    font-weight: 600;
+    line-height: 1.35;
+    text-align: center;
+    text-wrap: balance;
+  }
+  /* Màu ảnh: ảnh khách đã chọn hiện với từng màu */
+  .select-filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    align-content: start;
+    gap: 14px;
+    max-height: 46dvh;
+    overflow-y: auto;
+    padding: 4px;
+  }
+  .select-filters button {
+    display: grid;
+    gap: 8px;
+    padding: 8px 8px 10px;
+    border: 4px solid transparent;
+    border-radius: 14px;
+    background: #fffaf3;
+    color: inherit;
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgb(74 50 38 / 14%);
+  }
+  .select-filters img,
+  .select-filters i {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    border-radius: 8px;
+    background: #e9d8c8;
+    object-fit: cover;
+  }
+  .select-filters button[aria-checked="true"] {
+    border-color: #4caf6e;
+  }
+  /* Nhãn dán: nút chỉnh nhãn dán đang chọn, bảng nhãn dán, dòng ghi chú */
+  .sticker-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 58px;
+  }
+  .sticker-tools p {
+    margin: 0;
+    color: var(--mellow-muted, #7a5a48);
+    font-size: 16px;
+    text-align: center;
+  }
+  .sticker-tools button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 52px;
+    padding: 0 18px;
+    border: 2px solid var(--mellow-cocoa, #522e22);
+    border-radius: 999px;
+    background: #fffaf3;
+    color: var(--mellow-cocoa, #522e22);
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .sticker-tools button.is-danger {
+    border-color: #b4483c;
+    color: #b4483c;
+  }
+  .sticker-tools button:disabled {
+    cursor: default;
+    opacity: 0.4;
+  }
+  .sticker-palette {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    align-content: start;
+    gap: 10px;
+    flex: 1;
+    max-height: 50dvh;
+    overflow-y: auto;
+    padding: 4px;
+  }
+  .sticker-palette button {
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1;
+    padding: 8px;
+    border: 0;
+    border-radius: 14px;
+    background: #fffaf3;
+    font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+    font-size: 40px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 3px 10px rgb(74 50 38 / 12%);
+  }
+  .sticker-palette button:active {
+    transform: scale(0.94);
+  }
+  .sticker-palette img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .sticker-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    color: var(--mellow-muted, #7a5a48);
+  }
+  .sticker-foot .text-link {
+    margin-left: auto;
+    font-size: 15px;
+    font-weight: 700;
+  }
+  /* Khung xem trước nhận thao tác kéo / chụm 2 ngón trên nhãn dán */
+  .decor-canvas {
+    touch-action: none;
+    user-select: none;
+  }
+
+  /* ── Chỉnh ảnh trong ô (phóng to / dời) ── */
+  .select-adjust { gap: 14px; }
+  .adjust-photos {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+    gap: 10px;
+  }
+  .adjust-photo {
+    position: relative;
+    padding: 4px;
+    border: 3px solid transparent;
+    border-radius: 14px;
+    background: #fffaf3;
+    cursor: pointer;
+    box-shadow: 0 3px 10px rgb(74 50 38 / 12%);
+  }
+  .adjust-photo.is-active { border-color: #4caf6e; }
+  .adjust-thumb { display: block; overflow: hidden; border-radius: 9px; }
+  .adjust-photo img, .adjust-photo i {
+    display: block; width: 100%; aspect-ratio: 3 / 2;
+    border-radius: 9px; object-fit: cover; background: #e9d8c8;
+  }
+  .adjust-photo img { transition: transform .2s ease; }
+  .adjust-photo b {
+    position: absolute; top: 7px; left: 7px;
+    display: grid; place-items: center; width: 22px; height: 22px;
+    border-radius: 50%; background: var(--mellow-cocoa, #522e22); color: #fff; font-size: 12px;
+  }
+  .adjust-controls {
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    padding: 16px; border-radius: 22px;
+    background: #fdf4ea; box-shadow: inset 0 0 0 1px rgb(122 74 54 / 15%);
+  }
+  .adjust-zoom { display: flex; align-items: center; gap: 12px; }
+  .adjust-zoom span {
+    min-width: 66px; text-align: center; font-weight: 700; font-size: 18px;
+    color: var(--mellow-cocoa, #522e22);
+  }
+  .adjust-zoom button {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 52px; padding: 0 18px;
+    border: 2px solid var(--mellow-cocoa, #522e22); border-radius: 999px;
+    background: #fffaf3; color: var(--mellow-cocoa, #522e22);
+    font-family: inherit; font-size: 16px; font-weight: 700; cursor: pointer;
+  }
+  .adjust-zoom button:disabled { opacity: .4; cursor: default; }
+  /* Xoay trái — nút dời — Xoay phải trên cùng một hàng. */
+  .adjust-move { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 18px; }
+  .adjust-rotate {
+    display: grid; place-items: center; gap: 4px; width: 96px; min-height: 96px; padding: 10px 6px;
+    border: 2px solid var(--mellow-cocoa, #522e22); border-radius: 20px;
+    background: #fffaf3; color: var(--mellow-cocoa, #522e22);
+    font-family: inherit; font-size: 15px; font-weight: 700; line-height: 1.2; cursor: pointer;
+  }
+  .adjust-rotate svg { font-size: 30px; }
+  .adjust-pan {
+    display: grid; gap: 6px;
+    grid-template-columns: repeat(3, 56px); grid-template-rows: repeat(3, 56px);
+    grid-template-areas: ".  up  ." "left mid right" ".  down .";
+  }
+  .adjust-pan button, .adjust-pan .pan-mid {
+    display: grid; place-items: center; border-radius: 16px;
+    background: #fffaf3; border: 2px solid rgb(122 74 54 / 25%);
+    color: var(--mellow-cocoa, #522e22); font-size: 22px; cursor: pointer;
+  }
+  .adjust-pan .pan-up { grid-area: up; }
+  .adjust-pan .pan-left { grid-area: left; }
+  .adjust-pan .pan-right { grid-area: right; }
+  .adjust-pan .pan-down { grid-area: down; }
+  .adjust-pan .pan-mid { grid-area: mid; border: 0; background: none; color: rgb(122 74 54 / 40%); cursor: default; }
+  .adjust-controls small { color: var(--mellow-muted, #7a5a48); text-align: center; }
+
+  /* ── Thêm chữ đánh máy vào khung ── */
+  .select-text { gap: 12px; }
+  .text-preview {
+    min-height: 64px; display: grid; place-items: center; padding: 10px 16px;
+    border-radius: 18px; background: #fffaf3;
+    box-shadow: inset 0 0 0 1px rgb(122 74 54 / 15%);
+    /* Cùng nét với chữ vẽ lên khung (không đậm): khách thấy đúng như bản in. */
+    font-size: 30px; font-weight: 400; text-align: center; word-break: break-word;
+  }
+  .text-preview .text-ph { color: #c3ab9b; font-weight: 400; font-size: 18px; }
+  .text-fonts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .text-fonts button {
+    /* Tên kiểu chữ viết bằng chính kiểu đó: cỡ 20 px để nét mảnh (Chữ ký, Mềm mại) vẫn đọc được. */
+    min-height: 48px; padding: 0 16px; border-radius: 999px;
+    border: 2px solid rgb(122 74 54 / 30%); background: #fffaf3;
+    color: var(--mellow-ink, #3f2c25); font-size: 20px; line-height: 1.1; cursor: pointer;
+  }
+  .text-fonts button.is-on { border-color: var(--mellow-cocoa, #522e22); background: #f3e3d4; }
+  /* Ký tự trang trí: một hàng vuốt ngang (dấu tên Instagram, ♡ ☆ ✿…, mẫu ghép sẵn). */
+  .text-symbols {
+    display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px;
+    scroll-snap-type: x proximity; scrollbar-width: thin;
+  }
+  .text-symbols button {
+    flex: none; min-width: 48px; min-height: 48px; padding: 0 12px; border-radius: 12px;
+    border: 1px solid rgb(122 74 54 / 30%); background: #fffaf3;
+    color: var(--mellow-ink, #3f2c25); font: inherit; font-size: 24px; line-height: 1;
+    scroll-snap-align: start; cursor: pointer;
+  }
+  .text-symbols button.is-preset { font-size: 20px; }
+  .text-symbols button:active { background: #f3e3d4; }
+  .text-colors { display: flex; flex-wrap: wrap; gap: 8px; }
+  .text-colors button {
+    width: 38px; height: 38px; padding: 0; border-radius: 50%;
+    border: 3px solid #fff; box-shadow: 0 0 0 1px rgb(122 74 54 / 30%); cursor: pointer;
+  }
+  .text-colors button.is-on { box-shadow: 0 0 0 3px #4caf6e; }
+  .text-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .text-actions button {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 52px; padding: 0 18px;
+    border: 2px solid var(--mellow-cocoa, #522e22); border-radius: 999px;
+    background: #fffaf3; color: var(--mellow-cocoa, #522e22);
+    font-family: inherit; font-size: 16px; font-weight: 700; cursor: pointer;
+  }
+  .text-actions button:disabled { opacity: .4; cursor: default; }
+  .text-actions .text-add { background: var(--mellow-cocoa, #522e22); color: #fff; }
+  .text-actions button.is-danger { border-color: #b4483c; color: #b4483c; }
+}

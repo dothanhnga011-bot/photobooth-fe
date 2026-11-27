@@ -141,6 +141,10 @@ npm run preview
 `npm test` chạy các test đơn vị. Test trên trình duyệt chạy bằng `node test/<tên>.browser.mjs`
 (cần build trước và repo `photobooth-be` đã cài dependencies nằm cạnh repo này).
 
+GitHub Actions (`.github/workflows/test.yml`) tự chạy test đơn vị và build thử mỗi lần push lên `main`,
+trên Windows như máy ở tiệm (cả test in DNP / RX1). Dấu ✗ đỏ cạnh commit trên GitHub = có test hỏng, cần
+sửa trước khi deploy. Test trình duyệt vẫn chạy tay trên máy.
+
 Build nằm trong `dist/`. Bản chạy thật ở Cloudflare Workers (https://studio.selfbooth.workers.dev):
 `cloudflare/worker.js` chuyển tiếp `/api/*` tới backend, Static Assets trả `index.html` cho các route
 React. Cách triển khai và cấu hình: `CLOUDFLARE.md`.

@@ -121,6 +121,7 @@ export function AlbumViewer({ token, booking }) {
       image.decoding = "async";
       image.src = src;
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- items tạo mới mỗi lần album hỏi lại máy chủ; chỉ chạy khi đổi ảnh / số ảnh
   }, [index, items.length]);
   useEffect(() => {
     rail.current?.querySelector(".is-active")?.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
@@ -133,7 +134,7 @@ export function AlbumViewer({ token, booking }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [index, items.length]);
+  }); // gắn lại sau mỗi lần vẽ: phím ← → luôn dùng go() mới nhất
   // Vuốt ngang trên ảnh lớn để chuyển ảnh.
   const swipe = useRef(null);
   // Lưu vào thư viện ảnh. iPhone: tải tệp về trang rồi mở bảng chia sẻ ("Lưu N mục"). Tải lâu thì

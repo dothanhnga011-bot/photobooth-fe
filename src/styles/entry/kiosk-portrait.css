@@ -2,7 +2,7 @@
   Màn dọc cảm ứng của phòng chụp (vd. 1080 × 1920) — bố cục chính của luồng khách. Màn ngang giữ
   nguyên như cũ (các quy tắc dưới đây chỉ áp khi màn dọc và rộng từ 700 px, không áp cho điện thoại).
   Mỗi màn vừa đúng một màn hình, không cuộn; nội dung dàn hết chiều cao, chữ to và nút cao dễ chạm.
-  Nạp sau kiosk-flow.css nên ghi đè các quy tắc màn ngang cùng độ ưu tiên.
+  Nạp sau các tệp kiosk-flow/*.css nên ghi đè các quy tắc màn ngang cùng độ ưu tiên.
 */
 @layer components {
   @media (orientation: portrait) and (min-width: 700px) {

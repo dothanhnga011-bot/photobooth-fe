@@ -477,7 +477,7 @@ test("opening a configured kiosk uses the returned device token and displays QR 
     api: `http://127.0.0.1:${server.address().port}`, token: "printer-token.room-1", room: "Phòng 01",
   });
   const agent = Buffer.from(/^rem NXC_PRINT_AGENT_BASE64:(\S+)/m.exec(bat)[1], "base64").toString("utf8");
-  assert.match(agent, /^﻿# NXC Photobooth - chương trình in tự động cho máy DNP DS-RX1/);
+  assert.match(agent, /^\uFEFF# NXC Photobooth - chương trình in tự động cho máy DNP DS-RX1/);
   await page.getByRole("status").filter({ hasText: "Đã tải file cài máy in" }).first().waitFor();
   const [colorDownload] = await Promise.all([
     page.waitForEvent("download"),

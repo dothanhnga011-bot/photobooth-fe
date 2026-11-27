@@ -87,15 +87,19 @@ export function FramesManager({ notify, initialTheme = "all" }) {
   useEffect(() => {
     load();
   }, []);
-  const themeOrder = (settings.themes || []).map((t) => t.name);
-  const rank = (name) => {
-    const index = themeOrder.indexOf(name);
-    return index < 0 ? themeOrder.length : index;
-  };
-  const sorted = useMemo(() => [...(frames || [])].sort((a, b) =>
-    rank(a.themeName?.trim()) - rank(b.themeName?.trim()) ||
-    String(a.themeName || "").localeCompare(String(b.themeName || ""), "vi") ||
-    compareFrameOrder(a, b)), [frames, themeOrder.join()]);
+  // Xếp khung theo thứ tự chủ đề của tiệm; chỉ xếp lại khi danh sách khung hoặc thứ tự chủ đề đổi.
+  const themeKey = (settings.themes || []).map((t) => t.name).join("\n");
+  const sorted = useMemo(() => {
+    const themeOrder = themeKey ? themeKey.split("\n") : [];
+    const rank = (name) => {
+      const index = themeOrder.indexOf(name);
+      return index < 0 ? themeOrder.length : index;
+    };
+    return [...(frames || [])].sort((a, b) =>
+      rank(a.themeName?.trim()) - rank(b.themeName?.trim()) ||
+      String(a.themeName || "").localeCompare(String(b.themeName || ""), "vi") ||
+      compareFrameOrder(a, b));
+  }, [frames, themeKey]);
   const kindOf = (name) => themeKinds[name] || "photobooth";
   const counts = useMemo(() => ({
     photobooth: sorted.filter((f) => serviceOf(f.printSize) === "photobooth").length,
@@ -116,6 +120,7 @@ export function FramesManager({ notify, initialTheme = "all" }) {
     if (opened.current || !frames) return;
     opened.current = true;
     if (initialTheme !== "all" && initialTheme !== "none" && themeKinds[initialTheme]) setService(themeKinds[initialTheme]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ một lần, khi danh sách khung vừa tải xong
   }, [frames]);
   // Đổi tab: bỏ lọc chủ đề / kích thước của tab kia.
   const switchService = (next) => {
@@ -561,7 +566,7 @@ function FrameEditor({ frame: initial, themes, themeKinds = {}, frames, onClose,
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selected, slots, drawing]);
+  }); // gắn lại sau mỗi lần vẽ: phím tắt luôn dùng end / removeRegion và trạng thái mới nhất
 
   async function save() {
     const themeName = (frame.themeName === "__new" ? newTheme : frame.themeName || "").trim();

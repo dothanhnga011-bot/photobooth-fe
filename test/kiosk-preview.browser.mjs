@@ -25,7 +25,7 @@ before(async () => {
     };
     function BitmapProbe({count,token}){
       const shots=React.useMemo(()=>Array.from({length:count},(_,i)=>({key:String(i),preview:window.photoBlob})),[count]);
-      const map=useShotBitmaps(shots,token);
+      const {bitmaps:map}=useShotBitmaps(shots,token);
       React.useLayoutEffect(()=>{window.bitmapResult=[...map].map(([key,image])=>({key,width:image.width,height:image.height}));},[map]);
       return null;
     }

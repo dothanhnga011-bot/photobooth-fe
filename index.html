@@ -10,6 +10,17 @@
     <title>NXC Photobooth</title>
     <link rel="icon" type="image/jpeg" href="/logo-m-384.jpg" />
     <link rel="apple-touch-icon" href="/logo-m-384.jpg" />
+    <!-- Album mở từ mã QR: hỏi máy chủ danh sách ảnh ngay khi trang vừa tới, song song với lúc tải mã JS
+         (~2 s trên 4G). Lần đọc album đầu tiên của ứng dụng dùng lại đúng phản hồi này (api.js), không hỏi lại. -->
+    <script>
+      (function () {
+        var m = /^\/album\/([^/?#]+)/.exec(location.pathname);
+        if (!m || !window.fetch) return;
+        var path = "/albums/" + m[1];
+        window.__albumPrefetch = { path: path, response: fetch("/api" + path, { credentials: "include" }) };
+        window.__albumPrefetch.response.catch(function () {});
+      })();
+    </script>
     <link
       rel="preload"
       href="/fonts/be-vietnam-pro-400.woff2"

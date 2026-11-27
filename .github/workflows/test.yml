@@ -1,0 +1,50 @@
+# Mỗi lần push lên main (và mỗi pull request): chạy test đơn vị rồi build thử.
+# Chạy trên Windows như máy chụp / máy quầy của tiệm, để cả các test in DNP / RX1 (PowerShell, GDI+) cũng chạy.
+# Một số test dùng sharp và script in của máy chủ: repo photobooth-be được lấy về đặt cạnh, như trên máy tiệm.
+# Test trình duyệt (test/*.browser.mjs) chạy tay trên máy — xem README.
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: photobooth-fe
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/photobooth-be
+          path: photobooth-be
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            photobooth-fe/package-lock.json
+            photobooth-be/package-lock.json
+      - name: Cài thư viện máy chủ (sharp cho test ảnh)
+        working-directory: photobooth-be
+        run: npm ci
+      - name: Cài thư viện web
+        working-directory: photobooth-fe
+        run: npm ci
+      - name: Kiểm tra code (ESLint, cả luật React hooks)
+        working-directory: photobooth-fe
+        run: npm run lint -- --max-warnings 0
+      - name: Test đơn vị
+        working-directory: photobooth-fe
+        run: npm test
+      - name: Build
+        working-directory: photobooth-fe
+        run: npm run build

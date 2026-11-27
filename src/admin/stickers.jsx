@@ -6,9 +6,8 @@ import { imageData } from "./image-data";
 
 // PNG nhiều chi tiết có thể vượt giới hạn máy chủ: thu nhỏ dần tới khi vừa.
 async function stickerImage(file) {
-  let image = "";
   for (const edge of [512, 384, 256, 192]) {
-    image = await imageData(file, edge, "image/png");
+    const image = await imageData(file, edge, "image/png");
     if (image.length <= 690_000) return image;
   }
   throw new Error(`Ảnh “${file.name}” quá nhiều chi tiết. Vui lòng chọn ảnh đơn giản hơn.`);

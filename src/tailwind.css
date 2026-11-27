@@ -52,7 +52,13 @@
 @import "./styles/admin/studio-setup.css";
 @import "./styles/admin/frames.css";
 @import "./styles/admin/frame-regions.css";
-@import "./styles/entry/kiosk-flow.css";
+@import "./styles/entry/kiosk-flow/shoot.css";
+@import "./styles/entry/kiosk-flow/sale.css";
+@import "./styles/entry/kiosk-flow/select.css";
+@import "./styles/entry/kiosk-flow/keyboard.css";
+@import "./styles/entry/kiosk-flow/device-settings.css";
+@import "./styles/entry/kiosk-flow/done.css";
+@import "./styles/entry/kiosk-flow/shoot-portrait.css";
 @import "./styles/entry/kiosk-portrait.css";
 @import "./styles/entry/kiosk-frames.css";
 @import "./styles/entry/kiosk-classic.css";

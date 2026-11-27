@@ -65,6 +65,7 @@ export function SummaryPanel({ canSeeMoney, assignedBranch, onError, refreshKey 
   // Vừa cấp mã / thu tiền ở quầy: cập nhật số liệu ngay.
   useEffect(() => {
     if (refreshKey) reload();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reload đổi theo khoảng ngày (useLiveData tự tải lại); ở đây chỉ khi quầy vừa thu tiền
   }, [refreshKey]);
   const loading = data?.query !== query;
   const period =
